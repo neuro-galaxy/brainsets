@@ -61,5 +61,6 @@ class Probe(Dictable):
     wideband_sampling_rate: float
     waveform_sampling_rate: float
     waveform_samples: int
-    channels: list[Channel]
+    # channels: list[Channel]
+    channels: list
     ecog_sampling_rate: float = 0.0

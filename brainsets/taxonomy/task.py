@@ -24,7 +24,8 @@ class Task(StringIntEnum):
     CONTINUOUS_SPEAKING_SENTENCE = 7
 
 
-class REACHING(StringIntEnum, parent=Task.REACHING):
+# class REACHING(StringIntEnum, parent=Task.REACHING):
+class REACHING(StringIntEnum):
     """A classic BCI task involving reaching to a 2d target."""
 
     RANDOM = 0
