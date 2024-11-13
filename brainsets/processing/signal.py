@@ -18,8 +18,8 @@ def downsample_wideband(
     timestamps: np.ndarray,
     wideband_Fs: float,
     lfp_Fs: float = 1000,
-): 
-# ) -> tuple[np.ndarray, np.ndarray]:
+):
+    # ) -> tuple[np.ndarray, np.ndarray]:
     """
     Downsample wideband signal to LFP sampling rate.
     """
