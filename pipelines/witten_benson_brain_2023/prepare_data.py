@@ -2,10 +2,13 @@
 
 import sys
 import argparse
+import h5py
 import numpy as np
 import pandas as pd
 from datetime import datetime
 import logging
+from brainsets import serialize_fn_map  # This contains the serialization functions
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -33,6 +36,10 @@ from brainsets.taxonomy import (
     Sex,
     Species,
     SubjectDescription,
+    SessionDescription,
+    DeviceDescription,
+    BrainsetDescription,
+    RecordingTech,
 )
 
 np.random.seed(42)
@@ -290,74 +297,137 @@ import os
 
 os.makedirs(f"{base_path}/processed/ibl_{eid}", exist_ok=True)
 os.makedirs(f"{base_path}/raw", exist_ok=True)
-db = Dataset(
-    raw_folder_path=f"{base_path}/raw/",
-    processed_folder_path=f"{base_path}/processed/ibl_{eid}/",
-    # metadata for the dataset
-    experiment_name=eid,
-    origin_version="",
-    derived_version="",
-    source="",
-    description="",
+
+# Create metadata descriptions
+brainset_description = BrainsetDescription(
+    id=f"ibl_{args.eid}",
+    origin_version="2023_12",
+    derived_version="1.0.0",
+    source="https://openalyx.internationalbrainlab.org",
+    description="IBL mouse behavioral and neural data during decision-making task",
 )
 
-with db.new_session() as session:
+subject = SubjectDescription(
+    id=one.get_details(args.eid)["subject"],
+    species=Species.from_string("MUS_MUSCULUS"),
+    sex=Sex.from_string("MALE"),
+)
 
-    subject = SubjectDescription(
-        id=one.get_details(eid)["subject"],
-        species=Species.from_string("MUS_MUSCULUS"),
-        sex=Sex.from_string("MALE"),
-    )
-    session.register_subject(subject)
+session_description = SessionDescription(
+    id=args.eid,
+    recording_date=datetime.today(),
+    task=Task.FREE_BEHAVIOR,
+)
 
-    # extract experiment metadata
-    # recording_date = nwbfile.session_start_time.strftime("%Y%m%d")
-    session_id = eid
+device_description = DeviceDescription(
+    id=f"{subject.id}_{args.eid}",
+    recording_tech=RecordingTech.NEUROPIXELS_SPIKES,
+)
 
-    # register session
-    session.register_session(
-        id=session_id,
-        recording_date=datetime.today().strftime("%Y%m%d"),
-        task=Task.FREE_BEHAVIOR,
-    )
+# register session
+session_start, session_end = (
+    trials.start[0],
+    trials.end[-1],
+)
 
-    # register sortset
-    session.register_sortset(
-        id=session_id,
-        units=units,
-    )
+# Create the final Data object
+data = Data(
+    # brainset=brainset_description,
+    # subject=subject,
+    # session=session_description,
+    # device=device_description,
+    spikes=spikes,
+    units=units,
+    trials=trials,
+    wheel=wheel,
+    whisker=whisker,
+    choice=choice,
+    block=block,
+    reward=reward,
+    domain=Interval(session_start, session_end),
+)
 
-    # register session
-    session_start, session_end = (
-        trials.start[0],
-        trials.end[-1],
-    )
+train_trials = trials.select_by_mask(trials.train_mask_nwb)
+valid_trials = trials.select_by_mask(trials.val_mask_nwb)
+test_trials = trials.select_by_mask(trials.test_mask_nwb)
 
-    data = Data(
-        spikes=spikes,
-        units=units,
-        trials=trials,
-        wheel=wheel,
-        whisker=whisker,
-        choice=choice,
-        block=block,
-        reward=reward,
-        domain=Interval(session_start, session_end),
-    )
 
-    session.register_data(data)
+# Save the data
+output_path = os.path.join(args.base_path, "processed", f"ibl_{args.eid}.h5")
+os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    # split and register trials into train, validation and test
-    train_trials = trials.select_by_mask(trials.train_mask_nwb)
-    valid_trials = trials.select_by_mask(trials.val_mask_nwb)
-    test_trials = trials.select_by_mask(trials.test_mask_nwb)
+# Create train sampling intervals by excluding dilated valid and test regions
+train_sampling_intervals = data.domain.difference(
+    (valid_trials | test_trials).dilate(3.0)
+)
 
-    session.register_split("train", train_trials)
-    session.register_split("valid", valid_trials)
-    session.register_split("test", test_trials)
+# Set the domains in the data object
+data.train_domain = train_sampling_intervals
+data.valid_domain = valid_trials
+data.test_domain = test_trials
+print(data)
 
-    # save data to disk
-    session.save_to_disk()
 
-# all sessions added, finish by generating a description file for the entire dataset
-db.finish()
+with h5py.File(output_path, "w") as f:
+    data.to_hdf5(f, serialize_fn_map=serialize_fn_map)
+
+# with db.new_session() as session:
+
+#     subject = SubjectDescription(
+#         id=one.get_details(eid)["subject"],
+#         species=Species.from_string("MUS_MUSCULUS"),
+#         sex=Sex.from_string("MALE"),
+#     )
+
+#     # extract experiment metadata
+#     # recording_date = nwbfile.session_start_time.strftime("%Y%m%d")
+#     session_id = eid
+
+#     # register session
+#     session.register_session(
+#         id=session_id,
+#         recording_date=datetime.today().strftime("%Y%m%d"),
+#         task=Task.FREE_BEHAVIOR,
+#     )
+
+#     # register sortset
+#     session.register_sortset(
+#         id=session_id,
+#         units=units,
+#     )
+
+#     # register session
+#     session_start, session_end = (
+#         trials.start[0],
+#         trials.end[-1],
+#     )
+
+#     data = Data(
+#         spikes=spikes,
+#         units=units,
+#         trials=trials,
+#         wheel=wheel,
+#         whisker=whisker,
+#         choice=choice,
+#         block=block,
+#         reward=reward,
+#         domain=Interval(session_start, session_end),
+#     )
+
+#     session.register_data(data)
+
+#     # split and register trials into train, validation and test
+#     train_trials = trials.select_by_mask(trials.train_mask_nwb)
+#     valid_trials = trials.select_by_mask(trials.val_mask_nwb)
+#     test_trials = trials.select_by_mask(trials.test_mask_nwb)
+
+
+#     session.register_split("train", train_trials)
+#     session.register_split("valid", valid_trials)
+#     session.register_split("test", test_trials)
+
+#     # save data to disk
+#     session.save_to_disk()
+
+# # all sessions added, finish by generating a description file for the entire dataset
+# db.finish()
