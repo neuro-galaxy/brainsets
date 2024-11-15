@@ -332,10 +332,10 @@ session_start, session_end = (
 
 # Create the final Data object
 data = Data(
-    # brainset=brainset_description,
-    # subject=subject,
-    # session=session_description,
-    # device=device_description,
+    brainset=brainset_description,
+    subject=subject,
+    session=session_description,
+    device=device_description,
     spikes=spikes,
     units=units,
     trials=trials,
@@ -345,6 +345,7 @@ data = Data(
     block=block,
     reward=reward,
     domain=Interval(session_start, session_end),
+    # domain = trials.domain,
 )
 
 train_trials = trials.select_by_mask(trials.train_mask_nwb)
@@ -368,8 +369,82 @@ data.test_domain = test_trials
 print(data)
 
 
+# First, let's inspect what's causing the issue
+for field_name, field_value in data.__dict__.items():
+    print(f"\nInspecting {field_name}:")
+    if hasattr(field_value, "__dict__"):
+        for key, val in field_value.__dict__.items():
+            if isinstance(val, np.ndarray):
+                print(f"  {key}: shape={val.shape}, dtype={val.dtype}")
+            else:
+                print(f"  {key}: type={type(val)}")
+
+# Then try saving with type checking
 with h5py.File(output_path, "w") as f:
-    data.to_hdf5(f, serialize_fn_map=serialize_fn_map)
+    for field_name, field_value in data.__dict__.items():
+        if field_value is not None:
+            print(f"\nTrying to save {field_name}")
+            group = f.create_group(field_name)
+
+            if isinstance(field_value, (Interval, IrregularTimeSeries, ArrayDict)):
+                # Get all attributes of the object
+                for key, val in field_value.__dict__.items():
+                    if isinstance(val, np.ndarray):
+                        if val.dtype == np.dtype("O"):
+                            # Convert object arrays to strings
+                            try:
+                                string_array = np.array(
+                                    [str(x) for x in val], dtype="S"
+                                )
+                                group.create_dataset(key, data=string_array)
+                            except Exception as e:
+                                print(
+                                    f"Warning: Could not save {field_name}.{key}: {e}"
+                                )
+                        else:
+                            group.create_dataset(key, data=val)
+                    else:
+                        # Save other types as attributes
+                        try:
+                            group.attrs[key] = str(val)
+                        except Exception as e:
+                            print(f"Warning: Could not save {field_name}.{key}: {e}")
+
+            elif isinstance(
+                field_value,
+                (
+                    BrainsetDescription,
+                    SubjectDescription,
+                    SessionDescription,
+                    DeviceDescription,
+                ),
+            ):
+                # Save description objects as attributes
+                for key, val in field_value.__dict__.items():
+                    try:
+                        group.attrs[key] = str(val)
+                    except Exception as e:
+                        print(f"Warning: Could not save {field_name}.{key}: {e}")
+
+# Verify the save
+print("\nVerifying saved structure:")
+with h5py.File(output_path, "r") as f:
+
+    def print_structure(name, obj):
+        print(name)
+
+    f.visititems(print_structure)
+
+# # Then save to H5
+# with h5py.File(output_path, "w") as f:
+#     domain_group = f.create_group('domain')
+#     domain_group.create_dataset('start', data=data.domain.start)
+#     domain_group.create_dataset('end', data=data.domain.end)
+
+#     # Verify the save
+#     print("\nSaved data in H5:")
+#     print("domain/start:", f['domain/start'][:])
+#     print("domain/end:", f['domain/end'][:])
 
 # with db.new_session() as session:
 
