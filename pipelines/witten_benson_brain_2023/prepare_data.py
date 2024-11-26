@@ -1,16 +1,14 @@
-"""Load data, processes it, save it."""
+"""Load data, process it, and save it."""
 
 import sys
 import argparse
 import h5py
 import numpy as np
 import pandas as pd
+import os
 from datetime import datetime
 import logging
 from brainsets import serialize_fn_map  # This contains the serialization functions
-
-
-logging.basicConfig(level=logging.INFO)
 
 from one.api import ONE
 from ibl_data_utils import (
@@ -42,14 +40,25 @@ from brainsets.taxonomy import (
     RecordingTech,
 )
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
+# Set random seed for reproducibility
 np.random.seed(42)
 
 # -------
 # SET UP
 # -------
-ap = argparse.ArgumentParser()
-ap.add_argument("--eid", type=str, default="c7bf2d49-4937-4597-b307-9f39cb1c7b16")
-ap.add_argument("--base_path", type=str, default="../../")
+ap = argparse.ArgumentParser(description="Process neural and behavioral data.")
+ap.add_argument(
+    "--eid",
+    type=str,
+    default="c7bf2d49-4937-4597-b307-9f39cb1c7b16",
+    help="Experiment ID",
+)
+ap.add_argument(
+    "--base_path", type=str, default="./processed", help="Base path for output files"
+)
 args = ap.parse_args()
 
 base_path = args.base_path
@@ -66,12 +75,15 @@ params = {
     "fr_thresh": 0.5,
 }
 
+# Initialize ONE
 one = ONE(
     base_url="https://openalyx.internationalbrainlab.org",
     password="international",
 )
 
+# Load metadata
 bwm_df = pd.read_csv("2023_12_bwm_release.csv", index_col=0)
+
 
 # ---------
 # Load Data
@@ -79,6 +91,7 @@ bwm_df = pd.read_csv("2023_12_bwm_release.csv", index_col=0)
 neural_dict, _, meta_data, trials_data, _ = prepare_data(
     one, eid, bwm_df, params, n_workers=1
 )
+
 regions, beryl_reg = list_brain_regions(neural_dict, **params)
 region_cluster_ids = select_brain_regions(neural_dict, beryl_reg, regions, **params)
 binned_spikes, clusters_used_in_bins = bin_spiking_data(
@@ -88,6 +101,7 @@ binned_spikes, clusters_used_in_bins = bin_spiking_data(
     n_workers=1,
     **params,
 )
+
 # Filter out inactive neurons
 avg_fr = binned_spikes.sum(1).mean(0) / params["interval_len"]
 active_neuron_ids = np.argwhere(avg_fr > 1 / params["fr_thresh"]).flatten()
@@ -96,7 +110,7 @@ active_neuron_ids = np.argwhere(avg_fr > 1 / params["fr_thresh"]).flatten()
 # -------------------------
 # Extract Spiking Activity
 # -------------------------
-logging.info(f"Extracting spikes ...")
+logging.info("Extracting spikes ...")
 
 spike_times = neural_dict["spike_times"]
 spike_clusters = neural_dict["spike_clusters"]
@@ -108,13 +122,12 @@ unit_ids = np.array(meta_data["uuids"])[active_neuron_ids]
 # Convert to spike data object
 unit_meta, timestamps, unit_index = [], [], []
 for i in range(len(unit_ids)):
-
     unit_id = unit_ids[i]
     times = spike_times[spike_clusters == i]
     timestamps.append(times)
 
     if len(times) > 0:
-        unit_index.append([i] * len(times))
+        unit_index.extend([i] * len(times))
 
     unit_meta.append(
         {
@@ -131,7 +144,7 @@ units = ArrayDict.from_dataframe(
     unsigned_to_long=True,
 )
 timestamps = np.concatenate(timestamps)
-unit_index = np.concatenate(unit_index)
+unit_index = np.array(unit_index)
 spikes = IrregularTimeSeries(
     timestamps=timestamps,
     unit_index=unit_index,
@@ -139,11 +152,14 @@ spikes = IrregularTimeSeries(
 )
 spikes.sort()
 
+# Convert unit IDs to string
+units.id = units.id.astype(str)
+
 
 # ---------------
 # Extract Trials
 # ---------------
-logging.info(f"Extracting trials ...")
+logging.info("Extracting trials ...")
 """
 Sync trials mask.
 """
@@ -198,7 +214,7 @@ trials.test_mask_nwb = test_mask_nwb
 # -----------------
 # Extract Behaviors
 # -----------------
-logging.info(f"Extracting behaviors ...")
+logging.info("Extracting behaviors ...")
 
 behave_dict = load_anytime_behaviors(one, eid, n_workers=1)
 
@@ -223,7 +239,7 @@ wheel = IrregularTimeSeries(
 try:
     me_timestamps = behave_dict["left-whisker-motion-energy"]["times"]
     me_values = behave_dict["left-whisker-motion-energy"]["values"].reshape(-1, 1)
-except:
+except KeyError:
     me_timestamps = behave_dict["right-whisker-motion-energy"]["times"]
     me_values = behave_dict["right-whisker-motion-energy"]["values"].reshape(-1, 1)
 behavior_type = np.ones_like(me_timestamps, dtype=np.int64) * 0
@@ -244,7 +260,7 @@ whisker = IrregularTimeSeries(
 # Extract choice
 def map_choice(data):
     choice_map = {"-1": 0, "1": 1}
-    return choice_map[str(int(data))]
+    return choice_map.get(str(int(data)), -1)  # Default to -1 if not found
 
 
 choice = trials_data["trials_df"].choice
@@ -252,12 +268,12 @@ choice = trials_data["trials_df"].choice
 stim_start_times = start_time.to_numpy()
 stim_end_times = end_time.to_numpy()
 
-# create data object for choice and block
+# Create Interval for choice
 choice = Interval(
     start=stim_start_times,
     end=stim_end_times,
     choice=choice.apply(map_choice).to_numpy(),
-    timestamps=stim_start_times / 2.0 + stim_end_times / 2.0,
+    timestamps=(stim_start_times + stim_end_times) / 2.0,
     timekeys=["start", "end", "timestamps"],
 )
 
@@ -265,42 +281,39 @@ choice = Interval(
 # Extract block
 def map_block(data):
     block_map = {"0.2": 0, "0.5": 1, "0.8": 2}
-    return block_map[str(data)]
+    return block_map.get(str(data), -1)  # Default to -1 if not found
 
 
 block = trials_data["trials_df"].probabilityLeft
 
+# Create Interval for block
 block = Interval(
     start=stim_start_times,
     end=stim_end_times,
     block=block.apply(map_block).to_numpy(),
-    timestamps=stim_start_times / 2.0 + stim_end_times / 2.0,
+    timestamps=(stim_start_times + stim_end_times) / 2.0,
     timekeys=["start", "end", "timestamps"],
 )
 
 # Extract reward
 reward = (trials_data["trials_df"]["rewardVolume"] > 1).astype(int).to_numpy()
+# Create Interval for reward
 reward = Interval(
     start=stim_start_times,
     end=stim_end_times,
     reward=reward,
-    timestamps=stim_start_times / 2.0 + stim_end_times / 2.0,
+    timestamps=(stim_start_times + stim_end_times) / 2.0,
     timekeys=["start", "end", "timestamps"],
 )
-
 
 # -----------------
 # Save Data Object
 # -----------------
-logging.info(f"Saving data ...")
-import os
-
-os.makedirs(f"{base_path}/processed/ibl_{eid}", exist_ok=True)
-os.makedirs(f"{base_path}/raw", exist_ok=True)
+logging.info("Saving data ...")
 
 # Create metadata descriptions
 brainset_description = BrainsetDescription(
-    id=f"ibl_{args.eid}",
+    id=f"ibl_{eid}",
     origin_version="2023_12",
     derived_version="1.0.0",
     source="https://openalyx.internationalbrainlab.org",
@@ -308,27 +321,29 @@ brainset_description = BrainsetDescription(
 )
 
 subject = SubjectDescription(
-    id=one.get_details(args.eid)["subject"],
+    id=one.get_details(eid)["subject"],
     species=Species.from_string("MUS_MUSCULUS"),
     sex=Sex.from_string("MALE"),
 )
 
 session_description = SessionDescription(
-    id=args.eid,
+    id=eid,
     recording_date=datetime.today(),
     task=Task.FREE_BEHAVIOR,
 )
 
 device_description = DeviceDescription(
-    id=f"{subject.id}_{args.eid}",
+    id=f"{subject.id}_{eid}",
     recording_tech=RecordingTech.NEUROPIXELS_SPIKES,
 )
 
-# register session
+# Register session start and end
 session_start, session_end = (
     trials.start[0],
     trials.end[-1],
 )
+
+units.id = units.id.astype(str)
 
 # Create the final Data object
 data = Data(
@@ -345,17 +360,12 @@ data = Data(
     block=block,
     reward=reward,
     domain=Interval(session_start, session_end),
-    # domain = trials.domain,
 )
 
+# Split trials into train, validation, and test sets
 train_trials = trials.select_by_mask(trials.train_mask_nwb)
 valid_trials = trials.select_by_mask(trials.val_mask_nwb)
 test_trials = trials.select_by_mask(trials.test_mask_nwb)
-
-
-# Save the data
-output_path = os.path.join(args.base_path, "processed", f"ibl_{args.eid}.h5")
-os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
 # Create train sampling intervals by excluding dilated valid and test regions
 train_sampling_intervals = data.domain.difference(
@@ -363,146 +373,13 @@ train_sampling_intervals = data.domain.difference(
 )
 
 # Set the domains in the data object
-data.train_domain = train_sampling_intervals
-data.valid_domain = valid_trials
-data.test_domain = test_trials
-print(data)
+data.set_train_domain(train_sampling_intervals)
+data.set_valid_domain(valid_trials)
+data.set_test_domain(test_trials)
 
+# Save data to disk
+output_path = os.path.join(base_path, f"ibl_{eid}.h5")
+os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-# First, let's inspect what's causing the issue
-for field_name, field_value in data.__dict__.items():
-    print(f"\nInspecting {field_name}:")
-    if hasattr(field_value, "__dict__"):
-        for key, val in field_value.__dict__.items():
-            if isinstance(val, np.ndarray):
-                print(f"  {key}: shape={val.shape}, dtype={val.dtype}")
-            else:
-                print(f"  {key}: type={type(val)}")
-
-# Then try saving with type checking
-with h5py.File(output_path, "w") as f:
-    for field_name, field_value in data.__dict__.items():
-        if field_value is not None:
-            print(f"\nTrying to save {field_name}")
-            group = f.create_group(field_name)
-
-            if isinstance(field_value, (Interval, IrregularTimeSeries, ArrayDict)):
-                # Get all attributes of the object
-                for key, val in field_value.__dict__.items():
-                    if isinstance(val, np.ndarray):
-                        if val.dtype == np.dtype("O"):
-                            # Convert object arrays to strings
-                            try:
-                                string_array = np.array(
-                                    [str(x) for x in val], dtype="S"
-                                )
-                                group.create_dataset(key, data=string_array)
-                            except Exception as e:
-                                print(
-                                    f"Warning: Could not save {field_name}.{key}: {e}"
-                                )
-                        else:
-                            group.create_dataset(key, data=val)
-                    else:
-                        # Save other types as attributes
-                        try:
-                            group.attrs[key] = str(val)
-                        except Exception as e:
-                            print(f"Warning: Could not save {field_name}.{key}: {e}")
-
-            elif isinstance(
-                field_value,
-                (
-                    BrainsetDescription,
-                    SubjectDescription,
-                    SessionDescription,
-                    DeviceDescription,
-                ),
-            ):
-                # Save description objects as attributes
-                for key, val in field_value.__dict__.items():
-                    try:
-                        group.attrs[key] = str(val)
-                    except Exception as e:
-                        print(f"Warning: Could not save {field_name}.{key}: {e}")
-
-# Verify the save
-print("\nVerifying saved structure:")
-with h5py.File(output_path, "r") as f:
-
-    def print_structure(name, obj):
-        print(name)
-
-    f.visititems(print_structure)
-
-# # Then save to H5
-# with h5py.File(output_path, "w") as f:
-#     domain_group = f.create_group('domain')
-#     domain_group.create_dataset('start', data=data.domain.start)
-#     domain_group.create_dataset('end', data=data.domain.end)
-
-#     # Verify the save
-#     print("\nSaved data in H5:")
-#     print("domain/start:", f['domain/start'][:])
-#     print("domain/end:", f['domain/end'][:])
-
-# with db.new_session() as session:
-
-#     subject = SubjectDescription(
-#         id=one.get_details(eid)["subject"],
-#         species=Species.from_string("MUS_MUSCULUS"),
-#         sex=Sex.from_string("MALE"),
-#     )
-
-#     # extract experiment metadata
-#     # recording_date = nwbfile.session_start_time.strftime("%Y%m%d")
-#     session_id = eid
-
-#     # register session
-#     session.register_session(
-#         id=session_id,
-#         recording_date=datetime.today().strftime("%Y%m%d"),
-#         task=Task.FREE_BEHAVIOR,
-#     )
-
-#     # register sortset
-#     session.register_sortset(
-#         id=session_id,
-#         units=units,
-#     )
-
-#     # register session
-#     session_start, session_end = (
-#         trials.start[0],
-#         trials.end[-1],
-#     )
-
-#     data = Data(
-#         spikes=spikes,
-#         units=units,
-#         trials=trials,
-#         wheel=wheel,
-#         whisker=whisker,
-#         choice=choice,
-#         block=block,
-#         reward=reward,
-#         domain=Interval(session_start, session_end),
-#     )
-
-#     session.register_data(data)
-
-#     # split and register trials into train, validation and test
-#     train_trials = trials.select_by_mask(trials.train_mask_nwb)
-#     valid_trials = trials.select_by_mask(trials.val_mask_nwb)
-#     test_trials = trials.select_by_mask(trials.test_mask_nwb)
-
-
-#     session.register_split("train", train_trials)
-#     session.register_split("valid", valid_trials)
-#     session.register_split("test", test_trials)
-
-#     # save data to disk
-#     session.save_to_disk()
-
-# # all sessions added, finish by generating a description file for the entire dataset
-# db.finish()
+with h5py.File(output_path, "w") as file:
+    data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
