@@ -42,7 +42,12 @@ def extract_spikes(one, eid):
         clusters["pid"] = pid
 
         spikes["clusters"] += unit_ptr
-        num_units = clusters["cluster_id"].max() + 1
+
+        assert len(clusters["cluster_id"]) == len(
+            np.unique(clusters["cluster_id"])
+        ), "There are duplicate units in {eid}"
+
+        num_units = len(clusters["cluster_id"])
         unit_ptr += num_units
 
         spikes_list.append(spikes)
