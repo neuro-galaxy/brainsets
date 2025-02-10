@@ -100,7 +100,7 @@ def extract_whisker_motion_energy(session_loader):
     whisker = IrregularTimeSeries(
         timestamps=session_loader.motion_energy["rightCamera"]["times"].to_numpy(),
         motion_energy=session_loader.motion_energy["rightCamera"][
-            "whiskerMotionEnergy" 
+            "whiskerMotionEnergy"
         ].to_numpy()[:, None],
         domain="auto",
     )
@@ -211,6 +211,7 @@ def create_and_split_sampling_intervals(trials, mask):
 
     return train_intervals, val_intervals, test_intervals
 
+
 def load_predefined_split_intervals(eid, split_dir):
     filename = os.path.join(split_dir, "trial_start_end", f"{eid}.npy")
     trial_start_end = np.load(filename, allow_pickle=True)
@@ -218,18 +219,18 @@ def load_predefined_split_intervals(eid, split_dir):
     num_trials = len(trial_start_end)
 
     train_intervals = Interval(
-        start=trial_start_end[:int(0.7*num_trials), 0],
-        end=trial_start_end[:int(0.7*num_trials), 1],
+        start=trial_start_end[: int(0.7 * num_trials), 0],
+        end=trial_start_end[: int(0.7 * num_trials), 1],
     )
 
     val_intervals = Interval(
-        start=trial_start_end[int(0.7*num_trials):int(0.8*num_trials), 0],
-        end=trial_start_end[int(0.7*num_trials):int(0.8*num_trials), 1],
+        start=trial_start_end[int(0.7 * num_trials) : int(0.8 * num_trials), 0],
+        end=trial_start_end[int(0.7 * num_trials) : int(0.8 * num_trials), 1],
     )
 
     test_intervals = Interval(
-        start=trial_start_end[int(0.8*num_trials):, 0],
-        end=trial_start_end[int(0.8*num_trials):, 1],
+        start=trial_start_end[int(0.8 * num_trials) :, 0],
+        end=trial_start_end[int(0.8 * num_trials) :, 1],
     )
 
     return train_intervals, val_intervals, test_intervals
@@ -250,18 +251,33 @@ def interpolate_wheel_and_whisker(data, train_intervals, val_intervals, test_int
 
     for sampling_intervals in [train_intervals, val_intervals, test_intervals]:
         for start, end in zip(sampling_intervals.start, sampling_intervals.end):
-            assert np.abs((end - start) - 2.0) <= 0.01, f"Interval length is not 2.0: {end - start} in eid {args.eid}"
+            assert (
+                np.abs((end - start) - 2.0) <= 0.01
+            ), f"Interval length is not 2.0: {end - start} in eid {args.eid}"
             end = start + 2.0
             sliced_data = data.slice(start, end)
-            wheel_timestamps, wheel_speed = sliced_data.wheel.timestamps, sliced_data.wheel.speed.squeeze()
-            motion_energy_timestamps, motion_energy = sliced_data.whisker.timestamps, sliced_data.whisker.motion_energy.squeeze()
+            wheel_timestamps, wheel_speed = (
+                sliced_data.wheel.timestamps,
+                sliced_data.wheel.speed.squeeze(),
+            )
+            motion_energy_timestamps, motion_energy = (
+                sliced_data.whisker.timestamps,
+                sliced_data.whisker.motion_energy.squeeze(),
+            )
 
             x_interp = np.linspace(bin_size, 2.0, n_bins)
-            y_interp = interp1d(wheel_timestamps, wheel_speed, kind="linear", fill_value="extrapolate")(x_interp)
+            y_interp = interp1d(
+                wheel_timestamps, wheel_speed, kind="linear", fill_value="extrapolate"
+            )(x_interp)
             wheel_timestamps_list.append(x_interp + start)
             wheel_speed_list.append(y_interp)
 
-            y_interp = interp1d(motion_energy_timestamps, motion_energy, kind="linear", fill_value="extrapolate")(x_interp)
+            y_interp = interp1d(
+                motion_energy_timestamps,
+                motion_energy,
+                kind="linear",
+                fill_value="extrapolate",
+            )(x_interp)
             motion_energy_timestamps_list.append(x_interp + start)
             motion_energy_list.append(y_interp)
 
@@ -322,7 +338,9 @@ def main():
     )
 
     # extract experiment metadata
-    recording_date = datetime.datetime.fromisoformat(one.get_details(args.eid)["start_time"]).strftime("%Y%m%d")
+    recording_date = datetime.datetime.fromisoformat(
+        one.get_details(args.eid)["start_time"]
+    ).strftime("%Y%m%d")
     device_id = f"{subject.id}_{recording_date}"
     session_id = args.eid
 
@@ -365,8 +383,8 @@ def main():
         domain=spikes.domain,
     )
 
-    train_intervals, val_intervals, test_intervals = (
-        load_predefined_split_intervals(args.eid, args.split_dir)
+    train_intervals, val_intervals, test_intervals = load_predefined_split_intervals(
+        args.eid, args.split_dir
     )
 
     interpolate_wheel_and_whisker(data, train_intervals, val_intervals, test_intervals)
