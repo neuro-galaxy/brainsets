@@ -68,16 +68,6 @@ def extract_spikes(one, eid):
         unsigned_to_long=True,
     )
 
-    # precompute firing rate
-    recording_duration = spikes.domain.end[-1] - spikes.domain.start[0]
-    firing_rate = []
-    for unit_index, _ in enumerate(units.id):
-        unit_spikes = spikes.timestamps[spikes.unit_index == unit_index]
-        fr = len(unit_spikes) / recording_duration
-        firing_rate.append(fr)
-
-    units.firing_rate = np.array(firing_rate)
-
     # check that id is unique
     assert len(units.id) == len(np.unique(units.id)), "uuids is not unique"
 
@@ -238,6 +228,10 @@ def load_predefined_split_intervals(eid, split_dir):
         end=trial_start_end[int(0.8 * num_trials) :, 1],
     )
 
+    train_intervals.sort()
+    val_intervals.sort()
+    test_intervals.sort()
+
     return train_intervals, val_intervals, test_intervals
 
 
@@ -302,6 +296,19 @@ def interpolate_wheel_and_whisker(data, train_intervals, val_intervals, test_int
         motion_energy=motion_energy[:, None],
         domain="auto",
     )
+
+    # precompute firing rate
+    # get only spikes inside of the trials used for training, validation and testing
+    trial_aligned_spikes = data.spikes.select_by_interval(train_intervals | val_intervals | test_intervals)
+    assert trial_aligned_spikes.domain.is_disjoint()
+    recording_duration = np.sum(trial_aligned_spikes.domain.end - trial_aligned_spikes.domain.start)
+    firing_rate = []
+    for unit_index, _ in enumerate(data.units.id):
+        unit_spikes = trial_aligned_spikes.timestamps[trial_aligned_spikes.unit_index == unit_index]
+        fr = len(unit_spikes) / recording_duration
+        firing_rate.append(fr)
+
+    data.units.trial_aligned_firing_rate = np.array(firing_rate)
 
 
 def main():
