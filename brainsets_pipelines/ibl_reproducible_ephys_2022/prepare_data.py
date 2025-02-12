@@ -323,7 +323,6 @@ def main():
     parser.add_argument("--eid", type=str)
     parser.add_argument("--split_dir", type=str, default="./splits")
     parser.add_argument("--output_dir", type=str, default="./processed")
-
     args = parser.parse_args()
 
     # intiantiate a DatasetBuilder which provides utilities for processing data
@@ -351,8 +350,8 @@ def main():
 
     subject = SubjectDescription(
         id=subject_id,
-        species=Species.MUS_MUSCULUS,  # TODO: update
-        sex=Sex.MALE,  # TODO: update
+        species=Species.MUS_MUSCULUS,
+        sex=Sex.MALE,
     )
 
     # extract experiment metadata

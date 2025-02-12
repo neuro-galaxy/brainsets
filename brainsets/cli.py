@@ -7,7 +7,11 @@ import subprocess
 CONFIG_FILE = Path.home() / ".brainsets_config.json"
 
 # TODO: Implement a function to dynamically generate this list
-DATASETS = ["perich_miller_population_2018", "pei_pandarinath_nlb_2021"]
+DATASETS = [
+    "perich_miller_population_2018",
+    "pei_pandarinath_nlb_2021",
+    "ibl_reproducible_ephys_2022",
+]
 
 
 def load_config():
