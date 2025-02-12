@@ -299,12 +299,18 @@ def interpolate_wheel_and_whisker(data, train_intervals, val_intervals, test_int
 
     # precompute firing rate
     # get only spikes inside of the trials used for training, validation and testing
-    trial_aligned_spikes = data.spikes.select_by_interval(train_intervals | val_intervals | test_intervals)
+    trial_aligned_spikes = data.spikes.select_by_interval(
+        train_intervals | val_intervals | test_intervals
+    )
     assert trial_aligned_spikes.domain.is_disjoint()
-    recording_duration = np.sum(trial_aligned_spikes.domain.end - trial_aligned_spikes.domain.start)
+    recording_duration = np.sum(
+        trial_aligned_spikes.domain.end - trial_aligned_spikes.domain.start
+    )
     firing_rate = []
     for unit_index, _ in enumerate(data.units.id):
-        unit_spikes = trial_aligned_spikes.timestamps[trial_aligned_spikes.unit_index == unit_index]
+        unit_spikes = trial_aligned_spikes.timestamps[
+            trial_aligned_spikes.unit_index == unit_index
+        ]
         fr = len(unit_spikes) / recording_duration
         firing_rate.append(fr)
 
