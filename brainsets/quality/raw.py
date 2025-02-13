@@ -280,7 +280,7 @@ class BrainsetsRaw(RawArray):
         """
         if self.annotations:
             # Get end time points for each annotation
-            time_slices = self.slice_by_annotations()
+            time_slices = self.slice_by_annotations(self.annotations)
             _, end = zip(*time_slices)
 
             # Convert end time points to samples
