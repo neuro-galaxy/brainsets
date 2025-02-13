@@ -543,7 +543,12 @@ class DynamicQCPipeline(BaseQCPipeline):
             if (i + 1) % 5 == 0:
                 logging.debug(f"Processed {i + 1}/{len(time_slices)} slices.")
 
-        return np.hstack(scores)
+        # Concatenate scores if more than one segment
+        if len(scores) > 1:
+            return np.concatenate(scores, axis=1)
+        elif len(scores) == 1:
+            return scores[0]
+        return scores
 
     def run_slice(
         self,
