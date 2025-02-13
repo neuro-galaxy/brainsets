@@ -42,23 +42,10 @@ rule merge_manifests:
     input:
         aggregate_input
     output:
-        manifest = os.path.join(PROCESSED_DIR, DATASET, "manifest.txt")
-    params:
-        processed_dir = PROCESSED_DIR,  # Pass PROCESSED_DIR as a parameter
-        dataset = DATASET,  # Pass DATASET as a parameter
-        tmp_dir = os.path.join(PROCESSED_DIR, DATASET, "tmp")  # Path to the tmp directory
+        f"{PROCESSED_DIR}/{DATASET}/manifest.txt"
     shell:
-        """
-        # Create the manifest file
-        find {params.processed_dir}/{params.dataset}/ -type f -name "*.h5" | sed "s|^{params.processed_dir}/{params.dataset}/||" > {output.manifest}
-
-        # Remove the tmp directory
-        if [ -d {params.tmp_dir} ]; then
-            echo "Removing tmp directory: {params.tmp_dir}" >> {log}
-            rm -rf {params.tmp_dir}
-        else
-            echo "Warning: tmp directory not found: {params.tmp_dir}" >> {log}
-        fi
+        f"""
+        find {PROCESSED_DIR}/{DATASET}/ -type f -name "*.h5" | sed "s|^{PROCESSED_DIR}/{DATASET}//||" > {{output}}        
         """
 
 rule all:
