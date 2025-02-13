@@ -7,15 +7,14 @@ from .native_montages import make_tuh_montage
 
 MNE_MONTAGE_NAMES = mne.channels.get_builtin_montages()
 NATIVE_MONTAGES = {
-    'tuh': make_tuh_montage,
+    "tuh": make_tuh_montage,
 }
 VALID_MONTAGE_NAMES = MNE_MONTAGE_NAMES + list(NATIVE_MONTAGES.keys())
 
 
 def make_montage(
-    montage_name: Union[str, None] = None, 
-    ch_names: Union[list[str], None] = None
-)-> mne.channels.DigMontage:
+    montage_name: Union[str, None] = None, ch_names: Union[list[str], None] = None
+) -> mne.channels.DigMontage:
     """Create a montage from a predefined set or custom channel names.
     This function creates an MNE DigMontage object either from a standard/native montage
     name or from a list of custom channel names.
@@ -28,14 +27,14 @@ def make_montage(
     ch_names : list[str] or None
         List of channel names to create a custom montage. If provided, montage_name
         is ignored.
-    
+
     Returns
     -------
     mne.channels.DigMontage
         The digital montage object with the specified configuration.
     Raises
     ------
-    
+
     ValueError
         If montage_name is not in VALID_MONTAGE_NAMES and ch_names is None.
     Examples
@@ -51,14 +50,14 @@ def make_montage(
         raise ValueError(
             f"Invalid montage_name '{montage_name}'. It must be one of {VALID_MONTAGE_NAMES} or ch_names should be provided."
         )
-        
+
 
 def make_custom_montage(
     ch_names: Union[list[str], None] = None
-)-> mne.channels.DigMontage:
+) -> mne.channels.DigMontage:
     """Create a custom EEG montage from a list of channel names.
 
-    This function creates a custom montage by mapping channel names to their standard 
+    This function creates a custom montage by mapping channel names to their standard
     positions in the 10-05 system. It preserves only the channels that exist in both
     the input list and the standard 10-05 system.
 
@@ -71,7 +70,7 @@ def make_custom_montage(
     -------
     mne.channels.DigMontage
         Custom digital montage containing only the specified channels with their
-        corresponding positions from the standard 10-05 system, including fiducial 
+        corresponding positions from the standard 10-05 system, including fiducial
         points (nasion, LPA, RPA) and head shape points.
 
     Notes
@@ -98,8 +97,8 @@ def make_custom_montage(
 
 
 def make_standard_montage(
-    montage_name: Union[str, None] = None, 
-)-> mne.channels.DigMontage:
+    montage_name: Union[str, None] = None,
+) -> mne.channels.DigMontage:
     """Return a standard montage either from MNE or from native montages.
 
     This function creates a standard EEG montage either from MNE's built-in montages

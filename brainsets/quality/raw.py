@@ -17,43 +17,36 @@ from meegkit.dss import dss_line_iter
 
 import matplotlib.pyplot as plt
 
-from temporaldata import (
-    Data,
-    Interval,
-    LazyInterval
-)
+from temporaldata import Data, Interval, LazyInterval
 
 
 class BrainsetsRaw(RawArray):
     """A class to create a customized mne.io.RawArray-based object from
     a temporaldata.Data object.
-    
+
     Args
         data : Data
             The custom Data object containing EEG data and metadata.
         verbose : bool, optional
             If True, enable verbose output. Default is False.
-    
+
     """
-    def __init__(
-        self,
-        data: Data,
-        verbose: bool = False
-    ):
+
+    def __init__(self, data: Data, verbose: bool = False):
         # Sampling frequency
         sfreq = data.eeg.sampling_rate
 
         # Channel names and types
         ch_names = list(data.units.id)
-        ch_types = ['eeg'] * len(ch_names)
+        ch_types = ["eeg"] * len(ch_names)
 
         # EEG data
-        signals = data.eeg.signal # time x channels
-    
+        signals = data.eeg.signal  # time x channels
+
         # Create info object
         info = mne.create_info(
-            ch_names=ch_names, 
-            sfreq=sfreq, 
+            ch_names=ch_names,
+            sfreq=sfreq,
             ch_types=ch_types,
         )
 
@@ -72,28 +65,24 @@ class BrainsetsRaw(RawArray):
         annot = mne.Annotations(
             onset=trials.start,
             duration=trials.end - trials.start,
-            description=trials.movements)
+            description=trials.movements,
+        )
         super().set_annotations(annot)
 
         # Set intervals/epochs
-        if 'epochs' in data.keys():
+        if "epochs" in data.keys():
             self.intervals = data.epochs
         else:
             self.intervals = None
-    
+
     def _to_standard_channel_names(self):
         """Standardize EEG channel names according to the new 10-05 standard system."""
         # old -> new nomenclature
-        rename_map = {
-            "T3": "T7", 
-            "T4": "T8", 
-            "P7": "T5", 
-            "P8": "T6"
-        }
+        rename_map = {"T3": "T7", "T4": "T8", "P7": "T5", "P8": "T6"}
         rename_map = {k: v for k, v in rename_map.items() if k in self.ch_names}
-        
+
         super().rename_channels(rename_map)
-    
+
     def set_montage(
         self,
         montage: mne.channels.DigMontage = None,
@@ -102,7 +91,7 @@ class BrainsetsRaw(RawArray):
         Set the montage for the EEG data.
 
         This method sets the montage (i.e., the electrode positions) for the EEG data.
-        
+
         .. warning::
             Channels that are not included in the given montage will be dropped.
 
@@ -112,9 +101,7 @@ class BrainsetsRaw(RawArray):
             The montage to set. If None, no montage will be set.
         """
 
-        logging.warning(
-            f"Channels not included in the given montage will be dropped."
-        )
+        logging.warning(f"Channels not included in the given montage will be dropped.")
 
         drop_chs = [ch for ch in self.ch_names if ch not in montage.ch_names]
         super().drop_channels(drop_chs)
@@ -124,19 +111,14 @@ class BrainsetsRaw(RawArray):
                 f"{len(drop_chs)} channels were dropped while setting montage ({drop_chs})."
             )
         else:
-            logging.info(
-                f"No channels were dropped while setting montage."
-            )
+            logging.info(f"No channels were dropped while setting montage.")
 
         super().set_montage(montage)
 
-        logging.info(
-            f"Setting montage {montage}."
-        )
-    
+        logging.info(f"Setting montage {montage}.")
+
     def slice(
-        self,
-        window_length: Union[int, float, None] = None
+        self, window_length: Union[int, float, None] = None
     ) -> list[tuple[float, float]]:
         """
         Creates time slices from Raw data according to specified criteria.
@@ -182,12 +164,10 @@ class BrainsetsRaw(RawArray):
             )
 
     def slice_by_windows(
-        self, 
-        window_length: Union[int, float] = 60, 
-        include_last: bool = True
+        self, window_length: Union[int, float] = 60, include_last: bool = True
     ) -> list[tuple[float, float]]:
         """
-        Creates fixed-length time slices from Raw data. 
+        Creates fixed-length time slices from Raw data.
 
         Parameters
         ----------
@@ -212,30 +192,29 @@ class BrainsetsRaw(RawArray):
             start += window_length
 
         logging.info(
-            f"Slicing Raw into {len(time_slices)} ({window_length} sec.) windows."\
+            f"Slicing Raw into {len(time_slices)} ({window_length} sec.) windows."
             f"Total duration: {total_duration} sec. Last segment included: {include_last}."
         )
 
         return time_slices
 
     def slice_by_intervals(
-            self,
-            interval: Union[Interval, LazyInterval]
+        self, interval: Union[Interval, LazyInterval]
     ) -> list[tuple[float, float]]:
         """
         Creates time slices from Raw data based on Intervals.
-        
+
         Parameters
         ----------
         interval : Interval
             An object containing 'start' and 'end' attributes, each representing arrays
             of time points defining the intervals.
-        
+
         Returns
         -------
         list of tuple
             List of (start, end) time point tuples representing the slicing intervals.
-        
+
         Notes
         -----
         The function creates time slices by pairing corresponding start and end points
@@ -246,16 +225,14 @@ class BrainsetsRaw(RawArray):
         time_slices = []
         for start, end in zip(interval.start, interval.end):
             time_slices.append((start, min(end, total_duration)))
-            
-        logging.info(
-            f"Slicing Raw into {len(time_slices)} intervals."
-        )
+
+        logging.info(f"Slicing Raw into {len(time_slices)} intervals.")
 
         return time_slices
 
     def slice_by_annotations(
-            self,
-            annotations: mne.annotations.Annotations,
+        self,
+        annotations: mne.annotations.Annotations,
     ) -> list[tuple[float, float]]:
         """
         Creates time slices from Raw data based on annotations.
@@ -283,20 +260,18 @@ class BrainsetsRaw(RawArray):
         for onset, duration in zip(annotations.onset, annotations.duration):
             time_slices.append((onset, min(onset + duration, total_duration)))
 
-        logging.info(
-            f"Slicing Raw into {len(time_slices)} events."
-        )
+        logging.info(f"Slicing Raw into {len(time_slices)} events.")
 
         return time_slices
 
     # preprocessing
     def detrend(self):
         """Performs detrending on the raw EEG data.
-        This method applies polynomial detrending to remove linear trends from the data. 
-        If annotations are present, the data is split into segments based on annotation 
-        end points and detrending is applied separately to each segment before 
+        This method applies polynomial detrending to remove linear trends from the data.
+        If annotations are present, the data is split into segments based on annotation
+        end points and detrending is applied separately to each segment before
         recombining.
-            
+
         Notes
         -----
         - Uses MEEGkit's dss_line_iter implementation. A first order polynomial detrending (linear)
@@ -307,14 +282,14 @@ class BrainsetsRaw(RawArray):
             # Get end time points for each annotation
             time_slices = self.slice_by_annotations()
             _, end = zip(*time_slices)
-            
+
             # Convert end time points to samples
-            end = np.array(end[:-1]) * int(self.info['sfreq'])
+            end = np.array(end[:-1]) * int(self.info["sfreq"])
 
             # Split data into trials
-            data_ = np.split(self.get_data(), 
-                            indices_or_sections=end[:-1].astype(int),
-                            axis=1)
+            data_ = np.split(
+                self.get_data(), indices_or_sections=end[:-1].astype(int), axis=1
+            )
         else:
             data_ = [self.get_data()]
 
@@ -326,14 +301,13 @@ class BrainsetsRaw(RawArray):
                 basis="polynomials",
             )
             return data.T
+
         data_ = np.hstack([detrend_and_transpose(data) for data in data_])
 
         # assigned detrended data to the raw object
         self._data = data_
 
-        logging.info(
-            f"Detrending Raw data."
-        )
+        logging.info(f"Detrending Raw data.")
 
     def bandpass_filter(
         self,
@@ -342,7 +316,7 @@ class BrainsetsRaw(RawArray):
         verbose: bool = False,
     ) -> None:
         """Apply bandpass filter to the data using FIR method.
-        
+
         Parameters
         ----------
         hp_freq : float, optional
@@ -351,7 +325,7 @@ class BrainsetsRaw(RawArray):
             Low-pass frequency in Hz. If None, no low-pass filter is applied.
         verbose : bool, default False
             If True, show additional information about the filtering process.
-        
+
         Notes
         -----
         The method checks if the low-pass frequency is above the Nyquist frequency
@@ -372,21 +346,19 @@ class BrainsetsRaw(RawArray):
                 f"Low-pass frequency {lp_freq} Hz is above or equal to the Nyquist frequency ({nyquist} Hz). Filtering will not be applied."
             )
         else:
-            super().filter(l_freq=hp_freq, h_freq=lp_freq, method="fir", verbose=verbose)
-            
+            super().filter(
+                l_freq=hp_freq, h_freq=lp_freq, method="fir", verbose=verbose
+            )
+
             if (hp_freq is not None) and (lp_freq is None):
-                logging.info(
-                    f"Applying high-pass filter at {hp_freq} Hz."
-                )
+                logging.info(f"Applying high-pass filter at {hp_freq} Hz.")
             elif (hp_freq is None) and (lp_freq is not None):
-                logging.info(
-                    f"Applying low-pass filter at {lp_freq} Hz."
-                )
+                logging.info(f"Applying low-pass filter at {lp_freq} Hz.")
             elif (hp_freq is not None) and (lp_freq is not None):
                 logging.info(
                     f"Applying bandpass filter in the {hp_freq} - {lp_freq} Hz frequency band."
                 )
-        
+
     def remove_line_noise(
         self,
         line_freqs: list,
@@ -395,13 +367,13 @@ class BrainsetsRaw(RawArray):
         This method applies an iterative DSS algorithm to remove power line noise at specified
         frequencies from the EEG data. It processes each line frequency separately as long
         as it's below the Nyquist frequency.
-        
+
         Parameters
         ----------
         line_freqs : list
             List of line noise frequencies (in Hz) to remove from the data.
             Frequencies above Nyquist frequency will be ignored with a warning.
-       
+
         Notes
         -----
         - Uses MEEGkit's dss_line_iter implementation
@@ -424,10 +396,8 @@ class BrainsetsRaw(RawArray):
                         sfreq=sfreq,
                     )
                     self._data = filtered_data.T
-                    
-                    logging.info(
-                        f"Removing line noise at {line_freq} Hz."
-                    )
+
+                    logging.info(f"Removing line noise at {line_freq} Hz.")
                 else:
                     logging.warning(
                         f"Line frequency {line_freq} is above the Nyquist frequency and will not be filtered."
@@ -538,9 +508,7 @@ class BrainsetsRaw(RawArray):
             verbose=False,
         )
 
-        logging.info(
-            f"Using average for referencing."
-        )
+        logging.info(f"Using average for referencing.")
 
     def fit_ica(
         self,
@@ -551,7 +519,7 @@ class BrainsetsRaw(RawArray):
         This method implements the Infomax ICA algorithm with extended parameters, which is
         compatible with ICLabel. The number of components is automatically set to the matrix
         rank of the data.
-        
+
         Parameters
         ----------
         random_state : Union[None, int, np.random.RandomState], optional
@@ -559,13 +527,13 @@ class BrainsetsRaw(RawArray):
         verbose : bool, optional
             If True, prints the explained variance ratio for the first 5 components,
             by default False.
-        
+
         Returns
         -------
         mne.preprocessing.ICA
             The fitted ICA object that can be used for further analysis or component
             rejection.
-        
+
         Notes
         -----
         The ICA is configured with:
@@ -589,9 +557,7 @@ class BrainsetsRaw(RawArray):
 
         ica.fit(self, verbose=False)
 
-        logging.info(
-            f"Fitting ICA to Raw."
-        )
+        logging.info(f"Fitting ICA to Raw.")
 
         if verbose:
             for component in range(5):
@@ -599,7 +565,7 @@ class BrainsetsRaw(RawArray):
                     self, components=[component], ch_type="eeg"
                 )
                 ratio_percent = round(100 * explained_var_ratio["eeg"])
-                
+
                 logging.info(
                     f"Fraction of variance in EEG signal explained by component {component}: "
                     f"{ratio_percent}%"
@@ -656,9 +622,7 @@ class BrainsetsRaw(RawArray):
         and will not be applied unless ignore_quality_score is True.
         """
         if ica is None:
-            raise ValueError(
-                "ICA has not been fitted, cannot evaluate and apply."
-            )
+            raise ValueError("ICA has not been fitted, cannot evaluate and apply.")
 
         # Run ICLabel
         ic_labels = label_components(self, ica, method="iclabel")

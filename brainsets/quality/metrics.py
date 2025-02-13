@@ -3,6 +3,7 @@ from scipy import signal
 
 from typing import Union
 
+
 # utils
 def moving_average(
     data: np.ndarray,
@@ -42,7 +43,7 @@ def moving_average(
     """
     if data.ndim != 2:
         raise ValueError("Input data must be a 2D array")
-    
+
     return np.apply_along_axis(
         lambda row: np.convolve(row, np.ones(window_size) / window_size, mode="same"),
         axis=1,
@@ -54,7 +55,7 @@ def min_max_norm(
     data: np.ndarray,
     min_val: Union[float, None] = None,
     max_val: Union[float, None] = None,
-    clip: bool = False
+    clip: bool = False,
 ) -> np.ndarray:
     """
     Normalize the data to a given range [min_val, max_val].

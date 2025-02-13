@@ -10,7 +10,7 @@ import matplotlib.colors as mcolors
 
 
 from .metrics import (
-    hilbert_distance, 
+    hilbert_distance,
     rmse,
 )
 from .montages import make_montage
@@ -42,6 +42,7 @@ class BaseQCPipeline(QCPipeline):
     pipelines on EEG data. It includes methods for setting up channels, montages,
     filters, and Independent Component Analysis (ICA) for artifact removal.
     """
+
     def __init__(
         self,
         # data
@@ -70,7 +71,7 @@ class BaseQCPipeline(QCPipeline):
         self.ransac = True
         self.quality_check = quality_check
         self.quality_check_ica = quality_check_ica
-        self.plot_scores=plot_scores
+        self.plot_scores = plot_scores
 
         self._setup_channels(channels)
         self._setup_montage(montage_name)
@@ -81,7 +82,7 @@ class BaseQCPipeline(QCPipeline):
         self.oha_threshold = 40e-6
         self.thv_threshold = 40e-6
         self.chv_threshold = 80e-6
-        
+
         # Set random state
         self.random_state = random_state
         if self.random_state is not None:
@@ -92,12 +93,7 @@ class BaseQCPipeline(QCPipeline):
         ch_names: List[str],
     ) -> None:
         """Convert channel names to standard channel names."""
-        rename_map = {
-            "T3": "T7",
-            "T4": "T8",
-            "P7": "T5",
-            "P8": "T6"
-        }
+        rename_map = {"T3": "T7", "T4": "T8", "P7": "T5", "P8": "T6"}
         ch_names = [rename_map[ch] if ch in rename_map else ch for ch in ch_names]
         return ch_names
 
@@ -146,11 +142,7 @@ class BaseQCPipeline(QCPipeline):
             "channel noise",
             "other",
         ]
-        if not all(
-            [
-                label in valid_iclabels for label in self.include_components
-            ]
-        ):
+        if not all([label in valid_iclabels for label in self.include_components]):
             raise ValueError("Invalid component label found in include_components.")
 
         self.iclabel_threshold = iclabel_threshold
@@ -238,8 +230,8 @@ class BaseQCPipeline(QCPipeline):
 
     def compute_quality_scores(
         self,
-        raw:  Union[mne.io.Raw, BrainsetsRaw],
-        raw_qc:  Union[mne.io.Raw, BrainsetsRaw],
+        raw: Union[mne.io.Raw, BrainsetsRaw],
+        raw_qc: Union[mne.io.Raw, BrainsetsRaw],
         score: str = "rmse",
         smooth: bool = True,
         norm: bool = True,
@@ -256,7 +248,7 @@ class BaseQCPipeline(QCPipeline):
         score : str, optional
             The type of score to compute. Default is "rmse". Options include:
             - "rmse"
-            - "hilbert_distance". 
+            - "hilbert_distance".
         smooth : bool, optional
             Whether to apply smoothing to the computed scores. Default is True.
         norm : bool, optional
@@ -286,7 +278,9 @@ class BaseQCPipeline(QCPipeline):
                 norm=norm,
             )
         else:
-            raise ValueError(f"Unsupported score metric: {score}. Choose 'rmse' or 'hilbert_distance'.")
+            raise ValueError(
+                f"Unsupported score metric: {score}. Choose 'rmse' or 'hilbert_distance'."
+            )
 
         return scores
 
@@ -306,7 +300,7 @@ class BaseQCPipeline(QCPipeline):
         ----------
         raw : Union[mne.io.Raw, BrainsetsRaw]
             Original raw data object containing all channels.
-        raw_qc : Union[mne.io.Raw, BrainsetsRaw] 
+        raw_qc : Union[mne.io.Raw, BrainsetsRaw]
             Quality-controlled raw data object with bad channels removed.
         scores : np.ndarray
             Scores array computed on the quality-controlled data, with shape (n_good_channels, n_times).
@@ -335,7 +329,7 @@ class BaseQCPipeline(QCPipeline):
                 )
             )
 
-        # Get original indexes in raw for remaining channels in raw_qc 
+        # Get original indexes in raw for remaining channels in raw_qc
         # after dropping bad channels
         ch_idx = np.array(
             [
@@ -352,7 +346,7 @@ class BaseQCPipeline(QCPipeline):
         self,
         raw_signal: np.ndarray,
         reconstructed_signal: np.ndarray,
-        quality_metric: np.ndarray, 
+        quality_metric: np.ndarray,
         channel_names=None,
         sampling_rate=None,
         time_offset=None,
@@ -383,53 +377,55 @@ class BaseQCPipeline(QCPipeline):
                 time = time + time_offset
 
         fig, ax = plt.subplots(figsize=(12, 8), dpi=100)
-        
+
         # Normalize quality metric to colormap
         cmap = plt.get_cmap("RdYlGn")  # Red (bad) to Green (good)
         norm = mcolors.Normalize(vmin=0, vmax=1)
 
-        offset =  np.arange(N) * 2.0  # Offset for stacking channels
+        offset = np.arange(N) * 2.0  # Offset for stacking channels
 
         for i in range(N):
             # Create a colormap background as an image
             quality_colors = cmap(norm(quality_metric[:, i]))[:, :3]  # Convert to RGB
-            quality_image = np.tile(quality_colors, (10, 1, 1))  # Expand for visualization
+            quality_image = np.tile(
+                quality_colors, (10, 1, 1)
+            )  # Expand for visualization
 
             ax.imshow(
                 quality_image,
-                extent=[time[0], time[-1], offset[i] - 1, offset[i] + 1], 
+                extent=[time[0], time[-1], offset[i] - 1, offset[i] + 1],
                 aspect="auto",
-                alpha=0.5  # Add transparency
+                alpha=0.5,  # Add transparency
             )
-            
+
             # Plot raw signal in black
-            ax.plot(time, raw_signal[:, i] + offset[i], 'k', lw=1)
+            ax.plot(time, raw_signal[:, i] + offset[i], "k", lw=1)
 
             # Plot filtered signal as dashed black line
-            ax.plot(time, reconstructed_signal[:, i] + offset[i], 'k--', lw=1)
+            ax.plot(time, reconstructed_signal[:, i] + offset[i], "k--", lw=1)
 
         # Add colorbar
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
-        cbar = plt.colorbar(sm, ax=ax, label='Signal Quality')
+        cbar = plt.colorbar(sm, ax=ax, label="Signal Quality")
 
         ax.set_xlabel(xlabel)
         ax.set_ylabel("Channels")
         ax.set_yticks(offset)
-        
+
         if channel_names is None:
             channel_names = [f"Ch {i+1}" for i in range(N)]
         ax.set_yticklabels(channel_names)
-        
+
         ax.invert_yaxis()  # Invert to have Ch1 at the top
         plt.show()
         plt.close()
 
     def plot_quality_scores(
         self,
-        raw:  Union[mne.io.Raw, BrainsetsRaw],
+        raw: Union[mne.io.Raw, BrainsetsRaw],
         raw_baseline: Union[mne.io.Raw, BrainsetsRaw],
-        raw_qc:  Union[mne.io.Raw, BrainsetsRaw],
+        raw_qc: Union[mne.io.Raw, BrainsetsRaw],
         scores: np.ndarray,
     ) -> None:
         np.random.seed(self.random_state)
@@ -444,14 +440,18 @@ class BaseQCPipeline(QCPipeline):
         picks_ch_names = np.array(raw_qc.ch_names)[picks_idx]
 
         # Get idx of selected channels for raw and raw_baseline
-        picks_raw_idx = np.array([np.where(np.array(raw_signal.ch_names) == ch)[0][0] for ch in np.array(picks_ch_names)])
+        picks_raw_idx = np.array(
+            [
+                np.where(np.array(raw_signal.ch_names) == ch)[0][0]
+                for ch in np.array(picks_ch_names)
+            ]
+        )
         # picks_raw_baseline_idx = np.array([np.where(np.array(raw_baseline.ch_names) == ch)[0][0] for ch in np.array(picks_ch_names)])
 
         # Select 1 random 10-sec time slice
         sliced_times = np.array_split(
-            np.arange(
-                len(raw_qc.times)), int(len(raw_qc.times)/(raw_qc.info['sfreq'] * 5)
-            )
+            np.arange(len(raw_qc.times)),
+            int(len(raw_qc.times) / (raw_qc.info["sfreq"] * 5)),
         )
         picks_time = np.random.choice(len(sliced_times), 1, replace=False)
 
@@ -459,7 +459,9 @@ class BaseQCPipeline(QCPipeline):
             start = sliced_times[i][0]
             end = sliced_times[i][-1]
 
-            _raw_baseline = 10000 * raw_baseline.get_data(picks=picks_ch_names).T[start:end]
+            _raw_baseline = (
+                10000 * raw_baseline.get_data(picks=picks_ch_names).T[start:end]
+            )
             _raw_qc = 10000 * raw_qc.get_data(picks=picks_ch_names).T[start:end]
             _scores = scores[picks_raw_idx].T[start:end]
 
@@ -468,8 +470,8 @@ class BaseQCPipeline(QCPipeline):
                 reconstructed_signal=_raw_qc,
                 quality_metric=_scores,
                 channel_names=picks_ch_names,
-                sampling_rate=raw_qc.info['sfreq'],
-                time_offset=start
+                sampling_rate=raw_qc.info["sfreq"],
+                time_offset=start,
             )
 
 
@@ -480,10 +482,7 @@ class DynamicQCPipeline(BaseQCPipeline):
     def __call__(self, raw: BrainsetsRaw) -> List[Optional[np.ndarray]]:
         return self.run(raw)
 
-    def run(
-        self, 
-        raw: BrainsetsRaw
-    ) -> np.ndarray:
+    def run(self, raw: BrainsetsRaw) -> np.ndarray:
         """
         Run the quality control pipeline on the input raw data.
         This method processes the raw EEG data by:
@@ -491,24 +490,22 @@ class DynamicQCPipeline(BaseQCPipeline):
         2. Setting the montage
         3. Splitting data into time slices
         4. Running QC pipeline on each slice
-        
+
         Parameters
         ----------
         raw : BrainsetsRaw
             The raw EEG data to process. Must be an instance of BrainsetsRaw class.
-        
+
         Returns
         -------
         List[np.ndarray]
             A list of quality scores for each time slice. Each element corresponds to
-            the quality metrics for one time window. Failed slices return None.        
+            the quality metrics for one time window. Failed slices return None.
         """
         # Rename channels
         if self.channels_rename is not None:
             raw.rename_channels(self.channels_rename)
-            logging.info(
-                f"Renamed channels: {self.channels_rename}."
-            )
+            logging.info(f"Renamed channels: {self.channels_rename}.")
 
         # Set montage
         raw.set_montage(self.montage)
@@ -523,7 +520,7 @@ class DynamicQCPipeline(BaseQCPipeline):
         scores = []
         for i, time_slice in enumerate(time_slices):
             start, end = time_slice
-            
+
             logging.info(
                 f"Processing time slice {i + 1} out of {len(time_slices)}: {start:.2f} to {end:.2f} seconds."
             )
@@ -563,17 +560,17 @@ class DynamicQCPipeline(BaseQCPipeline):
             - ICA fitting and application (optional)
             - Quality assessment using SPEED criteria (optional)
             - Computation of quality scores
-        
+
         Parameters
         ----------
         raw : BrainsetsRaw
             Raw EEG data object to be processed.
-        
+
         Returns
         -------
         numpy.ndarray or None
             Quality scores computed for each channel. Returns None if processing fails.
-        
+
         Notes
         -----
         The method performs the following steps in order:
@@ -595,7 +592,7 @@ class DynamicQCPipeline(BaseQCPipeline):
             lp_freq=None,
             verbose=False,
         )
-        
+
         # Remove line noise
         raw_.remove_line_noise(line_freqs=self.line_freqs)
 
@@ -608,7 +605,7 @@ class DynamicQCPipeline(BaseQCPipeline):
             random_state=self.random_state,
             verbose=False,
         )
-    
+
         # Average reference
         raw_.average_reference()
 
@@ -625,24 +622,19 @@ class DynamicQCPipeline(BaseQCPipeline):
             raw_before_ica = raw_.copy()
 
             # fit, evaluate and apply ICA
-            self.ica = raw_.fit_ica(
-                random_state=self.random_state,
-                verbose=False
-            )
+            self.ica = raw_.fit_ica(random_state=self.random_state, verbose=False)
 
             if self.quality_check_ica:
                 quality_ica = raw_.evaluate_and_apply_ica(
-                    self.ica, 
-                    self.iclabel_threshold, 
+                    self.ica,
+                    self.iclabel_threshold,
                     self.include_components,
                     plot_excluded_components=False,
                     ignore_quality_score=True,
-                    verbose=True
-                )            
-
-                logging.info(
-                    f"ICA QC passed: {quality_ica}"
+                    verbose=True,
                 )
+
+                logging.info(f"ICA QC passed: {quality_ica}")
 
             # remove bad channels after ICA
             raw_.detect_bad_channels(
@@ -660,26 +652,20 @@ class DynamicQCPipeline(BaseQCPipeline):
                 raw=raw_,
                 verbose=True,
             )
-            
-            logging.info(
-                f"General QC passed: {quality}"
-            )
+
+            logging.info(f"General QC passed: {quality}")
 
         # Calculate quality scores
         scores = self.compute_quality_scores(
-            score="rmse", 
+            score="rmse",
             raw=raw_before_ica,
-            raw_qc=raw_, 
-            smooth=True, 
+            raw_qc=raw_,
+            smooth=True,
             norm=True,
         )
 
         # Get scores across all channels
-        scores = self.get_full_scores(
-            raw=raw,
-            raw_qc=raw_,
-            scores=scores
-        )
+        scores = self.get_full_scores(raw=raw, raw_qc=raw_, scores=scores)
 
         if self.plot_scores:
             self.plot_quality_scores(
@@ -688,5 +674,5 @@ class DynamicQCPipeline(BaseQCPipeline):
                 raw_qc=raw_,
                 scores=scores,
             )
-        
+
         return scores

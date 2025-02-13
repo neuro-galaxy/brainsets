@@ -3,6 +3,7 @@ from collections import OrderedDict
 
 import mne
 
+
 def make_tuh_montage():
     """Create a custom montage for the TUH (Temple University Hospital) EEG dataset.
 
