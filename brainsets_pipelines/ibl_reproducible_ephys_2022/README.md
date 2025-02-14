@@ -8,6 +8,9 @@ Publication:
 Subject(s)
 - 83 mice aged 111 - 442 days.
 
+Neural variables
+- Spike-sorted neural activity
+
 Task Variables
 - Choice: The direction in which the mouse turned the steering wheel (left or right; discrete).
 - Block prior: The block identity which determines the probability of stimuli appearing on the left vs. right (discrete).
