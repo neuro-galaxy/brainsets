@@ -64,14 +64,14 @@ def extract_behavior(nwbfile, trials):
     hand_pos = nwbfile.processing["behavior"]["hand_pos"].data[:]
     hand_vel = nwbfile.processing["behavior"]["hand_vel"].data[:]
     eye_pos = nwbfile.processing["behavior"]["eye_pos"].data[:]
-    
+
     hand = IrregularTimeSeries(
         timestamps=timestamps,
         pos=hand_pos,
         vel=hand_vel,
         domain="auto",
     )
-    
+
     eye = IrregularTimeSeries(
         timestamps=timestamps,
         pos=eye_pos,
