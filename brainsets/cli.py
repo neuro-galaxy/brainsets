@@ -109,7 +109,7 @@ def config(raw, processed):
                 "Enter processed data directory",
                 type=click.Path(file_okay=False, dir_okay=True),
             )
-    
+
     raw = Path(os.path.expanduser(raw))
     processed = Path(os.path.expanduser(processed))
 
