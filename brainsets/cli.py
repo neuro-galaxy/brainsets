@@ -47,24 +47,32 @@ def prepare(dataset, cores):
     snakefile_filepath = pipelines_dirpath / "Snakefile"
     reqs_filepath = pipelines_dirpath / dataset / "requirements.txt"
 
+    command = [
+        "snakemake",
+        "-s",
+        str(snakefile_filepath),
+        "--config",
+        f"raw_dir={config['raw_dir']}",
+        f"processed_dir={config['processed_dir']}",
+        f"-c{cores}",
+        f"{dataset}", 
+    ]
+
+    if reqs_filepath.exists():
+        uv_prefix_command = [
+            "uv",
+            "run",
+            "--with-requirements",
+            str(reqs_filepath),
+            "--active",  # Prefer building temp environment on top of current venv
+        ]
+        command = uv_prefix_command + command
+        click.echo(f"Using extra requirements from {reqs_filepath}")
+
     # Run snakemake workflow for dataset download with live output
     try:
         process = subprocess.run(
-            [
-                "uv",
-                "run",
-                "--with-requirements",
-                str(reqs_filepath),
-                "--active",  # Prefer building temp environment on top of current venv
-                "snakemake",
-                "-s",
-                str(snakefile_filepath),
-                "--config",
-                f"raw_dir={config['raw_dir']}",
-                f"processed_dir={config['processed_dir']}",
-                f"-c{cores}",
-                f"{dataset}",
-            ],
+            command,
             check=True,
             capture_output=False,
             text=True,
