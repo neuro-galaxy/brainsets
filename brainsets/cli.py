@@ -5,9 +5,9 @@ import subprocess
 
 
 CONFIG_FILE = Path.home() / ".brainsets_config.json"
-
-# TODO: Implement a function to dynamically generate this list
-DATASETS = ["perich_miller_population_2018", "pei_pandarinath_nlb_2021"]
+PACKAGE_PATH = Path(__file__).parent.parent
+PIPELINES_PATH = PACKAGE_PATH / "brainsets_pipelines"
+DATASETS = [d.name for d in PIPELINES_PATH.iterdir() if d.is_dir()]
 
 
 def load_config():
