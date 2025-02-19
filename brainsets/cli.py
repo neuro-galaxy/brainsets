@@ -109,13 +109,17 @@ def config(raw, processed):
                 "Enter processed data directory",
                 type=click.Path(file_okay=False, dir_okay=True),
             )
+    
+    raw = Path(os.path.expanduser(raw))
+    processed = Path(os.path.expanduser(processed))
 
-    os.makedirs(raw, exist_ok=True)
-    os.makedirs(processed, exist_ok=True)
+    # Create directories
+    raw.mkdir(parents=True, exist_ok=True)
+    processed.mkdir(parents=True, exist_ok=True)
 
-    # Convert to absolute paths
-    raw = os.path.abspath(raw)
-    processed = os.path.abspath(processed)
+    # Save config
+    raw = str(raw)
+    processed = str(processed)
 
     config = load_config()
     config["raw_dir"] = raw
