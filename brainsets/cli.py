@@ -42,14 +42,23 @@ def prepare(dataset, cores):
             "Error: Please set raw and processed directories first using 'brainsets config'"
         )
         return
+    
+    pipelines_dirpath = Path(__file__).parent.parent / "brainsets_pipelines"
+    snakefile_filepath = pipelines_dirpath / "Snakefile"
+    reqs_filepath = pipelines_dirpath / dataset / "requirements.txt"
 
     # Run snakemake workflow for dataset download with live output
     try:
         process = subprocess.run(
             [
+                "uv",
+                "run",
+                "--with-requirements",
+                str(reqs_filepath),
+                "--active",  # Prefer building temp environment on top of current venv
                 "snakemake",
                 "-s",
-                str(Path(__file__).parent.parent / "brainsets_pipelines" / "Snakefile"),
+                str(snakefile_filepath),
                 "--config",
                 f"raw_dir={config['raw_dir']}",
                 f"processed_dir={config['processed_dir']}",

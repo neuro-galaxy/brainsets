@@ -8,8 +8,6 @@ DANDI_ID = "000688"
 RAW_DIR = config["RAW_DIR"]
 PROCESSED_DIR = config["PROCESSED_DIR"]
 
-EXTRA_REQS = "dandi==0.61.2"
-
 
 checkpoint perich_miller_population_2018_download_data:
     output:
@@ -17,7 +15,7 @@ checkpoint perich_miller_population_2018_download_data:
     shell:
         f"""
         mkdir -p {RAW_DIR}/{DATASET}
-        uv run --with {EXTRA_REQS} --active dandi download -o {RAW_DIR}/{DATASET} -e refresh DANDI:000688/draft
+        dandi download -o {RAW_DIR}/{DATASET} -e refresh DANDI:000688/draft
         find {RAW_DIR}/{DATASET}/ -type f -name "*.nwb" | sed "s|^{RAW_DIR}/{DATASET}/||" | sed "s|^/*||" > {{output}}
         """
 
