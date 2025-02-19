@@ -42,7 +42,7 @@ def prepare(dataset, cores):
             "Error: Please set raw and processed directories first using 'brainsets config'"
         )
         return
-    
+
     pipelines_dirpath = Path(__file__).parent.parent / "brainsets_pipelines"
     snakefile_filepath = pipelines_dirpath / "Snakefile"
     reqs_filepath = pipelines_dirpath / dataset / "requirements.txt"
@@ -56,7 +56,7 @@ def prepare(dataset, cores):
         f"raw_dir={config['raw_dir']}",
         f"processed_dir={config['processed_dir']}",
         f"-c{cores}",
-        f"{dataset}", 
+        f"{dataset}",
     ]
 
     # If dataset has additional requirements, prefix command with uv package manager
