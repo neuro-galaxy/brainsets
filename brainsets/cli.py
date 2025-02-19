@@ -47,6 +47,7 @@ def prepare(dataset, cores):
     snakefile_filepath = pipelines_dirpath / "Snakefile"
     reqs_filepath = pipelines_dirpath / dataset / "requirements.txt"
 
+    # Construct base Snakemake command with configuration
     command = [
         "snakemake",
         "-s",
@@ -58,6 +59,7 @@ def prepare(dataset, cores):
         f"{dataset}", 
     ]
 
+    # If dataset has additional requirements, prefix command with uv package manager
     if reqs_filepath.exists():
         uv_prefix_command = [
             "uv",
