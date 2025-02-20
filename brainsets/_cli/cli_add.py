@@ -9,23 +9,40 @@ from .utils import (
 
 
 @click.command()
-@click.argument("pipeline-path", type=EXISTING_DIRPATH_CLICK_TYPE)
-@click.argument("name", type=str, required=False)
-@click.option("-f", "--force", default=False, is_flag=True)
+@click.argument(
+    "pipeline-dir",
+    type=EXISTING_DIRPATH_CLICK_TYPE,
+)
+@click.argument(
+    "name",
+    type=str,
+    required=False,
+)
+@click.option(
+    "--force",
+    "-f",
+    default=False,
+    is_flag=True,
+    help="Update if dataset with the same name is already registered.",
+)
 @click.pass_context
-def add(ctx: click.Context, pipeline_path: str, name: str | None, force: bool):
+def add(ctx: click.Context, pipeline_dir: str, name: str | None, force: bool):
     """Add a local dataset to the brainsets configuration.
 
     This command registers a local dataset directory with brainsets. The directory
     must contain a Snakefile and will be referenced by the provided name.
+
+    \b
+    PIPELINE_DIR: Root directory of the brainset preparation pipeline.
+    NAME: Name to register the dataset under. Defaults to the pipeline directory name.
     """
-    pipeline_path = expand_path(pipeline_path)
-    _validate_local_pipeline(pipeline_path)
+    pipeline_dir = expand_path(pipeline_dir)
+    _validate_local_pipeline(pipeline_dir)
 
     config: CliConfig = ctx.obj["CONFIG"]
 
     if name is None:
-        name = pipeline_path.name
+        name = pipeline_dir.name
 
     existing_dataset_info = config.get_dataset_info(name, error=False)
     if existing_dataset_info is not None:
@@ -40,10 +57,10 @@ def add(ctx: click.Context, pipeline_path: str, name: str | None, force: bool):
             click.echo(
                 f"Updating pipeline for ({name}).\n"
                 f"Previous pipeline path: {existing_pipeline_path}\n"
-                f"New pipeline path: {pipeline_path}",
+                f"New pipeline path: {pipeline_dir}",
             )
 
-    config.local_datasets[name] = str(pipeline_path)
+    config.local_datasets[name] = str(pipeline_dir)
     config.save()
 
 

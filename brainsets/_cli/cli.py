@@ -1,6 +1,6 @@
 import click
 
-from .utils import EXISTING_FILEPATH_CLICK_TYPE, CliConfig, expand_path
+from .utils import EXISTING_FILEPATH_CLICK_TYPE, CliConfig
 from .cli_config import config
 from .cli_prepare import prepare
 from .cli_list import cli_list
@@ -10,7 +10,16 @@ from .cli_completion import completion
 
 @click.group()
 @click.version_option()
-@click.option("--config-path", type=EXISTING_FILEPATH_CLICK_TYPE)
+@click.option(
+    "--config-path",
+    "-c",
+    type=EXISTING_FILEPATH_CLICK_TYPE,
+    help=(
+        "Path to brainsets configuration file "
+        "(default: looks for .brainsets.yaml in current directory, parent directories, "
+        "or ~/.config/brainsets.yaml or ~/.brainsets.yaml)"
+    ),
+)
 @click.pass_context
 def cli(ctx: click.Context, config_path: str | None):
     """
