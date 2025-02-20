@@ -1,18 +1,33 @@
 import subprocess
 from typing import Optional
+from prompt_toolkit import prompt
 import click
 
-from .utils import load_config, PIPELINES_PATH, expand_path
+from .utils import (
+    load_config,
+    PIPELINES_PATH,
+    expand_path,
+    get_datasets,
+    AutoSuggestFromList,
+)
+from .list import echo_dataset_list
 
 
 @click.command()
-@click.argument("dataset", type=str)
+@click.argument("dataset", type=str, required=False)
 @click.option("-c", "--cores", default=4, help="Number of cores to use")
 @click.option("--config-path", type=click.Path())
 def prepare(dataset: Optional[str], cores: int, config_path: Optional[str]):
-    """Download and process a specific dataset."""
-    click.echo(f"Preparing {dataset}...")
+    """Download and process a dataset."""
     config, _ = load_config(config_path)
+
+    if dataset is None:
+        click.echo(f"Available datasets: ")
+        echo_dataset_list()
+        click.echo()
+        dataset = prompt("Dataset: ", auto_suggest=AutoSuggestFromList(get_datasets()))
+
+    click.echo(f"Preparing {dataset}...")
 
     snakefile_filepath = PIPELINES_PATH / dataset / "Snakefile"
     reqs_filepath = PIPELINES_PATH / dataset / "requirements.txt"

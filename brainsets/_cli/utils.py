@@ -3,6 +3,7 @@ from pathlib import Path
 import yaml
 from typing import List, Optional, Tuple
 import click
+from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
 import brainsets_pipelines
 
 
@@ -93,3 +94,26 @@ def validate_config(config: dict):
 def expand_path(path: str) -> Path:
     """Convert string path to absolute Path, expanding environment variables and user."""
     return Path(os.path.abspath(os.path.expandvars(os.path.expanduser(path))))
+
+
+class AutoSuggestFromList(AutoSuggest):
+    """
+    Give suggestions based on the lines in the history.
+    """
+
+    def __init__(self, suggestion_list: List[str]):
+        self.suggestion_list = suggestion_list
+
+    def get_suggestion(self, buffer, document) -> Suggestion | None:
+        # Consider only the last line for the suggestion.
+        text = document.text.rsplit("\n", 1)[-1]
+
+        # Only create a suggestion when this is not an empty line.
+        if text.strip():
+            # Find first matching line in history.
+            for string in reversed(self.suggestion_list):
+                for line in reversed(string.splitlines()):
+                    if line.startswith(text):
+                        return Suggestion(line[len(text) :])
+
+        return None
