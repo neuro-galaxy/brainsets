@@ -2,11 +2,11 @@ import click
 import json
 from pathlib import Path
 import subprocess
+import brainsets_pipelines
 
 
 CONFIG_FILE = Path.home() / ".brainsets_config.json"
-PACKAGE_PATH = Path(__file__).parent.parent
-PIPELINES_PATH = PACKAGE_PATH / "brainsets_pipelines"
+PIPELINES_PATH = Path(brainsets_pipelines.__path__[0])
 DATASETS = [d.name for d in PIPELINES_PATH.iterdir() if d.is_dir()]
 
 
