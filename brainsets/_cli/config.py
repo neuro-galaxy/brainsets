@@ -74,6 +74,12 @@ def init(raw: Optional[str], processed: Optional[str], config_path: Optional[str
     type=str,
 )
 def show(config_path: Optional[str]):
+    """Display the current configuration settings.
+
+    Shows the contents of the brainsets configuration file, including paths for raw and
+    processed datasets. If --config-path is not specified, looks for the configuration
+    file in the default location ($HOME/.config/brainsets.yaml).
+    """
     config, config_file = load_config(config_path)
     click.echo(f"Config file found at: {config_file}")
     click.echo()
