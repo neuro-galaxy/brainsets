@@ -2,16 +2,12 @@ import click
 import json
 from pathlib import Path
 import subprocess
+import brainsets_pipelines
 
 
 CONFIG_FILE = Path.home() / ".brainsets_config.json"
-
-# TODO: Implement a function to dynamically generate this list
-DATASETS = [
-    "perich_miller_population_2018",
-    "pei_pandarinath_nlb_2021",
-    "ibl_reproducible_ephys_2022",
-]
+PIPELINES_PATH = Path(brainsets_pipelines.__path__[0])
+DATASETS = [d.name for d in PIPELINES_PATH.iterdir() if d.is_dir()]
 
 
 def load_config():
@@ -47,19 +43,41 @@ def prepare(dataset, cores):
         )
         return
 
+    pipelines_dirpath = Path(__file__).parent.parent / "brainsets_pipelines"
+    snakefile_filepath = pipelines_dirpath / "Snakefile"
+    reqs_filepath = pipelines_dirpath / dataset / "requirements.txt"
+
+    # Construct base Snakemake command with configuration
+    command = [
+        "snakemake",
+        "-s",
+        str(snakefile_filepath),
+        "--config",
+        f"raw_dir={config['raw_dir']}",
+        f"processed_dir={config['processed_dir']}",
+        f"-c{cores}",
+        f"{dataset}",
+    ]
+
+    # If dataset has additional requirements, prefix command with uv package manager
+    if reqs_filepath.exists():
+        uv_prefix_command = [
+            "uv",
+            "run",
+            "--with-requirements",
+            str(reqs_filepath),
+            "--active",  # Prefer building temp environment on top of current venv
+        ]
+        command = uv_prefix_command + command
+        click.echo(
+            "Building temporary virtual environment using"
+            f" requirements from {reqs_filepath}"
+        )
+
     # Run snakemake workflow for dataset download with live output
     try:
         process = subprocess.run(
-            [
-                "snakemake",
-                "-s",
-                str(Path(__file__).parent.parent / "brainsets_pipelines" / "Snakefile"),
-                "--config",
-                f"raw_dir={config['raw_dir']}",
-                f"processed_dir={config['processed_dir']}",
-                f"-c{cores}",
-                f"{dataset}",
-            ],
+            command,
             check=True,
             capture_output=False,
             text=True,
