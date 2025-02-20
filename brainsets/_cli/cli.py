@@ -4,6 +4,7 @@ from .cli_config import config
 from .cli_prepare import prepare
 from .cli_list import list_datasets
 from .cli_add import add
+from .cli_completion import completion
 
 
 @click.group()
@@ -23,6 +24,7 @@ cli.add_command(config)
 cli.add_command(prepare)
 cli.add_command(list_datasets, name="list")
 cli.add_command(add)
+cli.add_command(completion)
 
 
 if __name__ == "__main__":
