@@ -1,5 +1,6 @@
 import click
 
+from .utils import EXISTING_FILEPATH_CLICK_TYPE, CliConfig, expand_path
 from .cli_config import config
 from .cli_prepare import prepare
 from .cli_list import cli_list
@@ -9,7 +10,9 @@ from .cli_completion import completion
 
 @click.group()
 @click.version_option()
-def cli():
+@click.option("--config-path", type=EXISTING_FILEPATH_CLICK_TYPE)
+@click.pass_context
+def cli(ctx: click.Context, config_path: str | None):
     """
     Command line interface for downloading and preparing brainsets.
 
@@ -17,7 +20,12 @@ def cli():
     Documentation: https://brainsets.readthedocs.io/en/latest/
     Project page: https://github.com/neuro-galaxy/brainsets
     """
-    pass
+    ctx.ensure_object(dict)
+
+    if ctx.invoked_subcommand != "config":
+        ctx.obj["CONFIG"] = CliConfig(config_path)
+    else:
+        ctx.obj["CONFIG_PATH"] = config_path
 
 
 cli.add_command(config)

@@ -4,10 +4,10 @@ from .utils import CliConfig, EXISTING_FILEPATH_CLICK_TYPE
 
 
 @click.command()
-@click.option("--config-path", type=EXISTING_FILEPATH_CLICK_TYPE)
-def cli_list(config_path):
+@click.pass_context
+def cli_list(ctx: click.Context):
     """List available datasets."""
-    config = CliConfig(config_path)
+    config = ctx.obj["CONFIG"]
     click.echo("Available datasets:")
-    for dataset in config.avaiable_datasets:
+    for dataset in config.available_datasets:
         click.echo(f"- {dataset}")

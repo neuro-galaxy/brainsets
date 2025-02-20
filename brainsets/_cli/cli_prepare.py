@@ -1,5 +1,4 @@
 import subprocess
-from typing import Optional
 from prompt_toolkit import prompt
 import click
 
@@ -7,7 +6,6 @@ from .utils import (
     CliConfig,
     expand_path,
     AutoSuggestFromList,
-    EXISTING_FILEPATH_CLICK_TYPE,
     expand_path,
 )
 
@@ -15,14 +13,14 @@ from .utils import (
 @click.command()
 @click.argument("dataset", type=str, required=False)
 @click.option("-c", "--cores", default=4, help="Number of cores to use")
-@click.option("--config-path", type=EXISTING_FILEPATH_CLICK_TYPE)
-def prepare(dataset: Optional[str], cores: int, config_path: Optional[str]):
+@click.pass_context
+def prepare(ctx: click.Context, dataset: str | None, cores: int):
     """Download and process a dataset."""
-    config = CliConfig(config_path)
+    config: CliConfig = ctx.obj["CONFIG"]
 
     if dataset is None:
         click.echo(f"Available datasets: ")
-        available_datasets = config.avaiable_datasets
+        available_datasets = config.available_datasets
         for dataset in available_datasets:
             click.echo(f"- {dataset}")
         click.echo()
@@ -32,8 +30,6 @@ def prepare(dataset: Optional[str], cores: int, config_path: Optional[str]):
             "Dataset: ",
             auto_suggest=AutoSuggestFromList(dataset_names),
         )
-
-    click.echo(f"Preparing {dataset}...")
 
     dataset_info = config.get_dataset_info(dataset)
 
@@ -78,6 +74,7 @@ def prepare(dataset: Optional[str], cores: int, config_path: Optional[str]):
 
     # Run snakemake workflow for dataset download with live output
     try:
+        click.echo(f"Preparing {dataset}...")
         process = subprocess.run(
             command,
             check=True,

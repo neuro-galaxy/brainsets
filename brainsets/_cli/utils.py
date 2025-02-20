@@ -22,18 +22,16 @@ def expand_path(path: str) -> Path:
 
 class CliConfig:
 
-    def __init__(self, config_path: Path | None):
+    def __init__(self, config_path: str | Path | None, error: bool = True):
         if config_path is None:
             config_path = self.find_config_file()
-            if config_path is None:
+            if config_path is None and error == True:
                 raise click.ClickException(
                     "No configuration file found. "
                     "Please run 'brainsets config init' to create one."
                 )
 
-        if isinstance(config_path, str):
-            config_path = Path(os.path.expanduser(config_path))
-
+        config_path = expand_path(config_path)
         with open(config_path, "r") as f:
             config_dict = yaml.safe_load(f)
         self._validate_config_dict(config_dict)

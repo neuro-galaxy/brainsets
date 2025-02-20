@@ -4,30 +4,29 @@ from prompt_toolkit import prompt
 from .utils import CliConfig, expand_path
 
 
-@click.group(
-    help="Create or manage configuration files",
-)
-def config():
-    pass
+@click.group(help="Initialize or view configuration files")
+@click.pass_context
+def config(ctx: click.Context):
+    if ctx.invoked_subcommand != "init":
+        ctx.obj["CONFIG"] = CliConfig(ctx.obj["CONFIG_PATH"])
+        ctx.obj.pop("CONFIG_PATH")
 
 
 @config.command()
 @click.option(
     "--raw",
     help="Path for saving raw datasets",
-    type=click.Path(),
+    type=click.Path(file_okay=False, dir_okay=True),
 )
 @click.option(
     "--processed",
     help="Path for saving processed datasets",
-    type=click.Path(),
+    type=click.Path(file_okay=False, dir_okay=True),
 )
 @click.option(
     "--config-path",
-    help="Path for saving the created configuration file",
-    default="$HOME/.config/brainsets.yaml",
-    show_default=True,
-    type=click.Path(),
+    help="Path for saving the created configuration file (default: $HOME/.config/brainsets.yaml)",
+    type=click.Path(file_okay=True, dir_okay=False),
 )
 @click.option(
     "-f",
@@ -61,6 +60,9 @@ def init(raw: str | None, processed: str | None, config_path: str | None, force:
     processed_dir = expand_path(processed)
     config_path = expand_path(config_path)
 
+    if config_path.name != ".brainsets.yaml":
+        raise click.ClickException("Config file must be named '.brainsets.yaml'")
+
     # Check config file does not exist
     if config_path.exists() and not force:
         click.confirm("Overwrite existing config?", abort=True)
@@ -78,18 +80,13 @@ def init(raw: str | None, processed: str | None, config_path: str | None, force:
 
 
 @config.command()
-@click.option(
-    "--config-path",
-    "-c",
-    help="Configuration file path",
-    type=str,
-)
-def show(config_path: str | None):
+@click.pass_context
+def show(ctx: click.Context):
     """Display the current configuration settings.
 
     Shows the contents of the brainsets configuration file, including paths for raw and
     processed datasets. If --config-path is not specified, looks for the configuration
     file in the default location ($HOME/.config/brainsets.yaml).
     """
-    config = CliConfig(config_path)
+    config = ctx.obj["CONFIG"]
     click.echo(config)
