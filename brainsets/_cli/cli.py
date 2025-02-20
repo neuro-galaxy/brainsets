@@ -1,9 +1,9 @@
 import click
 
-from .config import config
-from .prepare import prepare
-from .list import list_datasets
-from .add import add
+from .cli_config import config
+from .cli_prepare import prepare
+from .cli_list import list_datasets
+from .cli_add import add
 
 
 @click.group()

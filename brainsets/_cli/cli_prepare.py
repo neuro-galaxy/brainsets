@@ -12,7 +12,7 @@ from .utils import (
     CONFIG_PATH_CLICK_TYPE,
     expand_path,
 )
-from .list import echo_dataset_list
+from .cli_list import echo_dataset_list
 
 
 @click.command()
