@@ -6,9 +6,8 @@ import brainsets_pipelines
 
 
 CONFIG_FILE = Path.home() / ".brainsets_config.json"
-
-# TODO: Implement a function to dynamically generate this list
-DATASETS = ["perich_miller_population_2018", "pei_pandarinath_nlb_2021"]
+PIPELINES_PATH = Path(brainsets_pipelines.__path__[0])
+DATASETS = [d.name for d in PIPELINES_PATH.iterdir() if d.is_dir()]
 
 
 def load_config():
@@ -44,9 +43,8 @@ def prepare(dataset, cores):
         )
         return
 
-    pipelines_dirpath = Path(__file__).parent.parent / "brainsets_pipelines"
-    snakefile_filepath = pipelines_dirpath / "Snakefile"
-    reqs_filepath = pipelines_dirpath / dataset / "requirements.txt"
+    snakefile_filepath = PIPELINES_PATH / "Snakefile"
+    reqs_filepath = PIPELINES_PATH / dataset / "requirements.txt"
 
     # Construct base Snakemake command with configuration
     command = [
