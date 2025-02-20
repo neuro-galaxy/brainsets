@@ -5,13 +5,45 @@ from typing import List, Optional, Tuple
 import click
 from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
 import brainsets_pipelines
+from dataclasses import dataclass
 
 
 PIPELINES_PATH = Path(brainsets_pipelines.__path__[0])
+CONFIG_PATH_CLICK_TYPE = click.Path(exists=True, file_okay=True, dir_okay=False)
 
 
-def get_datasets() -> List[str]:
-    return [d.name for d in PIPELINES_PATH.iterdir() if d.is_dir()]
+@dataclass
+class DatasetInfo:
+    name: str | Path
+    pipeline_path: str | Path
+    is_local: bool = False
+
+
+def get_datasets(config) -> List[DatasetInfo]:
+    default_pipelines = [
+        DatasetInfo(d.name, d, is_local=False)
+        for d in PIPELINES_PATH.iterdir()
+        if d.is_dir()
+    ]
+
+    local_pipelines = [
+        DatasetInfo(k, v, is_local=True)
+        for k, v in config.get("local_datasets", {}).items()
+    ]
+
+    return default_pipelines + local_pipelines
+
+
+def get_dataset_names(config) -> List[str]:
+    return [d.name for d in get_datasets(config)]
+
+
+def get_dataset_info(name, config):
+    datasets = get_datasets(config)
+    for dataset in datasets:
+        if dataset.name == name:
+            return dataset
+    return None
 
 
 def find_config_file() -> Path | None:

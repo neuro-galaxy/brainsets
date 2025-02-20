@@ -1,7 +1,7 @@
 from pathlib import Path
 import click
 
-from .utils import load_config, expand_path, save_config
+from .utils import load_config, expand_path, save_config, CONFIG_PATH_CLICK_TYPE
 
 
 @click.command()
@@ -9,7 +9,7 @@ from .utils import load_config, expand_path, save_config
 @click.argument(
     "pipeline-path", type=click.Path(exists=True, dir_okay=True, file_okay=False)
 )
-@click.option("--config-path", type=click.Path())
+@click.option("--config-path", type=CONFIG_PATH_CLICK_TYPE)
 @click.option("-u", "--update", default=False, is_flag=True)
 def add(name, pipeline_path, config_path, update):
     """Add a local dataset to the brainsets configuration.

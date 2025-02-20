@@ -5,10 +5,12 @@ import click
 
 from .utils import (
     load_config,
-    PIPELINES_PATH,
     expand_path,
-    get_datasets,
+    get_dataset_names,
+    get_dataset_info,
     AutoSuggestFromList,
+    CONFIG_PATH_CLICK_TYPE,
+    expand_path,
 )
 from .list import echo_dataset_list
 
@@ -16,21 +18,36 @@ from .list import echo_dataset_list
 @click.command()
 @click.argument("dataset", type=str, required=False)
 @click.option("-c", "--cores", default=4, help="Number of cores to use")
-@click.option("--config-path", type=click.Path())
+@click.option("--config-path", type=CONFIG_PATH_CLICK_TYPE)
 def prepare(dataset: Optional[str], cores: int, config_path: Optional[str]):
     """Download and process a dataset."""
-    config, _ = load_config(config_path)
+    config, config_path = load_config(config_path)
 
     if dataset is None:
         click.echo(f"Available datasets: ")
-        echo_dataset_list()
+        echo_dataset_list(config)
         click.echo()
-        dataset = prompt("Dataset: ", auto_suggest=AutoSuggestFromList(get_datasets()))
+        dataset = prompt(
+            "Dataset: ",
+            auto_suggest=AutoSuggestFromList(get_dataset_names(config)),
+        )
 
     click.echo(f"Preparing {dataset}...")
 
-    snakefile_filepath = PIPELINES_PATH / dataset / "Snakefile"
-    reqs_filepath = PIPELINES_PATH / dataset / "requirements.txt"
+    dataset_info = get_dataset_info(dataset, config)
+
+    pipeline_path = expand_path(dataset_info.pipeline_path)
+    snakefile_filepath = pipeline_path / "Snakefile"
+    reqs_filepath = pipeline_path / "requirements.txt"
+
+    if not pipeline_path.exists():
+        raise click.ClickException(
+            f"Dataset pipeline path does not exist: {pipeline_path}"
+        )
+    if not snakefile_filepath.exists():
+        raise click.ClickException(
+            f"Dataset pipeline must contain a Snakefile: {snakefile_filepath}"
+        )
 
     # Construct base Snakemake command with configuration
     command = [
