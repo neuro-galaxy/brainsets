@@ -9,7 +9,7 @@ from .utils import (
     get_dataset_names,
     get_dataset_info,
     AutoSuggestFromList,
-    CONFIG_PATH_CLICK_TYPE,
+    EXISTING_FILEPATH_CLICK_TYPE,
     expand_path,
 )
 from .cli_list import echo_dataset_list
@@ -18,7 +18,7 @@ from .cli_list import echo_dataset_list
 @click.command()
 @click.argument("dataset", type=str, required=False)
 @click.option("-c", "--cores", default=4, help="Number of cores to use")
-@click.option("--config-path", type=CONFIG_PATH_CLICK_TYPE)
+@click.option("--config-path", type=EXISTING_FILEPATH_CLICK_TYPE)
 def prepare(dataset: Optional[str], cores: int, config_path: Optional[str]):
     """Download and process a dataset."""
     config = CliConfig.load(config_path)

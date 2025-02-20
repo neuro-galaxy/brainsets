@@ -4,7 +4,7 @@ import click
 from .utils import (
     CliConfig,
     expand_path,
-    CONFIG_PATH_CLICK_TYPE,
+    EXISTING_FILEPATH_CLICK_TYPE,
     get_dataset_names,
     get_dataset_info,
 )
@@ -12,10 +12,11 @@ from .utils import (
 
 @click.command()
 @click.argument(
-    "pipeline-path", type=click.Path(exists=True, dir_okay=True, file_okay=False)
+    "pipeline-path",
+    type=click.Path(exists=True, dir_okay=True, file_okay=False),
 )
 @click.argument("name", type=str, required=False)
-@click.option("--config-path", type=CONFIG_PATH_CLICK_TYPE)
+@click.option("--config-path", type=EXISTING_FILEPATH_CLICK_TYPE)
 @click.option("-f", "--force", default=False, is_flag=True)
 def add(pipeline_path: str, name: str | None, config_path: str, force: bool):
     """Add a local dataset to the brainsets configuration.

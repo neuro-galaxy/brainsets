@@ -1,10 +1,10 @@
 import click
 
-from .utils import get_all_dataset_info, CliConfig, CONFIG_PATH_CLICK_TYPE
+from .utils import get_all_dataset_info, CliConfig, EXISTING_FILEPATH_CLICK_TYPE
 
 
 @click.command()
-@click.option("--config-path", type=CONFIG_PATH_CLICK_TYPE)
+@click.option("--config-path", type=EXISTING_FILEPATH_CLICK_TYPE)
 def list_datasets(config_path):
     """List available datasets."""
     click.echo("Available datasets:")

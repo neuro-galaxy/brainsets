@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 
 PIPELINES_PATH = Path(brainsets_pipelines.__path__[0])
-CONFIG_PATH_CLICK_TYPE = click.Path(exists=True, file_okay=True, dir_okay=False)
+EXISTING_FILEPATH_CLICK_TYPE = click.Path(exists=True, file_okay=True, dir_okay=False)
 
 
 def find_config_file() -> Path | None:
