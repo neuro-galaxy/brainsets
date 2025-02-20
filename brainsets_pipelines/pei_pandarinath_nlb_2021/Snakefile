@@ -8,7 +8,13 @@ DANDI_ID = "000140"
 RAW_DIR = config["RAW_DIR"]
 PROCESSED_DIR = config["PROCESSED_DIR"]
 
-checkpoint pei_pandarinath_nlb_2021_download_data:
+
+rule:
+    input:
+        f"{PROCESSED_DIR}/{DATASET}/manifest.txt"
+
+
+checkpoint download_data:
     output:
         f"{RAW_DIR}/{DATASET}/manifest.txt"
     shell:
@@ -33,7 +39,7 @@ rule prepare_data:
         """
 
 def aggregate_input(wildcards):
-    with checkpoints.pei_pandarinath_nlb_2021_download_data.get(**wildcards).output[0].open() as manifest:
+    with checkpoints.download_data.get(**wildcards).output[0].open() as manifest:
         files = [line.strip() for line in manifest]
     return expand(f"{PROCESSED_DIR}/{DATASET}/tmp/{{file}}.txt", file=files)
 
@@ -46,7 +52,3 @@ rule merge_manifests:
         f"""
         find {PROCESSED_DIR}/{DATASET}/ -type f -name "*.h5" | sed "s|^{PROCESSED_DIR}/{DATASET}//||" > {{output}}        
         """
-
-rule all:
-    input:
-        f"{PROCESSED_DIR}/{DATASET}/manifest.txt"

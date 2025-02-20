@@ -88,3 +88,8 @@ def validate_config(config: dict):
         raise click.ClickException(
             "Configuration missing required 'processed_dir' field"
         )
+
+
+def expand_path(path: str) -> Path:
+    """Convert string path to absolute Path, expanding environment variables and user."""
+    return Path(os.path.abspath(os.path.expandvars(os.path.expanduser(path))))

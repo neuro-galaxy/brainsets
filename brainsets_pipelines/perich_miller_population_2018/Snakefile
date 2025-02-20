@@ -9,6 +9,11 @@ RAW_DIR = config["RAW_DIR"]
 PROCESSED_DIR = config["PROCESSED_DIR"]
 
 
+rule:
+    input:
+        f"{PROCESSED_DIR}/{DATASET}/manifest.txt"
+
+
 checkpoint perich_miller_population_2018_download_data:
     output:
         f"{RAW_DIR}/{DATASET}/manifest.txt"
@@ -47,10 +52,6 @@ rule merge_manifests:
         f"""
         find {PROCESSED_DIR}/{DATASET}/ -type f -name "*.h5" | sed "s|^{PROCESSED_DIR}/{DATASET}//||" > {{output}}        
         """
-
-rule all:
-    input:
-        f"{PROCESSED_DIR}/{DATASET}/manifest.txt"
 
 
 # include: "../freeze.smk"

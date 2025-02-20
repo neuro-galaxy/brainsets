@@ -1,11 +1,9 @@
-import os
-from pathlib import Path
 import yaml
 from typing import Optional
 import click
 from prompt_toolkit import prompt
 
-from .utils import load_config, save_config
+from .utils import load_config, save_config, expand_path
 
 
 @click.group(
@@ -54,9 +52,9 @@ def init(raw: Optional[str], processed: Optional[str], config_path: Optional[str
         config_path = prompt(f"Configuration file path [{default}]: ") or default
 
     # Convert all paths to absolute Paths
-    raw_path = _expand_path(raw)
-    processed_path = _expand_path(processed)
-    config_path = _expand_path(config_path)
+    raw_path = expand_path(raw)
+    processed_path = expand_path(processed)
+    config_path = expand_path(config_path)
 
     # Create directories
     raw_path.mkdir(parents=True, exist_ok=True)
@@ -84,8 +82,3 @@ def show(config_path: Optional[str]):
     click.echo(f"Config file found at: {config_file}")
     click.echo()
     click.echo(yaml.dump(config, default_flow_style=False, sort_keys=False))
-
-
-def _expand_path(path: str) -> Path:
-    """Convert string path to absolute Path, expanding environment variables and user."""
-    return Path(os.path.abspath(os.path.expandvars(os.path.expanduser(path))))

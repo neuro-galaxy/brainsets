@@ -2,11 +2,11 @@ import subprocess
 from typing import Optional
 import click
 
-from .utils import get_datasets, load_config, PIPELINES_PATH
+from .utils import load_config, PIPELINES_PATH, expand_path
 
 
 @click.command()
-@click.argument("dataset", type=click.Choice(get_datasets(), case_sensitive=False))
+@click.argument("dataset", type=str)
 @click.option("-c", "--cores", default=4, help="Number of cores to use")
 @click.option("--config-path", type=click.Path())
 def prepare(dataset: Optional[str], cores: int, config_path: Optional[str]):
@@ -14,7 +14,7 @@ def prepare(dataset: Optional[str], cores: int, config_path: Optional[str]):
     click.echo(f"Preparing {dataset}...")
     config, _ = load_config(config_path)
 
-    snakefile_filepath = PIPELINES_PATH / "Snakefile"
+    snakefile_filepath = PIPELINES_PATH / dataset / "Snakefile"
     reqs_filepath = PIPELINES_PATH / dataset / "requirements.txt"
 
     # Construct base Snakemake command with configuration
@@ -23,10 +23,9 @@ def prepare(dataset: Optional[str], cores: int, config_path: Optional[str]):
         "-s",
         str(snakefile_filepath),
         "--config",
-        f"raw_dir={config['raw_dir']}",
-        f"processed_dir={config['processed_dir']}",
+        f"RAW_DIR={expand_path(config['raw_dir'])}",
+        f"PROCESSED_DIR={expand_path(config['processed_dir'])}",
         f"-c{cores}",
-        f"{dataset}",
     ]
 
     # If dataset has additional requirements, prefix command with uv package manager
