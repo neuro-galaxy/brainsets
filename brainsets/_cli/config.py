@@ -19,19 +19,19 @@ def config():
 @click.option(
     "--raw",
     help="Path for saving raw datasets",
-    type=str,
+    type=click.Path(),
 )
 @click.option(
     "--processed",
     help="Path for saving processed datasets",
-    type=str,
+    type=click.Path(),
 )
 @click.option(
     "--config-path",
     help="Path for saving the created configuration file",
     default="$HOME/.config/brainsets.yaml",
     show_default=True,
-    type=str,
+    type=click.Path(),
 )
 def init(raw: Optional[str], processed: Optional[str], config_path: Optional[str]):
     """Initialize brainsets configuration file.

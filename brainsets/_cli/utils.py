@@ -3,16 +3,14 @@ from pathlib import Path
 import yaml
 from typing import List, Optional, Tuple
 import click
+import brainsets_pipelines
 
 
-def get_pipelines_path() -> Path:
-    import brainsets_pipelines
-
-    return Path(brainsets_pipelines.__path__[0])
+PIPELINES_PATH = Path(brainsets_pipelines.__path__[0])
 
 
 def get_datasets() -> List[str]:
-    return [d.name for d in get_pipelines_path().iterdir() if d.is_dir()]
+    return [d.name for d in PIPELINES_PATH.iterdir() if d.is_dir()]
 
 
 def find_config_file() -> Path | None:

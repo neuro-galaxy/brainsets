@@ -1,8 +1,8 @@
 import click
-import brainsets_pipelines
 
 from .config import config
 from .prepare import prepare
+from .list import list
 
 
 @click.group()
@@ -20,14 +20,7 @@ def cli():
 
 cli.add_command(config)
 cli.add_command(prepare)
-
-
-@cli.command()
-def list():
-    """List available datasets."""
-    click.echo("Available datasets:")
-    for dataset in DATASETS:
-        click.echo(f"- {dataset}")
+cli.add_command(list)
 
 
 if __name__ == "__main__":

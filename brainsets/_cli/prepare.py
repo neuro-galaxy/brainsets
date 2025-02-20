@@ -1,14 +1,12 @@
 import subprocess
 import click
-from .utils import get_datasets
+from .utils import get_datasets, load_config, PIPELINES_PATH
 
 
 @click.command()
 @click.argument("dataset", type=click.Choice(get_datasets(), case_sensitive=False))
 @click.option("-c", "--cores", default=4, help="Number of cores to use")
-@click.option(
-    "--config-path",
-)
+@click.option("--config-path", type=click.Path())
 def prepare(dataset, cores):
     """Download and process a specific dataset."""
     click.echo(f"Preparing {dataset}...")
