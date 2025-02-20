@@ -2,7 +2,7 @@ import click
 
 from .config import config
 from .prepare import prepare
-from .list import list
+from .list import list_datasets
 
 
 @click.group()
@@ -20,7 +20,7 @@ def cli():
 
 cli.add_command(config)
 cli.add_command(prepare)
-cli.add_command(list)
+cli.add_command(list_datasets, name="list")
 
 
 if __name__ == "__main__":
