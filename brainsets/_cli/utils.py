@@ -61,7 +61,7 @@ def get_all_dataset_info(config: CliConfig) -> List[CliDatasetInfo]:
     default_pipelines = [
         CliDatasetInfo(d.name, expand_path(d), is_local=False)
         for d in PIPELINES_PATH.iterdir()
-        if d.is_dir()
+        if d.is_dir() and not d.name.startswith("_")
     ]
 
     local_pipelines = [
