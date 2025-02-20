@@ -4,7 +4,7 @@ from prompt_toolkit import prompt
 import click
 
 from .utils import (
-    load_config,
+    CliConfig,
     expand_path,
     get_dataset_names,
     get_dataset_info,
@@ -21,7 +21,7 @@ from .list import echo_dataset_list
 @click.option("--config-path", type=CONFIG_PATH_CLICK_TYPE)
 def prepare(dataset: Optional[str], cores: int, config_path: Optional[str]):
     """Download and process a dataset."""
-    config, config_path = load_config(config_path)
+    config = CliConfig.load(config_path)
 
     if dataset is None:
         click.echo(f"Available datasets: ")
@@ -55,8 +55,8 @@ def prepare(dataset: Optional[str], cores: int, config_path: Optional[str]):
         "-s",
         str(snakefile_filepath),
         "--config",
-        f"RAW_DIR={expand_path(config['raw_dir'])}",
-        f"PROCESSED_DIR={expand_path(config['processed_dir'])}",
+        f"RAW_DIR={config.raw_dir}",
+        f"PROCESSED_DIR={config.processed_dir}",
         f"-c{cores}",
     ]
 

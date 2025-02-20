@@ -1,7 +1,7 @@
 from pathlib import Path
 import click
 
-from .utils import load_config, expand_path, save_config, CONFIG_PATH_CLICK_TYPE
+from .utils import CliConfig, expand_path, CONFIG_PATH_CLICK_TYPE
 
 
 @click.command()
@@ -20,25 +20,22 @@ def add(name, pipeline_path, config_path, update):
     pipeline_path = expand_path(pipeline_path)
     _validate_local_pipeline(pipeline_path)
 
-    config, config_path = load_config(config_path)
+    config = CliConfig.load(config_path)
 
-    if "local_datasets" not in config:
-        config["local_datasets"] = {}
-
-    if name in config["local_datasets"]:
+    if name in config.local_datasets:
         if not update:
             raise click.ClickException(
-                f"Dataset '{name}' already registered for {config['local_datasets'][name]}."
+                f"Dataset '{name}' already registered for {config.local_datasets[name]}."
                 " Use --update to overwrite."
             )
         else:
             click.echo(
-                f"Updating dataset '{name}' path from {config['local_datasets'][name]} "
+                f"Updating dataset '{name}' path from {config.local_datasets[name]} "
                 f"to {pipeline_path}"
             )
 
-    config["local_datasets"][name] = str(pipeline_path)
-    save_config(config, config_path)
+    config.local_datasets[name] = str(pipeline_path)
+    config.save()
 
 
 def _validate_local_pipeline(path: Path):

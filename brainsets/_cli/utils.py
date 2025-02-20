@@ -1,49 +1,16 @@
+from __future__ import annotations
 import os
 from pathlib import Path
 import yaml
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 import click
 from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
 import brainsets_pipelines
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 PIPELINES_PATH = Path(brainsets_pipelines.__path__[0])
 CONFIG_PATH_CLICK_TYPE = click.Path(exists=True, file_okay=True, dir_okay=False)
-
-
-@dataclass
-class DatasetInfo:
-    name: str | Path
-    pipeline_path: str | Path
-    is_local: bool = False
-
-
-def get_datasets(config) -> List[DatasetInfo]:
-    default_pipelines = [
-        DatasetInfo(d.name, d, is_local=False)
-        for d in PIPELINES_PATH.iterdir()
-        if d.is_dir()
-    ]
-
-    local_pipelines = [
-        DatasetInfo(k, v, is_local=True)
-        for k, v in config.get("local_datasets", {}).items()
-    ]
-
-    return default_pipelines + local_pipelines
-
-
-def get_dataset_names(config) -> List[str]:
-    return [d.name for d in get_datasets(config)]
-
-
-def get_dataset_info(name, config):
-    datasets = get_datasets(config)
-    for dataset in datasets:
-        if dataset.name == name:
-            return dataset
-    return None
 
 
 def find_config_file() -> Path | None:
@@ -78,54 +45,118 @@ def find_config_file() -> Path | None:
     return None
 
 
-def load_config(config_file: Optional[Path | str]) -> Tuple[dict, Path]:
-    if config_file is None:
-        config_file = find_config_file()
-        if not config_file:
-            raise click.ClickException(
-                "No configuration file found. "
-                "Please run 'brainsets config init' to create one."
-            )
-
-    if isinstance(config_file, str):
-        config_file = Path(os.path.expanduser(config_file))
-
-    try:
-        with open(config_file, "r") as f:
-            try:
-                config = yaml.safe_load(f)
-            except yaml.YAMLError as e:
-                raise click.ClickException(f"Invalid YAML in config file: {e}")
-    except FileNotFoundError:
-        raise click.ClickException(f"Config file not found: {config_file}")
-    except PermissionError:
-        raise click.ClickException(
-            f"Permission denied when reading config file: {config_file}"
-        )
-
-    validate_config(config)
-    return config, config_file
-
-
-def save_config(config: dict, filepath: Path):
-    click.echo(f"Saving configuration file at {filepath}")
-    with open(filepath, "w") as f:
-        yaml.safe_dump(config, f, default_flow_style=False)
-
-
-def validate_config(config: dict):
-    """Validate that the configuration dictionary has required fields."""
-    if "raw_dir" not in config:
-        raise click.ClickException("Configuration missing required 'raw_dir' field")
-    if "processed_dir" not in config:
-        raise click.ClickException(
-            "Configuration missing required 'processed_dir' field"
-        )
-
-
 def expand_path(path: str) -> Path:
     """Convert string path to absolute Path, expanding environment variables and user."""
     return Path(os.path.abspath(os.path.expandvars(os.path.expanduser(path))))
+
+
+@dataclass
+class CliDatasetInfo:
+    name: str
+    pipeline_path: Path
+    is_local: bool = False
+
+
+def get_all_dataset_info(config: CliConfig) -> List[CliDatasetInfo]:
+    default_pipelines = [
+        CliDatasetInfo(d.name, expand_path(d), is_local=False)
+        for d in PIPELINES_PATH.iterdir()
+        if d.is_dir()
+    ]
+
+    local_pipelines = [
+        CliDatasetInfo(k, v, is_local=True) for k, v in config.local_datasets.items()
+    ]
+
+    return default_pipelines + local_pipelines
+
+
+def get_dataset_info(name: str, config: CliConfig) -> CliDatasetInfo:
+    """Get dataset info for a single dataset"""
+    datasets = get_all_dataset_info(config)
+    for dataset in datasets:
+        if dataset.name == name:
+            return dataset
+
+    raise click.ClickException(
+        f"Could not find dataset '{name}' in configuration file at "
+        f"{config.config_path}"
+    )
+
+
+def get_dataset_names(config: CliConfig) -> List[str]:
+    return [d.name for d in get_all_dataset_info(config)]
+
+
+@dataclass
+class CliConfig:
+    raw_dir: Path
+    processed_dir: Path
+    local_datasets: Dict[str, Path] = field(default_factory=dict)
+    config_path: Path | None = None
+
+    @classmethod
+    def load(cls, config_path: Path | None) -> CliConfig:
+        if config_path is None:
+            config_path = find_config_file()
+            if not config_path:
+                raise click.ClickException(
+                    "No configuration file found. "
+                    "Please run 'brainsets config init' to create one."
+                )
+
+        if isinstance(config_path, str):
+            config_path = Path(os.path.expanduser(config_path))
+
+        with open(config_path, "r") as f:
+            config_dict = yaml.safe_load(f)
+        cls._validate_config_dict(config_dict)
+
+        obj = cls(
+            config_path=config_path,
+            raw_dir=expand_path(config_dict["raw_dir"]),
+            processed_dir=expand_path(config_dict["processed_dir"]),
+            local_datasets={
+                k: Path(v) for k, v in config_dict.get("local_datasets", {}).items()
+            },
+        )
+
+        return obj
+
+    def save(self) -> Path:
+        config_dict = {
+            "raw_dir": str(self.raw_dir),
+            "processed_dir": str(self.processed_dir),
+        }
+        if len(self.local_datasets) > 0:
+            config_dict["local_datasets"] = {
+                k: str(v) for k, v in self.local_datasets.items()
+            }
+
+        click.echo(f"Saving configuration file at {self.config_path}")
+        with open(self.config_path, "w") as f:
+            yaml.safe_dump(config_dict, f, default_flow_style=False)
+
+    @staticmethod
+    def _validate_config_dict(config_dict):
+        """Validate that the configuration dictionary has required fields."""
+        if "raw_dir" not in config_dict:
+            raise click.ClickException("Configuration missing required 'raw_dir' field")
+        if "processed_dir" not in config_dict:
+            raise click.ClickException(
+                "Configuration missing required 'processed_dir' field"
+            )
+
+    def __repr__(self):
+        ans = []
+        ans.append(f"Config file path: {self.config_path}")
+        ans.append(f"Raw data directory: {self.raw_dir}")
+        ans.append(f"Processed data directory: {self.processed_dir}")
+        if len(self.local_datasets) > 0:
+            ans.append(f"Local datasets:")
+            for name, pipeline_path in self.local_datasets.items():
+                ans.append(f"- {name} @ {pipeline_path}")
+        return "\n".join(ans)
 
 
 class AutoSuggestFromList(AutoSuggest):

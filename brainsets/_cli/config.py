@@ -1,9 +1,7 @@
-import yaml
-from typing import Optional
 import click
 from prompt_toolkit import prompt
 
-from .utils import load_config, save_config, expand_path
+from .utils import CliConfig, expand_path
 
 
 @click.group(
@@ -31,7 +29,14 @@ def config():
     show_default=True,
     type=click.Path(),
 )
-def init(raw: Optional[str], processed: Optional[str], config_path: Optional[str]):
+@click.option(
+    "-f",
+    "--force",
+    is_flag=True,
+    default=False,
+    help="Allow overwriting existing config file",
+)
+def init(raw: str | None, processed: str | None, config_path: str | None, force: bool):
     """Initialize brainsets configuration file.
 
     Creates a configuration file with paths for storing raw and processed datasets.
@@ -52,16 +57,25 @@ def init(raw: Optional[str], processed: Optional[str], config_path: Optional[str
         config_path = prompt(f"Configuration file path [{default}]: ") or default
 
     # Convert all paths to absolute Paths
-    raw_path = expand_path(raw)
-    processed_path = expand_path(processed)
+    raw_dir = expand_path(raw)
+    processed_dir = expand_path(processed)
     config_path = expand_path(config_path)
 
-    # Create directories
-    raw_path.mkdir(parents=True, exist_ok=True)
-    processed_path.mkdir(parents=True, exist_ok=True)
+    # Check config file does not exist
+    if config_path.exists() and not force:
+        raise click.ClickException(
+            f"Configuration file already exists at {config_path}. "
+            "Use --force to overwrite."
+        )
 
-    config = {"raw_dir": str(raw_path), "processed_dir": str(processed_path)}
-    save_config(config=config, filepath=config_path)
+    config = CliConfig(
+        raw_dir=raw_dir, processed_dir=processed_dir, config_path=config_path
+    )
+    config.save()
+
+    # Create directories
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    processed_dir.mkdir(parents=True, exist_ok=True)
 
 
 @config.command()
@@ -71,14 +85,12 @@ def init(raw: Optional[str], processed: Optional[str], config_path: Optional[str
     help="Configuration file path",
     type=str,
 )
-def show(config_path: Optional[str]):
+def show(config_path: str | None):
     """Display the current configuration settings.
 
     Shows the contents of the brainsets configuration file, including paths for raw and
     processed datasets. If --config-path is not specified, looks for the configuration
     file in the default location ($HOME/.config/brainsets.yaml).
     """
-    config, config_file = load_config(config_path)
-    click.echo(f"Config file found at: {config_file}")
-    click.echo()
-    click.echo(yaml.dump(config, default_flow_style=False, sort_keys=False))
+    config = CliConfig.load(config_path)
+    click.echo(config)
