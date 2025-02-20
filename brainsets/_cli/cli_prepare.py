@@ -6,13 +6,10 @@ import click
 from .utils import (
     CliConfig,
     expand_path,
-    get_dataset_names,
-    get_dataset_info,
     AutoSuggestFromList,
     EXISTING_FILEPATH_CLICK_TYPE,
     expand_path,
 )
-from .cli_list import echo_dataset_list
 
 
 @click.command()
@@ -21,20 +18,24 @@ from .cli_list import echo_dataset_list
 @click.option("--config-path", type=EXISTING_FILEPATH_CLICK_TYPE)
 def prepare(dataset: Optional[str], cores: int, config_path: Optional[str]):
     """Download and process a dataset."""
-    config = CliConfig.load(config_path)
+    config = CliConfig(config_path)
 
     if dataset is None:
         click.echo(f"Available datasets: ")
-        echo_dataset_list(config)
+        available_datasets = config.avaiable_datasets
+        for dataset in available_datasets:
+            click.echo(f"- {dataset}")
         click.echo()
+
+        dataset_names = [d.name for d in available_datasets]
         dataset = prompt(
             "Dataset: ",
-            auto_suggest=AutoSuggestFromList(get_dataset_names(config)),
+            auto_suggest=AutoSuggestFromList(dataset_names),
         )
 
     click.echo(f"Preparing {dataset}...")
 
-    dataset_info = get_dataset_info(dataset, config)
+    dataset_info = config.get_dataset_info(dataset)
 
     pipeline_path = expand_path(dataset_info.pipeline_path)
     snakefile_filepath = pipeline_path / "Snakefile"

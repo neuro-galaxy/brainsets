@@ -63,14 +63,13 @@ def init(raw: str | None, processed: str | None, config_path: str | None, force:
 
     # Check config file does not exist
     if config_path.exists() and not force:
-        raise click.ClickException(
-            f"Configuration file already exists at {config_path}. "
-            "Use --force to overwrite."
-        )
+        click.confirm("Overwrite existing config?", abort=True)
 
-    config = CliConfig(
-        raw_dir=raw_dir, processed_dir=processed_dir, config_path=config_path
-    )
+    config = CliConfig.__new__(CliConfig)
+    config.raw_dir = raw_dir
+    config.processed_dir = processed_dir
+    config.local_datasets = {}
+    config.config_path = config_path
     config.save()
 
     # Create directories
@@ -92,5 +91,5 @@ def show(config_path: str | None):
     processed datasets. If --config-path is not specified, looks for the configuration
     file in the default location ($HOME/.config/brainsets.yaml).
     """
-    config = CliConfig.load(config_path)
+    config = CliConfig(config_path)
     click.echo(config)

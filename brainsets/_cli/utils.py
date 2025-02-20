@@ -1,4 +1,5 @@
 from __future__ import annotations
+from functools import cached_property
 import os
 from pathlib import Path
 import yaml
@@ -14,97 +15,16 @@ EXISTING_FILEPATH_CLICK_TYPE = click.Path(exists=True, file_okay=True, dir_okay=
 EXISTING_DIRPATH_CLICK_TYPE = click.Path(exists=True, file_okay=False, dir_okay=True)
 
 
-def find_config_file() -> Path | None:
-    """Search for brainsets configuration file in standard locations.
-
-    Searches for .brainsets.yaml in the following locations (in order):
-    1. Current directory and all parent directories
-    2. ~/.config/brainsets.yaml
-    3. ~/.brainsets.yaml
-
-    Returns:
-        Path | None: Path to the first configuration file found, or None if no config file exists
-    """
-    # Try to find config file in curr directory and all parents
-    current = Path.cwd()
-    while current != current.parent:
-        config_file = current / ".brainsets.yaml"
-        if config_file.exists():
-            return config_file
-        current = current.parent
-
-    # Try to find config in ~/.config/brainsets.yaml
-    config_file = Path.home() / ".config/brainsets.yaml"
-    if config_file.exists():
-        return config_file
-
-    # Try to find config in home dir
-    config_file = Path.home() / ".brainsets.yaml"
-    if config_file.exists():
-        return config_file
-
-    return None
-
-
 def expand_path(path: str) -> Path:
     """Convert string path to absolute Path, expanding environment variables and user."""
     return Path(os.path.abspath(os.path.expandvars(os.path.expanduser(path))))
 
 
-@dataclass
-class CliDatasetInfo:
-    name: str
-    pipeline_path: Path
-    is_local: bool = False
-
-
-def get_all_dataset_info(config: CliConfig) -> List[CliDatasetInfo]:
-    default_pipelines = [
-        CliDatasetInfo(d.name, expand_path(d), is_local=False)
-        for d in PIPELINES_PATH.iterdir()
-        if d.is_dir() and not d.name.startswith("_")
-    ]
-
-    local_pipelines = [
-        CliDatasetInfo(k, v, is_local=True) for k, v in config.local_datasets.items()
-    ]
-
-    return default_pipelines + local_pipelines
-
-
-def get_dataset_info(
-    name: str, config: CliConfig, error: bool = True
-) -> CliDatasetInfo:
-    """Get dataset info for a single dataset"""
-    datasets = get_all_dataset_info(config)
-    for dataset in datasets:
-        if dataset.name == name:
-            return dataset
-
-    if error:
-        raise click.ClickException(
-            f"Could not find dataset '{name}' in configuration file at "
-            f"{config.config_path}"
-        )
-
-    return None
-
-
-def get_dataset_names(config: CliConfig) -> List[str]:
-    return [d.name for d in get_all_dataset_info(config)]
-
-
-@dataclass
 class CliConfig:
-    config_path: Path
-    raw_dir: Path
-    processed_dir: Path
-    local_datasets: Dict[str, Path] = field(default_factory=dict)
 
-    @classmethod
-    def load(cls, config_path: Path | None) -> CliConfig:
+    def __init__(self, config_path: Path | None):
         if config_path is None:
-            config_path = find_config_file()
+            config_path = self.find_config_file()
             if config_path is None:
                 raise click.ClickException(
                     "No configuration file found. "
@@ -116,18 +36,14 @@ class CliConfig:
 
         with open(config_path, "r") as f:
             config_dict = yaml.safe_load(f)
-        cls._validate_config_dict(config_dict)
+        self._validate_config_dict(config_dict)
 
-        obj = cls(
-            config_path=config_path,
-            raw_dir=expand_path(config_dict["raw_dir"]),
-            processed_dir=expand_path(config_dict["processed_dir"]),
-            local_datasets={
-                k: Path(v) for k, v in config_dict.get("local_datasets", {}).items()
-            },
-        )
-
-        return obj
+        self.config_path = expand_path(config_path)
+        self.raw_dir = expand_path(config_dict["raw_dir"])
+        self.processed_dir = expand_path(config_dict["processed_dir"])
+        self.local_datasets = {
+            k: Path(v) for k, v in config_dict.get("local_datasets", {}).items()
+        }
 
     def save(self) -> Path:
         config_dict = {
@@ -153,6 +69,66 @@ class CliConfig:
                 "Configuration missing required 'processed_dir' field"
             )
 
+    @cached_property
+    def available_datasets(self) -> List[CliDatasetInfo]:
+        """Get list of all available datasets from default and local pipelines."""
+        default_pipelines = [
+            CliDatasetInfo(d.name, expand_path(d), is_local=False)
+            for d in PIPELINES_PATH.iterdir()
+            if d.is_dir() and not d.name.startswith("_")
+        ]
+        local_pipelines = [
+            CliDatasetInfo(k, v, is_local=True) for k, v in self.local_datasets.items()
+        ]
+        return default_pipelines + local_pipelines
+
+    def get_dataset_info(self, name: str, error: bool = True) -> CliDatasetInfo:
+        """Get dataset info for a single dataset"""
+        datasets = self.available_datasets
+        for dataset in datasets:
+            if dataset.name == name:
+                return dataset
+
+        if error:
+            raise click.ClickException(
+                f"Could not find dataset '{name}' in configuration file at "
+                f"{self.config_path}"
+            )
+
+        return None
+
+    @staticmethod
+    def find_config_file():
+        """Search for brainsets configuration file in standard locations.
+
+        Searches for .brainsets.yaml in the following locations (in order):
+        1. Current directory and all parent directories
+        2. ~/.config/brainsets.yaml
+        3. ~/.brainsets.yaml
+
+        Returns:
+            Path | None: Path to the first configuration file found, or None if no config file exists
+        """
+        # Try to find config file in curr directory and all parents
+        current = Path.cwd()
+        while current != current.parent:
+            config_file = current / ".brainsets.yaml"
+            if config_file.exists():
+                return config_file
+            current = current.parent
+
+        # Try to find config in ~/.config/brainsets.yaml
+        config_file = Path.home() / ".config/brainsets.yaml"
+        if config_file.exists():
+            return config_file
+
+        # Try to find config in home dir
+        config_file = Path.home() / ".brainsets.yaml"
+        if config_file.exists():
+            return config_file
+
+        return None
+
     def __repr__(self):
         ans = []
         ans.append(f"Config file path: {self.config_path}")
@@ -163,6 +139,19 @@ class CliConfig:
             for name, pipeline_path in self.local_datasets.items():
                 ans.append(f"- {name} @ {pipeline_path}")
         return "\n".join(ans)
+
+
+@dataclass
+class CliDatasetInfo:
+    name: str
+    pipeline_path: Path
+    is_local: bool = False
+
+    def __repr__(self):
+        if self.is_local:
+            return f"{self.name}  (Local: {self.pipeline_path})"
+        else:
+            return self.name
 
 
 class AutoSuggestFromList(AutoSuggest):

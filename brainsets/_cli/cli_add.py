@@ -6,7 +6,6 @@ from .utils import (
     expand_path,
     EXISTING_FILEPATH_CLICK_TYPE,
     EXISTING_DIRPATH_CLICK_TYPE,
-    get_dataset_info,
 )
 
 
@@ -24,12 +23,12 @@ def add(pipeline_path: str, name: str | None, config_path: str, force: bool):
     pipeline_path = expand_path(pipeline_path)
     _validate_local_pipeline(pipeline_path)
 
-    config = CliConfig.load(config_path)
+    config = CliConfig(config_path)
 
     if name is None:
         name = pipeline_path.name
 
-    existing_dataset_info = get_dataset_info(name, config, error=False)
+    existing_dataset_info = config.get_dataset_info(name, error=False)
     if existing_dataset_info is not None:
         existing_pipeline_path = existing_dataset_info.pipeline_path
         if not force:
