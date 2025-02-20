@@ -1,5 +1,7 @@
 import subprocess
+from typing import Optional
 import click
+
 from .utils import get_datasets, load_config, PIPELINES_PATH
 
 
@@ -7,17 +9,10 @@ from .utils import get_datasets, load_config, PIPELINES_PATH
 @click.argument("dataset", type=click.Choice(get_datasets(), case_sensitive=False))
 @click.option("-c", "--cores", default=4, help="Number of cores to use")
 @click.option("--config-path", type=click.Path())
-def prepare(dataset, cores):
+def prepare(dataset: Optional[str], cores: int, config_path: Optional[str]):
     """Download and process a specific dataset."""
     click.echo(f"Preparing {dataset}...")
-
-    # Get config to check if directories are set
-    config = load_config()
-    if not config["raw_dir"] or not config["processed_dir"]:
-        click.echo(
-            "Error: Please set raw and processed directories first using 'brainsets config'"
-        )
-        return
+    config, _ = load_config(config_path)
 
     snakefile_filepath = PIPELINES_PATH / "Snakefile"
     reqs_filepath = PIPELINES_PATH / dataset / "requirements.txt"
@@ -63,6 +58,6 @@ def prepare(dataset, cores):
         else:
             click.echo("Error downloading dataset")
     except subprocess.CalledProcessError as e:
-        click.echo(f"Error: Command failed with return code {e.returncode}")
+        click.ClickException(f"Error: Command failed with return code {e.returncode}")
     except Exception as e:
-        click.echo(f"Error: {str(e)}")
+        click.ClickException(f"Error: {str(e)}")

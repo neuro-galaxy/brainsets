@@ -57,12 +57,34 @@ def load_config(config_file: Optional[Path | str]) -> Tuple[dict, Path]:
     if isinstance(config_file, str):
         config_file = Path(os.path.expanduser(config_file))
 
-    with open(config_file, "r") as f:
-        config = yaml.safe_load(f)
-        return config, config_file
+    try:
+        with open(config_file, "r") as f:
+            try:
+                config = yaml.safe_load(f)
+            except yaml.YAMLError as e:
+                raise click.ClickException(f"Invalid YAML in config file: {e}")
+    except FileNotFoundError:
+        raise click.ClickException(f"Config file not found: {config_file}")
+    except PermissionError:
+        raise click.ClickException(
+            f"Permission denied when reading config file: {config_file}"
+        )
+
+    validate_config(config)
+    return config, config_file
 
 
 def save_config(config: dict, filepath: Path):
     click.echo(f"Saving configuration file at {filepath}")
     with open(filepath, "w") as f:
         yaml.safe_dump(config, f, default_flow_style=False)
+
+
+def validate_config(config: dict):
+    """Validate that the configuration dictionary has required fields."""
+    if "raw_dir" not in config:
+        raise click.ClickException("Configuration missing required 'raw_dir' field")
+    if "processed_dir" not in config:
+        raise click.ClickException(
+            "Configuration missing required 'processed_dir' field"
+        )
