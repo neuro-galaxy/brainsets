@@ -305,7 +305,7 @@ def compute_trial_aligned_firing_rate(data):
     mask = ~np.isnan(data.trials.stimOn_times)
     if np.any(~mask):
         logging.warning(
-            f"There are {np.sum(~mask)} nan values in the trials.stimOn_times"
+            f"There are {np.sum(~mask)} nan values in the trials.stimOn_times for session with eid {data.session.id}"
         )
     trial_aligned_intervals = Interval(
         start=data.trials.stimOn_times[mask] - 0.5,
