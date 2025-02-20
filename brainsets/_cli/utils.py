@@ -71,17 +71,22 @@ def get_all_dataset_info(config: CliConfig) -> List[CliDatasetInfo]:
     return default_pipelines + local_pipelines
 
 
-def get_dataset_info(name: str, config: CliConfig) -> CliDatasetInfo:
+def get_dataset_info(
+    name: str, config: CliConfig, error: bool = True
+) -> CliDatasetInfo:
     """Get dataset info for a single dataset"""
     datasets = get_all_dataset_info(config)
     for dataset in datasets:
         if dataset.name == name:
             return dataset
 
-    raise click.ClickException(
-        f"Could not find dataset '{name}' in configuration file at "
-        f"{config.config_path}"
-    )
+    if error:
+        raise click.ClickException(
+            f"Could not find dataset '{name}' in configuration file at "
+            f"{config.config_path}"
+        )
+
+    return None
 
 
 def get_dataset_names(config: CliConfig) -> List[str]:
@@ -90,16 +95,16 @@ def get_dataset_names(config: CliConfig) -> List[str]:
 
 @dataclass
 class CliConfig:
+    config_path: Path
     raw_dir: Path
     processed_dir: Path
     local_datasets: Dict[str, Path] = field(default_factory=dict)
-    config_path: Path | None = None
 
     @classmethod
     def load(cls, config_path: Path | None) -> CliConfig:
         if config_path is None:
             config_path = find_config_file()
-            if not config_path:
+            if config_path is None:
                 raise click.ClickException(
                     "No configuration file found. "
                     "Please run 'brainsets config init' to create one."
