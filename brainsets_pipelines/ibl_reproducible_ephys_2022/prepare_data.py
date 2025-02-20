@@ -170,9 +170,9 @@ def load_trials(
         query += " | (choice == 0)"
     query = query.lstrip(" |")
 
-    successful_trials_mask = ~session_loader.trials.eval(query)
+    trials.successful = ~session_loader.trials.eval(query).values
 
-    return trials, successful_trials_mask
+    return trials
 
 
 def create_and_split_sampling_intervals(trials, mask):
@@ -285,24 +285,30 @@ def interpolate_wheel_and_whisker(data, train_intervals, val_intervals, test_int
     motion_energy_timestamps = np.concatenate(motion_energy_timestamps_list)
     motion_energy = np.concatenate(motion_energy_list)
 
-    data.wheel_neds = IrregularTimeSeries(
+    wheel_interpolated = IrregularTimeSeries(
         timestamps=wheel_timestamps,
         speed=wheel_speed[:, None],
         domain="auto",
     )
 
-    data.whisker_neds = IrregularTimeSeries(
+    whisker_interpolated = IrregularTimeSeries(
         timestamps=motion_energy_timestamps,
         motion_energy=motion_energy[:, None],
         domain="auto",
     )
 
+    return wheel_interpolated, whisker_interpolated
+
+
+def compute_trial_aligned_firing_rate(data):
     # precompute firing rate
-    # get only spikes inside of the trials used for training, validation and testing
-    trial_aligned_spikes = data.spikes.select_by_interval(
-        train_intervals | val_intervals | test_intervals
+    # the firing rate is estimated based on trial-aligned data only
+    trial_aligned_intervals = Interval(
+        start=data.trials.stimOn_times - 0.5, end=data.trials.stimOn_times + 1.5
     )
+    trial_aligned_spikes = data.spikes.select_by_interval(trial_aligned_intervals)
     assert trial_aligned_spikes.domain.is_disjoint()
+
     recording_duration = np.sum(
         trial_aligned_spikes.domain.end - trial_aligned_spikes.domain.start
     )
@@ -314,7 +320,7 @@ def interpolate_wheel_and_whisker(data, train_intervals, val_intervals, test_int
         fr = len(unit_spikes) / recording_duration
         firing_rate.append(fr)
 
-    data.units.trial_aligned_firing_rate = np.array(firing_rate)
+    return np.array(firing_rate)
 
 
 def main():
@@ -382,7 +388,7 @@ def main():
     wheel = extract_wheel(session_loader)
     whisker = extract_whisker_motion_energy(session_loader)
 
-    trials, successful_trials_mask = load_trials(session_loader)
+    trials = load_trials(session_loader)
 
     # register session
     data = Data(
@@ -404,7 +410,10 @@ def main():
         args.eid, args.split_dir
     )
 
-    interpolate_wheel_and_whisker(data, train_intervals, val_intervals, test_intervals)
+    data.wheel_interpolated, data.whisker_interpolated = interpolate_wheel_and_whisker(
+        data, train_intervals, val_intervals, test_intervals
+    )
+    data.units.trial_aligned_firing_rate = compute_trial_aligned_firing_rate(data)
 
     # set train, validation and test domains
     data.set_train_domain(train_intervals)
