@@ -207,9 +207,8 @@ def create_and_split_sampling_intervals(trials, mask):
     return train_intervals, val_intervals, test_intervals
 
 
-def load_predefined_split_intervals(eid, split_dir):
-    filename = os.path.join(split_dir, "trial_start_end", f"{eid}.npy")
-    trial_start_end = np.load(filename, allow_pickle=True)
+def load_predefined_split_intervals(eid, split_path):
+    trial_start_end = np.load(split_path, allow_pickle=True)[()][eid]
 
     num_trials = len(trial_start_end)
 
@@ -252,7 +251,7 @@ def interpolate_wheel_and_whisker(data, train_intervals, val_intervals, test_int
         for start, end in zip(sampling_intervals.start, sampling_intervals.end):
             assert (
                 np.abs((end - start) - 2.0) <= 0.01
-            ), f"Interval length is not 2.0: {end - start} in eid {args.eid}"
+            ), f"Interval length is not 2.0: {end - start} in eid {data.session.id}"
             end = start + 2.0
             sliced_data = data.slice(start, end)
             wheel_timestamps, wheel_speed = (
@@ -335,7 +334,7 @@ def main():
     # use argparse to get arguments from the command line
     parser = argparse.ArgumentParser()
     parser.add_argument("--eid", type=str)
-    parser.add_argument("--split_dir", type=str, default="./splits")
+    parser.add_argument("--split_path", type=str, default="./splits.npy")
     parser.add_argument("--output_dir", type=str, default="./processed")
     args = parser.parse_args()
 
@@ -415,7 +414,7 @@ def main():
     )
 
     train_intervals, val_intervals, test_intervals = load_predefined_split_intervals(
-        args.eid, args.split_dir
+        args.eid, args.split_path
     )
 
     data.wheel_interpolated, data.whisker_interpolated = interpolate_wheel_and_whisker(

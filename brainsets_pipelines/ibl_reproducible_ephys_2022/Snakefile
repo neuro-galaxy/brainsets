@@ -16,7 +16,7 @@ import os
 
 # Ensure paths are resolved relative to the Snakemake file location
 BASE_DIR = os.path.abspath(os.getcwd())
-SPLIT_DIR = os.path.join(BASE_DIR, "brainsets_pipelines", DATASET, "splits")
+SPLIT_PATH = os.path.join(BASE_DIR, "brainsets_pipelines", DATASET, "splits.npy")
 
 def read_eids(file):
     filepath = os.path.join(BASE_DIR, "brainsets_pipelines", DATASET, file)
@@ -39,7 +39,7 @@ rule prepare_data:
         os.path.join(".snakemake", "logs", DATASET, "prepare_data.{eid}.log")
     params:
         eid = "{eid}",
-        split_dir = SPLIT_DIR,
+        split_path = SPLIT_PATH,
         output_dir = os.path.join(PROCESSED_DIR, DATASET),
         dataset = DATASET
     shell:
@@ -48,7 +48,7 @@ rule prepare_data:
         mkdir -p $(dirname {log})
         python -m brainsets_pipelines.{params.dataset}.prepare_data \
             --eid {params.eid} \
-            --split_dir {params.split_dir} \
+            --split_path {params.split_path} \
             --output_dir {params.output_dir} 2>&1 | tee {log}
         echo "{output.h5_file}" > {output.txt_file}
         """
