@@ -2,7 +2,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import yaml
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 import click
 from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
 import brainsets_pipelines
