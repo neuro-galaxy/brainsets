@@ -303,8 +303,11 @@ def interpolate_wheel_and_whisker(data, train_intervals, val_intervals, test_int
 def compute_trial_aligned_firing_rate(data):
     # precompute firing rate
     # the firing rate is estimated based on trial-aligned data only
+    mask = ~np.isnan(data.trials.stimOn_times)
+    if np.any(mask):
+        logging.warning(f"There are {np.sum(~mask)} nan values in the trials.stimOn_times")
     trial_aligned_intervals = Interval(
-        start=data.trials.stimOn_times - 0.5, end=data.trials.stimOn_times + 1.5
+        start=data.trials.stimOn_times[mask] - 0.5, end=data.trials.stimOn_times[mask] + 1.5
     )
     trial_aligned_spikes = data.spikes.select_by_interval(trial_aligned_intervals)
     assert trial_aligned_spikes.domain.is_disjoint()
@@ -320,7 +323,10 @@ def compute_trial_aligned_firing_rate(data):
         fr = len(unit_spikes) / recording_duration
         firing_rate.append(fr)
 
-    return np.array(firing_rate)
+
+    firing_rate = np.array(firing_rate)
+
+    return firing_rate
 
 
 def main():

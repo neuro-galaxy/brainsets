@@ -49,7 +49,7 @@ rule prepare_data:
         python -m brainsets_pipelines.{params.dataset}.prepare_data \
             --eid {params.eid} \
             --split_dir {params.split_dir} \
-            --output_dir {params.output_dir} >> {log} 2>&1
+            --output_dir {params.output_dir} 2>&1 | tee {log}
         echo "{output.h5_file}" > {output.txt_file}
         """
 
