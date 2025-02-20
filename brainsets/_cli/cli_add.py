@@ -5,16 +5,13 @@ from .utils import (
     CliConfig,
     expand_path,
     EXISTING_FILEPATH_CLICK_TYPE,
-    get_dataset_names,
+    EXISTING_DIRPATH_CLICK_TYPE,
     get_dataset_info,
 )
 
 
 @click.command()
-@click.argument(
-    "pipeline-path",
-    type=click.Path(exists=True, dir_okay=True, file_okay=False),
-)
+@click.argument("pipeline-path", type=EXISTING_DIRPATH_CLICK_TYPE)
 @click.argument("name", type=str, required=False)
 @click.option("--config-path", type=EXISTING_FILEPATH_CLICK_TYPE)
 @click.option("-f", "--force", default=False, is_flag=True)
