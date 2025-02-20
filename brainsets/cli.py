@@ -2,6 +2,7 @@ import click
 import json
 from pathlib import Path
 import subprocess
+import brainsets_pipelines
 
 
 CONFIG_FILE = Path.home() / ".brainsets_config.json"
@@ -69,7 +70,10 @@ def prepare(dataset, cores):
             "--active",  # Prefer building temp environment on top of current venv
         ]
         command = uv_prefix_command + command
-        click.echo(f"Using extra requirements from {reqs_filepath}")
+        click.echo(
+            "Building temporary virtual environment using"
+            f" requirements from {reqs_filepath}"
+        )
 
     # Run snakemake workflow for dataset download with live output
     try:
