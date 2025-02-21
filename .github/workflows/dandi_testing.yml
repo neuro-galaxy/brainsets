@@ -36,5 +36,7 @@ jobs:
         pip freeze
     - name: Download sample dataset
       run: |
+        source venv/bin/activate
+        which python
         brainsets config --raw data/raw --processed data/processed
         brainsets prepare pei_pandarinath_nlb_2021
