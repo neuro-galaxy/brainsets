@@ -29,14 +29,18 @@ jobs:
       run: |
         python -m venv venv
         source venv/bin/activate
-        pip install --upgrade pip
-        pip install -e .
+
+        pip install uv
+        uv pip install --upgrade pip
+        uv pip install -e .
 
         which python
-        pip freeze
+        uv pip freeze
+
     - name: Download sample dataset
       run: |
         source venv/bin/activate
         which python
+
         brainsets config --raw data/raw --processed data/processed
         brainsets prepare pei_pandarinath_nlb_2021
