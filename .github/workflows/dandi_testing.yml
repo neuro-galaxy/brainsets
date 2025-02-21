@@ -16,18 +16,24 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.9"]
-    #random
 
     steps:
     - uses: actions/checkout@v3
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
+
     - name: Install dependencies
       run: |
-        python -m pip install --no-user --upgrade pip
+        python -m venv venv
+        source venv/bin/activate
+        pip install --upgrade pip
         pip install -e .
+
+        which python
+        pip freeze
     - name: Download sample dataset
       run: |
         brainsets config --raw data/raw --processed data/processed
