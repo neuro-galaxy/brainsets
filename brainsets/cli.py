@@ -43,7 +43,7 @@ def prepare(dataset, cores):
         )
         return
 
-    pipelines_dirpath = Path(__file__).parent.parent / "brainsets_pipelines"
+    pipelines_dirpath = PIPELINES_PATH
     snakefile_filepath = pipelines_dirpath / "Snakefile"
     reqs_filepath = pipelines_dirpath / dataset / "requirements.txt"
 
@@ -66,7 +66,7 @@ def prepare(dataset, cores):
             "run",
             "--with-requirements",
             str(reqs_filepath),
-            "--active",  # Prefer building temp environment on top of current venv
+            "--isolated",
         ]
         command = uv_prefix_command + command
         click.echo(
