@@ -132,7 +132,7 @@ import subprocess
 import tempfile
 import sys
 import shutil
-import os
+import traceback
 import atexit
 
 
@@ -142,7 +142,23 @@ def run_in_temp_venv(
     tmpdir: Path,
     verbose: bool = False,
 ):
-    """Runs a command inside a temporary virtual environment."""
+    """Runs a command inside a temporary virtual environment.
+
+    Creates an isolated virtual environment, installs the current brainsets package
+    and additional requirements, then executes the specified command within this
+    environment. The virtual environment is automatically cleaned up after execution.
+
+    Args:
+        command: Shell command to execute in the virtual environment.
+        requirements_file: Path to a requirements.txt file containing additional
+            dependencies to install.
+        tmpdir: Path where the temporary virtual environment will be created.
+        verbose: If True, prints detailed progress information.
+
+    Returns:
+        int: Return code from the executed command (0 for success, non-zero for failure).
+            Returns None if an exception occurs during execution.
+    """
     UV_CMD = "uv" if verbose else "uv -q"
 
     # Create venv dir in tmpdir
@@ -250,14 +266,10 @@ def run_in_temp_venv(
             return process.returncode
 
         except subprocess.CalledProcessError as e:
-            import traceback
-
             click.echo(f"Error: Command failed with return code {e.returncode}")
             click.echo(traceback.format_exc())
 
         except Exception as e:
-            import traceback
-
             click.echo(f"Error: {str(e)}")
             click.echo(traceback.format_exc())
 
