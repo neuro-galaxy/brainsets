@@ -58,32 +58,13 @@ def prepare(dataset, cores, verbose):
         f"processed_dir={config['processed_dir']}",
         f"-c{cores}",
         f"{dataset}",
+        "--verbose" if verbose else "--quiet",
     ]
-    if verbose:
-        command.append("--verbose")
-
-    # If dataset has additional requirements, prefix command with uv package manager
-    # if reqs_filepath.exists():
-    if False:
-        uv_prefix_command = [
-            "uv",
-            "run",
-            "--with-requirements",
-            str(reqs_filepath),
-            "--isolated",
-        ]
-        if verbose:
-            uv_prefix_command.append("--verbose")
-        command = uv_prefix_command + command
-        click.echo(
-            "Building temporary virtual environment using"
-            f" requirements from {reqs_filepath}"
-        )
+    command = " ".join(command)
 
     # Run snakemake workflow for dataset download with live output
-    command = " ".join(command)
     tmpdir = Path(config["processed_dir"]) / dataset / "tmp"
-    return_code = run_in_temp_venv(command, reqs_filepath, tmpdir)
+    return_code = run_in_temp_venv(command, reqs_filepath, tmpdir, verbose)
     if return_code == 0:
         click.echo(f"Successfully downloaded {dataset}")
 
@@ -155,8 +136,14 @@ import os
 import atexit
 
 
-def run_in_temp_venv(command: str, requirements_file: Path, tmpdir: Path):
+def run_in_temp_venv(
+    command: str,
+    requirements_file: Path,
+    tmpdir: Path,
+    verbose: bool = False,
+):
     """Runs a command inside a temporary virtual environment."""
+    uv_cmd = "uv" if verbose else "uv -q"
 
     # Create venv dir in tmpdir
     venv_dir = tmpdir / "venv"
@@ -177,7 +164,9 @@ def run_in_temp_venv(command: str, requirements_file: Path, tmpdir: Path):
 
             # Get base environemtn
             process = subprocess.run(
-                ["uv", "pip", "freeze"], capture_output=True, check=True
+                ["uv", "pip", "freeze"],
+                capture_output=True,
+                check=True,
             )
             base_requirements = process.stdout.decode().split("\n")
 
@@ -192,28 +181,28 @@ def run_in_temp_venv(command: str, requirements_file: Path, tmpdir: Path):
                 raise RuntimeError(
                     f"Weird situation. Could not find any brainsets package installed."
                 )
-
             brainsets_package: str = brainsets_package[0]
-            click.echo(f"Brainsets installation detected: {brainsets_package}")
 
             # Handle case where package is like
             # brainsets @ git+https://...@brachname
-            if " " in brainsets_package:
-                if brainsets_package.startswith("-e "):
-                    pass
+            if " " in brainsets_package and not brainsets_package.startswith("-e "):
+                parts = brainsets_package.split(" ")
+                if parts[0] == "brainsets" and parts[1] == "@":
+                    brainsets_package = parts[2]
                 else:
-                    parts = brainsets_package.split(" ")
-                    if parts[0] == "brainsets" and parts[1] == "@":
-                        brainsets_package == parts[2]
-                    else:
-                        raise ValueError(
-                            f"Unknown package format {brainsets_package} in `pip freeze`"
-                        )
+                    raise ValueError(
+                        f"Unknown package format {brainsets_package} in `pip freeze`"
+                    )
+
+            click.echo(f"Brainsets installation detected: {brainsets_package}")
 
             # Install brainsets
             subprocess.run([sys.executable, "-m", "venv", tmpdir], check=True)
             subprocess.run(
-                (f". {tmpdir}/bin/activate; " f"uv -q pip install {brainsets_package}"),
+                (
+                    f". {tmpdir}/bin/activate; "
+                    f"{uv_cmd} pip install {brainsets_package}"
+                ),
                 shell=True,
                 check=True,
                 capture_output=False,
@@ -224,7 +213,7 @@ def run_in_temp_venv(command: str, requirements_file: Path, tmpdir: Path):
             subprocess.run(
                 (
                     f". {tmpdir}/bin/activate; "
-                    f"uv -q pip install -r {requirements_file}"
+                    f"{uv_cmd} pip install -r {requirements_file}"
                 ),
                 shell=True,
                 check=True,
