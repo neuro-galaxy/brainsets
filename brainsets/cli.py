@@ -175,11 +175,13 @@ def run_in_temp_venv(
             if len(brainsets_package) > 1:
                 raise RuntimeError(
                     f"Found {len(brainsets_package)} candidates for brainsets. "
-                    f"Don't know how to handle this situation."
+                    "Don't know how to handle this situation. "
+                    "This is a bug."
                 )
-            if len(brainsets_package) == 0:
+            if len(brainsets_package) == 0:  # This should never happen in practice
                 raise RuntimeError(
-                    f"Weird situation. Could not find any brainsets package installed."
+                    "Weird situation. Could not find a brainsets package installed. "
+                    "Do you see brainsets in `uv pip freeze`?"
                 )
             brainsets_package: str = brainsets_package[0]
 
@@ -191,7 +193,7 @@ def run_in_temp_venv(
                     brainsets_package = parts[2]
                 else:
                     raise ValueError(
-                        f"Unknown package format {brainsets_package} in `pip freeze`"
+                        f"Unknown package format {brainsets_package} in `uv pip freeze`"
                     )
 
             click.echo(f"Brainsets installation detected: {brainsets_package}")
