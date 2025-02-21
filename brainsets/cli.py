@@ -162,7 +162,7 @@ def run_in_temp_venv(
         try:
             click.echo(f"Creating a temporary isolated environment @ {tmpdir}")
 
-            # Get base environemtn
+            # Get base environment
             process = subprocess.run(
                 ["uv", "pip", "freeze"],
                 capture_output=True,
@@ -225,7 +225,7 @@ def run_in_temp_venv(
 
             # Run command
             process = subprocess.run(
-                (f". {tmpdir}/bin/activate; " f"{command}"),
+                f". {tmpdir}/bin/activate && {command}",
                 shell=True,
                 check=True,
                 text=True,
