@@ -63,7 +63,8 @@ def prepare(dataset, cores, verbose):
         command.append("--verbose")
 
     # If dataset has additional requirements, prefix command with uv package manager
-    if reqs_filepath.exists():
+    # if reqs_filepath.exists():
+    if False:
         uv_prefix_command = [
             "uv",
             "run",
@@ -80,22 +81,11 @@ def prepare(dataset, cores, verbose):
         )
 
     # Run snakemake workflow for dataset download with live output
-    try:
-        process = subprocess.run(
-            command,
-            check=True,
-            capture_output=False,
-            text=True,
-        )
-
-        if process.returncode == 0:
-            click.echo(f"Successfully downloaded {dataset}")
-        else:
-            click.echo("Error downloading dataset")
-    except subprocess.CalledProcessError as e:
-        click.echo(f"Error: Command failed with return code {e.returncode}")
-    except Exception as e:
-        click.echo(f"Error: {str(e)}")
+    command = " ".join(command)
+    tmpdir = Path(config["processed_dir"]) / dataset / "tmp"
+    return_code = run_in_temp_venv(command, reqs_filepath, tmpdir)
+    if return_code == 0:
+        click.echo(f"Successfully downloaded {dataset}")
 
 
 @cli.command()
@@ -155,6 +145,114 @@ def config(raw, processed):
     click.echo("Configuration updated successfully.")
     click.echo(f"Raw data directory: {raw}")
     click.echo(f"Processed data directory: {processed}")
+
+
+import subprocess
+import tempfile
+import sys
+import shutil
+import os
+import atexit
+
+
+def run_in_temp_venv(command: str, requirements_file: Path, tmpdir: Path):
+    """Runs a command inside a temporary virtual environment."""
+
+    # Create venv dir in tmpdir
+    venv_dir = tmpdir / "venv"
+    if os.path.exists(venv_dir):
+        shutil.rmtree(venv_dir)
+    venv_dir.mkdir(parents=True, exist_ok=False)
+
+    # Register deletion of venv_dir at script exit
+    def cleanup():
+        shutil.rmtree(venv_dir, ignore_errors=True)
+        click.echo(f"Deleted {venv_dir}")
+
+    atexit.register(cleanup)
+
+    with tempfile.TemporaryDirectory(dir=venv_dir) as tmpdir:
+        try:
+            click.echo(f"Creating a temporary isolated environment @ {tmpdir}")
+
+            # Get base environemtn
+            process = subprocess.run(
+                ["uv", "pip", "freeze"], capture_output=True, check=True
+            )
+            base_requirements = process.stdout.decode().split("\n")
+
+            # Find brainsets package
+            brainsets_package = [x for x in base_requirements if "brainsets" in x]
+            if len(brainsets_package) > 1:
+                raise RuntimeError(
+                    f"Found {len(brainsets_package)} candidates for brainsets. "
+                    f"Don't know how to handle this situation."
+                )
+            if len(brainsets_package) == 0:
+                raise RuntimeError(
+                    f"Weird situation. Could not find any brainsets package installed."
+                )
+
+            brainsets_package: str = brainsets_package[0]
+            click.echo(f"Brainsets installation detected: {brainsets_package}")
+
+            # Handle case where package is like
+            # brainsets @ git+https://...@brachname
+            if " " in brainsets_package:
+                if brainsets_package.startswith("-e "):
+                    pass
+                else:
+                    parts = brainsets_package.split(" ")
+                    if parts[0] == "brainsets" and parts[1] == "@":
+                        brainsets_package == parts[2]
+                    else:
+                        raise ValueError(
+                            f"Unknown package format {brainsets_package} in `pip freeze`"
+                        )
+
+            # Install brainsets
+            subprocess.run([sys.executable, "-m", "venv", tmpdir], check=True)
+            subprocess.run(
+                (f". {tmpdir}/bin/activate; " f"uv -q pip install {brainsets_package}"),
+                shell=True,
+                check=True,
+                capture_output=False,
+            )
+
+            # Install extra requirements
+            click.echo(f"Installing requirements from: {requirements_file}")
+            subprocess.run(
+                (
+                    f". {tmpdir}/bin/activate; "
+                    f"uv -q pip install -r {requirements_file}"
+                ),
+                shell=True,
+                check=True,
+                text=True,
+                capture_output=False,
+            )
+
+            # Run command
+            process = subprocess.run(
+                (f". {tmpdir}/bin/activate; " f"{command}"),
+                shell=True,
+                check=True,
+                text=True,
+                capture_output=False,
+            )
+            return process.returncode
+
+        except subprocess.CalledProcessError as e:
+            import traceback
+
+            click.echo(f"Error: Command failed with return code {e.returncode}")
+            click.echo(traceback.format_exc())
+
+        except Exception as e:
+            import traceback
+
+            click.echo(f"Error: {str(e)}")
+            click.echo(traceback.format_exc())
 
 
 if __name__ == "__main__":
