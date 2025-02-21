@@ -62,7 +62,7 @@ def prepare(dataset, cores, verbose):
     ]
     command = " ".join(command)
 
-    # Run snakemake workflow for dataset download with live output
+    # Run snakemake workflow in a temporary environemnt
     tmpdir = Path(config["processed_dir"]) / dataset / "tmp"
     return_code = run_in_temp_venv(command, reqs_filepath, tmpdir, verbose)
     if return_code == 0:
@@ -196,11 +196,13 @@ def run_in_temp_venv(
 
             click.echo(f"Brainsets installation detected: {brainsets_package}")
 
-            # Install brainsets
+            # Create temp venv
             subprocess.run([sys.executable, "-m", "venv", tmpdir], check=True)
+
+            # Install brainsets
             subprocess.run(
                 (
-                    f". {tmpdir}/bin/activate; "
+                    f". {tmpdir}/bin/activate && "
                     f"{uv_cmd} pip install {brainsets_package}"
                 ),
                 shell=True,
@@ -212,7 +214,7 @@ def run_in_temp_venv(
             click.echo(f"Installing requirements from: {requirements_file}")
             subprocess.run(
                 (
-                    f". {tmpdir}/bin/activate; "
+                    f". {tmpdir}/bin/activate && "
                     f"{uv_cmd} pip install -r {requirements_file}"
                 ),
                 shell=True,
