@@ -1,2 +1,2 @@
-dandi==0.61.2
 brainsets
+dandi==0.61.2

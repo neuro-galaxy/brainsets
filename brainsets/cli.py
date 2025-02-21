@@ -31,7 +31,8 @@ def cli():
 @cli.command()
 @click.argument("dataset", type=click.Choice(DATASETS, case_sensitive=False))
 @click.option("-c", "--cores", default=4, help="Number of cores to use")
-def prepare(dataset, cores):
+@click.option("-v", "--verbose", is_flag=True, default=False)
+def prepare(dataset, cores, verbose):
     """Download and process a specific dataset."""
     click.echo(f"Preparing {dataset}...")
 
@@ -58,6 +59,8 @@ def prepare(dataset, cores):
         f"-c{cores}",
         f"{dataset}",
     ]
+    if verbose:
+        command.append("--verbose")
 
     # If dataset has additional requirements, prefix command with uv package manager
     if reqs_filepath.exists():
@@ -68,6 +71,8 @@ def prepare(dataset, cores):
             str(reqs_filepath),
             "--isolated",
         ]
+        if verbose:
+            uv_prefix_command.append("--verbose")
         command = uv_prefix_command + command
         click.echo(
             "Building temporary virtual environment using"
