@@ -143,18 +143,24 @@ def run_in_temp_venv(
     verbose: bool = False,
 ):
     """Runs a command inside a temporary virtual environment."""
-    uv_cmd = "uv" if verbose else "uv -q"
+    UV_CMD = "uv" if verbose else "uv -q"
 
     # Create venv dir in tmpdir
     venv_dir = tmpdir / "venv"
-    if os.path.exists(venv_dir):
+    if venv_dir.exists():
         shutil.rmtree(venv_dir)
+        if verbose:
+            click.echo(f"Found existing {venv_dir}. Deleting.")
     venv_dir.mkdir(parents=True, exist_ok=False)
+    if verbose:
+        click.echo(f"Created {venv_dir}")
 
     # Register deletion of venv_dir at script exit
     def cleanup():
-        shutil.rmtree(venv_dir, ignore_errors=True)
-        click.echo(f"Deleted {venv_dir}")
+        if venv_dir.exists():
+            shutil.rmtree(venv_dir)
+            if verbose:
+                click.echo(f"Deleted {venv_dir}")
 
     atexit.register(cleanup)
 
@@ -171,31 +177,39 @@ def run_in_temp_venv(
             base_requirements = process.stdout.decode().split("\n")
 
             # Find brainsets package
-            brainsets_package = [x for x in base_requirements if "brainsets" in x]
-            if len(brainsets_package) > 1:
+            brainsets_packages = [x for x in base_requirements if "brainsets" in x]
+            if len(brainsets_packages) > 1:
                 raise RuntimeError(
-                    f"Found {len(brainsets_package)} candidates for brainsets. "
-                    "Don't know how to handle this situation. "
-                    "This is a bug."
+                    f"Found {len(brainsets_packages)} candidates for brainsets: "
+                    f"{brainsets_packages}\n"
+                    "This might be a bug. Please report this issue at "
+                    "https://github.com/neuro-galaxy/brainsets/issues "
+                    "with this error message."
                 )
-            if len(brainsets_package) == 0:  # This should never happen in practice
+            if len(brainsets_packages) == 0:  # This should never happen in practice
                 raise RuntimeError(
-                    "Weird situation. Could not find a brainsets package installed. "
-                    "Do you see brainsets in `uv pip freeze`?"
+                    "Could not find a brainsets package installed.\n"
+                    "This might be a bug. Please report this issue at "
+                    "https://github.com/neuro-galaxy/brainsets/issues "
+                    "with this error message and the output of `uv pip freeze`."
                 )
-            brainsets_package: str = brainsets_package[0]
+            brainsets_package = brainsets_packages[0]
 
-            # Handle case where package is like
-            # brainsets @ git+https://...@brachname
-            if " " in brainsets_package and not brainsets_package.startswith("-e "):
-                parts = brainsets_package.split(" ")
-                if parts[0] == "brainsets" and parts[1] == "@":
-                    brainsets_package = parts[2]
-                else:
-                    raise ValueError(
-                        f"Unknown package format {brainsets_package} in `uv pip freeze`"
-                    )
-
+            if brainsets_package.startswith("brainsets=="):
+                pass
+            elif brainsets_package.startswith("-e "):
+                pass
+            elif brainsets_package.startswith("brainsets @ "):
+                # Handle case where package is like
+                # brainsets @ git+https://...@brachname
+                brainsets_package = brainsets_package.removeprefix("brainsets @ ")
+            else:
+                raise ValueError(
+                    f"Unknown package format {brainsets_package} in `uv pip freeze`\n"
+                    "This is a bug. Please report this issue at "
+                    "https://github.com/neuro-galaxy/brainsets/issues "
+                    "with this error message."
+                )
             click.echo(f"Brainsets installation detected: {brainsets_package}")
 
             # Create temp venv
@@ -205,19 +219,19 @@ def run_in_temp_venv(
             subprocess.run(
                 (
                     f". {tmpdir}/bin/activate && "
-                    f"{uv_cmd} pip install {brainsets_package}"
+                    f"{UV_CMD} pip install {brainsets_package}"
                 ),
                 shell=True,
                 check=True,
                 capture_output=False,
             )
 
-            # Install extra requirements
+            # Install  requirements
             click.echo(f"Installing requirements from: {requirements_file}")
             subprocess.run(
                 (
                     f". {tmpdir}/bin/activate && "
-                    f"{uv_cmd} pip install -r {requirements_file}"
+                    f"{UV_CMD} pip install -r {requirements_file}"
                 ),
                 shell=True,
                 check=True,
