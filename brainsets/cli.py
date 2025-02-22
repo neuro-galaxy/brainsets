@@ -83,13 +83,11 @@ def prepare(dataset, cores, verbose):
 
     except subprocess.CalledProcessError as e:
         click.echo(f"Error: Command failed with return code {e.returncode}")
-        if verbose:
-            click.echo(traceback.format_exc())
+        verbose_echo(traceback.format_exc())
 
     except Exception as e:
         click.echo(f"Error: {str(e)}")
-        if verbose:
-            click.echo(traceback.format_exc())
+        verbose_echo(traceback.format_exc())
 
 
 @cli.command()
@@ -165,7 +163,7 @@ def temporary_venv(basedir: Path, verbose: bool = False):
     """
     venv_dir = basedir / "venv"
 
-    # Clean up existing tmpdir if needed
+    # Clean up existing venv_dir if needed
     if venv_dir.exists():
         shutil.rmtree(venv_dir)
         if verbose:
@@ -181,8 +179,7 @@ def temporary_venv(basedir: Path, verbose: bool = False):
         # Clean up
         if venv_dir.exists():
             shutil.rmtree(venv_dir)
-            if verbose:
-                click.echo(f"Cleaned up {basedir}")
+            verbose_echo(f"Cleaned up {venv_dir}", verbose)
 
 
 def run_command_in_temp_venv(
@@ -220,8 +217,7 @@ def run_command_in_temp_venv(
         # Install brainsets
         click.echo(f"Installing brainsets '{brainsets_package}'")
         install_cmd = f". {VENV_ACTIVATE} && {UV_CMD} pip install {brainsets_package}"
-        if verbose:
-            click.echo(f"Running: {install_cmd}")
+        verbose_echo(f"Running {install_cmd}", verbose)
         subprocess.run(install_cmd, shell=True, check=True, capture_output=False)
 
         # Install requirements
@@ -230,8 +226,7 @@ def run_command_in_temp_venv(
             install_cmd = (
                 f". {VENV_ACTIVATE} && {UV_CMD} pip install -r {reqs_filepath}"
             )
-            if verbose:
-                click.echo(f"Running: {install_cmd}")
+            verbose_echo(f"Running {install_cmd}", verbose)
             subprocess.run(install_cmd, shell=True, check=True, capture_output=False)
 
         # Run requested command
@@ -310,6 +305,11 @@ def _get_installed_brainsets_spec():
         spec = spec.removeprefix(f"{PKG} @ ")
 
     return spec
+
+
+def verbose_echo(message: str, verbose: bool):
+    if verbose:
+        click.echo(message)
 
 
 if __name__ == "__main__":
