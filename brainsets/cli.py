@@ -7,6 +7,7 @@ import click
 import json
 from pathlib import Path
 import brainsets_pipelines
+import re
 
 
 CONFIG_FILE = Path.home() / ".brainsets_config.json"
@@ -74,17 +75,21 @@ def prepare(dataset, cores, verbose):
 
         if return_code == 0:
             click.echo(f"Successfully downloaded {dataset}")
+        else:
+            click.echo(f"Error: Command failed with return code {return_code}")
 
         if tmpdir.exists():
             shutil.rmtree(tmpdir)
 
     except subprocess.CalledProcessError as e:
         click.echo(f"Error: Command failed with return code {e.returncode}")
-        click.echo(traceback.format_exc())
+        if verbose:
+            click.echo(traceback.format_exc())
 
     except Exception as e:
         click.echo(f"Error: {str(e)}")
-        click.echo(traceback.format_exc())
+        if verbose:
+            click.echo(traceback.format_exc())
 
 
 @cli.command()
@@ -258,21 +263,37 @@ def _get_installed_brainsets_spec():
     all_pkg_specs = process.stdout.decode().split("\n")
 
     # Find brainsets package
-    candidate_specs = [x for x in all_pkg_specs if PKG in x]
+    """Regex used:
+    brainsets==1.0.0                          ✓ PyPI release
+    brainsets @ git+https://github.com/...    ✓ Git installation
+    -e /path/to/brainsets                     ✓ Editable install
+    -e /path/to/brainsets/                    ✓ Editable install with trailing slash
+    brainsets-extra==1.0.0                    ✗ Different package
+    mybrainsets==1.0.0                        ✗ Different package
+    """
+    pkg_pattern = re.compile(rf"^(?:{PKG}(?:==| @)|-e .*/{PKG}(?=/|$))")
+    candidate_specs = [x for x in all_pkg_specs if pkg_pattern.match(x)]
     if len(candidate_specs) > 1:
         raise RuntimeError(
             f"Found {len(candidate_specs)} candidates for {PKG}: "
-            f"{candidate_specs}\n"
-            "This might be a bug. Please report this issue at "
+            f"{candidate_specs}.\n"
+            "This normally should not occur. If detection of multiple packages with the "
+            "name brainsets is not a issue from your end, then this is bug in brainsets CLI. "
+            "Please report this issue at "
             "https://github.com/neuro-galaxy/brainsets/issues "
             "with this error message."
         )
     if len(candidate_specs) == 0:  # This should never happen in practice
         raise RuntimeError(
-            "Could not find a {PKG} package installed.\n"
-            "This might be a bug. Please report this issue at "
+            f"Could not find a {PKG} installation.\n"
+            "We use `uv pip freeze` to detect the current installation spec of brainsets, "
+            "but could not find any. There are two possibilities: \n"
+            "1. You have installed brainsets from a local clone, and the name of the "
+            "clone directory is not 'brainsets'. In this case, please rename that directory "
+            "to brainsets.\n"
+            "2. This is a bug in Brainsets CLI. In this case, please report this issue "
             "https://github.com/neuro-galaxy/brainsets/issues "
-            "with this error message and the output of `uv pip freeze`."
+            "with the output of `uv pip freeze`."
         )
     spec = candidate_specs[0]
 
