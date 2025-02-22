@@ -83,11 +83,11 @@ def prepare(dataset, cores, verbose):
 
     except subprocess.CalledProcessError as e:
         click.echo(f"Error: Command failed with return code {e.returncode}")
-        verbose_echo(traceback.format_exc())
+        debug_echo(traceback.format_exc())
 
     except Exception as e:
         click.echo(f"Error: {str(e)}")
-        verbose_echo(traceback.format_exc())
+        debug_echo(traceback.format_exc())
 
 
 @cli.command()
@@ -179,7 +179,7 @@ def temporary_venv(basedir: Path, verbose: bool = False):
         # Clean up
         if venv_dir.exists():
             shutil.rmtree(venv_dir)
-            verbose_echo(f"Cleaned up {venv_dir}", verbose)
+            debug_echo(f"Cleaned up {venv_dir}", verbose)
 
 
 def run_command_in_temp_venv(
@@ -217,7 +217,7 @@ def run_command_in_temp_venv(
         # Install brainsets
         click.echo(f"Installing brainsets '{brainsets_package}'")
         install_cmd = f". {VENV_ACTIVATE} && {UV_CMD} pip install {brainsets_package}"
-        verbose_echo(f"Running {install_cmd}", verbose)
+        debug_echo(f"Running {install_cmd}", verbose)
         subprocess.run(install_cmd, shell=True, check=True, capture_output=False)
 
         # Install requirements
@@ -226,7 +226,7 @@ def run_command_in_temp_venv(
             install_cmd = (
                 f". {VENV_ACTIVATE} && {UV_CMD} pip install -r {reqs_filepath}"
             )
-            verbose_echo(f"Running {install_cmd}", verbose)
+            debug_echo(f"Running {install_cmd}", verbose)
             subprocess.run(install_cmd, shell=True, check=True, capture_output=False)
 
         # Run requested command
@@ -307,9 +307,9 @@ def _get_installed_brainsets_spec():
     return spec
 
 
-def verbose_echo(message: str, verbose: bool):
-    if verbose:
-        click.echo(message)
+def debug_echo(message: str, enable: bool):
+    if enable:
+        click.echo(f"DEBUG: {message}")
 
 
 if __name__ == "__main__":
