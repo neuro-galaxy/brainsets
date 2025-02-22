@@ -30,4 +30,4 @@ jobs:
     - name: Download sample dataset
       run: |
         brainsets config --raw data/raw --processed data/processed
-        brainsets prepare pei_pandarinath_nlb_2021
+        brainsets prepare pei_pandarinath_nlb_2021 -v
