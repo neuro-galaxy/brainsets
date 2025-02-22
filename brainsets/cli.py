@@ -301,8 +301,8 @@ def _get_installed_brainsets_spec():
     spec = candidate_specs[0]
 
     # Handle case where package is like: brainsets @ .*
-    if spec.startswith(f"{PKG} @"):
-        spec = spec.removeprefix(f"{PKG} @ ")
+    if spec.startswith(f"{PKG} @ "):
+        spec = spec[len(f"{PKG} @ ") :]  # Can't use removeprefix; missing in python3.8
 
     return spec
 
