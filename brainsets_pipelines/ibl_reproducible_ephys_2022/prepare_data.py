@@ -30,6 +30,7 @@ def extract_spikes(one, eid):
     spikes_list = []
     units_list = []
     unit_ptr = 0
+
     # iterate over probes and load spikes and clusters
     for pid, probe_name in zip(pids, probe_names):
         spike_loader = SpikeSortingLoader(pid=pid, one=one, eid=eid, pname=probe_name)
@@ -45,7 +46,12 @@ def extract_spikes(one, eid):
 
         assert len(clusters["cluster_id"]) == len(
             np.unique(clusters["cluster_id"])
-        ), "There are duplicate units in {eid}"
+        ), f"There are duplicate units in {eid}"
+
+
+        assert len(clusters["cluster_id"]) == len(
+            np.unique(spikes["clusters"])
+        ), f"There are units that have no spikes in {eid}"
 
         num_units = len(clusters["cluster_id"])
         unit_ptr += num_units
@@ -305,7 +311,7 @@ def compute_trial_aligned_firing_rate(data):
     mask = ~np.isnan(data.trials.stimOn_times)
     if np.any(~mask):
         logging.warning(
-            f"There are {np.sum(~mask)} nan values in the trials.stimOn_times for session with eid {data.session.id}"
+            f"There are {np.sum(~mask)} nan values (out of {len(data.trials)}) in the trials.stimOn_times for session with eid {data.session.id}"
         )
     trial_aligned_intervals = Interval(
         start=data.trials.stimOn_times[mask] - 0.5,
@@ -314,9 +320,9 @@ def compute_trial_aligned_firing_rate(data):
     trial_aligned_spikes = data.spikes.select_by_interval(trial_aligned_intervals)
     assert trial_aligned_spikes.domain.is_disjoint()
 
-    recording_duration = np.sum(
-        trial_aligned_spikes.domain.end - trial_aligned_spikes.domain.start
-    )
+    # this is a bug in the original code used in NEDS, we should exclude the trials
+    # for which stimOn_times is nan, but they were used in the denominator of the firing rate
+    recording_duration = len(data.trials) * 2.0
     firing_rate = []
     for unit_index, _ in enumerate(data.units.id):
         unit_spikes = trial_aligned_spikes.timestamps[
