@@ -34,5 +34,5 @@ jobs:
     - name: Verify existence of processed files
       run: |
         test -d data/processed/pei_pandarinath_nlb_2021 || (echo "pei_pandarinath_nlb_2021 not found" && exit 1)
-        test -f data/processed/pei_pandarinath_nlb_2021/jenkins.h5 || (echo "jenkins.h5 not found" && exit 1)
+        test -f data/processed/pei_pandarinath_nlb_2021/jenkins_mze.h5 || (echo "jenkins_maze.h5 not found" && exit 1)
         test -f data/processed/pei_pandarinath_nlb_2021/manifest.txt || (echo "manifest.txt not found" && exit 1)
