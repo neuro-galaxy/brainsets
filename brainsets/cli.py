@@ -69,9 +69,14 @@ def prepare(dataset, cores, verbose):
     try:
         # Run snakemake workflow in a temporary environemnt
         tmpdir = Path(config["processed_dir"]) / dataset / "tmp"
+
         return_code = run_command_in_temp_venv(command, reqs_filepath, tmpdir, verbose)
+
         if return_code == 0:
             click.echo(f"Successfully downloaded {dataset}")
+
+        if tmpdir.exists():
+            shutil.rmtree(tmpdir)
 
     except subprocess.CalledProcessError as e:
         click.echo(f"Error: Command failed with return code {e.returncode}")
