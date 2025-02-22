@@ -1,11 +1,11 @@
 import sys
 import shutil
+import subprocess
 import traceback
-import atexit
+from contextlib import contextmanager
 import click
 import json
 from pathlib import Path
-import subprocess
 import brainsets_pipelines
 
 
@@ -141,6 +141,40 @@ def config(raw, processed):
     click.echo(f"Processed data directory: {processed}")
 
 
+@contextmanager
+def temporary_venv(basedir: Path, verbose: bool = False):
+    """Context manager for creating and cleaning up a temporary virtual environment.
+
+    Args:
+        basedir: Path where the temporary virtual environment will be created.
+            It will be created at `basedir`/venv.
+        verbose: If True, prints detailed progress information.
+
+    Yields:
+        Path: Path to the virtual environment directory
+    """
+    venv_dir = basedir / "venv"
+
+    # Clean up existing tmpdir if needed
+    if basedir.exists():
+        shutil.rmtree(basedir)
+        if verbose:
+            click.echo(f"Found existing {basedir}. Deleted.")
+    basedir.mkdir(parents=True)
+
+    try:
+        # Create fresh venv
+        subprocess.run([sys.executable, "-m", "venv", venv_dir], check=True)
+        yield venv_dir
+
+    finally:
+        # Clean up
+        if basedir.exists():
+            shutil.rmtree(basedir)
+            if verbose:
+                click.echo(f"Cleaned up {basedir}")
+
+
 def run_command_in_temp_venv(
     command: str,
     reqs_filepath: Path,
@@ -164,53 +198,36 @@ def run_command_in_temp_venv(
         int: Return code from the executed command (0 for success, non-zero for failure).
             Returns None if an exception occurs during execution.
     """
-    VENV_DIR = tmpdir / "venv"
-    VENV_ACTIVATE = VENV_DIR / "bin" / "activate"
-    PYTHON_CMD = sys.executable
     UV_CMD = "uv" if verbose else "uv -q"
-
-    # Create venv dir in tmpdir
-    if VENV_DIR.exists():
-        shutil.rmtree(VENV_DIR)
-        if verbose:
-            click.echo(f"Found existing {VENV_DIR}. Deleted.")
-    VENV_DIR.mkdir(parents=True, exist_ok=False)
-
-    # Register deletion of venv_dir at script exit
-    def cleanup():
-        if VENV_DIR.exists():
-            shutil.rmtree(VENV_DIR)
-            if verbose:
-                click.echo(f"Deleted {VENV_DIR}")
-
-    atexit.register(cleanup)
 
     brainsets_package = _get_installed_brainsets_spec()
     click.echo(f"Brainsets installation detected: {brainsets_package}")
 
-    # Create temp venv
-    click.echo(f"Creating a temporary isolated environment @ {VENV_DIR}")
-    subprocess.run([PYTHON_CMD, "-m", "venv", VENV_DIR], check=True)
+    with temporary_venv(tmpdir, verbose) as venv_dir:
+        click.echo(f"Created virtual environment at {venv_dir}")
+        VENV_ACTIVATE = venv_dir / "bin" / "activate"
 
-    # Install brainsets
-    click.echo(f"Installing brainsets '{brainsets_package}'")
-    install_cmd = f". {VENV_ACTIVATE} && {UV_CMD} pip install {brainsets_package}"
-    if verbose:
-        click.echo(f"Running: {install_cmd}")
-    subprocess.run(install_cmd, shell=True, check=True, capture_output=False)
-
-    # Install  requirements
-    if reqs_filepath.exists():
-        click.echo(f"Installing requirements from: {reqs_filepath}")
-        install_cmd = f". {VENV_ACTIVATE} && {UV_CMD} pip install -r {reqs_filepath}"
+        # Install brainsets
+        click.echo(f"Installing brainsets '{brainsets_package}'")
+        install_cmd = f". {VENV_ACTIVATE} && {UV_CMD} pip install {brainsets_package}"
         if verbose:
             click.echo(f"Running: {install_cmd}")
         subprocess.run(install_cmd, shell=True, check=True, capture_output=False)
 
-    # Run requested command
-    command = f". {VENV_ACTIVATE} && {command}"
-    process = subprocess.run(command, shell=True, check=True, capture_output=False)
-    return process.returncode
+        # Install requirements
+        if reqs_filepath.exists():
+            click.echo(f"Installing requirements from: {reqs_filepath}")
+            install_cmd = (
+                f". {VENV_ACTIVATE} && {UV_CMD} pip install -r {reqs_filepath}"
+            )
+            if verbose:
+                click.echo(f"Running: {install_cmd}")
+            subprocess.run(install_cmd, shell=True, check=True, capture_output=False)
+
+        # Run requested command
+        command = f". {VENV_ACTIVATE} && {command}"
+        process = subprocess.run(command, shell=True, check=True, capture_output=False)
+        return process.returncode
 
 
 def _get_installed_brainsets_spec():
