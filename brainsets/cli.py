@@ -83,11 +83,11 @@ def prepare(dataset, cores, verbose):
 
     except subprocess.CalledProcessError as e:
         click.echo(f"Error: Command failed with return code {e.returncode}")
-        debug_echo(traceback.format_exc())
+        debug_echo(traceback.format_exc(), verbose)
 
     except Exception as e:
         click.echo(f"Error: {str(e)}")
-        debug_echo(traceback.format_exc())
+        debug_echo(traceback.format_exc(), verbose)
 
 
 @cli.command()
