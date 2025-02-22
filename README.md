@@ -15,6 +15,7 @@ brainsets is available for Python 3.8 to Python 3.11
 
 To install the package, run the following command:
 ```bash
+pip install --upgrade pip
 pip install brainsets
 ```
 
@@ -59,6 +60,7 @@ brainsets prepare perich_miller_population_2018 --cores 8
 If you are planning to contribute to the package, you can install the package in
 development mode by running the following command:
 ```bash
+pip install --upgrade pip
 pip install -e ".[dev]"
 ```
 
