@@ -1,3 +1,7 @@
+import sys
+import shutil
+import traceback
+import atexit
 import click
 import json
 from pathlib import Path
@@ -62,11 +66,20 @@ def prepare(dataset, cores, verbose):
     ]
     command = " ".join(command)
 
-    # Run snakemake workflow in a temporary environemnt
-    tmpdir = Path(config["processed_dir"]) / dataset / "tmp"
-    return_code = run_in_temp_venv(command, reqs_filepath, tmpdir, verbose)
-    if return_code == 0:
-        click.echo(f"Successfully downloaded {dataset}")
+    try:
+        # Run snakemake workflow in a temporary environemnt
+        tmpdir = Path(config["processed_dir"]) / dataset / "tmp"
+        return_code = run_command_in_temp_venv(command, reqs_filepath, tmpdir, verbose)
+        if return_code == 0:
+            click.echo(f"Successfully downloaded {dataset}")
+
+    except subprocess.CalledProcessError as e:
+        click.echo(f"Error: Command failed with return code {e.returncode}")
+        click.echo(traceback.format_exc())
+
+    except Exception as e:
+        click.echo(f"Error: {str(e)}")
+        click.echo(traceback.format_exc())
 
 
 @cli.command()
@@ -128,20 +141,12 @@ def config(raw, processed):
     click.echo(f"Processed data directory: {processed}")
 
 
-import subprocess
-import tempfile
-import sys
-import shutil
-import traceback
-import atexit
-
-
-def run_in_temp_venv(
+def run_command_in_temp_venv(
     command: str,
-    requirements_file: Path,
+    reqs_filepath: Path,
     tmpdir: Path,
     verbose: bool = False,
-):
+) -> int:
     """Runs a command inside a temporary virtual environment.
 
     Creates an isolated virtual environment, installs the current brainsets package
@@ -150,7 +155,7 @@ def run_in_temp_venv(
 
     Args:
         command: Shell command to execute in the virtual environment.
-        requirements_file: Path to a requirements.txt file containing additional
+        reqs_filepath: Path to a requirements.txt file containing additional
             dependencies to install.
         tmpdir: Path where the temporary virtual environment will be created.
         verbose: If True, prints detailed progress information.
@@ -159,120 +164,114 @@ def run_in_temp_venv(
         int: Return code from the executed command (0 for success, non-zero for failure).
             Returns None if an exception occurs during execution.
     """
+    VENV_DIR = tmpdir / "venv"
+    VENV_ACTIVATE = VENV_DIR / "bin" / "activate"
+    PYTHON_CMD = sys.executable
     UV_CMD = "uv" if verbose else "uv -q"
 
     # Create venv dir in tmpdir
-    venv_dir = tmpdir / "venv"
-    if venv_dir.exists():
-        shutil.rmtree(venv_dir)
+    if VENV_DIR.exists():
+        shutil.rmtree(VENV_DIR)
         if verbose:
-            click.echo(f"Found existing {venv_dir}. Deleting.")
-    venv_dir.mkdir(parents=True, exist_ok=False)
-    if verbose:
-        click.echo(f"Created {venv_dir}")
+            click.echo(f"Found existing {VENV_DIR}. Deleted.")
+    VENV_DIR.mkdir(parents=True, exist_ok=False)
 
     # Register deletion of venv_dir at script exit
     def cleanup():
-        if venv_dir.exists():
-            shutil.rmtree(venv_dir)
+        if VENV_DIR.exists():
+            shutil.rmtree(VENV_DIR)
             if verbose:
-                click.echo(f"Deleted {venv_dir}")
+                click.echo(f"Deleted {VENV_DIR}")
 
     atexit.register(cleanup)
 
-    with tempfile.TemporaryDirectory(dir=venv_dir) as tmpdir:
-        try:
-            click.echo(f"Creating a temporary isolated environment @ {tmpdir}")
+    brainsets_package = _get_installed_brainsets_spec()
+    click.echo(f"Brainsets installation detected: {brainsets_package}")
 
-            # Get base environment
-            process = subprocess.run(
-                ["uv", "pip", "freeze"],
-                capture_output=True,
-                check=True,
-            )
-            base_requirements = process.stdout.decode().split("\n")
+    # Create temp venv
+    click.echo(f"Creating a temporary isolated environment @ {VENV_DIR}")
+    subprocess.run([PYTHON_CMD, "-m", "venv", VENV_DIR], check=True)
 
-            # Find brainsets package
-            brainsets_packages = [x for x in base_requirements if "brainsets" in x]
-            if len(brainsets_packages) > 1:
-                raise RuntimeError(
-                    f"Found {len(brainsets_packages)} candidates for brainsets: "
-                    f"{brainsets_packages}\n"
-                    "This might be a bug. Please report this issue at "
-                    "https://github.com/neuro-galaxy/brainsets/issues "
-                    "with this error message."
-                )
-            if len(brainsets_packages) == 0:  # This should never happen in practice
-                raise RuntimeError(
-                    "Could not find a brainsets package installed.\n"
-                    "This might be a bug. Please report this issue at "
-                    "https://github.com/neuro-galaxy/brainsets/issues "
-                    "with this error message and the output of `uv pip freeze`."
-                )
-            brainsets_package = brainsets_packages[0]
+    # Install brainsets
+    click.echo(f"Installing brainsets '{brainsets_package}'")
+    install_cmd = f". {VENV_ACTIVATE} && {UV_CMD} pip install {brainsets_package}"
+    if verbose:
+        click.echo(f"Running: {install_cmd}")
+    subprocess.run(install_cmd, shell=True, check=True, capture_output=False)
 
-            if brainsets_package.startswith("brainsets=="):
-                pass
-            elif brainsets_package.startswith("-e "):
-                pass
-            elif brainsets_package.startswith("brainsets @ "):
-                # Handle case where package is like
-                # brainsets @ git+https://...@brachname
-                brainsets_package = brainsets_package.removeprefix("brainsets @ ")
-            else:
-                raise ValueError(
-                    f"Unknown package format {brainsets_package} in `uv pip freeze`\n"
-                    "This is a bug. Please report this issue at "
-                    "https://github.com/neuro-galaxy/brainsets/issues "
-                    "with this error message."
-                )
-            click.echo(f"Brainsets installation detected: {brainsets_package}")
+    # Install  requirements
+    if reqs_filepath.exists():
+        click.echo(f"Installing requirements from: {reqs_filepath}")
+        install_cmd = f". {VENV_ACTIVATE} && {UV_CMD} pip install -r {reqs_filepath}"
+        if verbose:
+            click.echo(f"Running: {install_cmd}")
+        subprocess.run(install_cmd, shell=True, check=True, capture_output=False)
 
-            # Create temp venv
-            subprocess.run([sys.executable, "-m", "venv", tmpdir], check=True)
+    # Run requested command
+    command = f". {VENV_ACTIVATE} && {command}"
+    process = subprocess.run(command, shell=True, check=True, capture_output=False)
+    return process.returncode
 
-            # Install brainsets
-            subprocess.run(
-                (
-                    f". {tmpdir}/bin/activate && "
-                    f"{UV_CMD} pip install {brainsets_package}"
-                ),
-                shell=True,
-                check=True,
-                capture_output=False,
-            )
 
-            # Install  requirements
-            if requirements_file.exists():
-                click.echo(f"Installing requirements from: {requirements_file}")
-                subprocess.run(
-                    (
-                        f". {tmpdir}/bin/activate && "
-                        f"{UV_CMD} pip install -r {requirements_file}"
-                    ),
-                    shell=True,
-                    check=True,
-                    text=True,
-                    capture_output=False,
-                )
+def _get_installed_brainsets_spec():
+    """Get the currently installed brainsets package specification.
 
-            # Run command
-            process = subprocess.run(
-                f". {tmpdir}/bin/activate && {command}",
-                shell=True,
-                check=True,
-                text=True,
-                capture_output=False,
-            )
-            return process.returncode
+    Uses `uv pip freeze` to find the installed brainsets package and validates its format.
+    The package can be in one of these formats:
+    - brainsets==x.y.z (PyPI release)
+    - -e /path/to/brainsets (editable install)
+    - brainsets @ git+https://... (git install)
 
-        except subprocess.CalledProcessError as e:
-            click.echo(f"Error: Command failed with return code {e.returncode}")
-            click.echo(traceback.format_exc())
+    Returns:
+        str: Package specification that can be used with pip install.
 
-        except Exception as e:
-            click.echo(f"Error: {str(e)}")
-            click.echo(traceback.format_exc())
+    Raises:
+        RuntimeError: If multiple brainsets packages are found, no package is found,
+            or if the package format is not recognized.
+    """
+    PKG = "brainsets"
+
+    # Get currently installed packages
+    process = subprocess.run(["uv", "pip", "freeze"], capture_output=True, check=True)
+    all_pkg_specs = process.stdout.decode().split("\n")
+
+    # Find brainsets package
+    candidate_specs = [x for x in all_pkg_specs if PKG in x]
+    if len(candidate_specs) > 1:
+        raise RuntimeError(
+            f"Found {len(candidate_specs)} candidates for {PKG}: "
+            f"{candidate_specs}\n"
+            "This might be a bug. Please report this issue at "
+            "https://github.com/neuro-galaxy/brainsets/issues "
+            "with this error message."
+        )
+    if len(candidate_specs) == 0:  # This should never happen in practice
+        raise RuntimeError(
+            "Could not find a {PKG} package installed.\n"
+            "This might be a bug. Please report this issue at "
+            "https://github.com/neuro-galaxy/brainsets/issues "
+            "with this error message and the output of `uv pip freeze`."
+        )
+    spec = candidate_specs[0]
+
+    # Validate package format
+    if spec.startswith(f"{PKG}=="):
+        pass
+    elif spec.startswith("-e "):
+        pass
+    elif spec.startswith(f"{PKG} @ "):
+        # Handle case where package is like
+        # brainsets @ git+https://...@brachname
+        spec = spec.removeprefix(f"{PKG} @ ")
+    else:
+        raise RuntimeError(
+            f"Unknown package format {spec} in `uv pip freeze`\n"
+            "This is a bug. Please report this issue at "
+            "https://github.com/neuro-galaxy/brainsets/issues "
+            "with this error message."
+        )
+
+    return spec
 
 
 if __name__ == "__main__":
