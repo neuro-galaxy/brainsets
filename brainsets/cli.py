@@ -243,17 +243,18 @@ def run_in_temp_venv(
             )
 
             # Install  requirements
-            click.echo(f"Installing requirements from: {requirements_file}")
-            subprocess.run(
-                (
-                    f". {tmpdir}/bin/activate && "
-                    f"{UV_CMD} pip install -r {requirements_file}"
-                ),
-                shell=True,
-                check=True,
-                text=True,
-                capture_output=False,
-            )
+            if requirements_file.exists():
+                click.echo(f"Installing requirements from: {requirements_file}")
+                subprocess.run(
+                    (
+                        f". {tmpdir}/bin/activate && "
+                        f"{UV_CMD} pip install -r {requirements_file}"
+                    ),
+                    shell=True,
+                    check=True,
+                    text=True,
+                    capture_output=False,
+                )
 
             # Run command
             process = subprocess.run(
