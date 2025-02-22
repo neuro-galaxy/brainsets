@@ -156,11 +156,11 @@ def temporary_venv(basedir: Path, verbose: bool = False):
     venv_dir = basedir / "venv"
 
     # Clean up existing tmpdir if needed
-    if basedir.exists():
-        shutil.rmtree(basedir)
+    if venv_dir.exists():
+        shutil.rmtree(venv_dir)
         if verbose:
             click.echo(f"Found existing {basedir}. Deleted.")
-    basedir.mkdir(parents=True)
+    venv_dir.mkdir(parents=True, exist_ok=False)
 
     try:
         # Create fresh venv
@@ -169,8 +169,8 @@ def temporary_venv(basedir: Path, verbose: bool = False):
 
     finally:
         # Clean up
-        if basedir.exists():
-            shutil.rmtree(basedir)
+        if venv_dir.exists():
+            shutil.rmtree(venv_dir)
             if verbose:
                 click.echo(f"Cleaned up {basedir}")
 
