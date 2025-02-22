@@ -245,9 +245,11 @@ def _get_installed_brainsets_spec():
 
     Uses `uv pip freeze` to find the installed brainsets package and validates its format.
     The package can be in one of these formats:
-    - brainsets==x.y.z (PyPI release)
-    - -e /path/to/brainsets (editable install)
-    - brainsets @ git+https://... (git install)
+    - brainsets==1.0.0                          (PyPI release)
+    - brainsets @ git+https://github.com/...    (Git installation)
+    - brainsets @ file:///path/to/brainsets     (Local non-editable install)
+    - -e /path/to/brainsets                     (Editable install)
+    - -e /path/to/brainsets/                    (Editable install with trailing slash)
 
     Returns:
         str: Package specification that can be used with pip install.
@@ -264,12 +266,12 @@ def _get_installed_brainsets_spec():
 
     # Find brainsets package
     """Regex used:
-    brainsets==1.0.0                          ✓ PyPI release
-    brainsets @ git+https://github.com/...    ✓ Git installation
-    -e /path/to/brainsets                     ✓ Editable install
-    -e /path/to/brainsets/                    ✓ Editable install with trailing slash
-    brainsets-extra==1.0.0                    ✗ Different package
-    mybrainsets==1.0.0                        ✗ Different package
+    brainsets==.*          : Match (PyPI release)
+    brainsets @.*          : Match (Git installation or Local non-editable install)
+    -e .*/brainsets        : Match (Editable install)
+    -e .*/brainsets/       : Match (Editable install with trailing slash)
+    brainsets-extra==1.0.0 : No match (Different package)
+    mybrainsets==1.0.0     : No match (Different package)
     """
     pkg_pattern = re.compile(rf"^(?:{PKG}(?:==| @)|-e .*/{PKG}(?=/|$))")
     candidate_specs = [x for x in all_pkg_specs if pkg_pattern.match(x)]
@@ -286,33 +288,26 @@ def _get_installed_brainsets_spec():
     if len(candidate_specs) == 0:  # This should never happen in practice
         raise RuntimeError(
             f"Could not find a {PKG} installation.\n"
-            "We use `uv pip freeze` to detect the current installation spec of brainsets, "
-            "but could not find any. There are two possibilities: \n"
+            "We use `uv pip freeze` to detect the current installation spec of brainsets. "
+            "We understand the following spec patterns, none of which matched:\n"
+            f"- {PKG}==.* (installation from PyPI)\n"
+            f"- {PKG} @ .* (GIT installation or local non-editable installation)\n"
+            f"- -e .*/{PKG} (local editable installation)\n"
+            "There are two possibilities: \n"
             "1. You have installed brainsets from a local clone, and the name of the "
             "clone directory is not 'brainsets'. In this case, please rename that directory "
             "to brainsets.\n"
-            "2. This is a bug in Brainsets CLI. In this case, please report this issue "
-            "https://github.com/neuro-galaxy/brainsets/issues "
-            "with the output of `uv pip freeze`."
+            "2. We have missed a valid spec pattern. In this case, please report this "
+            "issue at https://github.com/neuro-galaxy/brainsets/issues "
+            "with the output of `uv pip freeze`.\n"
+            "3. This is another bug. In this case also, please report this issue at "
+            "https://github.com/neuro-galaxy/brainsets/issues"
         )
     spec = candidate_specs[0]
 
-    # Validate package format
-    if spec.startswith(f"{PKG}=="):
-        pass
-    elif spec.startswith("-e "):
-        pass
-    elif spec.startswith(f"{PKG} @ "):
-        # Handle case where package is like
-        # brainsets @ git+https://...@brachname
+    # Handle case where package is like: brainsets @ .*
+    if spec.startswith(f"{PKG} @"):
         spec = spec.removeprefix(f"{PKG} @ ")
-    else:
-        raise RuntimeError(
-            f"Unknown package format {spec} in `uv pip freeze`\n"
-            "This is a bug. Please report this issue at "
-            "https://github.com/neuro-galaxy/brainsets/issues "
-            "with this error message."
-        )
 
     return spec
 
