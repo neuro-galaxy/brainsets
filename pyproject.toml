@@ -53,5 +53,11 @@ Documentation = "https://brainsets.readthedocs.io/en/latest/"
 brainsets = "brainsets.cli:cli"
 
 [tool.setuptools]
-packages = ["brainsets", "brainsets.utils", "brainsets_pipelines"]
+packages = [
+    "brainsets",
+    "brainsets.utils",
+    "brainsets.taxonomy",
+    "brainsets.processing",
+    "brainsets_pipelines",
+]
 include-package-data = true
