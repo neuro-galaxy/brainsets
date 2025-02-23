@@ -109,7 +109,7 @@ def prepare(
         if reqs_filepath.exists():
             click.echo(
                 f"WARNING: {reqs_filepath} found.\n"
-                f"         These will not be installed automatically when --use-active-env flag is used.\n"
+                f"         These will not be installed automatically due to --use-active-env usage.\n"
                 f"         Make sure to install necessary requirements manually."
             )
     elif reqs_filepath.exists():
