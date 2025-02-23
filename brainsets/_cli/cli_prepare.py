@@ -52,13 +52,11 @@ def prepare(
         raw_dir = expand_path(raw_dir)
         processed_dir = expand_path(processed_dir)
 
-    # Decide pipeline directory
+    # If using default dataset pipelines
     if pipeline_dir is None:
-
         available_datasets = get_available_datasets()
-
+        # Prompt user if dataset is not provided
         if dataset is None:
-            # Prompt user if dataset is not provided
             click.echo(f"Available datasets: ")
             for dataset in available_datasets:
                 click.echo(f"- {dataset}")
@@ -67,26 +65,24 @@ def prepare(
                 "Enter dataset name: ",
                 auto_suggest=AutoSuggestFromList(available_datasets),
             )
-
+        # Check dataset name validity
         if dataset not in available_datasets:
             raise click.ClickException(f"Invalid dataset name: {dataset}")
-
+        # Find snakefile
         snakefile_filepath = PIPELINES_PATH / dataset / "Snakefile"
         reqs_filepath = PIPELINES_PATH / dataset / "requirements.txt"
         click.echo(f"Preparing {dataset}...")
 
-    else:  # Local pipeline directory provided
-
+    # If local pipeline directory provided
+    else:
         pipeline_dir = expand_path(pipeline_dir)
         snakefile_filepath = pipeline_dir / "Snakefile"
         reqs_filepath = pipeline_dir / "requirements.txt"
-
         # Ensure snakefile exists
         if not snakefile_filepath.exists():
             raise click.ClickException(
                 f"Missing {snakefile_filepath}. A pipeline must have a Snakefile."
             )
-
         click.echo(f"Preparing local pipeline: {pipeline_dir}")
 
     click.echo(f"Raw data directory: {raw_dir}")
@@ -101,7 +97,8 @@ def prepare(
         f"RAW_DIR={raw_dir}",
         f"PROCESSED_DIR={processed_dir}",
         f"-c{cores}",
-        "all" "--verbose" if verbose else "--quiet",
+        "all",
+        "--verbose" if verbose else "--quiet",
     ]
 
     if use_active_env:
