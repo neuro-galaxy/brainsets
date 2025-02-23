@@ -59,6 +59,7 @@ packages = [
     "brainsets.utils",
     "brainsets.taxonomy",
     "brainsets.processing",
+    "brainsets._cli",
     "brainsets_pipelines",
 ]
 include-package-data = true
