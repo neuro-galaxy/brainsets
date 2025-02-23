@@ -21,7 +21,15 @@ def load_config(path: Path = CONFIG_FILE, raise_cli_error: bool = True):
     if path.exists():
         with open(path, "r") as f:
             ret = yaml.safe_load(f)
-        _validate_config(ret)
+
+        if raise_cli_error:
+            _validate_config(ret)
+        else:
+            try:
+                _validate_config(ret)
+            except:
+                return None
+
         return ret
     elif raise_cli_error:
         raise click.ClickException(
