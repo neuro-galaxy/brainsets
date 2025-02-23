@@ -15,22 +15,36 @@ from .utils import (
 @click.command()
 @click.argument("dataset", type=str, required=False)
 @click.option("-c", "--cores", default=4, help="Number of cores to use")
-@click.option("-v", "--verbose", is_flag=True, default=False)
-@click.option("--use-active-env", is_flag=True, default=False)
 @click.option(
     "--raw-dir",
     type=click.Path(file_okay=False),
-    help="Path for storing raw data.",
+    help="Path for storing raw data. Overrides config.",
 )
 @click.option(
     "--processed-dir",
     type=click.Path(file_okay=False),
-    help="Path for storing processed brainset.",
+    help="Path for storing processed brainset. Overrides config.",
 )
 @click.option(
     "--pipeline-dir",
     type=click.Path(exists=True, file_okay=False, dir_okay=True),
     help="A local brainset pipeline directory.",
+)
+@click.option(
+    "--use-active-env",
+    is_flag=True,
+    default=False,
+    help=(
+        "If set, will not create an isolated environment. "
+        "Developer flag. Only set if you know what you're doing."
+    ),
+)
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    default=False,
+    help="Print debugging information.",
 )
 def prepare(
     dataset: Optional[str],
