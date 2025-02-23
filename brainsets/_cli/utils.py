@@ -20,13 +20,26 @@ def expand_path(path: Union[str, Path]) -> Path:
 def load_config(path: Path = CONFIG_FILE, raise_cli_error: bool = True):
     if path.exists():
         with open(path, "r") as f:
-            return yaml.safe_load(f)
+            ret = yaml.safe_load(f)
+        _validate_config(ret)
+        return ret
     elif raise_cli_error:
         raise click.ClickException(
             f"Config not found at {path}. Please run `brainsets config`"
         )
     else:
         return None
+
+
+def _validate_config(config: dict):
+    if "raw_dir" not in config:
+        raise click.ClickException(
+            "'raw_dir' missing in config. Please run `brainsets config`."
+        )
+    if "processed_dir" not in config:
+        raise click.ClickException(
+            "'processed_dir' missing in config. Please run `brainsets config`."
+        )
 
 
 def save_config(config):
