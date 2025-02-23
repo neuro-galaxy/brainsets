@@ -67,7 +67,8 @@ def prepare(dataset: str, cores: int, verbose: bool):
             "run",
             "--with-requirements",
             str(reqs_filepath),
-            "--active",  # Prefer building temp environment on top of current venv
+            "--isolated",
+            "--no-project",
         ]
         if verbose:
             uv_prefix_command.append("--verbose")
