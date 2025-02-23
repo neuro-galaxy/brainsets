@@ -32,7 +32,8 @@ def cli():
 @click.argument("dataset", type=click.Choice(DATASETS, case_sensitive=False))
 @click.option("-c", "--cores", default=4, help="Number of cores to use")
 @click.option("-v", "--verbose", is_flag=True, default=False)
-def prepare(dataset: str, cores: int, verbose: bool):
+@click.option("--use-active-env", is_flag=True, default=False)
+def prepare(dataset: str, cores: int, verbose: bool, use_active_env: bool):
     """Download and process a specific dataset."""
     click.echo(f"Preparing {dataset}...")
 
@@ -60,24 +61,37 @@ def prepare(dataset: str, cores: int, verbose: bool):
         "--verbose" if verbose else "--quiet",
     ]
 
-    # If dataset has additional requirements, prefix command with uv package manager
-    if reqs_filepath.exists():
-        uv_prefix_command = [
-            "uv",
-            "run",
-            "--with-requirements",
-            str(reqs_filepath),
-            "--isolated",
-            "--no-project",
-        ]
-        if verbose:
-            uv_prefix_command.append("--verbose")
-
-        command = uv_prefix_command + command
+    if use_active_env:
         click.echo(
-            "Building temporary virtual environment using"
-            f" requirements from {reqs_filepath}"
+            "WARNING: Working in active environment due to --use-active-env.\n"
+            "         This mode is only intended for brainset development purposes."
         )
+        if reqs_filepath.exists():
+            click.echo(
+                f"WARNING: {reqs_filepath} found.\n"
+                f"         These will not be installed automatically when --use-active-env flag is used.\n"
+                f"         Make sure to install necessary requirements manually."
+            )
+    else:
+        if reqs_filepath.exists():
+            # If dataset has additional requirements, prefix command with uv package manager
+            if not use_active_env:
+                uv_prefix_command = [
+                    "uv",
+                    "run",
+                    "--with-requirements",
+                    str(reqs_filepath),
+                    "--isolated",
+                    "--no-project",
+                ]
+                if verbose:
+                    uv_prefix_command.append("--verbose")
+
+                command = uv_prefix_command + command
+                click.echo(
+                    "Building temporary virtual environment using"
+                    f" requirements from {reqs_filepath}"
+                )
 
     # Run snakemake workflow for dataset download with live output
     try:
