@@ -1,11 +1,8 @@
 import click
-from pathlib import Path
 
 from .cli_config import config
 from .cli_prepare import prepare
 from .cli_list import cli_list
-
-from .utils import load_config, CONFIG_FILE
 
 
 @click.group()
