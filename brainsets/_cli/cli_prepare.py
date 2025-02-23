@@ -37,6 +37,15 @@ def prepare(
 ):
     """Download and process a specific dataset."""
 
+    # Get raw and processed dirs
+    if raw_dir is None or processed_dir is None:
+        config = load_config()
+        raw_dir = expand_path(raw_dir or config["raw_dir"])
+        processed_dir = expand_path(processed_dir or config["processed_dir"])
+    else:
+        raw_dir = expand_path(raw_dir)
+        processed_dir = expand_path(processed_dir)
+
     # Prompt user if dataset is not provided
     if dataset is None:
         click.echo(f"Available datasets: ")
@@ -46,21 +55,11 @@ def prepare(
         click.echo()
 
         dataset = prompt(
-            "Enter dataset: ",
+            "Enter dataset name: ",
             auto_suggest=AutoSuggestFromList(available_datasets),
         )
 
     click.echo(f"Preparing {dataset}...")
-
-    # Finalize raw and processed dirs
-    if raw_dir is None or processed_dir is None:
-        config = load_config()
-        raw_dir = expand_path(raw_dir or config["raw_dir"])
-        processed_dir = expand_path(processed_dir or config["processed_dir"])
-    else:
-        raw_dir = expand_path(raw_dir)
-        processed_dir = expand_path(processed_dir)
-
     click.echo(f"Raw data directory: {raw_dir}")
     click.echo(f"Processed data directory: {processed_dir}")
 
