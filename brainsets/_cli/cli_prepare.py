@@ -27,6 +27,11 @@ from .utils import (
     type=click.Path(file_okay=False),
     help="Path for storing processed brainset.",
 )
+@click.option(
+    "--pipeline-dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    help="A local brainset pipeline directory.",
+)
 def prepare(
     dataset: Optional[str],
     cores: int,
@@ -34,6 +39,7 @@ def prepare(
     use_active_env: bool,
     raw_dir: Optional[str],
     processed_dir: Optional[str],
+    pipeline_dir: Optional[str],
 ):
     """Download and process a specific dataset."""
 
@@ -46,25 +52,45 @@ def prepare(
         raw_dir = expand_path(raw_dir)
         processed_dir = expand_path(processed_dir)
 
-    # Prompt user if dataset is not provided
-    if dataset is None:
-        click.echo(f"Available datasets: ")
+    # Decide pipeline directory
+    if pipeline_dir is None:
+
         available_datasets = get_available_datasets()
-        for dataset in available_datasets:
-            click.echo(f"- {dataset}")
-        click.echo()
 
-        dataset = prompt(
-            "Enter dataset name: ",
-            auto_suggest=AutoSuggestFromList(available_datasets),
-        )
+        if dataset is None:
+            # Prompt user if dataset is not provided
+            click.echo(f"Available datasets: ")
+            for dataset in available_datasets:
+                click.echo(f"- {dataset}")
+            click.echo()
+            dataset = prompt(
+                "Enter dataset name: ",
+                auto_suggest=AutoSuggestFromList(available_datasets),
+            )
 
-    click.echo(f"Preparing {dataset}...")
+        if dataset not in available_datasets:
+            raise click.ClickException(f"Invalid dataset name: {dataset}")
+
+        snakefile_filepath = PIPELINES_PATH / dataset / "Snakefile"
+        reqs_filepath = PIPELINES_PATH / dataset / "requirements.txt"
+        click.echo(f"Preparing {dataset}...")
+
+    else:  # Local pipeline directory provided
+
+        pipeline_dir = expand_path(pipeline_dir)
+        snakefile_filepath = pipeline_dir / "Snakefile"
+        reqs_filepath = pipeline_dir / "requirements.txt"
+
+        # Ensure snakefile exists
+        if not snakefile_filepath.exists():
+            raise click.ClickException(
+                f"Missing {snakefile_filepath}. A pipeline must have a Snakefile."
+            )
+
+        click.echo(f"Preparing local pipeline: {pipeline_dir}")
+
     click.echo(f"Raw data directory: {raw_dir}")
     click.echo(f"Processed data directory: {processed_dir}")
-
-    snakefile_filepath = PIPELINES_PATH / "Snakefile"
-    reqs_filepath = PIPELINES_PATH / dataset / "requirements.txt"
 
     # Construct base Snakemake command with configuration
     command = [
@@ -72,11 +98,10 @@ def prepare(
         "-s",
         str(snakefile_filepath),
         "--config",
-        f"raw_dir={raw_dir}",
-        f"processed_dir={processed_dir}",
+        f"RAW_DIR={raw_dir}",
+        f"PROCESSED_DIR={processed_dir}",
         f"-c{cores}",
-        f"{dataset}",
-        "--verbose" if verbose else "--quiet",
+        "all" "--verbose" if verbose else "--quiet",
     ]
 
     if use_active_env:
@@ -90,26 +115,25 @@ def prepare(
                 f"         These will not be installed automatically when --use-active-env flag is used.\n"
                 f"         Make sure to install necessary requirements manually."
             )
-    else:
-        if reqs_filepath.exists():
-            # If dataset has additional requirements, prefix command with uv package manager
-            if not use_active_env:
-                uv_prefix_command = [
-                    "uv",
-                    "run",
-                    "--with-requirements",
-                    str(reqs_filepath),
-                    "--isolated",
-                    "--no-project",
-                ]
-                if verbose:
-                    uv_prefix_command.append("--verbose")
+    elif reqs_filepath.exists():
+        # If dataset has additional requirements, prefix command with uv package manager
+        if not use_active_env:
+            uv_prefix_command = [
+                "uv",
+                "run",
+                "--with-requirements",
+                str(reqs_filepath),
+                "--isolated",
+                "--no-project",
+            ]
+            if verbose:
+                uv_prefix_command.append("--verbose")
 
-                command = uv_prefix_command + command
-                click.echo(
-                    "Building temporary virtual environment using"
-                    f" requirements from {reqs_filepath}"
-                )
+            command = uv_prefix_command + command
+            click.echo(
+                "Building temporary virtual environment using"
+                f" requirements from {reqs_filepath}"
+            )
 
     # Run snakemake workflow for dataset download with live output
     try:
