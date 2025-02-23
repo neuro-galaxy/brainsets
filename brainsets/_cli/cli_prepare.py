@@ -35,8 +35,8 @@ from .utils import (
     is_flag=True,
     default=False,
     help=(
-        "If set, will not create an isolated environment. "
-        "Developer flag. Only set if you know what you're doing."
+        "Developer flag. If set, will not create an isolated environment. "
+        "Only set if you know what you're doing."
     ),
 )
 @click.option(
@@ -55,7 +55,17 @@ def prepare(
     processed_dir: Optional[str],
     pipeline_dir: Optional[str],
 ):
-    """Download and process a specific dataset."""
+    """Download and process DATASET.
+
+    If no DATASET is specified, shows available datasets and prompts for choice.
+
+    \b
+    Example usage:
+      $ brainsets prepare                           # Show available datasets and prompt
+      $ brainsets prepare pei_pandarinath_nlb_2021  # Process specific dataset
+      $ brainsets prepare -c 8                      # Use 8 cores
+      $ brainsets prepare --raw-dir ./raw           # Custom raw data directory
+    """
 
     # Get raw and processed dirs
     if raw_dir is None or processed_dir is None:
