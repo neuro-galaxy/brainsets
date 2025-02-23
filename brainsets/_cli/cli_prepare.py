@@ -1,16 +1,37 @@
+from typing import Optional
 import click
 import subprocess
+from prompt_toolkit import prompt
 
-from .utils import PIPELINES_PATH, DATASETS, load_config
+from .utils import (
+    PIPELINES_PATH,
+    load_config,
+    AutoSuggestFromList,
+    get_available_datasets,
+)
 
 
 @click.command()
-@click.argument("dataset", type=click.Choice(DATASETS, case_sensitive=False))
+@click.argument("dataset", type=str, required=False)
 @click.option("-c", "--cores", default=4, help="Number of cores to use")
 @click.option("-v", "--verbose", is_flag=True, default=False)
 @click.option("--use-active-env", is_flag=True, default=False)
-def prepare(dataset: str, cores: int, verbose: bool, use_active_env: bool):
+def prepare(dataset: Optional[str], cores: int, verbose: bool, use_active_env: bool):
     """Download and process a specific dataset."""
+
+    # Prompt user if dataset is not provided
+    if dataset is None:
+        click.echo(f"Available datasets: ")
+        available_datasets = get_available_datasets()
+        for dataset in available_datasets:
+            click.echo(f"- {dataset}")
+        click.echo()
+
+        dataset = prompt(
+            "Dataset: ",
+            auto_suggest=AutoSuggestFromList(available_datasets),
+        )
+
     click.echo(f"Preparing {dataset}...")
 
     # Get config to check if directories are set
