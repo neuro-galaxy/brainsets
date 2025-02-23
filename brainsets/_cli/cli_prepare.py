@@ -8,6 +8,7 @@ from .utils import (
     load_config,
     AutoSuggestFromList,
     get_available_datasets,
+    expand_path,
 )
 
 
@@ -51,13 +52,17 @@ def prepare(
 
     click.echo(f"Preparing {dataset}...")
 
-    # Get config to check if directories are set
-    config = load_config()
-    if not config["raw_dir"] or not config["processed_dir"]:
-        click.echo(
-            "Error: Please set raw and processed directories first using 'brainsets config'"
-        )
-        return
+    # Finalize raw and processed dirs
+    if raw_dir is None or processed_dir is None:
+        config = load_config()
+        raw_dir = expand_path(raw_dir or config["raw_dir"])
+        processed_dir = expand_path(processed_dir or config["processed_dir"])
+    else:
+        raw_dir = expand_path(raw_dir)
+        processed_dir = expand_path(processed_dir)
+
+    click.echo(f"Raw data directory: {raw_dir}")
+    click.echo(f"Processed data directory: {processed_dir}")
 
     snakefile_filepath = PIPELINES_PATH / "Snakefile"
     reqs_filepath = PIPELINES_PATH / dataset / "requirements.txt"
@@ -68,8 +73,8 @@ def prepare(
         "-s",
         str(snakefile_filepath),
         "--config",
-        f"raw_dir={config['raw_dir']}",
-        f"processed_dir={config['processed_dir']}",
+        f"raw_dir={raw_dir}",
+        f"processed_dir={processed_dir}",
         f"-c{cores}",
         f"{dataset}",
         "--verbose" if verbose else "--quiet",
