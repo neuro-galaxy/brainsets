@@ -50,7 +50,7 @@ Issues = "https://github.com/neuro-galaxy/brainsets/issues"
 Documentation = "https://brainsets.readthedocs.io/en/latest/"
 
 [project.scripts]
-brainsets = "brainsets.cli:cli"
+brainsets = "brainsets._cli:cli"
 
 [tool.setuptools]
 packages = [
