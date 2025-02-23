@@ -31,7 +31,8 @@ def cli():
 @cli.command()
 @click.argument("dataset", type=click.Choice(DATASETS, case_sensitive=False))
 @click.option("-c", "--cores", default=4, help="Number of cores to use")
-def prepare(dataset, cores):
+@click.option("-v", "--verbose", is_flag=True, default=False)
+def prepare(dataset: str, cores: int, verbose: bool):
     """Download and process a specific dataset."""
     click.echo(f"Preparing {dataset}...")
 
@@ -43,9 +44,8 @@ def prepare(dataset, cores):
         )
         return
 
-    pipelines_dirpath = Path(__file__).parent.parent / "brainsets_pipelines"
-    snakefile_filepath = pipelines_dirpath / "Snakefile"
-    reqs_filepath = pipelines_dirpath / dataset / "requirements.txt"
+    snakefile_filepath = PIPELINES_PATH / "Snakefile"
+    reqs_filepath = PIPELINES_PATH / dataset / "requirements.txt"
 
     # Construct base Snakemake command with configuration
     command = [
@@ -57,6 +57,7 @@ def prepare(dataset, cores):
         f"processed_dir={config['processed_dir']}",
         f"-c{cores}",
         f"{dataset}",
+        "--verbose" if verbose else "--quiet",
     ]
 
     # If dataset has additional requirements, prefix command with uv package manager
@@ -68,6 +69,9 @@ def prepare(dataset, cores):
             str(reqs_filepath),
             "--active",  # Prefer building temp environment on top of current venv
         ]
+        if verbose:
+            uv_prefix_command.append("--verbose")
+
         command = uv_prefix_command + command
         click.echo(
             "Building temporary virtual environment using"
