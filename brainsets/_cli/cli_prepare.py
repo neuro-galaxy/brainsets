@@ -16,7 +16,24 @@ from .utils import (
 @click.option("-c", "--cores", default=4, help="Number of cores to use")
 @click.option("-v", "--verbose", is_flag=True, default=False)
 @click.option("--use-active-env", is_flag=True, default=False)
-def prepare(dataset: Optional[str], cores: int, verbose: bool, use_active_env: bool):
+@click.option(
+    "--raw-dir",
+    type=click.Path(file_okay=False),
+    help="Path for storing raw data.",
+)
+@click.option(
+    "--processed-dir",
+    type=click.Path(file_okay=False),
+    help="Path for storing processed brainset.",
+)
+def prepare(
+    dataset: Optional[str],
+    cores: int,
+    verbose: bool,
+    use_active_env: bool,
+    raw_dir: Optional[str],
+    processed_dir: Optional[str],
+):
     """Download and process a specific dataset."""
 
     # Prompt user if dataset is not provided
@@ -28,7 +45,7 @@ def prepare(dataset: Optional[str], cores: int, verbose: bool, use_active_env: b
         click.echo()
 
         dataset = prompt(
-            "Dataset: ",
+            "Enter dataset: ",
             auto_suggest=AutoSuggestFromList(available_datasets),
         )
 

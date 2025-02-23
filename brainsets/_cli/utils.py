@@ -17,14 +17,16 @@ def expand_path(path: Union[str, Path]) -> Path:
     return Path(os.path.abspath(os.path.expandvars(os.path.expanduser(path))))
 
 
-def load_config(path: Path = CONFIG_FILE):
+def load_config(path: Path = CONFIG_FILE, raise_cli_error: bool = True):
     if path.exists():
         with open(path, "r") as f:
             return yaml.safe_load(f)
-    else:
-        raise FileNotFoundError(
-            f"Config not found at {path}.\n" f"Please run `brainsets config`"
+    elif raise_cli_error:
+        raise click.ClickException(
+            f"Config not found at {path}. Please run `brainsets config`"
         )
+    else:
+        return None
 
 
 def save_config(config):

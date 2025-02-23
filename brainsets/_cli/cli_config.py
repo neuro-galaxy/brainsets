@@ -35,12 +35,10 @@ def config(raw_dir: Optional[Path], processed_dir: Optional[Path]):
     processed_dir.mkdir(parents=True, exist_ok=True)
 
     # Save config
-    try:
-        config = load_config()
-        config_exists = True
-    except FileNotFoundError:
+    config = load_config(raise_cli_error=False)
+    config_exists = config is not None
+    if not config_exists:
         config = {}
-        config_exists = False
     config["raw_dir"] = str(raw_dir)
     config["processed_dir"] = str(processed_dir)
     config_filepath = save_config(config)
