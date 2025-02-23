@@ -1,55 +1,54 @@
+from typing import Optional
 import click
 from pathlib import Path
+from prompt_toolkit import prompt
 
-from .utils import load_config, save_config
+from .utils import load_config, save_config, expand_path, debug_echo
 
 
 @click.command()
 @click.option(
-    "--raw",
-    prompt="Enter raw data directory",
+    "--raw-dir",
+    help="Path for storing raw data.",
     type=click.Path(file_okay=False, dir_okay=True),
     required=False,
 )
 @click.option(
-    "--processed",
-    prompt="Enter processed data directory",
+    "--processed-dir",
+    help="Path for storing processed brainsets.",
     type=click.Path(file_okay=False, dir_okay=True),
     required=False,
 )
-def config(raw, processed):
+def config(raw_dir: Optional[Path], processed_dir: Optional[Path]):
     """Set raw and processed data directories."""
-    # Create directories if they don't exist
-    import os
 
-    # If no arguments provided, prompt for input
-    if raw is None or processed is None:
-        if raw is None:
-            raw = click.prompt(
-                "Enter raw data directory",
-                type=click.Path(file_okay=False, dir_okay=True),
-            )
-        if processed is None:
-            processed = click.prompt(
-                "Enter processed data directory",
-                type=click.Path(file_okay=False, dir_okay=True),
-            )
+    # Get missing args from user prompts
+    if raw_dir is None or processed_dir is None:
+        raw_dir = prompt(f"Enter raw data directory: ")
+        processed_dir = prompt(f"Enter processed data directory: ")
 
-    raw = Path(os.path.expanduser(raw))
-    processed = Path(os.path.expanduser(processed))
+    raw_dir = expand_path(raw_dir)
+    processed_dir = expand_path(processed_dir)
 
     # Create directories
-    raw.mkdir(parents=True, exist_ok=True)
-    processed.mkdir(parents=True, exist_ok=True)
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    processed_dir.mkdir(parents=True, exist_ok=True)
 
     # Save config
-    raw = str(raw)
-    processed = str(processed)
+    try:
+        config = load_config()
+        config_exists = True
+    except FileNotFoundError:
+        config = {}
+        config_exists = False
+    config["raw_dir"] = str(raw_dir)
+    config["processed_dir"] = str(processed_dir)
+    config_filepath = save_config(config)
 
-    config = load_config()
-    config["raw_dir"] = raw
-    config["processed_dir"] = processed
-    save_config(config)
-    click.echo("Configuration updated successfully.")
-    click.echo(f"Raw data directory: {raw}")
-    click.echo(f"Processed data directory: {processed}")
+    if not config_exists:
+        click.echo(f"Created config file at {config_filepath}")
+    else:
+        click.echo(f"Updated config file at {config_filepath}")
+
+    click.echo(f"Raw data dir: {config['raw_dir']}")
+    click.echo(f"Processed data dir: {config['processed_dir']}")

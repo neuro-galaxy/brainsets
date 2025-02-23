@@ -5,9 +5,12 @@ from .cli_config import config
 from .cli_prepare import prepare
 from .cli_list import cli_list
 
+from .utils import load_config, CONFIG_FILE
+
 
 @click.group()
-def cli():
+@click.pass_context
+def cli(ctx: click.Context):
     """
     Brainsets CLI\n
     A command line interface for downloading and preparing brainsets.
@@ -16,6 +19,14 @@ def cli():
     Documentation: https://brainsets.readthedocs.io/en/latest
     Project page: https://github.com/neuro-galaxy/brainsets
     """
+    ctx.ensure_object(dict)
+
+    # Load config if available
+    if CONFIG_FILE.exists():
+        ctx.obj["config"] = load_config(CONFIG_FILE)
+    else:
+        ctx.obj["config"] = None
+
     pass
 
 

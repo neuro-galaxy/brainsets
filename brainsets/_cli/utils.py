@@ -1,4 +1,6 @@
-from typing import List, Optional
+import os
+from typing import List, Optional, Union
+import click
 import yaml
 from pathlib import Path
 import brainsets_pipelines
@@ -8,20 +10,36 @@ CONFIG_FILE = Path.home() / ".brainsets.yaml"
 PIPELINES_PATH = Path(brainsets_pipelines.__path__[0])
 
 
-def load_config():
-    if CONFIG_FILE.exists():
-        with open(CONFIG_FILE, "r") as f:
+def expand_path(path: Union[str, Path]) -> Path:
+    """
+    Convert string path to absolute Path, expanding environment variables and user.
+    """
+    return Path(os.path.abspath(os.path.expandvars(os.path.expanduser(path))))
+
+
+def load_config(path: Path = CONFIG_FILE):
+    if path.exists():
+        with open(path, "r") as f:
             return yaml.safe_load(f)
-    return {"raw_dir": None, "processed_dir": None}
+    else:
+        raise FileNotFoundError(
+            f"Config not found at {path}.\n" f"Please run `brainsets config`"
+        )
 
 
 def save_config(config):
     with open(CONFIG_FILE, "w") as f:
         yaml.safe_dump(config, f, default_flow_style=False)
+    return CONFIG_FILE
 
 
 def get_available_datasets():
     return [d.name for d in PIPELINES_PATH.iterdir() if d.is_dir()]
+
+
+def debug_echo(msg: str, enable: bool):
+    if enable:
+        click.echo(f"DEBUG: {msg}")
 
 
 class AutoSuggestFromList(AutoSuggest):
