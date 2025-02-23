@@ -8,7 +8,14 @@ from .cli_list import cli_list
 
 @click.group()
 def cli():
-    """Brainsets CLI tool."""
+    """
+    Brainsets CLI\n
+    A command line interface for downloading and preparing brainsets.
+
+    \b
+    Documentation: https://brainsets.readthedocs.io/en/latest
+    Project page: https://github.com/neuro-galaxy/brainsets
+    """
     pass
 
 
