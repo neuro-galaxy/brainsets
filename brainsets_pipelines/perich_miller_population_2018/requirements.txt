@@ -1,1 +1,2 @@
 dandi==0.61.2
+scikit-learn==1.2.1
