@@ -1,2 +1,2 @@
-ONE-api==2.11.2
-ibllib==2.39.1
+ONE-api==2.7.0
+ibllib==2.34.0

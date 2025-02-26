@@ -2,12 +2,6 @@
 # IBL Reproducible Ephys (2022)
 ######################################################
 
-try:
-    import one
-    import brainbox
-except:
-    raise ImportError("To download IBL data, install ONE-api and brainbox: \n pip install ONE-api \n pip install ibllib")
-
 DATASET = "ibl_reproducible_ephys_2022"
 RAW_DIR = config["RAW_DIR"]
 PROCESSED_DIR = config["PROCESSED_DIR"]
