@@ -27,3 +27,9 @@ module pei_pandarinath_nlb_2021_module:
     config: config
 use rule * from pei_pandarinath_nlb_2021_module as pei_pandarinath_nlb_2021_*
 use rule all from pei_pandarinath_nlb_2021_module as pei_pandarinath_nlb_2021
+
+module ibl_reproducible_ephys_2022_module:
+    snakefile: "ibl_reproducible_ephys_2022/Snakefile"
+    config: config
+use rule * from ibl_reproducible_ephys_2022_module as ibl_reproducible_ephys_2022_*
+use rule all from ibl_reproducible_ephys_2022_module as ibl_reproducible_ephys_2022
