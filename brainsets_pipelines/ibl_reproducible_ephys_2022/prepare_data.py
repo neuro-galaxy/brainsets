@@ -48,7 +48,6 @@ def extract_spikes(one, eid):
             np.unique(clusters["cluster_id"])
         ), f"There are duplicate units in {eid}"
 
-
         assert len(clusters["cluster_id"]) == len(
             np.unique(spikes["clusters"])
         ), f"There are units that have no spikes in {eid}"
