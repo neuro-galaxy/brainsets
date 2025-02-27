@@ -171,10 +171,10 @@ def detect_outliers(cursor):
 
     end = cursor.timestamps[np.where(np.diff(outlier_mask.astype(int)) == -1)[0]]
     if outlier_mask[-1]:
-        end = np.insert(end, 0, cursor.timestamps[-1])
+        end = np.append(end, cursor.timestamps[-1])
 
     cursor_outlier_segments = Interval(start=start, end=end)
-
+    assert cursor_outlier_segments.is_disjoint()
     return cursor_outlier_segments
 
 
