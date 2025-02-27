@@ -271,6 +271,13 @@ def main():
     else:
         trials, movement_phases = extract_random_target_reaching_trials(nwbfile, cursor)
 
+    for key in movement_phases.keys():
+        setattr(
+            movement_phases,
+            key,
+            movement_phases[key].difference(cursor_outlier_segments),
+        )
+
     # close file
     io.close()
 
