@@ -275,7 +275,7 @@ def main():
         setattr(
             movement_phases,
             key,
-            movement_phases[key].difference(cursor_outlier_segments),
+            getattr(movement_phases, key).difference(cursor_outlier_segments),
         )
 
     # close file
