@@ -61,7 +61,7 @@ def prepare(
 ):
     """Download and process a single brainset.
 
-    Run `brainsets list` to get a list of available brainsets.
+    Run 'brainsets list' to get a list of available brainsets.
 
     \b
     Examples:
@@ -83,7 +83,10 @@ def prepare(
         # Preparing using an OG pipeline
         available_brainsets = get_available_brainsets()
         if brainset not in available_brainsets:
-            raise click.ClickException(f"Invalid dataset name: {brainset}")
+            raise click.ClickException(
+                f"Brainset '{brainset}' not found. "
+                f"Run 'brainsets list' to get the available list of brainsets."
+            )
         # Find snakefile
         snakefile_filepath = PIPELINES_PATH / brainset / "Snakefile"
         reqs_filepath = PIPELINES_PATH / brainset / "requirements.txt"
