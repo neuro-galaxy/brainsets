@@ -57,7 +57,9 @@ def save_config(config):
 
 
 def get_available_brainsets():
-    return [d.name for d in PIPELINES_PATH.iterdir() if d.is_dir()]
+    ret = [d.name for d in PIPELINES_PATH.iterdir() if d.is_dir()]
+    ret = [name for name in ret if not name.startswith((".", "_"))]
+    return ret
 
 
 def debug_echo(msg: str, enable: bool):
