@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Optional
 import click
 import subprocess
@@ -87,17 +88,16 @@ def prepare(
         # Find snakefile
         snakefile_filepath = PIPELINES_PATH / dataset / "Snakefile"
         reqs_filepath = PIPELINES_PATH / dataset / "requirements.txt"
+
+        _validate_snakefile(snakefile_filepath)
         click.echo(f"Preparing {dataset}...")
     else:
         # Preparing using a local pipeline
         pipeline_dir = expand_path(dataset)
         snakefile_filepath = pipeline_dir / "Snakefile"
         reqs_filepath = pipeline_dir / "requirements.txt"
-        # Ensure snakefile exists
-        if not snakefile_filepath.exists():
-            raise click.ClickException(
-                f"Missing {snakefile_filepath}. A pipeline must have a Snakefile."
-            )
+
+        _validate_snakefile(snakefile_filepath)
         click.echo(f"Preparing local pipeline: {pipeline_dir}")
 
     click.echo(f"Raw data directory: {raw_dir}")
@@ -164,3 +164,36 @@ def prepare(
         click.echo(f"Error: Command failed with return code {e.returncode}")
     except Exception as e:
         click.echo(f"Error: {str(e)}")
+
+
+def _validate_snakefile(filepath: Path) -> bool:
+
+    # Check if Snakefile exists
+    if not filepath.exists():
+        raise click.ClickException(
+            f"Missing {filepath}. A pipeline must have a Snakefile."
+        )
+
+    # Check if rule "all" exists in the Snakefile
+    try:
+        result = subprocess.run(
+            [
+                "snakemake",
+                "-s",
+                str(filepath),
+                "--list-target-rules",
+                "--config",
+                "RAW_DIR=test",
+                "PROCESSED_DIR=test",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        if "all" not in result.stdout.splitlines():
+            raise click.ClickException(
+                f"Rule 'all' not found in {filepath}. "
+                " A valid Snakefile must have an 'all' rule."
+            )
+    except subprocess.CalledProcessError as e:
+        raise click.ClickException(f"Error validating Snakefile: {e}")
