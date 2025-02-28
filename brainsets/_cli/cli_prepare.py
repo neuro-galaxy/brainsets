@@ -14,7 +14,7 @@ from .utils import (
 
 @click.command()
 @click.argument("dataset", type=str)
-@click.option("-c", "--cores", default=4, help="Number of cores to use")
+@click.option("-c", "--cores", default=4, help="Number of cores to use. (default 4)")
 @click.option(
     "--raw-dir",
     type=click.Path(file_okay=False),
@@ -26,9 +26,13 @@ from .utils import (
     help="Path for storing processed brainset. Overrides config.",
 )
 @click.option(
-    "--pipeline-dir",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True),
-    help="A local brainset pipeline directory.",
+    "--local",
+    is_flag=True,
+    default=False,
+    help=(
+        "Prepare brainset with from a local pipeline."
+        " DATASET must then be set to the path of the local pipeline directory."
+    ),
 )
 @click.option(
     "--use-active-env",
@@ -53,12 +57,17 @@ def prepare(
     use_active_env: bool,
     raw_dir: Optional[str],
     processed_dir: Optional[str],
-    pipeline_dir: Optional[str],
+    local: bool,
 ):
     """Download and process a single brainset.
 
+    Run `brainsets list` to get a list of available brainsets.
+
     \b
-    Do `brainsets list` to get a list of available brainsets.
+    Examples:
+    $ brainsets prepare pei_pandarinath_nlb_2019
+    $ brainsets prepare pei_pandarinath_nlb_2019 --cores 8 --raw-dir ~/data/raw --processed-dir ~/data/processed
+    $ brainsets prepare ./my_local_brainsets_pipeline --local
     """
 
     # Get raw and processed dirs
@@ -70,8 +79,8 @@ def prepare(
         raw_dir = expand_path(raw_dir)
         processed_dir = expand_path(processed_dir)
 
-    # If using default dataset pipelines
-    if pipeline_dir is None:
+    if not local:
+        # Preparing using an OG pipeline
         available_datasets = get_available_datasets()
         if dataset not in available_datasets:
             raise click.ClickException(f"Invalid dataset name: {dataset}")
@@ -79,10 +88,9 @@ def prepare(
         snakefile_filepath = PIPELINES_PATH / dataset / "Snakefile"
         reqs_filepath = PIPELINES_PATH / dataset / "requirements.txt"
         click.echo(f"Preparing {dataset}...")
-
-    # If local pipeline directory provided
     else:
-        pipeline_dir = expand_path(pipeline_dir)
+        # Preparing using a local pipeline
+        pipeline_dir = expand_path(dataset)
         snakefile_filepath = pipeline_dir / "Snakefile"
         reqs_filepath = pipeline_dir / "requirements.txt"
         # Ensure snakefile exists
