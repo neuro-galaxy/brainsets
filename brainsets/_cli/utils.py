@@ -56,7 +56,7 @@ def save_config(config):
     return CONFIG_FILE
 
 
-def get_available_datasets():
+def get_available_brainsets():
     return [d.name for d in PIPELINES_PATH.iterdir() if d.is_dir()]
 
 

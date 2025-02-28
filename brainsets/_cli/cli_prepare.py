@@ -8,13 +8,13 @@ from .utils import (
     PIPELINES_PATH,
     load_config,
     AutoSuggestFromList,
-    get_available_datasets,
+    get_available_brainsets,
     expand_path,
 )
 
 
 @click.command()
-@click.argument("dataset", type=str)
+@click.argument("brainset", type=str)
 @click.option("-c", "--cores", default=4, help="Number of cores to use. (default 4)")
 @click.option(
     "--raw-dir",
@@ -31,8 +31,8 @@ from .utils import (
     is_flag=True,
     default=False,
     help=(
-        "Prepare brainset with from a local pipeline."
-        " DATASET must then be set to the path of the local pipeline directory."
+        "Prepare brainset with from a local pipeline. "
+        "BRAINSET must then be set to the path of the local brainset pipeline directory."
     ),
 )
 @click.option(
@@ -52,7 +52,7 @@ from .utils import (
     help="Print debugging information.",
 )
 def prepare(
-    dataset: str,
+    brainset: str,
     cores: int,
     verbose: bool,
     use_active_env: bool,
@@ -82,18 +82,18 @@ def prepare(
 
     if not local:
         # Preparing using an OG pipeline
-        available_datasets = get_available_datasets()
-        if dataset not in available_datasets:
-            raise click.ClickException(f"Invalid dataset name: {dataset}")
+        available_brainsets = get_available_brainsets()
+        if brainset not in available_brainsets:
+            raise click.ClickException(f"Invalid dataset name: {brainset}")
         # Find snakefile
-        snakefile_filepath = PIPELINES_PATH / dataset / "Snakefile"
-        reqs_filepath = PIPELINES_PATH / dataset / "requirements.txt"
+        snakefile_filepath = PIPELINES_PATH / brainset / "Snakefile"
+        reqs_filepath = PIPELINES_PATH / brainset / "requirements.txt"
 
         _validate_snakefile(snakefile_filepath)
-        click.echo(f"Preparing {dataset}...")
+        click.echo(f"Preparing {brainset}...")
     else:
         # Preparing using a local pipeline
-        pipeline_dir = expand_path(dataset)
+        pipeline_dir = expand_path(brainset)
         snakefile_filepath = pipeline_dir / "Snakefile"
         reqs_filepath = pipeline_dir / "requirements.txt"
 
@@ -157,7 +157,7 @@ def prepare(
         )
 
         if process.returncode == 0:
-            click.echo(f"Successfully downloaded {dataset}")
+            click.echo(f"Successfully downloaded {brainset}")
         else:
             click.echo("Error downloading dataset")
     except subprocess.CalledProcessError as e:
