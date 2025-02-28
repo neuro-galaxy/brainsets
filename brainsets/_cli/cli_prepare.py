@@ -7,7 +7,6 @@ from prompt_toolkit import prompt
 from .utils import (
     PIPELINES_PATH,
     load_config,
-    AutoSuggestFromList,
     get_available_brainsets,
     expand_path,
 )

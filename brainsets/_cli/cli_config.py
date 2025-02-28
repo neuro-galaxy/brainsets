@@ -2,8 +2,10 @@ from typing import Optional
 import click
 from pathlib import Path
 from prompt_toolkit import prompt
+from prompt_toolkit.shortcuts import CompleteStyle
+from prompt_toolkit.completion import PathCompleter
 
-from .utils import load_config, save_config, expand_path, debug_echo
+from .utils import load_config, save_config, expand_path
 
 
 @click.command()
@@ -24,8 +26,16 @@ def config(raw_dir: Optional[Path], processed_dir: Optional[Path]):
 
     # Get missing args from user prompts
     if raw_dir is None or processed_dir is None:
-        raw_dir = prompt(f"Enter raw data directory: ")
-        processed_dir = prompt(f"Enter processed data directory: ")
+        raw_dir = prompt(
+            "Enter raw data directory: ",
+            completer=PathCompleter(only_directories=True),
+            complete_style=CompleteStyle.READLINE_LIKE,
+        )
+        processed_dir = prompt(
+            "Enter processed data directory: ",
+            completer=PathCompleter(only_directories=True),
+            complete_style=CompleteStyle.READLINE_LIKE,
+        )
 
     raw_dir = expand_path(raw_dir)
     processed_dir = expand_path(processed_dir)
