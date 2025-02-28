@@ -13,7 +13,7 @@ from .utils import (
 
 
 @click.command()
-@click.argument("dataset", type=str, required=False)
+@click.argument("dataset", type=str)
 @click.option("-c", "--cores", default=4, help="Number of cores to use")
 @click.option(
     "--raw-dir",
@@ -47,7 +47,7 @@ from .utils import (
     help="Print debugging information.",
 )
 def prepare(
-    dataset: Optional[str],
+    dataset: str,
     cores: int,
     verbose: bool,
     use_active_env: bool,
@@ -55,16 +55,10 @@ def prepare(
     processed_dir: Optional[str],
     pipeline_dir: Optional[str],
 ):
-    """Download and process DATASET.
-
-    If no DATASET is specified, shows available datasets and prompts for choice.
+    """Download and process a single brainset.
 
     \b
-    Example usage:
-      $ brainsets prepare                           # Show available datasets and prompt
-      $ brainsets prepare pei_pandarinath_nlb_2021  # Process specific dataset
-      $ brainsets prepare -c 8                      # Use 8 cores
-      $ brainsets prepare --raw-dir ./raw           # Custom raw data directory
+    Do `brainsets list` to get a list of available brainsets.
     """
 
     # Get raw and processed dirs
@@ -79,17 +73,6 @@ def prepare(
     # If using default dataset pipelines
     if pipeline_dir is None:
         available_datasets = get_available_datasets()
-        # Prompt user if dataset is not provided
-        if dataset is None:
-            click.echo(f"Available datasets: ")
-            for dataset in available_datasets:
-                click.echo(f"- {dataset}")
-            click.echo()
-            dataset = prompt(
-                "Enter dataset name: ",
-                auto_suggest=AutoSuggestFromList(available_datasets),
-            )
-        # Check dataset name validity
         if dataset not in available_datasets:
             raise click.ClickException(f"Invalid dataset name: {dataset}")
         # Find snakefile
