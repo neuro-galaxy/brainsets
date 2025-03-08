@@ -290,7 +290,7 @@ def detect_outliers(cursor):
     # moving too fast, and mark them as outliers
     # we use the norm of the acceleration to identify outliers
     cursor_acc_norm = np.linalg.norm(cursor.acc, axis=1)
-    mask = cursor_acc_norm > 100.0
+    mask = cursor_acc_norm > 80000.0
     # we dilate the mask to make sure we are not missing any outliers
     structure = np.ones(50, dtype=bool)
     mask = binary_dilation(mask, structure)
