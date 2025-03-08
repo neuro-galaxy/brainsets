@@ -351,19 +351,19 @@ def extract_spikes(nwbfile, trials, artifact_dict):
             )
 
             spikes_times_blocks = [
-                spikes_times[block_index[i] : block_index[i + 1]]
-                for i in range(len(block_index) - 1)
+                spikes_times[block_index[j] : block_index[j + 1]]
+                for j in range(len(block_index) - 1)
             ]
 
             flag = True
-            for i in range(len(spikes_times_blocks)):
+            for j in range(len(spikes_times_blocks)):
                 if not (
                     np.all(
-                        spikes_times_blocks[i]
-                        >= artifact_dict["original_start_times"][i]
+                        spikes_times_blocks[j]
+                        >= artifact_dict["original_start_times"][j]
                     )
                     and np.all(
-                        spikes_times_blocks[i] <= artifact_dict["original_end_times"][i]
+                        spikes_times_blocks[j] <= artifact_dict["original_end_times"][j]
                     )
                 ):
                     logging.warning(
@@ -373,10 +373,10 @@ def extract_spikes(nwbfile, trials, artifact_dict):
                     flag = False
                     break
 
-                spikes_times_blocks[i] = (
-                    spikes_times_blocks[i]
-                    - artifact_dict["original_start_times"][i]
-                    + artifact_dict["fixed_start_times"][i]
+                spikes_times_blocks[j] = (
+                    spikes_times_blocks[j]
+                    - artifact_dict["original_start_times"][j]
+                    + artifact_dict["fixed_start_times"][j]
                 )
 
             if not flag:
