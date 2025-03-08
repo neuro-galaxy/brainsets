@@ -19,6 +19,7 @@ extensions = [
     "sphinx_autodoc_typehints",
     "sphinx_inline_tabs",
     "sphinx.ext.mathjax",
+    "sphinx_copybutton",
 ]
 
 html_theme = "furo"
@@ -44,3 +45,16 @@ myst_enable_extensions = [
 ]
 
 pygments_style = "default"
+
+# These paths are either relative to html_static_path
+# or fully qualified paths (eg. https://...)
+html_css_files = [
+    "custom_tables.css",
+    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css",
+]
+
+html_js_files = [
+    "citation.js",
+]
+html_copy_source = False
+html_show_sourcelink = True
