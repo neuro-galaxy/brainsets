@@ -46,7 +46,7 @@ def extract_behavior(h5file):
     target_pos = h5file["target_pos"][:].T
     timestamps = h5file["t"][:][0]
 
-    expected_period = 0.001
+    expected_period = 0.004
     assert np.all(np.abs(np.diff(timestamps) - expected_period) < 1e-4)
 
     # calculate the velocity of the cursor
