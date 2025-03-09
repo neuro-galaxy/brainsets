@@ -280,7 +280,7 @@ odoherty_sabes_nonhuman_2017
        </tr>
         <tr>
            <td><strong>Distribution of number of units per recording</strong></td>
-           <td><div><img src="../_static/churchland_shenoy_neural_2012_num_units_histogram.svg" alt="Histogram showing distribution of number of units"></div></td>
+           <td><div><img src="../_static/odoherty_sabes_nonhuman_2017_num_units_histogram.svg" alt="Histogram showing distribution of number of units"></div></td>
        </tr>
        <tr>
            <td><strong>Total number of spikes</strong></td>
