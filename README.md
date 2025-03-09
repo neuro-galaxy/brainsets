@@ -20,6 +20,12 @@ To install the package, run the following command:
 pip install brainsets
 ```
 
+| List of available brainsets                                                                                             |
+|----------------------------------------------------------------------------------------------------------------------------------------|
+| pei_pandarinath_nlb_2021  [[Brainset Card](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#pei-pandarinath-nlb-2021)] |
+| perich_miller_population_2018   [[Brainset Card](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#perich-miller-population-2018)] |
+
+
 ## Using the brainsets CLI
 
 ### Configuring data directories
