@@ -459,7 +459,6 @@ def main():
 
     args = parser.parse_args()
 
-    # intiantiate a DatasetBuilder which provides utilities for processing data
     brainset_description = BrainsetDescription(
         id="churchland_shenoy_neural_2012",
         origin_version="dandi/000070/draft",
