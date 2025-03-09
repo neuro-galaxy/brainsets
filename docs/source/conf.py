@@ -46,10 +46,8 @@ myst_enable_extensions = [
 
 pygments_style = "default"
 
-# These paths are either relative to html_static_path
-# or fully qualified paths (eg. https://...)
 html_css_files = [
-    "custom_tables.css",
+    "style.css",
     "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css",
 ]
 
@@ -58,3 +56,5 @@ html_js_files = [
 ]
 html_copy_source = False
 html_show_sourcelink = True
+html_logo = "_static/brainsets_logo.png"
+html_favicon = "_static/brainsets_logo.png"
