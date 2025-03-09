@@ -1,8 +1,5 @@
 <p align="left">
-  <div style="display: flex; align-items: center;">
-    <img height="50" src="docs/source/_static/brainsets_logo.png" />
-    <h2 style="margin-left: 20px;">brainsets</h2>
-  </div>
+    <img height="250" src="docs/source/_static/brainsets_logo.png" />
 </p>
 
 [Documentation](https://brainsets.readthedocs.io/en/latest/) | [Paper](https://papers.nips.cc/paper_files/paper/2023/hash/8ca113d122584f12a6727341aaf58887-Abstract-Conference.html)
