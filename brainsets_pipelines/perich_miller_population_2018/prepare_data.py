@@ -206,7 +206,6 @@ def main():
 
     args = parser.parse_args()
 
-    # intiantiate a DatasetBuilder which provides utilities for processing data
     brainset_description = BrainsetDescription(
         id="perich_miller_population_2018",
         origin_version="dandi/000688/draft",
