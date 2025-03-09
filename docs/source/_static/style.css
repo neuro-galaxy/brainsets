@@ -6,7 +6,7 @@ table {
     overflow: hidden;
     width: 100%;
     margin-bottom: 20px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--color-foreground-border);
     table-layout: fixed;
     /* This ensures column widths are respected */
 }
@@ -35,14 +35,14 @@ table td:last-child {
 
 /* Title row styling (first row) */
 table tr:first-child td {
-    background-color: #f0f0f0;
+    background-color: var(--color-background-secondary);
     font-weight: bold;
     padding: 10px;
 }
 
 /* Section header rows styling (Subjects, Neural Data, etc.) */
 table th[colspan="2"] {
-    background-color: #f0f0f0;
+    background-color: var(--color-background-secondary);
     padding: 8px;
     text-align: center;
 }
@@ -51,7 +51,7 @@ table th[colspan="2"] {
 td,
 th {
     padding: 8px;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--color-foreground-border);
     vertical-align: top;
     /* Align content to top */
 }
@@ -86,23 +86,24 @@ table th[colspan="2"] i {
 .cite-button {
     margin-left: 8px;
     padding: 2px 8px;
-    background-color: #f0f0f0;
-    border: 1px solid #ccc;
+    background-color: var(--color-background-secondary);
+    border: 1px solid var(--color-foreground-border);
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.8em;
+    color: var(--color-foreground-primary);
 }
 
 .cite-button:hover {
-    background-color: #e0e0e0;
+    background-color: var(--color-background-hover);
 }
 
 .citation-popup {
     position: absolute;
-    background-color: white;
-    border: 1px solid #ddd;
+    background-color: var(--color-background-primary);
+    border: 1px solid var(--color-foreground-border);
     border-radius: 4px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 5px var(--color-background-border);
     margin-top: 5px;
     padding: 10px;
     width: 500px;
@@ -127,7 +128,7 @@ table th[colspan="2"] i {
 
 .citation-content {
     position: relative;
-    background-color: #f5f5f5;
+    background-color: var(--color-background-secondary);
     padding: 15px;
     border-radius: 4px;
     margin-bottom: 10px;
@@ -159,25 +160,38 @@ table th[colspan="2"] i {
     right: 8px;
     background: none;
     border: none;
-    color: #555;
     cursor: pointer;
     padding: 4px;
     font-size: 1em;
     z-index: 2;
 }
 
+/* Update SVG colors for dark mode compatibility */
+.copy-button svg {
+    stroke: var(--color-foreground-primary);
+}
+
 .copy-button:hover {
-    color: #4CAF50;
+    color: var(--color-brand-primary);
+}
+
+.copy-button:hover svg {
+    stroke: var(--color-brand-primary);
+}
+
+/* When showing success checkmark */
+.copy-button .fa-check {
+    color: var(--color-foreground-primary);
 }
 
 /* Code tag styling */
 .code-tag {
     display: inline-block;
-    background-color: #f5f5f5;
+    background-color: var(--color-background-secondary);
     border-radius: 4px;
     padding: 2px 6px;
     margin: 0 4px;
     font-family: monospace;
     font-size: 0.9em;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--color-foreground-border);
 }
