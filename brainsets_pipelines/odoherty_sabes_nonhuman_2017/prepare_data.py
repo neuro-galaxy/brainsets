@@ -7,7 +7,6 @@ from pathlib import Path
 import h5py
 import numpy as np
 import pandas as pd
-from scipy.ndimage import binary_dilation
 
 from brainsets import serialize_fn_map
 from brainsets.descriptions import (
@@ -81,33 +80,26 @@ def extract_behavior(h5file):
     return cursor, finger
 
 
-def detect_outliers(cursor):
-    """
-    Helper to identify outliers in the behavior data.
-    Outliers are defined as points where the hand acceleration is greater than a
-    threshold. This is a simple heuristic to identify when the monkey is moving
-    the hand quickly when angry or frustrated.
-    An additional step is to dilate the binary mask to flag the surrounding points.
-    """
-    hand_acc_norm = np.linalg.norm(cursor.acc, axis=1)
-    mask = hand_acc_norm > 6000.0
-    structure = np.ones(100, dtype=bool)
-    # Dilate the binary mask
-    outlier_mask = binary_dilation(mask, structure)
+def detect_no_movement(cursor):
+    """Detect segments where the cursor is not moving"""
+    mask = np.linalg.norm(cursor.vel, axis=1) < 10.0
 
     # convert to interval, you need to find the start and end of the outlier segments
-    start = cursor.timestamps[np.where(np.diff(outlier_mask.astype(int)) == 1)[0]]
-    if outlier_mask[0]:
+    start = cursor.timestamps[np.where(np.diff(mask.astype(int)) == 1)[0]]
+    if mask[0]:
         start = np.insert(start, 0, cursor.timestamps[0])
 
-    end = cursor.timestamps[np.where(np.diff(outlier_mask.astype(int)) == -1)[0]]
-    if outlier_mask[-1]:
+    end = cursor.timestamps[np.where(np.diff(mask.astype(int)) == -1)[0]]
+    if mask[-1]:
         end = np.append(end, cursor.timestamps[-1])
 
-    cursor_outlier_segments = Interval(start=start, end=end)
-    assert cursor_outlier_segments.is_disjoint()
+    no_movement_segments = Interval(start=start, end=end)
+    assert no_movement_segments.is_disjoint()
 
-    return cursor_outlier_segments
+    no_movement_segments = no_movement_segments.select_by_mask(
+        (no_movement_segments.end - no_movement_segments.start) > 10.0
+    )
+    return no_movement_segments
 
 
 def extract_spikes(h5file: h5py.File):
@@ -197,6 +189,75 @@ def extract_spikes(h5file: h5py.File):
     return spikes, units
 
 
+def split_intervals(data):
+    # slice the session into 10 blocks then randomly split them into train,
+    # validation and test sets, using a 8/1/1 ratio.
+    task_domain = data.domain
+    if len(data.no_movement_segments) > 0:
+        task_domain = task_domain.difference(data.no_movement_segments)
+        task_domain = task_domain.select_by_mask(
+            task_domain.end - task_domain.start > 10.0
+        )
+
+    intervals = Interval.linspace(task_domain.start[0], task_domain.end[-1], 10)
+    if len(data.no_movement_segments) > 0:
+        task_ratio = []
+        for start, end in zip(intervals.start, intervals.end):
+            intersection = task_domain & Interval(start, end)
+            duration = np.sum(intersection.end - intersection.start)
+            task_ratio.append(duration / (end - start))
+
+        task_ratio = np.array(task_ratio)
+        task_ratio_with_index = np.column_stack((np.arange(len(intervals)), task_ratio))
+        rng = np.random.default_rng(42)
+        rng.shuffle(task_ratio_with_index)
+        sorted_index = task_ratio_with_index[task_ratio_with_index[:, 1].argsort()][
+            :, 0
+        ].astype(int)
+
+        train_sampling_intervals = Interval(
+            start=intervals.start[sorted_index[:8]], end=intervals.end[sorted_index[:8]]
+        )
+        valid_sampling_intervals = Interval(
+            start=intervals.start[sorted_index[8:9]],
+            end=intervals.end[sorted_index[8:9]],
+        )
+        test_sampling_intervals = Interval(
+            start=intervals.start[sorted_index[9:]], end=intervals.end[sorted_index[9:]]
+        )
+
+        train_sampling_intervals.sort()
+        valid_sampling_intervals.sort()
+        test_sampling_intervals.sort()
+
+        train_sampling_intervals = train_sampling_intervals.difference(
+            data.no_movement_segments
+        )
+        valid_sampling_intervals = valid_sampling_intervals.difference(
+            data.no_movement_segments
+        )
+        test_sampling_intervals = test_sampling_intervals.difference(
+            data.no_movement_segments
+        )
+
+        train_sampling_intervals = train_sampling_intervals.select_by_mask(
+            train_sampling_intervals.end - train_sampling_intervals.start > 10.0
+        )
+        valid_sampling_intervals = valid_sampling_intervals.select_by_mask(
+            valid_sampling_intervals.end - valid_sampling_intervals.start > 10.0
+        )
+        test_sampling_intervals = test_sampling_intervals.select_by_mask(
+            test_sampling_intervals.end - test_sampling_intervals.start > 10.0
+        )
+    else:
+        [
+            train_sampling_intervals,
+            valid_sampling_intervals,
+            test_sampling_intervals,
+        ] = intervals.split([8, 1, 1], shuffle=True, random_seed=42)
+    return train_sampling_intervals, valid_sampling_intervals, test_sampling_intervals
+
+
 def main():
     # use argparse to get arguments from the command line
     parser = argparse.ArgumentParser()
@@ -251,7 +312,7 @@ def main():
 
     # extract behavior
     cursor, finger = extract_behavior(h5file)
-    cursor_outlier_segments = detect_outliers(cursor)
+    no_movement_segments = detect_no_movement(cursor)
 
     # close file
     h5file.close()
@@ -268,19 +329,14 @@ def main():
         # stimuli and behavior
         cursor=cursor,
         finger=finger,
-        cursor_outlier_segments=cursor_outlier_segments,
+        no_movement_segments=no_movement_segments,
         domain=cursor.domain,
     )
 
-    # slice the session into 10 blocks then randomly split them into train,
-    # validation and test sets, using a 8/1/1 ratio.
-    intervals = Interval.linspace(data.domain.start[0], data.domain.end[-1], 10)
-    [
-        train_sampling_intervals,
-        valid_sampling_intervals,
-        test_sampling_intervals,
-    ] = intervals.split([8, 1, 1], shuffle=True, random_seed=42)
-
+    train_sampling_intervals, valid_sampling_intervals, test_sampling_intervals = (
+        split_intervals(data)
+    )
+    # set the domains
     data.set_train_domain(train_sampling_intervals)
     data.set_valid_domain(valid_sampling_intervals)
     data.set_test_domain(test_sampling_intervals)
