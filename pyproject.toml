@@ -26,13 +26,13 @@ dependencies = [
     "tqdm>=4.64.1",
     "rich>=13.3.2",
     "msgpack>=1.0.5",
-    "snakemake>=7.32.3",
     "pydantic>=2.0",
-    "pulp>=2.7.0",
     "click>=8.1.3",
     "uv",
     "prompt_toolkit",
     "numpy>=1.14.0",
+    "snakemake>=7.32.0",
+    "pulp<2.8",
 ]
 
 [project.optional-dependencies]
