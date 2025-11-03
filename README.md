@@ -1,11 +1,14 @@
-# brainsets
+<p align="left">
+    <img height="250" src="https://brainsets.readthedocs.io/en/latest/_static/brainsets_logo.png" />
+</p>
 
-[Documentation](https://brainsets.readthedocs.io/en/latest/) | [Paper](https://papers.nips.cc/paper_files/paper/2023/hash/8ca113d122584f12a6727341aaf58887-Abstract-Conference.html)
+[Documentation](https://brainsets.readthedocs.io/en/latest/) | [Join our Discord community](https://discord.gg/kQNKA6B8ZC)
 
 [![PyPI version](https://badge.fury.io/py/brainsets.svg)](https://badge.fury.io/py/brainsets)
 [![Documentation Status](https://readthedocs.org/projects/brainsets/badge/?version=latest)](https://brainsets.readthedocs.io/en/latest/?badge=latest)
 [![Tests](https://github.com/neuro-galaxy/brainsets/actions/workflows/testing.yml/badge.svg)](https://github.com/neuro-galaxy/brainsets/actions/workflows/testing.yml)
 [![Linting](https://github.com/neuro-galaxy/brainsets/actions/workflows/linting.yml/badge.svg)](https://github.com/neuro-galaxy/brainsets/actions/workflows/linting.yml)
+[![Discord](https://img.shields.io/discord/1338561153089146962?label=Discord&logo=discord)](https://discord.gg/kQNKA6B8ZC)
 
 
 **brainsets** is a Python package for processing neural data into a standardized format.
@@ -17,6 +20,22 @@ To install the package, run the following command:
 ```bash
 pip install brainsets
 ```
+
+## List of available brainsets
+
+| brainset_id | Brainset Card | Raw Data Size | Processed Data Size |
+|-------------|---------------|---------------|--------------------|
+| churchland_shenoy_neural_2012 | [Link](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#churchland-shenoy-neural-2012) | 46 GB | 25 GB |
+| flint_slutzky_accurate_2012 | [Link](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#flint-slutzky-accurate-2012) | 3.2 GB | 151 MB |
+| odoherty_sabes_nonhuman_2017 | [Link](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#odoherty-sabes-nonhuman-2017) | 22 GB | 26 GB |
+| pei_pandarinath_nlb_2021  | [Link](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#pei-pandarinath-nlb-2021) | 688 KB | 22 MB |
+| perich_miller_population_2018 | [Link](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#perich-miller-population-2018) | 13 GB | 2.9 GB |
+
+
+## Acknowledgements
+
+This work is only made possible thanks to the public release of these valuable datasets by the original researchers. If you use any of the datasets processed by brainsets in your research, please make sure to cite the appropriate original papers and follow any usage guidelines specified by the dataset creators. Proper attribution not only gives credit to the researchers who collected and shared the data but also helps promote open science practices in the neuroscience community. You can find the original papers and usage guidelines for each dataset in the [brainsets documentation](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html).
+
 
 ## Using the brainsets CLI
 
