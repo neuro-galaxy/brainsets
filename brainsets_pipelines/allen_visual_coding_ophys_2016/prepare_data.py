@@ -300,17 +300,25 @@ def extract_locally_sparse_noise(nwbfile, session_type):
 
 
 def extract_running_speed(nwbfile):
-    timestamps, _ = nwbfile.get_dff_traces()
+    running_speed, timestamps = nwbfile.get_running_speed()
+    breakpoint()
 
-    running_speed = nwbfile.get_running_speed()[1]
+    nan_mask = np.isnan(running_speed)
+    running_speed = running_speed[~nan_mask]
+    timestamps = timestamps[~nan_mask]
 
+    assert len(running_speed) == len(timestamps)
+    
     running_speed = IrregularTimeSeries(
         timestamps=timestamps,
-        running_speed=running_speed.astype(np.float32).reshape(-1, 1),
+        running_speed=running_speed.astype(np.float32).reshape(
+            -1, 1
+        ),  # continues values needs to be 2 dimensional
         domain="auto",
     )
 
     return running_speed
+
 
 
 def extract_pupil_info(nwbfile):
