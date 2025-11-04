@@ -301,14 +301,12 @@ def extract_locally_sparse_noise(nwbfile, session_type):
 
 def extract_running_speed(nwbfile):
     running_speed, timestamps = nwbfile.get_running_speed()
-    breakpoint()
-
     nan_mask = np.isnan(running_speed)
     running_speed = running_speed[~nan_mask]
     timestamps = timestamps[~nan_mask]
 
     assert len(running_speed) == len(timestamps)
-    
+
     running_speed = IrregularTimeSeries(
         timestamps=timestamps,
         running_speed=running_speed.astype(np.float32).reshape(
@@ -318,7 +316,6 @@ def extract_running_speed(nwbfile):
     )
 
     return running_speed
-
 
 
 def extract_pupil_info(nwbfile):
@@ -442,7 +439,11 @@ def main():
     epoch_dict = extract_stimulus_epochs(nwbfile)
     if epoch_dict is None:
         # allensdk bug; skip this session
+        #
         logging.warn(f"Skipping session {session_id} due to allensdk bug.")
+        with open("./bad_sessions.txt", "a") as f:
+            f.write(f"{session_id}\n")
+            f.write("\n")
         return
 
     # three different types of sessions contain different stimuli

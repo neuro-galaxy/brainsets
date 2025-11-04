@@ -17,6 +17,7 @@ class Cre_line(StringIntEnum):
     VIP_IRES_CRE = 12
     RBP4_CRE = 13
 
+
 class BrainRegion(StringIntEnum):
     VIS_RL = VISRL = 0  # Excluded
     VIS_PM = VISPM = 1
