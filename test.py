@@ -1,7 +1,8 @@
-import ray
+from typing import NamedTuple
 from dandi.dandiapi import BaseRemoteAsset
 from pynwb import NWBHDF5IO
 
+from pathlib import Path
 import argparse
 import datetime
 import logging
@@ -12,6 +13,7 @@ import numpy as np
 from pynwb import NWBHDF5IO
 from scipy.ndimage import binary_dilation, binary_erosion
 from sklearn.model_selection import train_test_split
+import pandas as pd
 
 from temporaldata import Data, IrregularTimeSeries, Interval
 from brainsets.descriptions import (
@@ -31,86 +33,105 @@ from brainsets import serialize_fn_map
 from processor import ProcessorBase, run_processor
 
 
-@ray.remote
+class ManifestItem(NamedTuple):
+    path: str
+    url: str
+    session_id: str
+
+
 class Processor(ProcessorBase):
     brainset_name = "perich_miller_population_2018"
     dandiset_id = "DANDI:000688/draft"
 
     @classmethod
-    def get_manifest(cls):
-        return get_nwb_asset_list(cls.dandiset_id)
+    def get_manifest(cls) -> pd.DataFrame:
+        asset_list = get_nwb_asset_list(cls.dandiset_id)
+        manifest_list = [{"path": x.path, "url": x.download_url} for x in asset_list]
 
-    def download_and_process(self, manifest_item: BaseRemoteAsset):
-        self.asset_id = manifest_item.path
+        for m in manifest_list:
+            path = m["path"]
+            subject_alpha = path.split("/")[0].split("-")[1].lower()
+            assert len(subject_alpha) == 1
+            task = path.split("/")[1].split("-")[2]
+            if task == "CO":
+                task = "center_out_reaching"
+            elif task == "RT":
+                task = "random_target_reaching"
+            else:
+                raise ValueError(f"Unknown task {task}")
+            date = path.split("/")[1].split("-")[3].split("_")[0]
 
-        raw_dir = self.raw_root / manifest_item.dandiset_id
+            m["session_id"] = f"{subject_alpha}_{date}_{task}"
+
+        manifest = pd.DataFrame(manifest_list).set_index("session_id")
+        manifest["session_id"] = manifest.index
+        return manifest
+
+    def download_and_process(self, manifest_item: ManifestItem):
+        raw_dir = self.raw_root / "000688"
         raw_dir.mkdir(exist_ok=True, parents=True)
 
         processed_dir = self.processed_root / self.brainset_name
         processed_dir.mkdir(exist_ok=True, parents=True)
 
         self.update_status("DOWNLOADING")
-        fpath = download_file(manifest_item.path, manifest_item.download_url, raw_dir)
+        fpath = download_file(manifest_item.path, manifest_item.url, raw_dir)
 
         data = self.process(fpath)
 
         self.update_status("Storing")
-        # path = processed_dir / f"{data.session.id}.h5"
-        # with h5py.File(path, "w") as file:
-        #    data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
+        path = processed_dir / f"{data.session.id}.h5"
+        with h5py.File(path, "w") as file:
+            data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
 
-    def process(self, fpath):
-        # brainset_description = BrainsetDescription(
-        #     id="perich_miller_population_2018",
-        #     origin_version="dandi/000688/draft",
-        #     derived_version="1.0.0",
-        #     source="https://dandiarchive.org/dandiset/000688",
-        #     description="This dataset contains electrophysiology and behavioral data from "
-        #     "three macaques performing either a center-out task or a continuous random "
-        #     "target acquisition task. Neural activity was recorded from "
-        #     "chronically-implanted electrode arrays in the primary motor cortex (M1) or "
-        #     "dorsal premotor cortex (PMd) of four rhesus macaque monkeys. A subset of "
-        #     "sessions includes recordings from both regions simultaneously. The data "
-        #     "contains spiking activity—manually spike sorted in three subjects, and "
-        #     "threshold crossings in the fourth subject—obtained from up to 192 electrodes "
-        #     "per session, cursor position and velocity, and other task related metadata.",
-        # )
-        #
-        # # logging.info(f"Processing file: {fpath}")
-        #
-        ## open file
+    def process(self, fpath: Path):
+        brainset_description = BrainsetDescription(
+            id="perich_miller_population_2018",
+            origin_version="dandi/000688/draft",
+            derived_version="1.0.0",
+            source="https://dandiarchive.org/dandiset/000688",
+            description="This dataset contains electrophysiology and behavioral data from "
+            "three macaques performing either a center-out task or a continuous random "
+            "target acquisition task. Neural activity was recorded from "
+            "chronically-implanted electrode arrays in the primary motor cortex (M1) or "
+            "dorsal premotor cortex (PMd) of four rhesus macaque monkeys. A subset of "
+            "sessions includes recordings from both regions simultaneously. The data "
+            "contains spiking activity—manually spike sorted in three subjects, and "
+            "threshold crossings in the fourth subject—obtained from up to 192 electrodes "
+            "per session, cursor position and velocity, and other task related metadata.",
+        )
+
+        logging.info(f"Processing file: {fpath}")
+
+        # open file
         self.update_status("Loading NWB")
         io = NWBHDF5IO(fpath, "r")
         nwbfile = io.read()
-        #
-        # self.update_status("Extracting Metadata")
-        # # extract subject metadata
-        # # this dataset is from dandi, which has structured subject metadata, so we
-        # # can use the helper function extract_subject_from_nwb
-        # subject = extract_subject_from_nwb(nwbfile)
-        #
-        # # extract experiment metadata
-        # recording_date = nwbfile.session_start_time.strftime("%Y%m%d")
-        # device_id = f"{subject.id}_{recording_date}"
-        # task = (
-        #     "center_out_reaching"
-        #     if "CO" in args.input_file
-        #     else "random_target_reaching"
-        # )
-        # session_id = f"{device_id}_{task}"
-        #
-        # # register session
-        # session_description = SessionDescription(
-        #     id=session_id,
-        #     recording_date=datetime.datetime.strptime(recording_date, "%Y%m%d"),
-        #     task=Task.REACHING,
-        # )
-        #
-        # # register device
-        # device_description = DeviceDescription(
-        #     id=device_id,
-        #     recording_tech=RecordingTech.UTAH_ARRAY_SPIKES,
-        # )
+
+        self.update_status("Extracting Metadata")
+        # extract subject metadata
+        # this dataset is from dandi, which has structured subject metadata, so we
+        # can use the helper function extract_subject_from_nwb
+        subject = extract_subject_from_nwb(nwbfile)
+
+        # extract experiment metadata
+        recording_date = nwbfile.session_start_time.strftime("%Y%m%d")
+        device_id = f"{subject.id}_{recording_date}"
+        task = "center_out_reaching" if "CO" in str(fpath) else "random_target_reaching"
+        session_id = f"{device_id}_{task}"
+
+        # register session
+        session_description = SessionDescription(
+            id=session_id,
+            recording_date=datetime.datetime.strptime(recording_date, "%Y%m%d"),
+            task=Task.REACHING,
+        )
+
+        # register device
+        device_description = DeviceDescription(
+            id=device_id,
+            recording_tech=RecordingTech.UTAH_ARRAY_SPIKES,
+        )
 
         self.update_status("Extracting Spikes")
         # extract spiking activity
@@ -119,12 +140,10 @@ class Processor(ProcessorBase):
             nwbfile, recording_tech=RecordingTech.UTAH_ARRAY_SPIKES
         )
 
-        # self.update_status("Extracting Behavior")
-        # # extract behavior
-        # cursor = extract_behavior(nwbfile)
-        # cursor_outlier_segments = detect_outliers(cursor)
-
-        return
+        self.update_status("Extracting Behavior")
+        # extract behavior
+        cursor = extract_behavior(nwbfile)
+        cursor_outlier_segments = detect_outliers(cursor)
 
         # extract data about trial structure
         if task == "center_out_reaching":
@@ -360,3 +379,9 @@ def split_trials(trials, test_size=0.2, valid_size=0.1, random_state=42):
 
 if __name__ == "__main__":
     run_processor(Processor, "./raw", "./processed")
+
+    # single_item_id = "c_20131003_center_out_reaching"
+    # manifest = Processor.get_manifest()
+    # manifest_item = manifest.loc[single_item_id]
+    # processor = Processor(None, "./raw", "./processed")
+    # processor.download_and_process(manifest_item)

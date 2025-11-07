@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import os
 import time
 from collections import defaultdict
@@ -6,8 +7,10 @@ from pathlib import Path
 import ray, ray.actor
 from ray.util.actor_pool import ActorPool
 
+from rich.pretty import pprint
 from rich.live import Live
 from rich.console import Console
+import pandas as pd
 
 
 @ray.remote
@@ -22,7 +25,7 @@ class StatusTracker:
         return self.statuses
 
 
-class ProcessorBase:
+class ProcessorBase(ABC):
     asset_id: str  # MUST be set by subclasses
 
     def __init__(self, tracker_handle: ray.actor.ActorHandle, raw_root, processed_root):
@@ -30,38 +33,49 @@ class ProcessorBase:
         self.raw_root = Path(raw_root)
         self.processed_root = Path(processed_root)
 
-    def process_top(self, *args, **kwargs):
+    @classmethod
+    @abstractmethod
+    def get_manifest(cls) -> pd.DataFrame:
+        r"""Returns a dataframe with rows of assets to be download and processed.
+        Each row will be passed individually to the `download_and_process` method.
+        The index of this DataFrame will be used to identify assets for when user wants
+        to process a single asset.
+        """
+        ...
+
+    @abstractmethod
+    def download_and_process(self, manifest_item): ...
+
+    def _main_(self, manifest_item):
+        self.asset_id = manifest_item.Index
         try:
-            self.download_and_process(*args, **kwargs)
+            self.download_and_process(manifest_item)
             self.tracker_handle.update_status.remote(self.asset_id, "DONE")
         except:
             self.tracker_handle.update_status.remote(self.asset_id, "FAILED")
 
-    def download_and_process(self, *args, **kwargs):
-        raise NotImplementedError
-
     def update_status(self, status: str):
-        self.tracker_handle.update_status.remote(self.asset_id, status)
+        if self.tracker_handle is None:
+            Console().print(f"[bold]Status:[/] [{get_style(status)}]{status}[/]")
+        else:
+            self.tracker_handle.update_status.remote(self.asset_id, status)
 
-    @classmethod
-    def get_manifest(cls):
-        raise NotImplementedError
+
+def get_style(status):
+    # Add color coding based on status
+    if "DONE" in status:
+        return "green"
+    elif "FAILED" in status:
+        return "red"
+    elif "DOWNLOADING" in status:
+        return "blue"
+    else:
+        return "yellow"
 
 
 def generate_status_table(status_dict: Dict[str, str]) -> str:
     # Sort files for a consistent display
     sorted_files = sorted(status_dict.keys())
-
-    def get_style(status):
-        # Add color coding based on status
-        if "DONE" in status:
-            return "green"
-        elif "FAILED" in status:
-            return "red"
-        elif "DOWNLOADING" in status:
-            return "blue"
-        else:
-            return "yellow"
 
     ans = ""
     for file_id in sorted_files:
@@ -87,7 +101,7 @@ def run_pool_in_background(actors, work_items):
     """
     pool = ActorPool(actors)
     results_generator = pool.map_unordered(
-        lambda actor, task: actor.process_top.remote(task),
+        lambda actor, task: actor._main_.remote(task),
         work_items,
     )
     for _ in results_generator:
@@ -95,20 +109,21 @@ def run_pool_in_background(actors, work_items):
 
 
 def run_processor(processor_cls: ProcessorBase, raw_root, processed_root):
+    actor_cls: ray.actor.ActorClass = ray.remote(processor_cls)
+
     pool_size = 5
 
-    manifest_items = processor_cls.get_manifest()
-    print(f"Discovered {len(manifest_items)} manifest items")
+    manifest = processor_cls.get_manifest()
+    print(f"Discovered {len(manifest)} manifest items")
 
     os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"  # to avoid a warning
     ray.init("local", num_cpus=pool_size, log_to_driver=False)
     tracker = StatusTracker.remote()
 
     actors = [
-        processor_cls.remote(tracker, raw_root, processed_root)
-        for _ in range(pool_size)
+        actor_cls.remote(tracker, raw_root, processed_root) for _ in range(pool_size)
     ]
-    run_pool_in_background.remote(actors, manifest_items)
+    run_pool_in_background.remote(actors, list(manifest.itertuples()))
 
     console = Console()
     with Live(
@@ -123,7 +138,7 @@ def run_processor(processor_cls: ProcessorBase, raw_root, processed_root):
             live.update(generate_status_table(status_dict))
 
             # Check for completion
-            if len(status_dict) == len(manifest_items):
+            if len(status_dict) == len(manifest):
                 all_done = all(s in ["DONE", "FAILED"] for s in status_dict.values())
 
             # Sleep to prevent loop from spinning too fast
