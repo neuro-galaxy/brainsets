@@ -27,7 +27,7 @@ from brainsets.utils.dandi_utils import (
 from brainsets.taxonomy import RecordingTech, Task
 from brainsets import serialize_fn_map
 
-from brainsets.processor import ProcessorBase, run
+from brainsets.processor import ProcessorBase
 
 
 class Processor(ProcessorBase):
@@ -385,4 +385,5 @@ def split_trials(trials, test_size=0.2, valid_size=0.1, random_state=42):
 
 
 if __name__ == "__main__":
+    from brainsets.processor import run
     run(Processor)

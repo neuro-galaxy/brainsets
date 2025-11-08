@@ -209,8 +209,9 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("pipeline_file", type=Path)
     args, remaining_args = parser.parse_known_args()
-    import importlib.util
 
+    # Load pipeline file as a module
+    import importlib.util
     spec = importlib.util.spec_from_file_location("pipeline_module", args.pipeline_file)
     pipeline_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(pipeline_module)
