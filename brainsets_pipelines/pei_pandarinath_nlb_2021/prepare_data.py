@@ -34,7 +34,7 @@ class Processor(ProcessorBase):
 
         for m in manifest_list:
             path = m["path"]
-            m["id"] = "jenkins_test" if "test" in path else "jenkins_train"
+            m["id"] = "jenkins_maze_test" if "test" in path else "jenkins_maze_train"
 
         manifest = pd.DataFrame(manifest_list).set_index("id")
 
