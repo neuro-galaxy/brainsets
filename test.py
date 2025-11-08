@@ -1,7 +1,6 @@
 from typing import NamedTuple
 from pynwb import NWBHDF5IO
 
-from pathlib import Path
 import datetime
 import logging
 import h5py
@@ -62,15 +61,19 @@ class Processor(ProcessorBase):
         manifest = pd.DataFrame(manifest_list).set_index("session_id")
         return manifest
 
-    def download(self, manifest_item: ManifestItem):
+    def download(self, manifest_item):
         self.update_status("DOWNLOADING")
         raw_dir = self.raw_root / "000688"
         raw_dir.mkdir(exist_ok=True, parents=True)
-        fpath = download_file(manifest_item.path, manifest_item.url, raw_dir)
+        fpath = download_file(
+            manifest_item.path,
+            manifest_item.url,
+            raw_dir,
+            overwrite=False,
+        )
         return fpath
 
     def process(self, fpath):
-
         # open file
         self.update_status("Loading NWB")
         io = NWBHDF5IO(fpath, "r")

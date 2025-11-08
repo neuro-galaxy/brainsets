@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from argparse import ArgumentParser
 import os
 import time
 from collections import defaultdict
@@ -29,24 +30,36 @@ class ProcessorBase(ABC):
     asset_id: str  # MUST be set by subclasses
 
     def __init__(
-        self, tracker_handle: ray.actor.ActorHandle | None, raw_root, processed_root
+        self,
+        tracker_handle: ray.actor.ActorHandle | None,
+        raw_root,
+        processed_root,
+        extra_args,
     ):
         self.tracker_handle = tracker_handle
         self.raw_root = Path(raw_root)
         self.processed_root = Path(processed_root)
+        self.parse_args(extra_args)
 
     @classmethod
     @abstractmethod
     def get_manifest(cls) -> pd.DataFrame:
-        r"""Returns a dataframe with rows of assets to be download and processed.
-        Each row will be passed individually to the `download_and_process` method.
+        r"""Returns a dataframe, which is a table of assets to be download and processed.
+        Each row will be passed individually to the `download` and `process` method.
         The index of this DataFrame will be used to identify assets for when user wants
         to process a single asset.
         """
         ...
 
     @abstractmethod
-    def download(self, manifest_item): ...
+    def download(self, manifest_item):
+        r"""
+        Download the asset indicated by `manifest_item`. Return values
+        """
+        ...
+
+    def parse_args(self, arg_list):
+        pass
 
     @abstractmethod
     def process(self, args): ...
@@ -119,6 +132,7 @@ def run_parallel(
     raw_root: Path,
     processed_root: Path,
     num_jobs: int,
+    extra_args,
 ):
     actor_cls: ray.actor.ActorClass = ray.remote(processor_cls)
 
@@ -130,7 +144,8 @@ def run_parallel(
     tracker = StatusTracker.remote()
 
     actors = [
-        actor_cls.remote(tracker, raw_root, processed_root) for _ in range(num_jobs)
+        actor_cls.remote(tracker, raw_root, processed_root, extra_args)
+        for _ in range(num_jobs)
     ]
     run_pool_in_background.remote(actors, list(manifest.itertuples()))
 
@@ -164,11 +179,19 @@ def run(processor_cls: Type[ProcessorBase]):
     parser.add_argument("--raw-dir", type=Path, required=True)
     parser.add_argument("--processed-dir", type=Path, required=True)
     parser.add_argument("-s", "--single", default=None, type=str)
+    parser.add_argument("-c", "--cores", default=4, type=int)
     args, remaining_args = parser.parse_known_args()
     if args.single is None:
-        run_parallel(processor_cls, args.raw_dir, args.processed_dir, 8)
+        run_parallel(
+            processor_cls, args.raw_dir, args.processed_dir, args.cores, remaining_args
+        )
     else:
         manifest = processor_cls.get_manifest()
         manifest_item = manifest.loc[args.single]
-        processor = processor_cls(None, args.raw_dir, args.processed_dir)
+        processor = processor_cls(
+            tracker_handle=None,
+            raw_root=args.raw_dir,
+            processed_root=args.processed_dir,
+            extra_args=remaining_args,
+        )
         processor.process(processor.download(manifest_item))

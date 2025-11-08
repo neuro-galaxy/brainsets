@@ -105,7 +105,7 @@ def extract_spikes_from_nwbfile(nwbfile, recording_tech):
     return spikes, units
 
 
-def download_file(path, url, raw_dir) -> Path:
+def download_file(path, url, raw_dir, overwrite=False) -> Path:
     try:
         import dandi.download
     except:
@@ -117,7 +117,11 @@ def download_file(path, url, raw_dir) -> Path:
     dandi.download.download(
         url,
         download_dir,
-        existing=dandi.download.DownloadExisting.REFRESH,
+        existing=(
+            dandi.download.DownloadExisting.REFRESH
+            if not overwrite
+            else dandi.download.DownloadExisting.OVERWRITE
+        ),
     )
     return raw_dir / asset_path
 
