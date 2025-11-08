@@ -1,13 +1,10 @@
 from typing import NamedTuple
-from dandi.dandiapi import BaseRemoteAsset
 from pynwb import NWBHDF5IO
 
 from pathlib import Path
-import argparse
 import datetime
 import logging
 import h5py
-import os
 
 import numpy as np
 from pynwb import NWBHDF5IO
@@ -30,13 +27,12 @@ from brainsets.utils.dandi_utils import (
 from brainsets.taxonomy import RecordingTech, Task
 from brainsets import serialize_fn_map
 
-from processor import ProcessorBase, run_processor
+from processor import ProcessorBase, run
 
 
 class ManifestItem(NamedTuple):
     path: str
     url: str
-    session_id: str
 
 
 class Processor(ProcessorBase):
@@ -64,27 +60,25 @@ class Processor(ProcessorBase):
             m["session_id"] = f"{subject_alpha}_{date}_{task}"
 
         manifest = pd.DataFrame(manifest_list).set_index("session_id")
-        manifest["session_id"] = manifest.index
         return manifest
 
-    def download_and_process(self, manifest_item: ManifestItem):
+    def download(self, manifest_item: ManifestItem):
+        self.update_status("DOWNLOADING")
         raw_dir = self.raw_root / "000688"
         raw_dir.mkdir(exist_ok=True, parents=True)
+        fpath = download_file(manifest_item.path, manifest_item.url, raw_dir)
+        return fpath
+
+    def process(self, fpath):
+
+        # open file
+        self.update_status("Loading NWB")
+        io = NWBHDF5IO(fpath, "r")
+        nwbfile = io.read()
 
         processed_dir = self.processed_root / self.brainset_name
         processed_dir.mkdir(exist_ok=True, parents=True)
 
-        self.update_status("DOWNLOADING")
-        fpath = download_file(manifest_item.path, manifest_item.url, raw_dir)
-
-        data = self.process(fpath)
-
-        self.update_status("Storing")
-        path = processed_dir / f"{data.session.id}.h5"
-        with h5py.File(path, "w") as file:
-            data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
-
-    def process(self, fpath: Path):
         brainset_description = BrainsetDescription(
             id="perich_miller_population_2018",
             origin_version="dandi/000688/draft",
@@ -101,7 +95,7 @@ class Processor(ProcessorBase):
             "per session, cursor position and velocity, and other task related metadata.",
         )
 
-        logging.info(f"Processing file: {fpath}")
+        # logging.info(f"Processing file: {fpath}")
 
         # open file
         self.update_status("Loading NWB")
@@ -201,7 +195,10 @@ class Processor(ProcessorBase):
         data.set_valid_domain(valid_trials)
         data.set_test_domain(test_trials)
 
-        return data
+        self.update_status("Storing")
+        path = processed_dir / f"{data.session.id}.h5"
+        with h5py.File(path, "w") as file:
+            data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
 
 
 def extract_behavior(nwbfile):
@@ -378,10 +375,4 @@ def split_trials(trials, test_size=0.2, valid_size=0.1, random_state=42):
 
 
 if __name__ == "__main__":
-    run_processor(Processor, "./raw", "./processed")
-
-    # single_item_id = "c_20131003_center_out_reaching"
-    # manifest = Processor.get_manifest()
-    # manifest_item = manifest.loc[single_item_id]
-    # processor = Processor(None, "./raw", "./processed")
-    # processor.download_and_process(manifest_item)
+    run(Processor)

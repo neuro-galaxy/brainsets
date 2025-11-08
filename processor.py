@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import os
 import time
 from collections import defaultdict
-from typing import Dict, Any
+from typing import Dict, Any, Type
 from pathlib import Path
 import ray, ray.actor
 from ray.util.actor_pool import ActorPool
@@ -28,7 +28,9 @@ class StatusTracker:
 class ProcessorBase(ABC):
     asset_id: str  # MUST be set by subclasses
 
-    def __init__(self, tracker_handle: ray.actor.ActorHandle, raw_root, processed_root):
+    def __init__(
+        self, tracker_handle: ray.actor.ActorHandle | None, raw_root, processed_root
+    ):
         self.tracker_handle = tracker_handle
         self.raw_root = Path(raw_root)
         self.processed_root = Path(processed_root)
@@ -44,15 +46,19 @@ class ProcessorBase(ABC):
         ...
 
     @abstractmethod
-    def download_and_process(self, manifest_item): ...
+    def download(self, manifest_item): ...
+
+    @abstractmethod
+    def process(self, args): ...
 
     def _main_(self, manifest_item):
         self.asset_id = manifest_item.Index
         try:
-            self.download_and_process(manifest_item)
-            self.tracker_handle.update_status.remote(self.asset_id, "DONE")
+            output = self.download(manifest_item)
+            self.process(output)
+            self.update_status("DONE")
         except:
-            self.tracker_handle.update_status.remote(self.asset_id, "FAILED")
+            self.update_status("FAILED")
 
     def update_status(self, status: str):
         if self.tracker_handle is None:
@@ -108,20 +114,23 @@ def run_pool_in_background(actors, work_items):
         pass
 
 
-def run_processor(processor_cls: ProcessorBase, raw_root, processed_root):
+def run_parallel(
+    processor_cls: Type[ProcessorBase],
+    raw_root: Path,
+    processed_root: Path,
+    num_jobs: int,
+):
     actor_cls: ray.actor.ActorClass = ray.remote(processor_cls)
-
-    pool_size = 5
 
     manifest = processor_cls.get_manifest()
     print(f"Discovered {len(manifest)} manifest items")
 
     os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"  # to avoid a warning
-    ray.init("local", num_cpus=pool_size, log_to_driver=False)
+    ray.init("local", num_cpus=num_jobs, log_to_driver=False)
     tracker = StatusTracker.remote()
 
     actors = [
-        actor_cls.remote(tracker, raw_root, processed_root) for _ in range(pool_size)
+        actor_cls.remote(tracker, raw_root, processed_root) for _ in range(num_jobs)
     ]
     run_pool_in_background.remote(actors, list(manifest.itertuples()))
 
@@ -145,3 +154,21 @@ def run_processor(processor_cls: ProcessorBase, raw_root, processed_root):
             time.sleep(0.1)
 
     console.print("\n[bold green]All processing pipelines complete![/bold green]")
+
+
+def run(processor_cls: Type[ProcessorBase]):
+    from argparse import ArgumentParser
+    from pathlib import Path
+
+    parser = ArgumentParser()
+    parser.add_argument("--raw-dir", type=Path, required=True)
+    parser.add_argument("--processed-dir", type=Path, required=True)
+    parser.add_argument("-s", "--single", default=None, type=str)
+    args, remaining_args = parser.parse_known_args()
+    if args.single is None:
+        run_parallel(processor_cls, args.raw_dir, args.processed_dir, 8)
+    else:
+        manifest = processor_cls.get_manifest()
+        manifest_item = manifest.loc[args.single]
+        processor = processor_cls(None, args.raw_dir, args.processed_dir)
+        processor.process(processor.download(manifest_item))
