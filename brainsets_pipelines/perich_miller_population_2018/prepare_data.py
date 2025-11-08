@@ -170,7 +170,6 @@ class Processor(ProcessorBase):
         # close file
         io.close()
 
-        self.update_status("Consolidating")
         # register session
         data = Data(
             brainset=brainset_description,
@@ -383,7 +382,3 @@ def split_trials(trials, test_size=0.2, valid_size=0.1, random_state=42):
 
     return train_trials, valid_trials, test_trials
 
-
-if __name__ == "__main__":
-    from brainsets.processor import run
-    run(Processor)
