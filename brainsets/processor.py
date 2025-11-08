@@ -172,7 +172,7 @@ def run_parallel(
     console.print("\n[bold green]All processing pipelines complete![/bold green]")
 
 
-def run(processor_cls: Type[ProcessorBase]):
+def run(processor_cls: Type[ProcessorBase], args=None):
     from argparse import ArgumentParser
     from pathlib import Path
 
@@ -181,7 +181,7 @@ def run(processor_cls: Type[ProcessorBase]):
     parser.add_argument("--processed-dir", type=Path, required=True)
     parser.add_argument("-s", "--single", default=None, type=str)
     parser.add_argument("-c", "--cores", default=4, type=int)
-    args, remaining_args = parser.parse_known_args()
+    args, remaining_args = parser.parse_known_args(args)
 
     processor_args = processor_cls.parse_args(remaining_args)
 
@@ -203,3 +203,16 @@ def run(processor_cls: Type[ProcessorBase]):
             args=processor_args,
         )
         processor.process(processor.download(manifest_item))
+
+
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("pipeline_file", type=Path)
+    args, remaining_args = parser.parse_known_args()
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("pipeline_module", args.pipeline_file)
+    pipeline_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pipeline_module)
+
+    run(pipeline_module.Processor, remaining_args)

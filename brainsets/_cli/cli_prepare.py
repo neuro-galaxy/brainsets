@@ -88,18 +88,16 @@ def prepare(
                 f"Run 'brainsets list' to get the available list of brainsets."
             )
         # Find snakefile
-        snakefile_filepath = PIPELINES_PATH / brainset / "Snakefile"
+        prepare_filepath = PIPELINES_PATH / brainset / "prepare_data.py"
         reqs_filepath = PIPELINES_PATH / brainset / "requirements.txt"
 
-        _validate_snakefile(snakefile_filepath)
         click.echo(f"Preparing {brainset}...")
     else:
         # Preparing using a local pipeline
         pipeline_dir = expand_path(brainset)
-        snakefile_filepath = pipeline_dir / "Snakefile"
+        prepare_filepath = pipeline_dir / "prepare_data.py"
         reqs_filepath = pipeline_dir / "requirements.txt"
 
-        _validate_snakefile(snakefile_filepath)
         click.echo(f"Preparing local pipeline: {pipeline_dir}")
 
     click.echo(f"Raw data directory: {raw_dir}")
@@ -107,15 +105,13 @@ def prepare(
 
     # Construct base Snakemake command with configuration
     command = [
-        "snakemake",
-        "-s",
-        str(snakefile_filepath),
-        "--config",
-        f"RAW_DIR={raw_dir}",
-        f"PROCESSED_DIR={processed_dir}",
+        "python",
+        "-m",
+        "brainsets.processor",
+        str(prepare_filepath),
+        f"--raw-dir={raw_dir}",
+        f"--processed-dir={processed_dir}",
         f"-c{cores}",
-        "all",
-        "--verbose" if verbose else "--quiet",
     ]
 
     if use_active_env:
@@ -166,36 +162,3 @@ def prepare(
         click.echo(f"Error: Command failed with return code {e.returncode}")
     except Exception as e:
         click.echo(f"Error: {str(e)}")
-
-
-def _validate_snakefile(filepath: Path) -> bool:
-
-    # Check if Snakefile exists
-    if not filepath.exists():
-        raise click.ClickException(
-            f"Missing {filepath}. A pipeline must have a Snakefile."
-        )
-
-    # Check if rule "all" exists in the Snakefile
-    try:
-        result = subprocess.run(
-            [
-                "snakemake",
-                "-s",
-                str(filepath),
-                "--list-target-rules",
-                "--config",
-                "RAW_DIR=test",
-                "PROCESSED_DIR=test",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        if "all" not in result.stdout.splitlines():
-            raise click.ClickException(
-                f"Rule 'all' not found in {filepath}. "
-                " A valid Snakefile must have an 'all' rule."
-            )
-    except subprocess.CalledProcessError as e:
-        raise click.ClickException(f"Error validating Snakefile: {e}")
