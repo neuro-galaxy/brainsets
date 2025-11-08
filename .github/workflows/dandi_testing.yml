@@ -38,7 +38,7 @@ jobs:
         uv run brainsets config --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare pei_pandarinath_nlb_2021
     
-    - name: Download sample dataset 6
+    - name: Download sample dataset 3
       run: |
         uv run brainsets config --raw-dir data/raw --processed-dir data/processed
-        uv run brainsets prepare odoherty_sabes_nonhuman_2017
+        uv run brainsets prepare allen_visual_coding_ophys_2016
