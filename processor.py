@@ -187,7 +187,7 @@ def run(processor_cls: Type[ProcessorBase]):
 
     if args.single is None:
         run_parallel(
-            process_cls=processor_cls,
+            processor_cls=processor_cls,
             raw_root=args.raw_dir,
             processed_root=args.processed_dir,
             num_jobs=args.cores,
