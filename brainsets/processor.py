@@ -4,7 +4,7 @@ from argparse import ArgumentParser, Namespace
 import os
 import time
 from collections import defaultdict
-from typing import Dict, Any, Type
+from typing import Dict, Any, Type, Optional
 from pathlib import Path
 import ray, ray.actor
 from ray.util.actor_pool import ActorPool
@@ -32,7 +32,7 @@ class ProcessorBase(ABC):
 
     def __init__(
         self,
-        tracker_handle: ray.actor.ActorHandle | None,
+        tracker_handle: Optional[ray.actor.ActorHandle],
         raw_root: Path,
         processed_root: Path,
         args: Namespace | None,
@@ -60,7 +60,7 @@ class ProcessorBase(ABC):
         ...
 
     @classmethod
-    def parse_args(cls, arg_list) -> Namespace | None:
+    def parse_args(cls, arg_list) -> Optional[Namespace]:
         pass
 
     @abstractmethod
