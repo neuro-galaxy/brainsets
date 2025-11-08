@@ -1,19 +1,17 @@
+import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
+
 import click
-import subprocess
 from prompt_toolkit import prompt
 
-from .utils import (
-    PIPELINES_PATH,
-    load_config,
-    get_available_brainsets,
-    expand_path,
+from .utils import PIPELINES_PATH, expand_path, get_available_brainsets, load_config
+
+
+@click.command(
+    context_settings=dict(ignore_unknown_options=True, allow_extra_args=True)
 )
-
-
-@click.command()
 @click.argument("brainset", type=str)
 @click.option("-c", "--cores", default=4, help="Number of cores to use. (default 4)")
 @click.option(
@@ -51,7 +49,9 @@ from .utils import (
     default=False,
     help="Print debugging information.",
 )
+@click.pass_context
 def prepare(
+    ctx: click.Context,
     brainset: str,
     cores: int,
     verbose: bool,
@@ -106,6 +106,22 @@ def prepare(
     click.echo(f"Raw data directory: {raw_dir}")
     click.echo(f"Processed data directory: {processed_dir}")
 
+    # Parse extra config from command line
+    extra_config = []
+    it = iter(ctx.args)
+    for token in it:
+        if token.startswith("--"):
+            key = token.lstrip("-").replace("-", "_")
+            try:
+                value = next(it)
+                if value.startswith("--"):
+                    raise StopIteration
+            except StopIteration:
+                raise click.BadParameter(f"Option {token} needs a value")
+            extra_config.append(f"{key}={value}")
+        else:
+            raise click.BadParameter(f"Unexpected extra argument: {token}")
+
     # Construct base Snakemake command with configuration
     command = [
         "snakemake",
@@ -114,6 +130,7 @@ def prepare(
         "--config",
         f"RAW_DIR={raw_dir}",
         f"PROCESSED_DIR={processed_dir}",
+        *extra_config,
         f"-c{cores}",
         "all",
         "--verbose" if verbose else "--quiet",
