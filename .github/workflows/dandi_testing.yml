@@ -37,3 +37,18 @@ jobs:
       run: |
         uv run brainsets config --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare pei_pandarinath_nlb_2021
+
+    - name: Download sample dataset 2
+      run: |
+        uv run brainsets config --raw-dir data/raw --processed-dir data/processed
+        uv run brainsets prepare perich_miller_population_2018
+    
+    - name: Download sample dataset 3
+      run: |
+        uv run brainsets config --raw-dir data/raw --processed-dir data/processed
+        uv run brainsets prepare perich_miller_population_2018
+
+    - name: Download sample dataset 4
+      run: |
+        uv run brainsets config --raw-dir data/raw --processed-dir data/processed
+        uv run brainsets prepare perich_miller_population_2018
