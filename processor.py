@@ -133,7 +133,7 @@ def run_parallel(
     raw_root: Path,
     processed_root: Path,
     num_jobs: int,
-    processor_cfg: Namespace,
+    extra_args: Namespace,
 ):
     actor_cls: ray.actor.ActorClass = ray.remote(processor_cls)
 
@@ -145,7 +145,7 @@ def run_parallel(
     tracker = StatusTracker.remote()
 
     actors = [
-        actor_cls.remote(tracker, raw_root, processed_root, processor_cfg)
+        actor_cls.remote(tracker, raw_root, processed_root, extra_args)
         for _ in range(num_jobs)
     ]
     run_pool_in_background.remote(actors, list(manifest.itertuples()))
@@ -187,7 +187,11 @@ def run(processor_cls: Type[ProcessorBase]):
 
     if args.single is None:
         run_parallel(
-            processor_cls, args.raw_dir, args.processed_dir, args.cores, processor_args
+            process_cls=processor_cls,
+            raw_root=args.raw_dir,
+            processed_root=args.processed_dir,
+            num_jobs=args.cores,
+            extra_args=processor_args,
         )
     else:
         manifest = processor_cls.get_manifest()
