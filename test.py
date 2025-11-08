@@ -30,11 +30,6 @@ from brainsets import serialize_fn_map
 from processor import ProcessorBase, run
 
 
-class ManifestItem(NamedTuple):
-    path: str
-    url: str
-
-
 class Processor(ProcessorBase):
     brainset_name = "perich_miller_population_2018"
     dandiset_id = "DANDI:000688/draft"
@@ -71,7 +66,7 @@ class Processor(ProcessorBase):
 
     def download(self, manifest_item):
         self.update_status("DOWNLOADING")
-        raw_dir = self.raw_root / "000688"
+        raw_dir = self.raw_root / self.brainset_name
         raw_dir.mkdir(exist_ok=True, parents=True)
         fpath = download_file(
             manifest_item.path,
