@@ -35,7 +35,7 @@ class ProcessorBase(ABC):
         tracker_handle: Optional[ray.actor.ActorHandle],
         raw_root: Path,
         processed_root: Path,
-        args: Namespace | None,
+        args: Optional[Namespace],
     ):
         self.tracker_handle = tracker_handle
         self.raw_root = Path(raw_root)
