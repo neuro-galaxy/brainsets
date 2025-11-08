@@ -13,7 +13,9 @@ from .utils import (
 )
 
 
-@click.command()
+@click.command(
+    context_settings=dict(ignore_unknown_options=True, allow_extra_args=True)
+)
 @click.argument("brainset", type=str)
 @click.option("-c", "--cores", default=4, help="Number of cores to use. (default 4)")
 @click.option(
@@ -51,7 +53,9 @@ from .utils import (
     default=False,
     help="Print debugging information.",
 )
+@click.pass_context
 def prepare(
+    ctx: click.Context,
     brainset: str,
     cores: int,
     verbose: bool,
@@ -113,6 +117,7 @@ def prepare(
         f"--raw-dir={raw_dir}",
         f"--processed-dir={processed_dir}",
         f"-c{cores}",
+        *ctx.args,  # extra arguments
     ]
 
     if use_active_env:
