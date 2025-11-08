@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 from typing import NamedTuple
 from pynwb import NWBHDF5IO
 
@@ -61,6 +62,13 @@ class Processor(ProcessorBase):
         manifest = pd.DataFrame(manifest_list).set_index("session_id")
         return manifest
 
+    @classmethod
+    def parse_args(cls, arg_list):
+        parser = ArgumentParser()
+        parser.add_argument("--redownload", action="store_true")
+        parser.add_argument("--reprocess", action="store_true")
+        return parser.parse_args(arg_list)
+
     def download(self, manifest_item):
         self.update_status("DOWNLOADING")
         raw_dir = self.raw_root / "000688"
@@ -69,7 +77,7 @@ class Processor(ProcessorBase):
             manifest_item.path,
             manifest_item.url,
             raw_dir,
-            overwrite=False,
+            overwrite=self.args.redownload,
         )
         return fpath
 
@@ -116,6 +124,11 @@ class Processor(ProcessorBase):
         device_id = f"{subject.id}_{recording_date}"
         task = "center_out_reaching" if "CO" in str(fpath) else "random_target_reaching"
         session_id = f"{device_id}_{task}"
+
+        store_path = processed_dir / f"{session_id}.h5"
+        if store_path.exists() and not self.args.reprocess:
+            self.update_status("Skipped Processing")
+            return
 
         # register session
         session_description = SessionDescription(
@@ -199,8 +212,7 @@ class Processor(ProcessorBase):
         data.set_test_domain(test_trials)
 
         self.update_status("Storing")
-        path = processed_dir / f"{data.session.id}.h5"
-        with h5py.File(path, "w") as file:
+        with h5py.File(store_path, "w") as file:
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
 
 

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 import os
 import time
 from collections import defaultdict
@@ -32,14 +32,14 @@ class ProcessorBase(ABC):
     def __init__(
         self,
         tracker_handle: ray.actor.ActorHandle | None,
-        raw_root,
-        processed_root,
-        extra_args,
+        raw_root: Path,
+        processed_root: Path,
+        args: Namespace | None,
     ):
         self.tracker_handle = tracker_handle
         self.raw_root = Path(raw_root)
         self.processed_root = Path(processed_root)
-        self.parse_args(extra_args)
+        self.args = args
 
     @classmethod
     @abstractmethod
@@ -58,7 +58,8 @@ class ProcessorBase(ABC):
         """
         ...
 
-    def parse_args(self, arg_list):
+    @classmethod
+    def parse_args(cls, arg_list) -> Namespace | None:
         pass
 
     @abstractmethod
@@ -132,7 +133,7 @@ def run_parallel(
     raw_root: Path,
     processed_root: Path,
     num_jobs: int,
-    extra_args,
+    processor_cfg: Namespace,
 ):
     actor_cls: ray.actor.ActorClass = ray.remote(processor_cls)
 
@@ -144,7 +145,7 @@ def run_parallel(
     tracker = StatusTracker.remote()
 
     actors = [
-        actor_cls.remote(tracker, raw_root, processed_root, extra_args)
+        actor_cls.remote(tracker, raw_root, processed_root, processor_cfg)
         for _ in range(num_jobs)
     ]
     run_pool_in_background.remote(actors, list(manifest.itertuples()))
@@ -181,9 +182,12 @@ def run(processor_cls: Type[ProcessorBase]):
     parser.add_argument("-s", "--single", default=None, type=str)
     parser.add_argument("-c", "--cores", default=4, type=int)
     args, remaining_args = parser.parse_known_args()
+
+    processor_args = processor_cls.parse_args(remaining_args)
+
     if args.single is None:
         run_parallel(
-            processor_cls, args.raw_dir, args.processed_dir, args.cores, remaining_args
+            processor_cls, args.raw_dir, args.processed_dir, args.cores, processor_args
         )
     else:
         manifest = processor_cls.get_manifest()
@@ -192,6 +196,6 @@ def run(processor_cls: Type[ProcessorBase]):
             tracker_handle=None,
             raw_root=args.raw_dir,
             processed_root=args.processed_dir,
-            extra_args=remaining_args,
+            args=processor_args,
         )
         processor.process(processor.download(manifest_item))
