@@ -28,7 +28,7 @@ class StatusTracker:
 
 
 class ProcessorBase(ABC):
-    asset_id: str 
+    asset_id: str
     parser: Optional[ArgumentParser] = None
 
     def __init__(
@@ -208,6 +208,7 @@ def run(processor_cls: Type[ProcessorBase], args=None):
 def get_processor_from_pipeline_file(pipeline_filepath):
     # Load pipeline file as a module
     import importlib.util
+
     spec = importlib.util.spec_from_file_location("pipeline_module", pipeline_filepath)
     pipeline_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(pipeline_module)

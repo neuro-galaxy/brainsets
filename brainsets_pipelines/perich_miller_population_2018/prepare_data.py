@@ -33,6 +33,7 @@ parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
 parser.add_argument("--reprocess", action="store_true")
 
+
 class Processor(ProcessorBase):
     brainset_name = "perich_miller_population_2018"
     dandiset_id = "DANDI:000688/draft"
@@ -378,4 +379,3 @@ def split_trials(trials, test_size=0.2, valid_size=0.1, random_state=42):
     test_trials = trials.select_by_mask(np.isin(np.arange(num_trials), test_ids))
 
     return train_trials, valid_trials, test_trials
-
