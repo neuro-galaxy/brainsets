@@ -1,3 +1,4 @@
+import sys
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, Namespace
 import os
@@ -208,6 +209,7 @@ def run(processor_cls: Type[ProcessorBase], args=None):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("pipeline_file", type=Path)
+    parser.add_argument("--list", action="store_true")
     args, remaining_args = parser.parse_known_args()
 
     # Load pipeline file as a module
@@ -215,5 +217,9 @@ if __name__ == "__main__":
     spec = importlib.util.spec_from_file_location("pipeline_module", args.pipeline_file)
     pipeline_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(pipeline_module)
+
+    if args.list:
+        print(pipeline_module.Processor.get_manifest())
+        sys.exit(0)
 
     run(pipeline_module.Processor, remaining_args)
