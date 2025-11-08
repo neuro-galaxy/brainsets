@@ -29,10 +29,14 @@ from brainsets import serialize_fn_map
 
 from brainsets.processor import ProcessorBase
 
+parser = ArgumentParser()
+parser.add_argument("--redownload", action="store_true")
+parser.add_argument("--reprocess", action="store_true")
 
 class Processor(ProcessorBase):
     brainset_name = "perich_miller_population_2018"
     dandiset_id = "DANDI:000688/draft"
+    parser = parser
 
     @classmethod
     def get_manifest(cls) -> pd.DataFrame:
@@ -56,13 +60,6 @@ class Processor(ProcessorBase):
 
         manifest = pd.DataFrame(manifest_list).set_index("session_id")
         return manifest
-
-    @classmethod
-    def parse_args(cls, arg_list):
-        parser = ArgumentParser()
-        parser.add_argument("--redownload", action="store_true")
-        parser.add_argument("--reprocess", action="store_true")
-        return parser.parse_args(arg_list)
 
     def download(self, manifest_item):
         self.update_status("DOWNLOADING")

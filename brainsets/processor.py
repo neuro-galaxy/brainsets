@@ -28,7 +28,8 @@ class StatusTracker:
 
 
 class ProcessorBase(ABC):
-    asset_id: str  # MUST be set by subclasses
+    asset_id: str 
+    parser: Optional[ArgumentParser] = None
 
     def __init__(
         self,
@@ -58,10 +59,6 @@ class ProcessorBase(ABC):
         Download the asset indicated by `manifest_item`. Return values
         """
         ...
-
-    @classmethod
-    def parse_args(cls, arg_list) -> Optional[Namespace]:
-        pass
 
     @abstractmethod
     def process(self, args): ...
@@ -184,7 +181,9 @@ def run(processor_cls: Type[ProcessorBase], args=None):
     parser.add_argument("-c", "--cores", default=4, type=int)
     args, remaining_args = parser.parse_known_args(args)
 
-    processor_args = processor_cls.parse_args(remaining_args)
+    processor_args = None
+    if isinstance(processor_cls.parser, ArgumentParser):
+        processor_args = processor_cls.parser.parse_args(remaining_args)
 
     if args.single is None:
         run_parallel(
