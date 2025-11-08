@@ -212,6 +212,7 @@ def get_processor_from_pipeline_file(pipeline_filepath):
     spec = importlib.util.spec_from_file_location("pipeline_module", pipeline_filepath)
     pipeline_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(pipeline_module)
+    # return the Processor class
     return pipeline_module.Processor
 
 
