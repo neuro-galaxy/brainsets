@@ -206,20 +206,25 @@ def run(processor_cls: Type[ProcessorBase], args=None):
         processor.process(processor.download(manifest_item))
 
 
+def get_processor_from_pipeline_file(pipeline_filepath):
+    # Load pipeline file as a module
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("pipeline_module", pipeline_filepath)
+    pipeline_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pipeline_module)
+    return pipeline_module.Processor
+
+
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("pipeline_file", type=Path)
     parser.add_argument("--list", action="store_true")
     args, remaining_args = parser.parse_known_args()
 
-    # Load pipeline file as a module
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("pipeline_module", args.pipeline_file)
-    pipeline_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(pipeline_module)
+    processor_cls = get_processor_from_pipeline_file(args.pipeline_file)
 
     if args.list:
-        print(pipeline_module.Processor.get_manifest())
+        print(processor_cls.get_manifest())
         sys.exit(0)
 
-    run(pipeline_module.Processor, remaining_args)
+    run(processor_cls, remaining_args)
