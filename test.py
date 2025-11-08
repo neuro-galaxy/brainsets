@@ -27,7 +27,7 @@ from brainsets.utils.dandi_utils import (
 from brainsets.taxonomy import RecordingTech, Task
 from brainsets import serialize_fn_map
 
-from processor import ProcessorBase, run
+from brainsets.processor import ProcessorBase, run
 
 
 class Processor(ProcessorBase):
