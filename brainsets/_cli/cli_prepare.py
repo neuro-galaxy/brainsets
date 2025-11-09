@@ -112,7 +112,7 @@ def prepare(
     command = [
         "python",
         "-m",
-        "brainsets.processor",
+        "brainsets.pipeline",
         str(prepare_filepath),
         f"--raw-dir={raw_dir}",
         f"--processed-dir={processed_dir}",

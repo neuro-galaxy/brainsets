@@ -27,7 +27,7 @@ from brainsets.utils.dandi_utils import (
 from brainsets.taxonomy import RecordingTech, Task
 from brainsets import serialize_fn_map
 
-from brainsets.processor import BrainsetPipeline
+from brainsets import BrainsetPipeline
 
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")

@@ -15,18 +15,6 @@ from rich.console import Console
 import pandas as pd
 
 
-@ray.remote
-class StatusTracker:
-    def __init__(self):
-        self.statuses: Dict[Any, str] = {}
-
-    def update_status(self, id: Any, status: str):
-        self.statuses[id] = status
-
-    def get_all_statuses(self):
-        return self.statuses
-
-
 class BrainsetPipeline(ABC):
     asset_id: str
     parser: Optional[ArgumentParser] = None
@@ -77,6 +65,18 @@ class BrainsetPipeline(ABC):
             Console().print(f"[bold]Status:[/] [{get_style(status)}]{status}[/]")
         else:
             self.tracker_handle.update_status.remote(self.asset_id, status)
+
+
+@ray.remote
+class StatusTracker:
+    def __init__(self):
+        self.statuses: Dict[Any, str] = {}
+
+    def update_status(self, id: Any, status: str):
+        self.statuses[id] = status
+
+    def get_all_statuses(self):
+        return self.statuses
 
 
 def get_style(status):
@@ -205,7 +205,7 @@ def run(processor_cls: Type[BrainsetPipeline], args=None):
         processor.process(processor.download(manifest_item))
 
 
-def get_pipeline_from_file(pipeline_filepath):
+def get_processor_from_pipeline_file(pipeline_filepath):
     # Load pipeline file as a module
     import importlib.util
 
@@ -222,7 +222,7 @@ if __name__ == "__main__":
     parser.add_argument("--list", action="store_true")
     args, remaining_args = parser.parse_known_args()
 
-    processor_cls = get_pipeline_from_file(args.pipeline_file)
+    processor_cls = get_processor_from_pipeline_file(args.pipeline_file)
 
     if args.list:
         print(processor_cls.get_manifest())
