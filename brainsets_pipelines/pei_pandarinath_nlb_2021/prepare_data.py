@@ -20,7 +20,7 @@ from brainsets.utils.dandi_utils import (
 from brainsets.taxonomy import RecordingTech, Task
 from brainsets import serialize_fn_map
 
-from brainsets import BrainsetPipeline
+from brainsets.pipeline import BrainsetPipeline
 
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
@@ -28,12 +28,12 @@ parser.add_argument("--reprocess", action="store_true")
 
 
 class Pipeline(BrainsetPipeline):
-    brainset_name = "pei_pandarinath_nlb_2021"
+    brainset_id = "pei_pandarinath_nlb_2021"
     dandiset_id = "DANDI:000140/0.220113.0408"
     parser = parser
 
     @classmethod
-    def get_manifest(cls) -> pd.DataFrame:
+    def get_manifest(cls, raw_dir, processed_dir, args) -> pd.DataFrame:
         asset_list = get_nwb_asset_list(cls.dandiset_id)
         manifest_list = [{"path": x.path, "url": x.download_url} for x in asset_list]
 
@@ -47,23 +47,21 @@ class Pipeline(BrainsetPipeline):
 
     def download(self, manifest_item):
         self.update_status("DOWNLOADING")
-        raw_dir = self.raw_root / self.brainset_name
-        raw_dir.mkdir(exist_ok=True, parents=True)
+        self.raw_dir.mkdir(exist_ok=True, parents=True)
         fpath = download_file(
             manifest_item.path,
             manifest_item.url,
-            raw_dir,
+            self.raw_dir,
             overwrite=self.args.redownload,
         )
         return fpath
 
     def process(self, fpath):
-        processed_dir = self.processed_root / self.brainset_name
-        processed_dir.mkdir(exist_ok=True, parents=True)
+        self.processed_dir.mkdir(exist_ok=True, parents=True)
 
         # intiantiate a DatasetBuilder which provides utilities for processing data
         brainset_description = BrainsetDescription(
-            id="pei_pandarinath_nlb_2021",
+            id=self.brainset_id,
             origin_version="dandi/000140/0.220113.0408",
             derived_version="1.0.0",
             source="https://dandiarchive.org/dandiset/000140",
@@ -93,7 +91,7 @@ class Pipeline(BrainsetPipeline):
         else:
             session_id += "_train"
 
-        store_path = processed_dir / f"{session_id}.h5"
+        store_path = self.processed_dir / f"{session_id}.h5"
         if store_path.exists() and not self.args.reprocess:
             self.update_status("Skipped Processing")
             return

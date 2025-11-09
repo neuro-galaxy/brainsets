@@ -16,24 +16,30 @@ import pandas as pd
 
 
 class BrainsetPipeline(ABC):
-    asset_id: str
+    brainset_id: str  # set by Pipeline subclass
+    asset_id: str  # set in run_item()
     parser: Optional[ArgumentParser] = None
 
     def __init__(
         self,
         tracker_handle: Optional[ray.actor.ActorHandle],
-        raw_root: Path,
-        processed_root: Path,
+        raw_dir: Path,
+        processed_dir: Path,
         args: Optional[Namespace],
     ):
         self.tracker_handle = tracker_handle
-        self.raw_root = Path(raw_root)
-        self.processed_root = Path(processed_root)
+        self.raw_dir = raw_dir
+        self.processed_dir = processed_dir
         self.args = args
 
     @classmethod
     @abstractmethod
-    def get_manifest(cls) -> pd.DataFrame:
+    def get_manifest(
+        cls,
+        raw_dir: Path,
+        processed_dir: Path,
+        args: Optional[Namespace],
+    ) -> pd.DataFrame:
         r"""Returns a dataframe, which is a table of assets to be download and processed.
         Each row will be passed individually to the `download` and `process` method.
         The index of this DataFrame will be used to identify assets for when user wants
@@ -127,16 +133,14 @@ def run_pool_in_background(actors, work_items):
 
 
 def run_parallel(
-    processor_cls: Type[BrainsetPipeline],
+    pipeline_cls: Type[BrainsetPipeline],
+    manifest: pd.DataFrame,
     raw_root: Path,
     processed_root: Path,
     num_jobs: int,
     extra_args: Namespace,
 ):
-    actor_cls: ray.actor.ActorClass = ray.remote(processor_cls)
-
-    manifest = processor_cls.get_manifest()
-    print(f"Discovered {len(manifest)} manifest items")
+    actor_cls: ray.actor.ActorClass = ray.remote(pipeline_cls)
 
     os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"  # to avoid a warning
     ray.init("local", num_cpus=num_jobs, log_to_driver=False)
@@ -170,7 +174,7 @@ def run_parallel(
     console.print("\n[bold green]All processing pipelines complete![/bold green]")
 
 
-def run(processor_cls: Type[BrainsetPipeline], args=None):
+def run(pipeline_cls: Type[BrainsetPipeline], args=None):
     from argparse import ArgumentParser
     from pathlib import Path
 
@@ -181,28 +185,38 @@ def run(processor_cls: Type[BrainsetPipeline], args=None):
     parser.add_argument("-c", "--cores", default=4, type=int)
     args, remaining_args = parser.parse_known_args(args)
 
-    processor_args = None
-    if isinstance(processor_cls.parser, ArgumentParser):
-        processor_args = processor_cls.parser.parse_args(remaining_args)
+    pipeline_args = None
+    if isinstance(pipeline_cls.parser, ArgumentParser):
+        pipeline_args = pipeline_cls.parser.parse_args(remaining_args)
+    
+    raw_dir = args.raw_dir / pipeline_cls.brainset_id
+    processed_dir = args.processed_dir / pipeline_cls.brainset_id
+
+    manifest = pipeline_cls.get_manifest(
+        raw_dir=raw_dir,
+        processed_dir=processed_dir,
+        args=pipeline_args,
+    )
+    print(f"Discovered {len(manifest)} manifest items")
 
     if args.single is None:
         run_parallel(
-            processor_cls=processor_cls,
-            raw_root=args.raw_dir,
-            processed_root=args.processed_dir,
+            pipeline_cls=pipeline_cls,
+            manifest=manifest,
+            raw_root=raw_dir,
+            processed_root=processed_dir,
             num_jobs=args.cores,
-            extra_args=processor_args,
+            extra_args=pipeline_args,
         )
     else:
-        manifest = processor_cls.get_manifest()
         manifest_item = manifest.loc[args.single]
-        processor = processor_cls(
+        pipeline = pipeline_cls(
             tracker_handle=None,
-            raw_root=args.raw_dir,
-            processed_root=args.processed_dir,
-            args=processor_args,
+            raw_dir=raw_dir,
+            processed_dir=processed_dir,
+            args=pipeline_args,
         )
-        processor.process(processor.download(manifest_item))
+        pipeline.process(pipeline.download(manifest_item))
 
 
 def get_processor_from_pipeline_file(pipeline_filepath):

@@ -27,7 +27,7 @@ from brainsets.utils.dandi_utils import (
 from brainsets.taxonomy import RecordingTech, Task
 from brainsets import serialize_fn_map
 
-from brainsets import BrainsetPipeline
+from brainsets.pipeline import BrainsetPipeline
 
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
@@ -35,12 +35,12 @@ parser.add_argument("--reprocess", action="store_true")
 
 
 class Pipeline(BrainsetPipeline):
-    brainset_name = "perich_miller_population_2018"
+    brainset_id = "perich_miller_population_2018"
     dandiset_id = "DANDI:000688/draft"
     parser = parser
 
     @classmethod
-    def get_manifest(cls) -> pd.DataFrame:
+    def get_manifest(cls, raw_dir, processed_dir, args) -> pd.DataFrame:
         asset_list = get_nwb_asset_list(cls.dandiset_id)
         manifest_list = [{"path": x.path, "url": x.download_url} for x in asset_list]
 
@@ -64,12 +64,11 @@ class Pipeline(BrainsetPipeline):
 
     def download(self, manifest_item):
         self.update_status("DOWNLOADING")
-        raw_dir = self.raw_root / self.brainset_name
-        raw_dir.mkdir(exist_ok=True, parents=True)
+        self.raw_dir.mkdir(exist_ok=True, parents=True)
         fpath = download_file(
             manifest_item.path,
             manifest_item.url,
-            raw_dir,
+            self.raw_dir,
             overwrite=self.args.redownload,
         )
         return fpath
@@ -80,8 +79,7 @@ class Pipeline(BrainsetPipeline):
         io = NWBHDF5IO(fpath, "r")
         nwbfile = io.read()
 
-        processed_dir = self.processed_root / self.brainset_name
-        processed_dir.mkdir(exist_ok=True, parents=True)
+        self.processed_dir.mkdir(exist_ok=True, parents=True)
 
         brainset_description = BrainsetDescription(
             id="perich_miller_population_2018",
@@ -118,7 +116,7 @@ class Pipeline(BrainsetPipeline):
         task = "center_out_reaching" if "CO" in str(fpath) else "random_target_reaching"
         session_id = f"{device_id}_{task}"
 
-        store_path = processed_dir / f"{session_id}.h5"
+        store_path = self.processed_dir / f"{session_id}.h5"
         if store_path.exists() and not self.args.reprocess:
             self.update_status("Skipped Processing")
             return
