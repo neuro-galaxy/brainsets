@@ -188,7 +188,7 @@ def run(pipeline_cls: Type[BrainsetPipeline], args=None):
     pipeline_args = None
     if isinstance(pipeline_cls.parser, ArgumentParser):
         pipeline_args = pipeline_cls.parser.parse_args(remaining_args)
-    
+
     raw_dir = args.raw_dir / pipeline_cls.brainset_id
     processed_dir = args.processed_dir / pipeline_cls.brainset_id
 
