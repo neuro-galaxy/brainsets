@@ -63,7 +63,7 @@ class ProcessorBase(ABC):
     @abstractmethod
     def process(self, args): ...
 
-    def _main_(self, manifest_item):
+    def run_item(self, manifest_item):
         self.asset_id = manifest_item.Index
         try:
             output = self.download(manifest_item)
@@ -119,7 +119,7 @@ def run_pool_in_background(actors, work_items):
     """
     pool = ActorPool(actors)
     results_generator = pool.map_unordered(
-        lambda actor, task: actor._main_.remote(task),
+        lambda actor, task: actor.run_item.remote(task),
         work_items,
     )
     for _ in results_generator:
