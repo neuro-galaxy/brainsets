@@ -101,6 +101,7 @@ class BrainsetPipeline(ABC):
     ...         # Process the downloaded data
     ...         ...
     """
+
     brainset_id: str  # set by Pipeline subclass
     asset_id: str  # set in run_item()
     parser: Optional[ArgumentParser] = None
