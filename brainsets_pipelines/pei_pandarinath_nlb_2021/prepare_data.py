@@ -20,14 +20,14 @@ from brainsets.utils.dandi_utils import (
 from brainsets.taxonomy import RecordingTech, Task
 from brainsets import serialize_fn_map
 
-from brainsets.processor import ProcessorBase
+from brainsets.processor import BrainsetPipeline
 
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
 parser.add_argument("--reprocess", action="store_true")
 
 
-class Processor(ProcessorBase):
+class Pipeline(BrainsetPipeline):
     brainset_name = "pei_pandarinath_nlb_2021"
     dandiset_id = "DANDI:000140/0.220113.0408"
     parser = parser

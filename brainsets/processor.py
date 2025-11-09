@@ -27,7 +27,7 @@ class StatusTracker:
         return self.statuses
 
 
-class ProcessorBase(ABC):
+class BrainsetPipeline(ABC):
     asset_id: str
     parser: Optional[ArgumentParser] = None
 
@@ -127,7 +127,7 @@ def run_pool_in_background(actors, work_items):
 
 
 def run_parallel(
-    processor_cls: Type[ProcessorBase],
+    processor_cls: Type[BrainsetPipeline],
     raw_root: Path,
     processed_root: Path,
     num_jobs: int,
@@ -170,7 +170,7 @@ def run_parallel(
     console.print("\n[bold green]All processing pipelines complete![/bold green]")
 
 
-def run(processor_cls: Type[ProcessorBase], args=None):
+def run(processor_cls: Type[BrainsetPipeline], args=None):
     from argparse import ArgumentParser
     from pathlib import Path
 
@@ -205,7 +205,7 @@ def run(processor_cls: Type[ProcessorBase], args=None):
         processor.process(processor.download(manifest_item))
 
 
-def get_processor_from_pipeline_file(pipeline_filepath):
+def get_pipeline_from_file(pipeline_filepath):
     # Load pipeline file as a module
     import importlib.util
 
@@ -213,7 +213,7 @@ def get_processor_from_pipeline_file(pipeline_filepath):
     pipeline_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(pipeline_module)
     # return the Processor class
-    return pipeline_module.Processor
+    return pipeline_module.Pipeline
 
 
 if __name__ == "__main__":
@@ -222,7 +222,7 @@ if __name__ == "__main__":
     parser.add_argument("--list", action="store_true")
     args, remaining_args = parser.parse_known_args()
 
-    processor_cls = get_processor_from_pipeline_file(args.pipeline_file)
+    processor_cls = get_pipeline_from_file(args.pipeline_file)
 
     if args.list:
         print(processor_cls.get_manifest())
