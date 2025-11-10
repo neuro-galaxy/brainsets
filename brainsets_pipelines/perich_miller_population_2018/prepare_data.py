@@ -30,8 +30,16 @@ from brainsets import serialize_fn_map
 from brainsets.pipeline import BrainsetPipeline
 
 parser = ArgumentParser()
-parser.add_argument("--redownload", action="store_true")
-parser.add_argument("--reprocess", action="store_true")
+parser.add_argument(
+    "--redownload",
+    action="store_true",
+    help="Force re-download if raw data is already present",
+)
+parser.add_argument(
+    "--reprocess",
+    action="store_true",
+    help="If not set, will skip processing if output file is present",
+)
 
 
 class Pipeline(BrainsetPipeline):

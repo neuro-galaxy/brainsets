@@ -107,6 +107,19 @@ def spin_on_tracker(tracker, manifest):
         console.print(f"\n[bold red]{num_failed} manifest items failed[/]")
     return status_dict
 
+def print_pipeline_help(pipeline_cls):
+    if pipeline_cls.parser is not None:
+        start_printing = False
+        for line in pipeline_cls.parser.format_help().strip().split("\n"):
+            if line in ["positional arguments:", "options:"]:
+                start_printing = True
+
+            if "-h, --help" in line:
+                continue
+            if start_printing:
+                print(line)
+    else:
+        print("No pipeline specific options")
 
 def run():
     parser = ArgumentParser()
@@ -117,11 +130,20 @@ def run():
     parser.add_argument("-c", "--cores", default=4, type=int)
     parser.add_argument("--list", action="store_true", help="List manifest and exit")
     parser.add_argument(
+        "--show-opts",
+        action="store_true",
+        help="Show pipeline-specific options and exit",
+    )
+    parser.add_argument(
         "--download-only", action="store_true", help="Download raw data and exit"
     )
     args, remaining_args = parser.parse_known_args()
 
     pipeline_cls = import_pipeline_cls_from_file(args.pipeline_file)
+
+    if args.show_opts:
+        print_pipeline_help(pipeline_cls)
+        sys.exit(0)
 
     # Parse pipeline specific arguments
     pipeline_args = None
