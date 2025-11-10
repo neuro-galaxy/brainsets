@@ -3,9 +3,10 @@ from argparse import ArgumentParser, Namespace
 import os
 import time
 from collections import defaultdict
-from typing import Dict, Any, Type
+from typing import Dict, Any, Type, List
 from pathlib import Path
-import ray, ray.actor
+import ray
+import ray.actor
 from ray.util.actor_pool import ActorPool
 
 from rich.live import Live
@@ -13,6 +14,17 @@ from rich.console import Console
 import pandas as pd
 
 from brainsets.pipeline import BrainsetPipeline
+
+
+def import_pipeline_from_file(pipeline_filepath: Path) -> BrainsetPipeline:
+    # Load pipeline file as a module
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("pipeline_module", pipeline_filepath)
+    pipeline_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pipeline_module)
+    # return the pipeline class
+    return pipeline_module.Pipeline
 
 
 @ray.remote
@@ -27,7 +39,7 @@ class StatusTracker:
         return self.statuses
 
 
-def get_style(status):
+def get_style(status: str) -> str:
     # Add color coding based on status
     if "DONE" in status:
         return "green"
@@ -39,7 +51,7 @@ def get_style(status):
         return "yellow"
 
 
-def generate_status_table(status_dict: Dict[str, str]) -> str:
+def generate_status_table(status_dict: Dict[Any, str]) -> str:
     # Sort files for a consistent display
     sorted_files = sorted(status_dict.keys())
 
@@ -61,7 +73,7 @@ def generate_status_table(status_dict: Dict[str, str]) -> str:
 
 
 @ray.remote
-def run_pool_in_background(actor_pool, work_items):
+def run_pool_in_background(actor_pool: ActorPool, work_items: List[Any]):
     r"""
     Run a pool of `actors` over `work_items` (a list of arguments)
     """
@@ -103,53 +115,65 @@ def run_parallel(
     )
     run_pool_in_background.remote(actor_pool, list(manifest.itertuples()))
 
-    # Keep going until all manifest_items are DONE or FAILED
+    # Keep spinning until all manifest_items are DONE or FAILED
+    # Show status on terminal
     console = Console()
     with Live(
         generate_status_table({}),
         console=console,
         refresh_per_second=10,
     ) as live:
-        all_done = False
-        while not all_done:  # Spin loop
+        all_fin = False
+        while not all_fin:  # Spin loop
             # Get status and update TUI
             status_dict = ray.get(tracker.get_all_statuses.remote())
             live.update(generate_status_table(status_dict))
 
             # Check for completion
             if len(status_dict) == len(manifest):
-                all_done = all(s in ["DONE", "FAILED"] for s in status_dict.values())
+                all_fin = all(s in ["DONE", "FAILED"] for s in status_dict.values())
 
             # Sleep to prevent loop from spinning too fast
             time.sleep(0.1)
 
-    console.print("\n[bold green]All processing pipelines complete![/bold green]")
+    if all(s == "DONE" for s in status_dict.values()):
+        console.print("\n[bold green]All manifest items processed[/]")
+    else:
+        num_failed = sum(s == "FAILED" for s in status_dict.values())
+        console.print(f"\n[bold red]{num_failed} manifest items failed[/]")
 
 
-def run(pipeline_cls: Type[BrainsetPipeline], args=None):
-    from argparse import ArgumentParser
-    from pathlib import Path
-
+def run():
     parser = ArgumentParser()
+    parser.add_argument("pipeline_file", type=Path)
     parser.add_argument("--raw-dir", type=Path, required=True)
     parser.add_argument("--processed-dir", type=Path, required=True)
     parser.add_argument("-s", "--single", default=None, type=str)
     parser.add_argument("-c", "--cores", default=4, type=int)
-    args, remaining_args = parser.parse_known_args(args)
+    parser.add_argument("--list", action="store_true", help="List manifest and exit")
+    args, remaining_args = parser.parse_known_args()
 
+    pipeline_cls = import_pipeline_from_file(args.pipeline_file)
+
+    # Parse pipeline specific arguments
     pipeline_args = None
-    if isinstance(pipeline_cls.parser, ArgumentParser):
+    if pipeline_cls.parser is not None:
         pipeline_args = pipeline_cls.parser.parse_args(remaining_args)
 
+    # Set raw and processed dir
     raw_dir = args.raw_dir / pipeline_cls.brainset_id
     processed_dir = args.processed_dir / pipeline_cls.brainset_id
 
     manifest = pipeline_cls.get_manifest(
         raw_dir=raw_dir,
-        processed_dir=processed_dir,
         args=pipeline_args,
     )
     print(f"Discovered {len(manifest)} manifest items")
+
+    if args.list:
+        with pd.option_context("display.max_rows", None):
+            print(manifest)
+        sys.exit(0)
 
     if args.single is None:
         run_parallel(
@@ -164,7 +188,6 @@ def run(pipeline_cls: Type[BrainsetPipeline], args=None):
         manifest_item = manifest.loc[args.single]
         manifest_item.Index = args.single
         pipeline = pipeline_cls(
-            tracker_handle=None,
             raw_dir=raw_dir,
             processed_dir=processed_dir,
             args=pipeline_args,
@@ -172,27 +195,5 @@ def run(pipeline_cls: Type[BrainsetPipeline], args=None):
         pipeline._run_item(manifest_item)
 
 
-def import_pipeline_from_file(pipeline_filepath):
-    # Load pipeline file as a module
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("pipeline_module", pipeline_filepath)
-    pipeline_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(pipeline_module)
-    # return the Processor class
-    return pipeline_module.Pipeline
-
-
 if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument("pipeline_file", type=Path)
-    parser.add_argument("--list", action="store_true")
-    args, remaining_args = parser.parse_known_args()
-
-    processor_cls = import_pipeline_from_file(args.pipeline_file)
-
-    if args.list:
-        print(processor_cls.get_manifest())
-        sys.exit(0)
-
-    run(processor_cls, remaining_args)
+    run()

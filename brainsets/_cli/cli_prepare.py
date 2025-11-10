@@ -171,9 +171,6 @@ def prepare(
             text=True,
         )
 
-        if process.returncode == 0:
-            click.echo(f"Successfully downloaded {brainset}")
-
     except subprocess.CalledProcessError as e:
         click.echo(f"Error: Command failed with return code {e.returncode}")
         sys.exit(e.returncode or 1)

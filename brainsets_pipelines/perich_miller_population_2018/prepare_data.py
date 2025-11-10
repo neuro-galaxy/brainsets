@@ -40,7 +40,7 @@ class Pipeline(BrainsetPipeline):
     parser = parser
 
     @classmethod
-    def get_manifest(cls, raw_dir, processed_dir, args) -> pd.DataFrame:
+    def get_manifest(cls, raw_dir, args) -> pd.DataFrame:
         asset_list = get_nwb_asset_list(cls.dandiset_id)
         manifest_list = [{"path": x.path, "url": x.download_url} for x in asset_list]
 

@@ -12,31 +12,21 @@ class BrainsetPipeline(ABC):
     Pipelines are subclasses of this class. Pipelines are either run through
     the CLI or through :mod:`brainsets.runner` module.
 
-    - Subclasses must implement:
+    **Subclasses must implement:**
         - Set the :attr:`brainset_id`
         - :meth:`get_manifest()`: Generate a :obj:`pd.DataFrame` listing all assets to process
         - :meth:`download()`: Download a single asset from the manifest
         - :meth:`process()`: Transform downloaded data into standardized format
 
-    The pipeline workflow consists of:
+    **The pipeline workflow consists of:**
+        1. Generating a manifest (list of assets to process) via :meth:`get_manifest()`. This happens on the root process.
+        2. Downloading each asset via :meth:`download()`. This happens in parallel for multiple rows of the manifest.
+        3. Processing each downloaded asset via :meth:`process()`. This also happens in parallel, on the same process as :meth:`download()`.
 
-    1. Generating a manifest (list of assets to process) via :meth:`get_manifest()`.
-    This happens on the root process.
-    2. Downloading each asset via :meth:`download()`. This happens in parallel for
-    multiple arows of the manifest.
-    3. Processing each downloaded asset via :meth:`process()`
-
-
-    Notes
-    -----
-    - Handling pipeline-specific command line arguments:
-        Subclasses can define pipeline-specific command-line arguments by setting
-        the :attr:`parser` attribute. The runner will automatically parse any
-        extra arguments (after standard options like `--raw-dir`, `--processed-dir`, etc.)
-        using this parser. The parsed arguments are passed to:
-
-        - :meth:`get_manifest()` as the `args` method parameter.
-        - Accessible in :meth:`download` and :meth:`process` methods via class atribute :attr:`args`
+    **Handling pipeline-specific command line arguments:**
+        - Subclasses can define pipeline-specific command-line arguments by setting :attr:`parser`.
+        - The runner will automatically parse any extra CLI arguments using this parser.
+        - The parsed arguments are passed to the :meth:`get_manifest()` as the `args` method parameter, and to the :meth:`download` and :meth:`process` methods via class attribute :attr:`args`.
 
     Examples
     --------
@@ -78,41 +68,54 @@ class BrainsetPipeline(ABC):
     """Pipeline-specific arguments parsed from the command line. Set by the runner
     if :attr:`parser` is defined by subclass.
     """
-    _asset_id: str
-    """Identifier for the current asset being processed. Set automatically in
-    :meth:`run_item()`.
-    """
     raw_dir: Path
     """Raw data directory assigned to this brainset by the pipeline runner.
     """
     processed_dir: Path
     """Processed data directory assigned to this brainset by the pipeline runner.
     """
+    _asset_id: str
+    """Identifier for the current asset being processed. Set automatically in
+    :meth:`run_item()`.
+    """
 
     def __init__(
         self,
-        tracker_handle: Optional[ray.actor.ActorHandle],
         raw_dir: Path,
         processed_dir: Path,
         args: Optional[Namespace],
+        tracker_handle: Optional[ray.actor.ActorHandle] = None,
     ):
-        self._tracker_handle = tracker_handle
         self.raw_dir = raw_dir
         self.processed_dir = processed_dir
         self.args = args
+        self._tracker_handle = tracker_handle
 
     @classmethod
     @abstractmethod
     def get_manifest(
         cls,
         raw_dir: Path,
-        processed_dir: Path,
         args: Optional[Namespace],
     ) -> pd.DataFrame:
-        r"""Returns a dataframe, which is a table of assets to be download and processed.
-        Each row will be passed individually to the `download` and `process` method.
+        r"""Returns a :obj:`pandas.DataFrame`, which is a table of assets to be
+        downloaded and processed. Each row will be passed individually to the
+        :meth:`download` and :meth:`process` methods.
+
         The index of this DataFrame will be used to identify assets for when user wants
         to process a single asset.
+
+        Parameters
+        ----------
+        raw_dir: Path
+            Raw data directory assigned to this brainset by the pipeline runner.
+        args: Optional[Namespace]
+            Pipeline-specific arguments parsed from the command line. Set by the runner
+            if :attr:`parser` is defined by subclass.
+
+        Returns
+        -------
+        pandas.DataFrame
         """
         ...
 
@@ -129,14 +132,14 @@ class BrainsetPipeline(ABC):
         ...
 
     @abstractmethod
-    def process(self, args):
+    def process(self, download_output):
         r"""
         Process and save the dataset.
 
         Parameters
         ----------
-        args : Any
-            This will be the return value of the :meth:`downlaod()` method.
+        download_output : Any
+            This will be the return value of the :meth:`download()` method.
         """
         ...
 
