@@ -21,7 +21,7 @@ class BrainsetPipeline(ABC):
     The pipeline workflow consists of:
 
     1. Generating a manifest (list of assets to process) via :meth:`get_manifest()`.
-        This happens on the root process.
+    This happens on the root process.
     2. Downloading each asset via :meth:`download()`. This happens in parallel for
     multiple arows of the manifest.
     3. Processing each downloaded asset via :meth:`process()`
@@ -45,7 +45,7 @@ class BrainsetPipeline(ABC):
     >>> parser.add_argument("--redownload", action="store_true")
     >>> parser.add_argument("--reprocess", action="store_true")
     >>>
-    >>> class MyBrainsetPipeline(BrainsetPipeline):
+    >>> class Pipeline(BrainsetPipeline):
     ...     brainset_id = "my_brainset"
     ...     parser = parser
     ...
