@@ -34,3 +34,12 @@ Serialization Functions
 .. autofunction:: brainsets.core.datetime_serialize_fn
 
 .. autodata:: brainsets.core.serialize_fn_map
+
+BrainsetPipeline
+~~~~~~~~~~~~~~~~
+
+.. autoclass:: brainsets.pipeline.BrainsetPipeline
+    :members:
+    :show-inheritance:
+    :undoc-members:
+
