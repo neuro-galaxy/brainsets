@@ -1,12 +1,11 @@
 import sys
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser
 import os
 import time
 from collections import defaultdict
-from typing import Dict, Any, Type, List
+from typing import Dict, Any, List
 from pathlib import Path
 import ray
-import ray.actor
 from ray.util.actor_pool import ActorPool
 
 from rich.live import Live
@@ -16,14 +15,12 @@ import pandas as pd
 from brainsets.pipeline import BrainsetPipeline
 
 
-def import_pipeline_from_file(pipeline_filepath: Path) -> BrainsetPipeline:
-    # Load pipeline file as a module
+def import_pipeline_cls_from_file(pipeline_filepath: Path) -> BrainsetPipeline:
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("pipeline_module", pipeline_filepath)
     pipeline_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(pipeline_module)
-    # return the pipeline class
     return pipeline_module.Pipeline
 
 
@@ -40,7 +37,6 @@ class StatusTracker:
 
 
 def get_style(status: str) -> str:
-    # Add color coding based on status
     if "DONE" in status:
         return "green"
     elif "FAILED" in status:
@@ -74,9 +70,6 @@ def generate_status_table(status_dict: Dict[Any, str]) -> str:
 
 @ray.remote
 def run_pool_in_background(actor_pool: ActorPool, work_items: List[Any]):
-    r"""
-    Run a pool of `actors` over `work_items` (a list of arguments)
-    """
     results_generator = actor_pool.map_unordered(
         lambda actor, task: actor._run_item.remote(task),
         work_items,
@@ -123,10 +116,12 @@ def run():
     parser.add_argument("-s", "--single", default=None, type=str)
     parser.add_argument("-c", "--cores", default=4, type=int)
     parser.add_argument("--list", action="store_true", help="List manifest and exit")
-    parser.add_argument("--download-only", action="store_true", help="Download raw data and exit")
+    parser.add_argument(
+        "--download-only", action="store_true", help="Download raw data and exit"
+    )
     args, remaining_args = parser.parse_known_args()
 
-    pipeline_cls = import_pipeline_from_file(args.pipeline_file)
+    pipeline_cls = import_pipeline_cls_from_file(args.pipeline_file)
 
     # Parse pipeline specific arguments
     pipeline_args = None
@@ -163,7 +158,7 @@ def run():
                     raw_dir=raw_dir,
                     processed_dir=processed_dir,
                     args=pipeline_args,
-                    download_only=args.download_only
+                    download_only=args.download_only,
                 )
                 for _ in range(args.cores)
             ]
