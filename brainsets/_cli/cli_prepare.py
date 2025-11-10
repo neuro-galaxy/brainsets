@@ -223,7 +223,8 @@ def _determine_brainsets_spec() -> str:
 
 def _detect_brainsets_installation_url() -> Optional[str]:
     """
-    Detect if the current brainsets package was installed via.
+    Detect if the current brainsets package was installed via something like
+    pip install <url>.
     """
 
     from importlib.metadata import distribution, PackageNotFoundError
