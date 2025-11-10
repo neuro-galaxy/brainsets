@@ -43,6 +43,9 @@ class Pipeline(BrainsetPipeline):
         asset_list = get_nwb_asset_list(cls.dandiset_id)
         manifest_list = [{"path": x.path, "url": x.download_url} for x in asset_list]
 
+        # Add a session_id to each manifest_list item
+        # session_id should look like: `c_20161021_center_out_reaching`
+        # c = subject name initial, 20161021 = date, center_out_reaching = task
         for m in manifest_list:
             path = m["path"]
             subject_alpha = path.split("/")[0].split("-")[1].lower()
