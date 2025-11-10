@@ -9,8 +9,8 @@ from rich.console import Console
 
 class BrainsetPipeline(ABC):
     r"""Abstract base class for defining processing pipelines.
-    Subclasses must implement the abstract methods 
-    abstract methods to define how data is retrieved and transformed.
+    Pipelines are subclasses of this class. Pipelines are either run through
+    the CLI or through :mod:`brainsets.runner` module.
 
     - Subclasses must implement:
         - Set the :attr:`brainset_id`
@@ -22,7 +22,8 @@ class BrainsetPipeline(ABC):
 
     1. Generating a manifest (list of assets to process) via :meth:`get_manifest()`.
         This happens on the root process.
-    2. Downloading each asset via :meth:`download()`
+    2. Downloading each asset via :meth:`download()`. This happens in parallel for
+    multiple arows of the manifest.
     3. Processing each downloaded asset via :meth:`process()`
 
 
@@ -30,7 +31,7 @@ class BrainsetPipeline(ABC):
     -----
     - Handling pipeline-specific command line arguments:
         Subclasses can define pipeline-specific command-line arguments by setting
-        the :attr:`parser` attribute. The runner will automatically parse any 
+        the :attr:`parser` attribute. The runner will automatically parse any
         extra arguments (after standard options like `--raw-dir`, `--processed-dir`, etc.)
         using this parser. The parsed arguments are passed to:
 
@@ -77,7 +78,7 @@ class BrainsetPipeline(ABC):
     """Pipeline-specific arguments parsed from the command line. Set by the runner
     if :attr:`parser` is defined by subclass.
     """
-    _asset_id: str 
+    _asset_id: str
     """Identifier for the current asset being processed. Set automatically in
     :meth:`run_item()`.
     """
@@ -139,7 +140,19 @@ class BrainsetPipeline(ABC):
         """
         ...
 
-    def run_item(self, manifest_item):
+    def update_status(self, status: str):
+        """
+        Update the current status of the pipeline for a given asset.
+        This will be shown on the terminal.
+        """
+        if self._tracker_handle is None:
+            from brainsets.runner import get_style  # avoids circular import
+
+            Console().print(f"[bold]Status:[/] [{get_style(status)}]{status}[/]")
+        else:
+            self._tracker_handle.update_status.remote(self._asset_id, status)
+
+    def _run_item(self, manifest_item):
         self._asset_id = manifest_item.Index
         try:
             output = self.download(manifest_item)
@@ -147,14 +160,3 @@ class BrainsetPipeline(ABC):
             self.update_status("DONE")
         except:
             self.update_status("FAILED")
-
-    def update_status(self, status: str):
-        """
-        Update the current status of the pipeline for a given asset.
-        This will be shown 
-        """
-        if self._tracker_handle is None:
-            from brainsets.runner import get_style  # avoids circular import
-            Console().print(f"[bold]Status:[/] [{get_style(status)}]{status}[/]")
-        else:
-            self._tracker_handle.update_status.remote(self._asset_id, status)

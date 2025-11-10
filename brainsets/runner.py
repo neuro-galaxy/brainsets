@@ -61,13 +61,12 @@ def generate_status_table(status_dict: Dict[str, str]) -> str:
 
 
 @ray.remote
-def run_pool_in_background(actors, work_items):
+def run_pool_in_background(actor_pool, work_items):
     r"""
     Run a pool of `actors` over `work_items` (a list of arguments)
     """
-    pool = ActorPool(actors)
-    results_generator = pool.map_unordered(
-        lambda actor, task: actor.run_item.remote(task),
+    results_generator = actor_pool.map_unordered(
+        lambda actor, task: actor._run_item.remote(task),
         work_items,
     )
     for _ in results_generator:
@@ -77,23 +76,34 @@ def run_pool_in_background(actors, work_items):
 def run_parallel(
     pipeline_cls: Type[BrainsetPipeline],
     manifest: pd.DataFrame,
-    raw_root: Path,
-    processed_root: Path,
+    raw_dir: Path,
+    processed_dir: Path,
     num_jobs: int,
     extra_args: Namespace,
 ):
-    actor_cls: ray.actor.ActorClass = ray.remote(pipeline_cls)
-
+    # Start ray
     os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"  # to avoid a warning
     ray.init("local", num_cpus=num_jobs, log_to_driver=False)
+
+    # Start tracker
     tracker = StatusTracker.remote()
 
-    actors = [
-        actor_cls.remote(tracker, raw_root, processed_root, extra_args)
-        for _ in range(num_jobs)
-    ]
-    run_pool_in_background.remote(actors, list(manifest.itertuples()))
+    # Start actors
+    actor_cls: ray.actor.ActorClass = ray.remote(pipeline_cls)
+    actor_pool = ActorPool(
+        [
+            actor_cls.remote(
+                tracker_handle=tracker,
+                raw_dir=raw_dir,
+                processed_dir=processed_dir,
+                args=extra_args,
+            )
+            for _ in range(num_jobs)
+        ]
+    )
+    run_pool_in_background.remote(actor_pool, list(manifest.itertuples()))
 
+    # Keep going until all manifest_items are DONE or FAILED
     console = Console()
     with Live(
         generate_status_table({}),
@@ -145,23 +155,24 @@ def run(pipeline_cls: Type[BrainsetPipeline], args=None):
         run_parallel(
             pipeline_cls=pipeline_cls,
             manifest=manifest,
-            raw_root=raw_dir,
-            processed_root=processed_dir,
+            raw_dir=raw_dir,
+            processed_dir=processed_dir,
             num_jobs=args.cores,
             extra_args=pipeline_args,
         )
     else:
         manifest_item = manifest.loc[args.single]
+        manifest_item.Index = args.single
         pipeline = pipeline_cls(
             tracker_handle=None,
             raw_dir=raw_dir,
             processed_dir=processed_dir,
             args=pipeline_args,
         )
-        pipeline.process(pipeline.download(manifest_item))
+        pipeline._run_item(manifest_item)
 
 
-def get_processor_from_pipeline_file(pipeline_filepath):
+def import_pipeline_from_file(pipeline_filepath):
     # Load pipeline file as a module
     import importlib.util
 
@@ -178,7 +189,7 @@ if __name__ == "__main__":
     parser.add_argument("--list", action="store_true")
     args, remaining_args = parser.parse_known_args()
 
-    processor_cls = get_processor_from_pipeline_file(args.pipeline_file)
+    processor_cls = import_pipeline_from_file(args.pipeline_file)
 
     if args.list:
         print(processor_cls.get_manifest())
