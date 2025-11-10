@@ -3,7 +3,6 @@ from typing import NamedTuple
 from pynwb import NWBHDF5IO
 
 import datetime
-import logging
 import h5py
 
 import numpy as np
@@ -97,7 +96,7 @@ class Pipeline(BrainsetPipeline):
             "per session, cursor position and velocity, and other task related metadata.",
         )
 
-        # logging.info(f"Processing file: {fpath}")
+        print(f"Processing file: {fpath}")
 
         # open file
         self.update_status("Loading NWB")

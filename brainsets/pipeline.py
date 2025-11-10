@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
+import sys
 from argparse import ArgumentParser, Namespace
-from typing import Optional, NamedTuple
+from typing import Optional, NamedTuple, Any
 from pathlib import Path
 import ray.actor
 import pandas as pd
 from rich.console import Console
+from contextlib import contextmanager
 
 
 class BrainsetPipeline(ABC):
@@ -86,12 +88,14 @@ class BrainsetPipeline(ABC):
         args: Optional[Namespace],
         tracker_handle: Optional[ray.actor.ActorHandle] = None,
         download_only: bool = False,
+        parallel: bool = False,
     ):
         self.raw_dir = raw_dir
         self.processed_dir = processed_dir
         self.args = args
         self._tracker_handle = tracker_handle
         self._download_only = download_only
+        self._parallel = parallel
 
     @classmethod
     @abstractmethod
@@ -122,7 +126,7 @@ class BrainsetPipeline(ABC):
         ...
 
     @abstractmethod
-    def download(self, manifest_item):
+    def download(self, manifest_item: NamedTuple) -> Any:
         r"""Download the asset indicated by `manifest_item`.
         All return values will be passed to :meth:`process()`.
 
@@ -134,7 +138,7 @@ class BrainsetPipeline(ABC):
         ...
 
     @abstractmethod
-    def process(self, download_output):
+    def process(self, download_output: Any):
         r"""
         Process and save the dataset.
 
@@ -150,19 +154,48 @@ class BrainsetPipeline(ABC):
         Update the current status of the pipeline for a given asset.
         This will be shown on the terminal.
         """
-        if self._tracker_handle is None:
-            from brainsets.runner import get_style  # avoids circular import
-
-            Console().print(f"[bold]Status:[/] [{get_style(status)}]{status}[/]")
-        else:
+        if self._tracker_handle is not None:
             self._tracker_handle.update_status.remote(self._asset_id, status)
+
+        from brainsets.runner import get_style
+
+        Console().print(f"[bold][Status][/] [{get_style(status)}]{status}[/]")
 
     def _run_item(self, manifest_item):
         self._asset_id = manifest_item.Index
-        try:
-            output = self.download(manifest_item)
-            if not self._download_only:
-                self.process(output)
-            self.update_status("DONE")
-        except:
-            self.update_status("FAILED")
+
+        log_dir = self.processed_dir / "pipeline_logs"
+        log_dir.mkdir(exist_ok=True, parents=True)
+        log_out_path = log_dir / f"{self._asset_id}.out"
+        log_err_path = log_dir / f"{self._asset_id}.err"
+
+        with redirect_stdio(log_out_path, log_err_path, disable=not self._parallel):
+            try:
+                output = self.download(manifest_item)
+                if not self._download_only:
+                    self.process(output)
+                self.update_status("DONE")
+            except:
+                self.update_status("FAILED")
+
+
+@contextmanager
+def redirect_stdio(log_out_path, log_err_path, disable):
+    """Context manager to optionally redirect stdout/stderr to files.
+    This is useful when running pipelines in parallel."""
+    if disable:
+        yield
+    else:
+        stdout_prev = sys.stdout
+        stderr_prev = sys.stderr
+        with (
+            open(log_out_path, "w", encoding="utf-8") as log_out,
+            open(log_err_path, "w", encoding="utf-8") as log_err,
+        ):
+            sys.stdout = log_out
+            sys.stderr = log_err
+            try:
+                yield
+            finally:
+                sys.stdout = stdout_prev
+                sys.stderr = stderr_prev

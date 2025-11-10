@@ -159,6 +159,7 @@ def run():
                     processed_dir=processed_dir,
                     args=pipeline_args,
                     download_only=args.download_only,
+                    parallel=True,
                 )
                 for _ in range(args.cores)
             ]
