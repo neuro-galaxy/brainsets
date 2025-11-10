@@ -146,7 +146,7 @@ def prepare(
                 "--no-project",
             ]
 
-            has_brainsets = _read_and_process_requirements(reqs_filepath)
+            has_brainsets = _brainsets_in_requirements(reqs_filepath)
             if not has_brainsets:
                 click.echo("WARNING: Brainsets version not specified by pipeline.")
                 brainsets_spec = _determine_brainsets_spec()
@@ -179,7 +179,7 @@ def prepare(
         sys.exit(1)
 
 
-def _read_and_process_requirements(reqs_filepath: Path) -> tuple[list[str], bool]:
+def _brainsets_in_requirements(reqs_filepath: Path) -> tuple[list[str], bool]:
     with open(reqs_filepath, "r") as f:
         lines = f.readlines()
 
