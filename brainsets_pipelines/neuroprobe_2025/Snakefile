@@ -6,6 +6,7 @@ DATASET = "neuroprobe_2025"
 
 RAW_DIR = config["RAW_DIR"]
 PROCESSED_DIR = config["PROCESSED_DIR"]
+PIPELINE_DIR = Path(workflow.basedir)
 
 
 checkpoint download_data:
@@ -20,7 +21,7 @@ checkpoint download_data:
             [ -z "$href" ] && continue
             fname=$(basename "$href")
             wget -nc -O {RAW_DIR}/{DATASET}/"$fname" "$BASE_URL/$href"
-        done < brainsets_pipelines/{DATASET}/download_hrefs_lite.txt
+        done < {PIPELINE_DIR}/download_hrefs_lite.txt
 
         for f in {RAW_DIR}/{DATASET}/*; do
             [ -e "$f" ] || continue
