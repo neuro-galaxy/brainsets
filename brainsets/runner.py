@@ -71,7 +71,7 @@ def generate_status_table(status_dict: Dict[Any, str]) -> str:
 @ray.remote
 def run_pool_in_background(actor_pool: ActorPool, work_items: List[Any]):
     results_generator = actor_pool.map_unordered(
-        lambda actor, task: actor._run_item.remote(task),
+        lambda actor, task: actor._run_item_on_parallel_worker.remote(task),
         work_items,
     )
     for _ in results_generator:
@@ -79,8 +79,14 @@ def run_pool_in_background(actor_pool: ActorPool, work_items: List[Any]):
 
 
 def spin_on_tracker(tracker, manifest):
-    # Keep spinning until all manifest_items are DONE or FAILED
-    # Show status on terminal
+    """
+    Spins until all manifest items are DONE or FAILED, updating and displaying progress/status
+    in the terminal.
+
+    Returns:
+        bool: True if all manifest items were processed successfully (all status are DONE),
+              False if any manifest items failed (any status is FAILED).
+    """
     console = Console()
     with Live(
         generate_status_table({}),
@@ -102,10 +108,11 @@ def spin_on_tracker(tracker, manifest):
 
     if all(s == "DONE" for s in status_dict.values()):
         console.print("\n[bold green]All manifest items processed[/]")
+        return True
     else:
         num_failed = sum(s == "FAILED" for s in status_dict.values())
         console.print(f"\n[bold red]{num_failed} manifest items failed[/]")
-    return status_dict
+        return False
 
 
 def run():
@@ -159,14 +166,14 @@ def run():
                     processed_dir=processed_dir,
                     args=pipeline_args,
                     download_only=args.download_only,
-                    parallel=True,
                 )
                 for _ in range(args.cores)
             ]
         )
         run_pool_in_background.remote(actor_pool, list(manifest.itertuples()))
         # 3. Spin until completed
-        spin_on_tracker(tracker, manifest)
+        if not spin_on_tracker(tracker, manifest):
+            sys.exit(1)
     else:
         # Single run
         manifest_item = manifest.loc[args.single]
