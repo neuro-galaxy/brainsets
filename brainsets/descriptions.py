@@ -25,10 +25,15 @@ class BrainsetDescription(temporaldata.Data):
         Original data source (usually a URL, or a short description otherwise)
     description : str
         Text description of the brainset
+    publication_list : list[str]
+        List of references to publication associated with the dataset
+    subject_list : list[str]
+        List of subjects in the dataset
     brainsets_version : str, optional
         Version of brainsets package used, defaults to current version
     temporaldata_version : str, optional
         Version of temporaldata package used, defaults to current version
+
     """
 
     id: str
@@ -36,6 +41,8 @@ class BrainsetDescription(temporaldata.Data):
     derived_version: str
     source: str
     description: str
+    publication_list: list[str]
+    subject_list: list[str]
     brainsets_version: str = brainsets.__version__
     temporaldata_version: str = temporaldata.__version__
 
