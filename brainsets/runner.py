@@ -79,7 +79,7 @@ def run_parallel(
     raw_dir: Path,
     processed_dir: Path,
     num_jobs: int,
-    extra_args: Namespace,
+    pipeline_args: Namespace,
 ):
     # Start ray
     os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"  # to avoid a warning
@@ -96,7 +96,7 @@ def run_parallel(
                 tracker_handle=tracker,
                 raw_dir=raw_dir,
                 processed_dir=processed_dir,
-                args=extra_args,
+                args=pipeline_args,
             )
             for _ in range(num_jobs)
         ]
@@ -158,7 +158,7 @@ def run(pipeline_cls: Type[BrainsetPipeline], args=None):
             raw_dir=raw_dir,
             processed_dir=processed_dir,
             num_jobs=args.cores,
-            extra_args=pipeline_args,
+            pipeline_args=pipeline_args,
         )
     else:
         manifest_item = manifest.loc[args.single]
