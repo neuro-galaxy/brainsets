@@ -95,7 +95,7 @@ class BrainsetPipeline(ABC):
         processed_dir: Path,
         args: Optional[Namespace],
     ):
-        self.tracker_handle = tracker_handle
+        self._tracker_handle = tracker_handle
         self.raw_dir = raw_dir
         self.processed_dir = processed_dir
         self.args = args
@@ -153,8 +153,8 @@ class BrainsetPipeline(ABC):
         Update the current status of the pipeline for a given asset.
         This will be shown 
         """
-        if self.tracker_handle is None:
+        if self._tracker_handle is None:
             from brainsets.runner import get_style  # avoids circular import
             Console().print(f"[bold]Status:[/] [{get_style(status)}]{status}[/]")
         else:
-            self.tracker_handle.update_status.remote(self._asset_id, status)
+            self._tracker_handle.update_status.remote(self._asset_id, status)
