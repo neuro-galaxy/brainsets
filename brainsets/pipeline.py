@@ -85,11 +85,13 @@ class BrainsetPipeline(ABC):
         processed_dir: Path,
         args: Optional[Namespace],
         tracker_handle: Optional[ray.actor.ActorHandle] = None,
+        download_only: bool = False,
     ):
         self.raw_dir = raw_dir
         self.processed_dir = processed_dir
         self.args = args
         self._tracker_handle = tracker_handle
+        self._download_only = download_only
 
     @classmethod
     @abstractmethod
@@ -159,7 +161,8 @@ class BrainsetPipeline(ABC):
         self._asset_id = manifest_item.Index
         try:
             output = self.download(manifest_item)
-            self.process(output)
+            if not self._download_only:
+                self.process(output)
             self.update_status("DONE")
         except:
             self.update_status("FAILED")

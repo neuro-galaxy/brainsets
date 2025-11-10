@@ -85,36 +85,7 @@ def run_pool_in_background(actor_pool: ActorPool, work_items: List[Any]):
         pass
 
 
-def run_parallel(
-    pipeline_cls: Type[BrainsetPipeline],
-    manifest: pd.DataFrame,
-    raw_dir: Path,
-    processed_dir: Path,
-    num_jobs: int,
-    pipeline_args: Namespace,
-):
-    # Start ray
-    os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"  # to avoid a warning
-    ray.init("local", num_cpus=num_jobs, log_to_driver=False)
-
-    # Start tracker
-    tracker = StatusTracker.remote()
-
-    # Start actors
-    actor_cls: ray.actor.ActorClass = ray.remote(pipeline_cls)
-    actor_pool = ActorPool(
-        [
-            actor_cls.remote(
-                tracker_handle=tracker,
-                raw_dir=raw_dir,
-                processed_dir=processed_dir,
-                args=pipeline_args,
-            )
-            for _ in range(num_jobs)
-        ]
-    )
-    run_pool_in_background.remote(actor_pool, list(manifest.itertuples()))
-
+def spin_on_tracker(tracker, manifest):
     # Keep spinning until all manifest_items are DONE or FAILED
     # Show status on terminal
     console = Console()
@@ -141,6 +112,7 @@ def run_parallel(
     else:
         num_failed = sum(s == "FAILED" for s in status_dict.values())
         console.print(f"\n[bold red]{num_failed} manifest items failed[/]")
+    return status_dict
 
 
 def run():
@@ -151,6 +123,7 @@ def run():
     parser.add_argument("-s", "--single", default=None, type=str)
     parser.add_argument("-c", "--cores", default=4, type=int)
     parser.add_argument("--list", action="store_true", help="List manifest and exit")
+    parser.add_argument("--download-only", action="store_true", help="Download raw data and exit")
     args, remaining_args = parser.parse_known_args()
 
     pipeline_cls = import_pipeline_from_file(args.pipeline_file)
@@ -176,21 +149,37 @@ def run():
         sys.exit(0)
 
     if args.single is None:
-        run_parallel(
-            pipeline_cls=pipeline_cls,
-            manifest=manifest,
-            raw_dir=raw_dir,
-            processed_dir=processed_dir,
-            num_jobs=args.cores,
-            pipeline_args=pipeline_args,
+        # Parallel run
+        # 1. Start ray
+        os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"  # to avoid a warning
+        ray.init("local", num_cpus=args.cores, log_to_driver=False)
+        # 2. Start tracker and actors
+        tracker = StatusTracker.remote()
+        actor_cls = ray.remote(pipeline_cls)
+        actor_pool = ActorPool(
+            [
+                actor_cls.remote(
+                    tracker_handle=tracker,
+                    raw_dir=raw_dir,
+                    processed_dir=processed_dir,
+                    args=pipeline_args,
+                    download_only=args.download_only
+                )
+                for _ in range(args.cores)
+            ]
         )
+        run_pool_in_background.remote(actor_pool, list(manifest.itertuples()))
+        # 3. Spin until completed
+        spin_on_tracker(tracker, manifest)
     else:
+        # Single run
         manifest_item = manifest.loc[args.single]
         manifest_item.Index = args.single
         pipeline = pipeline_cls(
             raw_dir=raw_dir,
             processed_dir=processed_dir,
             args=pipeline_args,
+            download_only=args.download_only,
         )
         pipeline._run_item(manifest_item)
 
