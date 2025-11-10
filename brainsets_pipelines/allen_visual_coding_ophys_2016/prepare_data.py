@@ -1,43 +1,255 @@
 import argparse
-import h5py
 import logging
 import os
+from argparse import ArgumentParser, Namespace
+from pathlib import Path
+from typing import Optional
 
+import h5py
 import numpy as np
 import pandas as pd
-
 from allensdk.core.brain_observatory_cache import BrainObservatoryCache
 from allensdk.core.brain_observatory_nwb_data_set import (
-    NoEyeTrackingException,
     EpochSeparationException,
+    NoEyeTrackingException,
+)
+from temporaldata import (
+    ArrayDict,
+    Data,
+    Interval,
+    IrregularTimeSeries,
+    RegularTimeSeries,
 )
 
-from temporaldata import (
-    Data,
-    RegularTimeSeries,
-    IrregularTimeSeries,
-    Interval,
-    ArrayDict,
-)
+from brainsets import serialize_fn_map
 from brainsets.descriptions import (
     BrainsetDescription,
+    DeviceDescription,
     SessionDescription,
     SubjectDescription,
-    DeviceDescription,
 )
-from brainsets.taxonomy import Species, Sex, Cre_line, RecordingTech
-from brainsets.taxonomy.mice import BrainRegion
+from brainsets.pipeline import BrainsetPipeline
+from brainsets.taxonomy import Cre_line, RecordingTech, Sex, Species
 from brainsets.taxonomy.allen import (
-    TEMPORAL_FREQ_5_map,
-    SPATIAL_FREQ_5_map,
-    ORIENTATION_12_CLASSES_map,
     ORIENTATION_8_CLASSES_map,
+    ORIENTATION_12_CLASSES_map,
     PHASE_4_map,
+    SPATIAL_FREQ_5_map,
+    TEMPORAL_FREQ_5_map,
 )
-from brainsets import serialize_fn_map
+from brainsets.taxonomy.mice import BrainRegion
 from brainsets.utils.split import generate_train_valid_test_splits
 
 logging.basicConfig(level=logging.INFO)
+
+parser = ArgumentParser()
+parser.add_argument("--redownload", action="store_true")
+parser.add_argument("--reprocess", action="store_true")
+
+
+class Pipeline(BrainsetPipeline):
+    brainset_id = "allen_visual_coding_ophys_2016"
+    parser = parser
+
+    @classmethod
+    def get_manifest(
+        cls,
+        raw_dir: Path,
+        args: Optional[Namespace],
+    ) -> pd.DataFrame:
+
+        pipeline_dir = Path(__file__).resolve().parent
+        with open(pipeline_dir / "session_ids.txt") as fh:
+            manifest_list = [
+                {"id": line.strip(), "session_id": line.strip()} for line in fh
+            ]
+        manifest = pd.DataFrame(manifest_list).set_index("id")
+
+        raw_dir = raw_dir / "ophys_experiment_data"
+        raw_dir.mkdir(exist_ok=True, parents=True)
+        boc_manifest_path = os.path.join(raw_dir, "manifest.json")
+        BrainObservatoryCache(manifest_file=boc_manifest_path)
+        return manifest
+
+    def download(self, manifest_item):
+        self.update_status("DOWNLOADING")
+        raw_dir = self.raw_dir / "ophys_experiment_data"
+        raw_dir.mkdir(exist_ok=True, parents=True)
+        boc_manifest_path = os.path.join(raw_dir, "manifest.json")
+        boc = BrainObservatoryCache(manifest_file=boc_manifest_path)
+
+        truncated_file = True
+        session_id = manifest_item.get("session_id")
+
+        # TODO change the file extension
+        fpath = os.path.join(raw_dir, f"{session_id}.nwb")
+
+        while truncated_file:
+            try:
+                exp = boc.get_ophys_experiment_data(
+                    file_name=fpath, ophys_experiment_id=int(session_id)
+                )
+                truncated_file = False
+            except OSError:
+                os.remove(
+                    os.path.join(raw_dir, f"ophys_experiment_data/{session_id}.nwb")
+                )
+                print(" Truncated file, re-downloading")
+
+        return fpath
+
+    def process(self, fpath):
+        processed_dir = self.processed_dir
+        processed_dir.mkdir(exist_ok=True, parents=True)
+
+        brainset_description = BrainsetDescription(
+            id="allen_visual_coding_ophys_2016",
+            origin_version="unknown",
+            derived_version="1.0.0",
+            source="https://observatory.brain-map.org/visualcoding/",
+            description="This dataset includes all experiments from "
+            "Allen Institute Brain Observatory.",
+        )
+
+        # get nwbfile
+        self.update_status("Loading NWB")
+        manifest_path = os.path.join(os.path.dirname(fpath), "manifest.json")
+        boc = BrainObservatoryCache(manifest_file=manifest_path)
+        session_id = int(fpath[-13:-4])
+        nwbfile = boc.get_ophys_experiment_data(
+            ophys_experiment_id=session_id, file_name=fpath
+        )
+
+        store_path = processed_dir / f"{session_id}.h5"
+        if store_path.exists() and not self.args.reprocess:
+            self.update_status("Skipped Processing")
+            return
+
+        # extract subject metadata
+        self.update_status("Extracting Metadata")
+        session_meta_data = nwbfile.get_metadata()
+        subject = SubjectDescription(
+            id=str(session_meta_data["experiment_container_id"]),
+            species=Species.MUS_MUSCULUS,
+            age=session_meta_data["age_days"],
+            sex=Sex.from_string(session_meta_data["sex"]),
+            cre_line=Cre_line.from_string(
+                session_meta_data["cre_line"].replace("-", "_").split("/")[0]
+            ),
+        )
+
+        # extract experiment metadata
+        recording_date = session_meta_data["session_start_time"]
+        session_type = session_meta_data["session_type"]
+
+        # register session
+        session_description = SessionDescription(
+            id=str(session_id),
+            recording_date=recording_date,
+        )
+
+        device_description = DeviceDescription(
+            id=str(session_id),
+            recording_tech=RecordingTech.TWO_PHOTON_IMAGING,
+            imaging_depth=session_meta_data["imaging_depth_um"],
+            target_area=BrainRegion.from_string(
+                session_meta_data["targeted_structure"]
+            ),
+        )
+
+        # extract calcium traces
+        calcium_traces = extract_calcium_traces(nwbfile)
+        units = extract_units(nwbfile)
+
+        # extract stimulus and behavior data
+        stimuli_and_behavior_dict = {
+            "running": extract_running_speed(nwbfile),
+        }
+
+        pupil = extract_pupil_info(nwbfile)
+        if pupil is not None:
+            stimuli_and_behavior_dict["pupil"] = pupil
+
+        epoch_dict = extract_stimulus_epochs(nwbfile)
+        if epoch_dict is None:
+            # allensdk bug; skip this session
+            #
+            logging.warn(f"Skipping session {session_id} due to allensdk bug.")
+            with open("./bad_sessions.txt", "a") as f:
+                f.write(f"{session_id}\n")
+                f.write("\n")
+            return
+
+        # three different types of sessions contain different stimuli
+        if session_type == "three_session_A":
+            stimuli_and_behavior_dict["drifting_gratings"] = extract_drifting_gratings(
+                nwbfile
+            )
+            stimuli_and_behavior_dict["natural_movie_one"] = extract_natural_movie_one(
+                nwbfile
+            )
+            stimuli_and_behavior_dict["natural_movie_three"] = (
+                extract_natural_movie_three(nwbfile)
+            )
+
+        elif session_type == "three_session_B":
+            stimuli_and_behavior_dict["natural_movie_one"] = extract_natural_movie_one(
+                nwbfile
+            )
+            stimuli_and_behavior_dict["natural_scenes"] = extract_natural_scenes(
+                nwbfile
+            )
+            stimuli_and_behavior_dict["static_gratings"] = extract_static_grating(
+                nwbfile
+            )
+
+        elif session_type == "three_session_C" or session_type == "three_session_C2":
+            stimuli_and_behavior_dict["natural_movie_one"] = extract_natural_movie_one(
+                nwbfile
+            )
+            stimuli_and_behavior_dict["natural_movie_two"] = extract_natural_movie_two(
+                nwbfile
+            )
+            stimuli_and_behavior_dict["locally_sparse_noise"] = (
+                extract_locally_sparse_noise(nwbfile, session_type=session_type)
+            )
+
+        else:
+            raise ValueError("Unidentified session type.")
+
+        data = Data(
+            brainset=brainset_description,
+            subject=subject,
+            session=session_description,
+            device=device_description,
+            # neural activity
+            calcium_traces=calcium_traces,
+            units=units,
+            # stimuli and behavior
+            **stimuli_and_behavior_dict,
+            # domain
+            domain=calcium_traces.domain,
+            **epoch_dict,
+        )
+
+        # make grid along which splits will be allowed
+        grid = Interval(np.array([]), np.array([]))
+        for name, interval in stimuli_and_behavior_dict.items():
+            if name != "running" and isinstance(interval, Interval):
+                grid = grid | interval
+
+        train_intervals, valid_intervals, test_intervals = (
+            generate_train_valid_test_splits(epoch_dict, grid)
+        )
+
+        data.set_train_domain(train_intervals)
+        data.set_valid_domain(valid_intervals)
+        data.set_test_domain(test_intervals)
+
+        # save data to disk
+        path = os.path.join(processed_dir, f"{session_id}.h5")
+        with h5py.File(path, "w") as file:
+            data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
 
 
 def extract_calcium_traces(nwbfile):
@@ -207,7 +419,6 @@ def extract_natural_movie_two(nwbfile):
         :, ["start", "end", "frame", "repeat"]
     ]
 
-    print(natural_movie_two_df)
     natural_movie_two = Interval.from_dataframe(natural_movie_two_df)
     natural_movie_two.timestamps = (natural_movie_two.start + natural_movie_two.end) / 2
     natural_movie_two.register_timekey("timestamps")
@@ -365,154 +576,3 @@ def extract_stimulus_epochs(nwbfile):
     #     epoch.allow_split_mask_overlap()
 
     return epoch_dict
-
-
-def main():
-    # use argparse to get arguments from the command line
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input_file", type=str)
-    parser.add_argument("--output_dir", type=str, default="./processed")
-
-    args = parser.parse_args()
-
-    brainset_description = BrainsetDescription(
-        id="allen_visual_coding_ophys_2016",
-        origin_version="unknown",
-        derived_version="1.0.0",
-        source="https://observatory.brain-map.org/visualcoding/",
-        description="This dataset includes all experiments from "
-        "Allen Institute Brain Observatory.",
-    )
-
-    logging.info(f"Processing file: {args.input_file}")
-
-    # get nwbfile
-    manifest_path = os.path.join(os.path.dirname(args.input_file), "manifest.json")
-    boc = BrainObservatoryCache(manifest_file=manifest_path)
-    session_id = int(args.input_file[-13:-4])
-    nwbfile = boc.get_ophys_experiment_data(
-        ophys_experiment_id=session_id, file_name=args.input_file
-    )
-
-    # extract subject metadata
-    session_meta_data = nwbfile.get_metadata()
-    subject = SubjectDescription(
-        id=str(session_meta_data["experiment_container_id"]),
-        species=Species.MUS_MUSCULUS,
-        age=session_meta_data["age_days"],
-        sex=Sex.from_string(session_meta_data["sex"]),
-        cre_line=Cre_line.from_string(
-            session_meta_data["cre_line"].replace("-", "_").split("/")[0]
-        ),
-    )
-
-    # extract experiment metadata
-    recording_date = session_meta_data["session_start_time"]
-    session_type = session_meta_data["session_type"]
-
-    # register session
-    session_description = SessionDescription(
-        id=str(session_id),
-        recording_date=recording_date,
-    )
-
-    device_description = DeviceDescription(
-        id=str(session_id),
-        recording_tech=RecordingTech.TWO_PHOTON_IMAGING,
-        imaging_depth=session_meta_data["imaging_depth_um"],
-        target_area=BrainRegion.from_string(session_meta_data["targeted_structure"]),
-    )
-
-    # extract calcium traces
-    calcium_traces = extract_calcium_traces(nwbfile)
-    units = extract_units(nwbfile)
-
-    # extract stimulus and behavior data
-    stimuli_and_behavior_dict = {
-        "running": extract_running_speed(nwbfile),
-    }
-
-    pupil = extract_pupil_info(nwbfile)
-    if pupil is not None:
-        stimuli_and_behavior_dict["pupil"] = pupil
-
-    epoch_dict = extract_stimulus_epochs(nwbfile)
-    if epoch_dict is None:
-        # allensdk bug; skip this session
-        #
-        logging.warn(f"Skipping session {session_id} due to allensdk bug.")
-        with open("./bad_sessions.txt", "a") as f:
-            f.write(f"{session_id}\n")
-            f.write("\n")
-        return
-
-    # three different types of sessions contain different stimuli
-    if session_type == "three_session_A":
-        stimuli_and_behavior_dict["drifting_gratings"] = extract_drifting_gratings(
-            nwbfile
-        )
-        stimuli_and_behavior_dict["natural_movie_one"] = extract_natural_movie_one(
-            nwbfile
-        )
-        stimuli_and_behavior_dict["natural_movie_three"] = extract_natural_movie_three(
-            nwbfile
-        )
-
-    elif session_type == "three_session_B":
-        stimuli_and_behavior_dict["natural_movie_one"] = extract_natural_movie_one(
-            nwbfile
-        )
-        stimuli_and_behavior_dict["natural_scenes"] = extract_natural_scenes(nwbfile)
-        stimuli_and_behavior_dict["static_gratings"] = extract_static_grating(nwbfile)
-
-    elif session_type == "three_session_C" or session_type == "three_session_C2":
-        stimuli_and_behavior_dict["natural_movie_one"] = extract_natural_movie_one(
-            nwbfile
-        )
-        stimuli_and_behavior_dict["natural_movie_two"] = extract_natural_movie_two(
-            nwbfile
-        )
-        stimuli_and_behavior_dict["locally_sparse_noise"] = (
-            extract_locally_sparse_noise(nwbfile, session_type=session_type)
-        )
-
-    else:
-        raise ValueError("Unidentified session type.")
-
-    data = Data(
-        brainset=brainset_description,
-        subject=subject,
-        session=session_description,
-        device=device_description,
-        # neural activity
-        calcium_traces=calcium_traces,
-        units=units,
-        # stimuli and behavior
-        **stimuli_and_behavior_dict,
-        # domain
-        domain=calcium_traces.domain,
-        **epoch_dict,
-    )
-
-    # make grid along which splits will be allowed
-    grid = Interval(np.array([]), np.array([]))
-    for name, interval in stimuli_and_behavior_dict.items():
-        if name != "running" and isinstance(interval, Interval):
-            grid = grid | interval
-
-    train_intervals, valid_intervals, test_intervals = generate_train_valid_test_splits(
-        epoch_dict, grid
-    )
-
-    data.set_train_domain(train_intervals)
-    data.set_valid_domain(valid_intervals)
-    data.set_test_domain(test_intervals)
-
-    # save data to disk
-    path = os.path.join(args.output_dir, f"{session_id}.h5")
-    with h5py.File(path, "w") as file:
-        data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
-
-
-if __name__ == "__main__":
-    main()
