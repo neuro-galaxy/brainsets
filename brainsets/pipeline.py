@@ -160,13 +160,16 @@ class BrainsetPipeline(ABC):
         Console().print(f"[bold][Status][/] [{get_style(status)}]{status}[/]")
 
     def _run_item(self, manifest_item):
+        """Run download and process for a manifest item."""
+        self._asset_id = manifest_item.Index
         output = self.download(manifest_item)
         if not self._download_only:
             self.process(output)
+        self.update_status("DONE")
 
     def _run_item_on_parallel_worker(self, manifest_item):
+        """Run item in parallel worker, capturing logs and status."""
         self._asset_id = manifest_item.Index
-
         log_dir = self.processed_dir / "pipeline_logs"
         log_dir.mkdir(exist_ok=True, parents=True)
         log_out_path = log_dir / f"{self._asset_id}.out"
@@ -175,7 +178,6 @@ class BrainsetPipeline(ABC):
         with redirect_stdio(log_out_path, log_err_path):
             try:
                 self._run_item(manifest_item)
-                self.update_status("DONE")
             except:
                 self.update_status("FAILED")
 
