@@ -45,6 +45,8 @@ jobs:
 
 
     - name: Download allen_visual_coding_ophys_2016
+      if: matrix.python-version <= '3.11'  
+      # allen SDK needs numpy < 1.24, which is not compatible with python3.12+
       run: |
         uv run brainsets config --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare allen_visual_coding_ophys_2016 -s 717913184
