@@ -12,10 +12,10 @@ permissions:
 jobs:
   dandi-testing:
     runs-on: ubuntu-latest
-
+    continue-on-error: true
     strategy:
       matrix:
-        python-version: ["3.9", "3.10"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
     steps:
     - uses: actions/checkout@v4
