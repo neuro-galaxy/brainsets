@@ -15,7 +15,7 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.9", "3.10"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
     steps:
     - uses: actions/checkout@v4
@@ -33,7 +33,7 @@ jobs:
     - name: Install the project
       run: uv sync --all-extras
 
-    - name: Download NLB maze dataset
+    - name: Download pei_pandarinath_nlb_2021
       run: |
         uv run brainsets config --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare pei_pandarinath_nlb_2021
@@ -45,6 +45,8 @@ jobs:
 
 
     - name: Download allen_visual_coding_ophys_2016
+      if: matrix.python-version <= '3.11'  
+      # allen SDK needs numpy < 1.24, which is not compatible with python3.12+
       run: |
         uv run brainsets config --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare allen_visual_coding_ophys_2016 -s 717913184
@@ -55,6 +57,8 @@ jobs:
         uv run brainsets prepare churchland_shenoy_neural_2012 -s jenkins_20090912
 
     - name: Download flint_slutzky_accurate_2012
+      if: matrix.python-version <= '3.11'  
+      # uses scipy==1.10.1 which won't work with 3.12+
       run: |
         uv run brainsets config --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare flint_slutzky_accurate_2012 -s flint_2012_e1
