@@ -96,8 +96,9 @@ def prepare(
                 f"Run 'brainsets list' to get the available list of brainsets."
             )
         # Find snakefile
-        prepare_filepath = PIPELINES_PATH / brainset / "prepare_data.py"
-        reqs_filepath = PIPELINES_PATH / brainset / "requirements.txt"
+        pipeline_dir = PIPELINES_PATH / brainset
+        prepare_filepath = pipeline_dir / "prepare_data.py"
+        reqs_filepath = pipeline_dir / "requirements.txt"
 
         click.echo(f"Preparing {brainset}...")
     else:
@@ -142,6 +143,8 @@ def prepare(
                 "run",
                 "--with-requirements",
                 str(reqs_filepath),
+                "--directory",
+                str(pipeline_dir),
                 "--isolated",
                 "--no-project",
             ]
