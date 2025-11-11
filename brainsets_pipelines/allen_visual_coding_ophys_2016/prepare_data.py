@@ -166,13 +166,13 @@ class Pipeline(BrainsetPipeline):
         stimuli_and_behavior_dict = {}
         if not self.args.skip_behavior:
             self.update_status("Extracting Behavior")
-            behavior_dict = self._extract_behavior(nwb_dataset)
+            behavior_dict = extract_behavior(nwb_dataset)
             if behavior_dict:
                 stimuli_and_behavior_dict.update(behavior_dict)
 
         if not self.args.skip_stimuli:
             self.update_status("Extracting Stimuli")
-            stimuli_dict = self._extract_stimuli(nwb_dataset, session_type)
+            stimuli_dict = extract_stimuli(nwb_dataset, session_type)
             if stimuli_dict:
                 stimuli_and_behavior_dict.update(stimuli_dict)
 
@@ -211,40 +211,40 @@ class Pipeline(BrainsetPipeline):
         with h5py.File(store_path, "w") as file:
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
 
-    def _extract_behavior(self, nwb_dataset: BrainObservatoryNwbDataSet):
-        behavior_dict = {}
 
-        behavior_dict["running"] = extract_running_speed(nwb_dataset)
+def extract_behavior(nwb_dataset: BrainObservatoryNwbDataSet):
+    behavior_dict = {}
 
-        pupil = extract_pupil_info(nwb_dataset)
-        if pupil is not None:
-            behavior_dict["pupil"] = pupil
+    behavior_dict["running"] = extract_running_speed(nwb_dataset)
 
-        return behavior_dict
+    pupil = extract_pupil_info(nwb_dataset)
+    if pupil is not None:
+        behavior_dict["pupil"] = pupil
 
-    def _extract_stimuli(self, nwb_dataset, session_type):
-        # three different types of sessions contain different stimuli
-        stimuli_dict = {}
-        if session_type == "three_session_A":
-            stimuli_dict["drifting_gratings"] = extract_drifting_gratings(nwb_dataset)
-            stimuli_dict["natural_movie_one"] = extract_natural_movie_one(nwb_dataset)
-            stimuli_dict["natural_movie_three"] = extract_natural_movie_three(
-                nwb_dataset
-            )
-        elif session_type == "three_session_B":
-            stimuli_dict["natural_movie_one"] = extract_natural_movie_one(nwb_dataset)
-            stimuli_dict["natural_scenes"] = extract_natural_scenes(nwb_dataset)
-            stimuli_dict["static_gratings"] = extract_static_grating(nwb_dataset)
-        elif session_type == "three_session_C" or session_type == "three_session_C2":
-            stimuli_dict["natural_movie_one"] = extract_natural_movie_one(nwb_dataset)
-            stimuli_dict["natural_movie_two"] = extract_natural_movie_two(nwb_dataset)
-            stimuli_dict["locally_sparse_noise"] = extract_locally_sparse_noise(
-                nwb_dataset, session_type=session_type
-            )
-        else:
-            raise ValueError("Unidentified session type.")
+    return behavior_dict
 
-        return stimuli_dict
+
+def extract_stimuli(nwb_dataset, session_type):
+    # three different types of sessions contain different stimuli
+    stimuli_dict = {}
+    if session_type == "three_session_A":
+        stimuli_dict["drifting_gratings"] = extract_drifting_gratings(nwb_dataset)
+        stimuli_dict["natural_movie_one"] = extract_natural_movie_one(nwb_dataset)
+        stimuli_dict["natural_movie_three"] = extract_natural_movie_three(nwb_dataset)
+    elif session_type == "three_session_B":
+        stimuli_dict["natural_movie_one"] = extract_natural_movie_one(nwb_dataset)
+        stimuli_dict["natural_scenes"] = extract_natural_scenes(nwb_dataset)
+        stimuli_dict["static_gratings"] = extract_static_grating(nwb_dataset)
+    elif session_type == "three_session_C" or session_type == "three_session_C2":
+        stimuli_dict["natural_movie_one"] = extract_natural_movie_one(nwb_dataset)
+        stimuli_dict["natural_movie_two"] = extract_natural_movie_two(nwb_dataset)
+        stimuli_dict["locally_sparse_noise"] = extract_locally_sparse_noise(
+            nwb_dataset, session_type=session_type
+        )
+    else:
+        raise ValueError("Unidentified session type.")
+
+    return stimuli_dict
 
 
 def extract_calcium_traces(nwbfile):
