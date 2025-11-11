@@ -151,10 +151,17 @@ def prepare(
 
             has_brainsets = _brainsets_in_requirements(reqs_filepath)
             if not has_brainsets:
-                click.echo("WARNING: Brainsets version not specified by pipeline.")
                 brainsets_spec = _determine_brainsets_spec()
+                click.echo("WARNING: Brainsets version not specified by pipeline.")
                 click.echo(f"         Detected installation from {brainsets_spec}")
-                uv_prefix_command.extend(["--with", brainsets_spec])
+                if brainsets_spec.startswith("file://"):
+                    # UV can be weird about caching local packages
+                    # So, if we want to recreate a local version of the package,
+                    # it is safer to do so in editable mode, which does not go
+                    # through UV's caching.
+                    uv_prefix_command.extend(["--with-editable", brainsets_spec])
+                else:
+                    uv_prefix_command.extend(["--with", brainsets_spec])
 
             if verbose:
                 uv_prefix_command.append("--verbose")
