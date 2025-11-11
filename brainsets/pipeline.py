@@ -7,6 +7,7 @@ import ray.actor
 import pandas as pd
 from rich.console import Console
 from contextlib import contextmanager
+import traceback
 
 
 class BrainsetPipeline(ABC):
@@ -178,7 +179,8 @@ class BrainsetPipeline(ABC):
         with redirect_stdio(log_out_path, log_err_path):
             try:
                 self._run_item(manifest_item)
-            except:
+            except Exception:
+                traceback.print_exc(file=sys.stderr)
                 self.update_status("FAILED")
 
 
