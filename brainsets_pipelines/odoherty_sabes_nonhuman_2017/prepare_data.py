@@ -100,11 +100,17 @@ class Pipeline(BrainsetPipeline):
         # download file
         exit_code = os.system(f'wget -O "{fpath}" "{manifest_item.url}"')
         if exit_code != 0:
+            logging.error(
+                f"Failed to download {manifest_item.url} with exit code {exit_code}"
+            )
+            self.update_status("Failed Download")
             raise RuntimeError(f"Failed to download {manifest_item.url}")
 
         # verify md5sum
         md5 = hashlib.md5(fpath.read_bytes()).hexdigest()
         if md5 != manifest_item.md5:
+            logging.error(f"MD5 mismatch for {fpath}: {md5} != {manifest_item.md5}")
+            self.update_status("Failed Download Verification")
             raise ValueError(f"MD5 mismatch for {fpath}: {md5} != {manifest_item.md5}")
         return fpath
 
@@ -188,6 +194,7 @@ class Pipeline(BrainsetPipeline):
             domain=cursor.domain,
         )
 
+        self.update_status("Creating splits")
         train_sampling_intervals, valid_sampling_intervals, test_sampling_intervals = (
             split_intervals(data)
         )
@@ -197,7 +204,7 @@ class Pipeline(BrainsetPipeline):
         data.set_test_domain(test_sampling_intervals)
 
         # save data to disk
-        self.update_status("Saving")
+        self.update_status("Storing")
         path = processed_dir / f"{session_id}.h5"
         with h5py.File(str(path), "w") as file:
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
