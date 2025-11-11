@@ -8,7 +8,10 @@ from typing import Optional
 import h5py
 import numpy as np
 import pandas as pd
-from allensdk.core.brain_observatory_cache import BrainObservatoryCache
+from allensdk.core.brain_observatory_cache import (
+    BrainObservatoryCache,
+    BrainObservatoryNwbDataSet,
+)
 from allensdk.core.brain_observatory_nwb_data_set import (
     EpochSeparationException,
     NoEyeTrackingException,
@@ -45,6 +48,8 @@ logging.basicConfig(level=logging.INFO)
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
 parser.add_argument("--reprocess", action="store_true")
+parser.add_argument("--skip-stimuli", action="store_true")
+parser.add_argument("--skip-behavior", action="store_true")
 
 
 class Pipeline(BrainsetPipeline):
@@ -52,12 +57,9 @@ class Pipeline(BrainsetPipeline):
     parser = parser
 
     @classmethod
-    def get_manifest(
-        cls,
-        raw_dir: Path,
-        args: Optional[Namespace],
-    ) -> pd.DataFrame:
+    def get_manifest(cls, raw_dir, args) -> pd.DataFrame:
 
+        # We have a precomputed list of "good" sessions that were used in POYO+.
         pipeline_dir = Path(__file__).resolve().parent
         with open(pipeline_dir / "session_ids.txt") as fh:
             manifest_list = [
@@ -65,42 +67,49 @@ class Pipeline(BrainsetPipeline):
             ]
         manifest = pd.DataFrame(manifest_list).set_index("id")
 
-        raw_dir = raw_dir / "ophys_experiment_data"
+        # But also create the BOC manifest, since we're on the
+        # root process right now.
         raw_dir.mkdir(exist_ok=True, parents=True)
-        boc_manifest_path = os.path.join(raw_dir, "manifest.json")
-        BrainObservatoryCache(manifest_file=boc_manifest_path)
+        BrainObservatoryCache(manifest_file=raw_dir / "manifest.json")
         return manifest
 
     def download(self, manifest_item):
         self.update_status("DOWNLOADING")
-        raw_dir = self.raw_dir / "ophys_experiment_data"
-        raw_dir.mkdir(exist_ok=True, parents=True)
-        boc_manifest_path = os.path.join(raw_dir, "manifest.json")
-        boc = BrainObservatoryCache(manifest_file=boc_manifest_path)
+        boc = BrainObservatoryCache(manifest_file=self.raw_dir / "manifest.json")
+
+        session_id = manifest_item.session_id
+
+        exp_data_dir = self.raw_dir / "ophys_experiment_data"
+        exp_data_dir.mkdir(exist_ok=True, parents=True)
+        nwb_path = exp_data_dir / f"{session_id}.nwb"
+
+        if nwb_path.exists() and self.args.redownload:
+            print(f"Found existing {nwb_path}. Deleted due to --redownload")
+            os.remove(nwb_path)
 
         truncated_file = True
-        session_id = manifest_item.get("session_id")
-
-        # TODO change the file extension
-        fpath = os.path.join(raw_dir, f"{session_id}.nwb")
-
         while truncated_file:
             try:
-                exp = boc.get_ophys_experiment_data(
-                    file_name=fpath, ophys_experiment_id=int(session_id)
+                nwb_dataset = boc.get_ophys_experiment_data(
+                    file_name=nwb_path,
+                    ophys_experiment_id=int(session_id),
                 )
                 truncated_file = False
             except OSError:
-                os.remove(
-                    os.path.join(raw_dir, f"ophys_experiment_data/{session_id}.nwb")
-                )
-                print(" Truncated file, re-downloading")
+                os.remove(nwb_path.resolve())
+                print("Truncated file, re-downloading")
 
-        return fpath
+        return nwb_dataset, session_id
 
-    def process(self, fpath):
-        processed_dir = self.processed_dir
-        processed_dir.mkdir(exist_ok=True, parents=True)
+    def process(self, download_output):
+        nwb_dataset, session_id = download_output
+
+        # See if you should skip processing
+        self.processed_dir.mkdir(exist_ok=True, parents=True)
+        store_path = self.processed_dir / f"{session_id}.h5"
+        if store_path.exists() and not self.args.reprocess:
+            self.update_status("Skipped Processing")
+            return
 
         brainset_description = BrainsetDescription(
             id="allen_visual_coding_ophys_2016",
@@ -111,23 +120,9 @@ class Pipeline(BrainsetPipeline):
             "Allen Institute Brain Observatory.",
         )
 
-        # get nwbfile
-        self.update_status("Loading NWB")
-        manifest_path = os.path.join(os.path.dirname(fpath), "manifest.json")
-        boc = BrainObservatoryCache(manifest_file=manifest_path)
-        session_id = int(fpath[-13:-4])
-        nwbfile = boc.get_ophys_experiment_data(
-            ophys_experiment_id=session_id, file_name=fpath
-        )
-
-        store_path = processed_dir / f"{session_id}.h5"
-        if store_path.exists() and not self.args.reprocess:
-            self.update_status("Skipped Processing")
-            return
-
-        # extract subject metadata
         self.update_status("Extracting Metadata")
-        session_meta_data = nwbfile.get_metadata()
+        # extract subject metadata
+        session_meta_data = nwb_dataset.get_metadata()
         subject = SubjectDescription(
             id=str(session_meta_data["experiment_container_id"]),
             species=Species.MUS_MUSCULUS,
@@ -158,64 +153,28 @@ class Pipeline(BrainsetPipeline):
         )
 
         # extract calcium traces
-        calcium_traces = extract_calcium_traces(nwbfile)
-        units = extract_units(nwbfile)
+        self.update_status("Extracting Calcium Traces")
+        calcium_traces = extract_calcium_traces(nwb_dataset)
+        units = extract_units(nwb_dataset)
 
-        # extract stimulus and behavior data
-        stimuli_and_behavior_dict = {
-            "running": extract_running_speed(nwbfile),
-        }
-
-        pupil = extract_pupil_info(nwbfile)
-        if pupil is not None:
-            stimuli_and_behavior_dict["pupil"] = pupil
-
-        epoch_dict = extract_stimulus_epochs(nwbfile)
+        epoch_dict = extract_stimulus_epochs(nwb_dataset)
         if epoch_dict is None:
             # allensdk bug; skip this session
-            #
-            logging.warn(f"Skipping session {session_id} due to allensdk bug.")
-            with open("./bad_sessions.txt", "a") as f:
-                f.write(f"{session_id}\n")
-                f.write("\n")
+            print(f"Skipping session {session_id} due to allensdk bug.")
             return
 
-        # three different types of sessions contain different stimuli
-        if session_type == "three_session_A":
-            stimuli_and_behavior_dict["drifting_gratings"] = extract_drifting_gratings(
-                nwbfile
-            )
-            stimuli_and_behavior_dict["natural_movie_one"] = extract_natural_movie_one(
-                nwbfile
-            )
-            stimuli_and_behavior_dict["natural_movie_three"] = (
-                extract_natural_movie_three(nwbfile)
-            )
+        stimuli_and_behavior_dict = {}
+        if not self.args.skip_behavior:
+            self.update_status("Extracting Behavior")
+            behavior_dict = self._extract_behavior(nwb_dataset)
+            if behavior_dict:
+                stimuli_and_behavior_dict.update(behavior_dict)
 
-        elif session_type == "three_session_B":
-            stimuli_and_behavior_dict["natural_movie_one"] = extract_natural_movie_one(
-                nwbfile
-            )
-            stimuli_and_behavior_dict["natural_scenes"] = extract_natural_scenes(
-                nwbfile
-            )
-            stimuli_and_behavior_dict["static_gratings"] = extract_static_grating(
-                nwbfile
-            )
-
-        elif session_type == "three_session_C" or session_type == "three_session_C2":
-            stimuli_and_behavior_dict["natural_movie_one"] = extract_natural_movie_one(
-                nwbfile
-            )
-            stimuli_and_behavior_dict["natural_movie_two"] = extract_natural_movie_two(
-                nwbfile
-            )
-            stimuli_and_behavior_dict["locally_sparse_noise"] = (
-                extract_locally_sparse_noise(nwbfile, session_type=session_type)
-            )
-
-        else:
-            raise ValueError("Unidentified session type.")
+        if not self.args.skip_stimuli:
+            self.update_status("Extracting Stimuli")
+            stimuli_dict = self._extract_stimuli(nwb_dataset, session_type)
+            if stimuli_dict:
+                stimuli_and_behavior_dict.update(stimuli_dict)
 
         data = Data(
             brainset=brainset_description,
@@ -232,6 +191,7 @@ class Pipeline(BrainsetPipeline):
             **epoch_dict,
         )
 
+        self.update_status("Creating splits")
         # make grid along which splits will be allowed
         grid = Interval(np.array([]), np.array([]))
         for name, interval in stimuli_and_behavior_dict.items():
@@ -247,9 +207,44 @@ class Pipeline(BrainsetPipeline):
         data.set_test_domain(test_intervals)
 
         # save data to disk
-        path = os.path.join(processed_dir, f"{session_id}.h5")
-        with h5py.File(path, "w") as file:
+        self.update_status("Storing")
+        with h5py.File(store_path, "w") as file:
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
+
+    def _extract_behavior(self, nwb_dataset: BrainObservatoryNwbDataSet):
+        behavior_dict = {}
+
+        behavior_dict["running"] = extract_running_speed(nwb_dataset)
+
+        pupil = extract_pupil_info(nwb_dataset)
+        if pupil is not None:
+            behavior_dict["pupil"] = pupil
+
+        return behavior_dict
+
+    def _extract_stimuli(self, nwb_dataset, session_type):
+        # three different types of sessions contain different stimuli
+        stimuli_dict = {}
+        if session_type == "three_session_A":
+            stimuli_dict["drifting_gratings"] = extract_drifting_gratings(nwb_dataset)
+            stimuli_dict["natural_movie_one"] = extract_natural_movie_one(nwb_dataset)
+            stimuli_dict["natural_movie_three"] = extract_natural_movie_three(
+                nwb_dataset
+            )
+        elif session_type == "three_session_B":
+            stimuli_dict["natural_movie_one"] = extract_natural_movie_one(nwb_dataset)
+            stimuli_dict["natural_scenes"] = extract_natural_scenes(nwb_dataset)
+            stimuli_dict["static_gratings"] = extract_static_grating(nwb_dataset)
+        elif session_type == "three_session_C" or session_type == "three_session_C2":
+            stimuli_dict["natural_movie_one"] = extract_natural_movie_one(nwb_dataset)
+            stimuli_dict["natural_movie_two"] = extract_natural_movie_two(nwb_dataset)
+            stimuli_dict["locally_sparse_noise"] = extract_locally_sparse_noise(
+                nwb_dataset, session_type=session_type
+            )
+        else:
+            raise ValueError("Unidentified session type.")
+
+        return stimuli_dict
 
 
 def extract_calcium_traces(nwbfile):
