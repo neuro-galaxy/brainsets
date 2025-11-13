@@ -21,8 +21,6 @@ from brainsets.descriptions import (
 from brainsets.taxonomy import RecordingTech, Sex, Species, Task
 from brainsets import serialize_fn_map
 
-from torch_brain.utils import speech
-
 logging.basicConfig(level=logging.INFO)
 
 # 20 ms bins
@@ -292,9 +290,20 @@ def main():
 
     subject = get_subject()  # Participant pseudonym
 
-    load_keys = ["sentenceText", "tx1", "blockIdx", "spikePow"]
-    mat_data = sio.loadmat(args.input_file, variable_names=load_keys)
-    num_train_trials = mat_data["tx1"].shape[1]
+    # load_keys = ["sentenceText", "tx1", "blockIdx", "spikePow"]
+    # mat_data = sio.loadmat(args.input_file, variable_names=load_keys)
+    # num_train_trials = mat_data["tx1"].shape[1]
+
+    # do the above but for h5py
+    mat_data = {}
+    with h5py.File(args.input_file, "r") as f:
+        for trial in f.keys():
+            mat_data[trial] = {}
+            for key in f[trial].keys():
+                mat_data[trial][key] = f[trial][key][:]
+            transcript_text = "".join(chr(c) for c in mat_data[trial]["transcription"])
+            logging.info(f"Loaded trial {trial} with transcription: {transcript_text}")
+    exit()
 
     # Also concatenate the data from the validation split. Note the validation
     # split is actually called test here.

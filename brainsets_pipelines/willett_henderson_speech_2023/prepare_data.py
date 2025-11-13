@@ -21,7 +21,7 @@ from brainsets.descriptions import (
 from brainsets.taxonomy import RecordingTech, Sex, Species, Task
 from brainsets import serialize_fn_map
 
-from torch_brain.utils import speech
+from brainsets.taxonomy import speech
 
 logging.basicConfig(level=logging.INFO)
 

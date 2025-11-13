@@ -1,11 +1,11 @@
-DATASET = "willett_henderson_speech_2023"
-REMOTE_URL = "https://datadryad.org/stash/downloads/file_stream/2547369"
+DATASET = "card_brandman_accurate_2025"
+REMOTE_URL = ""
 
 RAW_DIR = config["RAW_DIR"]
 PROCESSED_DIR = config["PROCESSED_DIR"]
 
 
-checkpoint willett_henderson_speech_2023_download_data:
+checkpoint card_brandman_accurate_2025_download_data:
     output:
         f"{RAW_DIR}/{DATASET}/manifest.txt"
     shell:
@@ -32,7 +32,7 @@ rule prepare_data:
         """
 
 def aggregate_input(wildcards):
-    with checkpoints.willett_henderson_speech_2023_download_data.get(**wildcards).output[0].open() as manifest:
+    with checkpoints.card_brandman_accurate_2025_download_data.get(**wildcards).output[0].open() as manifest:
         files = [line.strip() for line in manifest]
     return expand(f"{PROCESSED_DIR}/{DATASET}/tmp/{{file}}.txt", file=files)
 
