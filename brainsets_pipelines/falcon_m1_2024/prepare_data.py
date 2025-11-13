@@ -117,7 +117,6 @@ def extract_trials(nwbfile, emg):
 
     return trials
 
-
     # Removed sklearn-based split in favor of Interval.split
 
 
@@ -245,7 +244,9 @@ def main():
             f"Only {num_trials} trials available. Using all for training, none for validation/test."
         )
         train_trials = valid_trials
-        valid_trials_split = valid_trials.select_by_mask(np.zeros(num_trials, dtype=bool))
+        valid_trials_split = valid_trials.select_by_mask(
+            np.zeros(num_trials, dtype=bool)
+        )
         test_trials = valid_trials.select_by_mask(np.zeros(num_trials, dtype=bool))
     else:
         train_trials, valid_trials_split, test_trials = valid_trials.split(
