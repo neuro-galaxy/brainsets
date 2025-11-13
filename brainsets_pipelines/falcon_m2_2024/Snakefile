@@ -1,6 +1,6 @@
 ######################################################
 # Karpowicz & Ye (2024)
-# FALCON M2 (Monkey 2D Reaching)
+# FALCON M2 (Monkey 2D Finger Velocity)
 ######################################################
 
 DATASET = "falcon_m2"
@@ -16,7 +16,7 @@ checkpoint falcon_m2_download_data:
     shell:
         f"""
         mkdir -p {RAW_DIR}/{DATASET}
-        dandi download -o {RAW_DIR}/{DATASET} -e refresh DANDI:{DANDI_ID}/draft
+        dandi download --existing skip -o {RAW_DIR}/{DATASET} DANDI:{DANDI_ID}
         find {RAW_DIR}/{DATASET}/ -type f -name "*.nwb" | sed "s|^{RAW_DIR}/{DATASET}/||" | sed "s|^/*||" > {{output}}
         """
 

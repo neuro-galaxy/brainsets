@@ -6,10 +6,9 @@ import os
 
 import numpy as np
 from pynwb import NWBHDF5IO
-from sklearn.model_selection import train_test_split
 
 from temporaldata import (
-    Data, 
+    Data,
     IrregularTimeSeries,
     Interval,
     ArrayDict,
@@ -29,16 +28,21 @@ logging.basicConfig(level=logging.INFO)
 
 # FALCON M2 held-in/held-out split definition
 HELD_IN_SESSIONS = [
-    'Run1_20201019', 'Run2_20201019',
-    'Run1_20201020', 'Run2_20201020',
-    'Run1_20201027', 'Run2_20201027',
-    'Run1_20201028'
+    "Run1_20201019",
+    "Run2_20201019",
+    "Run1_20201020",
+    "Run2_20201020",
+    "Run1_20201027",
+    "Run2_20201027",
+    "Run1_20201028",
 ]
 HELD_OUT_SESSIONS = [
-    'Run1_20201030', 'Run2_20201030',
-    'Run1_20201118',
-    'Run1_20201119',
-    'Run1_20201124', 'Run2_20201124'
+    "Run1_20201030",
+    "Run2_20201030",
+    "Run1_20201118",
+    "Run1_20201119",
+    "Run1_20201124",
+    "Run2_20201124",
 ]
 
 
@@ -51,19 +55,19 @@ def parse_session_id_from_filename(filename):
     """
     basename = os.path.basename(filename)
 
-    if 'behavior+ecephys' in basename:  # DANDI public format
+    if "behavior+ecephys" in basename:  # DANDI public format
         # Extract from ses-2020-10-19-Run1
-        ses_part = basename.split('_ses-')[-1].split('_')[0]  # 2020-10-19-Run1
-        parts = ses_part.split('-')
+        ses_part = basename.split("_ses-")[-1].split("_")[0]  # 2020-10-19-Run1
+        parts = ses_part.split("-")
         run_str = parts[-1]  # Run1
-        date_str = ''.join(parts[:-1])  # 20201019
-        session_id = f'{run_str}_{date_str}'
+        date_str = "".join(parts[:-1])  # 20201019
+        session_id = f"{run_str}_{date_str}"
     else:  # Evaluation format
         # Extract from sub-MonkeyNRun1_20201019
-        parts = basename.split('_')
-        run_str = parts[0].split('MonkeyN')[-1]  # Run1
+        parts = basename.split("_")
+        run_str = parts[0].split("MonkeyN")[-1]  # Run1
         date_str = parts[1][:8]  # 20201019
-        session_id = f'{run_str}_{date_str}'
+        session_id = f"{run_str}_{date_str}"
 
     return session_id
 
@@ -72,19 +76,19 @@ def determine_split_type(filename):
     """Determine if file belongs to held-in, held-out, or minival split."""
     basename = os.path.basename(filename)
 
-    if 'minival' in basename:
-        return 'minival'
-    elif 'held_out' in basename or 'held-out' in basename:
-        return 'held_out'
-    elif 'held_in' in basename or 'held-in' in basename:
-        return 'held_in'
+    if "minival" in basename:
+        return "minival"
+    elif "held_out" in basename or "held-out" in basename:
+        return "held_out"
+    elif "held_in" in basename or "held-in" in basename:
+        return "held_in"
     else:
-        return 'unknown'
+        return "unknown"
 
 
 def extract_finger_velocity(nwbfile):
     """Extract 2D finger velocity from NWB file."""
-    vel_container = nwbfile.acquisition['finger_vel']
+    vel_container = nwbfile.acquisition["finger_vel"]
     labels = [ts for ts in vel_container.time_series]
 
     vel_data = []
@@ -112,8 +116,8 @@ def extract_trials(nwbfile, finger):
     # Rename columns to match temporaldata conventions
     trial_table = trial_table.rename(
         columns={
-            'start_time': 'start',
-            'stop_time': 'end',
+            "start_time": "start",
+            "stop_time": "end",
         }
     )
 
@@ -126,35 +130,7 @@ def extract_trials(nwbfile, finger):
     return trials
 
 
-def split_trials(trials, test_size=0.2, valid_size=0.1, random_state=42):
-    """Split trials into train, validation, and test sets.
-
-    If there are too few trials to split, returns all trials in train set.
-    """
-    num_trials = len(trials)
-
-    # Need at least 10 trials for a meaningful split
-    if num_trials < 10:
-        logging.warning(f"Only {num_trials} trials available. Using all for training, none for validation/test.")
-        empty_trials = trials.select_by_mask(np.zeros(num_trials, dtype=bool))
-        return trials, empty_trials, empty_trials
-
-    train_size = 1.0 - test_size - valid_size
-
-    train_valid_ids, test_ids = train_test_split(
-        np.arange(num_trials), test_size=test_size, random_state=random_state
-    )
-    train_ids, valid_ids = train_test_split(
-        train_valid_ids,
-        test_size=valid_size / (train_size + valid_size),
-        random_state=random_state,
-    )
-
-    train_trials = trials.select_by_mask(np.isin(np.arange(num_trials), train_ids))
-    valid_trials = trials.select_by_mask(np.isin(np.arange(num_trials), valid_ids))
-    test_trials = trials.select_by_mask(np.isin(np.arange(num_trials), test_ids))
-
-    return train_trials, valid_trials, test_trials
+    # Removed sklearn-based split in favor of Interval.split
 
 
 def main():
@@ -165,14 +141,14 @@ def main():
     args = parser.parse_args()
 
     brainset_description = BrainsetDescription(
-        id="falcon_m2",
+        id="falcon_m2_2024",
         origin_version="dandi/000953/draft",
         derived_version="1.0.0",
         source="https://dandiarchive.org/dandiset/000953",
         description="FALCON M2 dataset: Monkey 2D finger velocity task. "
         "Neural activity recorded from 96-channel Utah array in motor cortex. "
         "Task involves 2D finger velocity tracking. "
-        "Part of the FALCON (Few-shot Algorithms for Consistent Neural Decoding) Benchmark."
+        "Part of the FALCON (Few-shot Algorithms for Consistent Neural Decoding) Benchmark.",
     )
 
     logging.info(f"Processing file: {args.input_file}")
@@ -196,7 +172,7 @@ def main():
     )
 
     # Extract session metadata
-    recording_date_str = session_id.split('_')[1]  # e.g., 20201019
+    recording_date_str = session_id.split("_")[1]  # e.g., 20201019
     recording_date = datetime.datetime.strptime(recording_date_str, "%Y%m%d")
 
     session_description = SessionDescription(
@@ -220,7 +196,7 @@ def main():
     finger = extract_finger_velocity(nwbfile)
 
     # Extract evaluation mask (FALCON-specific)
-    eval_mask = nwbfile.acquisition['eval_mask'].data[:].astype(bool)
+    eval_mask = nwbfile.acquisition["eval_mask"].data[:].astype(bool)
 
     # Convert eval_mask to Interval (periods where eval_mask is True)
     eval_mask_starts = []
@@ -241,8 +217,7 @@ def main():
 
     if len(eval_mask_starts) > 0:
         eval_intervals = Interval(
-            start=np.array(eval_mask_starts),
-            end=np.array(eval_mask_ends)
+            start=np.array(eval_mask_starts), end=np.array(eval_mask_ends)
         )
     else:
         # Empty interval if no eval periods
@@ -274,7 +249,9 @@ def main():
 
     # Add metadata about FALCON split type
     data.falcon_split = split_type
-    data.falcon_session_group = "held_in" if session_id in HELD_IN_SESSIONS else "held_out"
+    data.falcon_session_group = (
+        "held_in" if session_id in HELD_IN_SESSIONS else "held_out"
+    )
 
     # Set up splits
     # We create two split configurations:
@@ -283,13 +260,21 @@ def main():
 
     valid_trials = trials.select_by_mask(trials.is_valid)
 
-    # Standard splits: random split of trials
-    train_trials, valid_trials_split, test_trials = split_trials(
-        valid_trials,
-        test_size=0.2,
-        valid_size=0.1,
-        random_state=42,
-    )
+    # Standard splits: random split of trials using Interval.split
+    num_trials = len(valid_trials)
+    if num_trials < 10:
+        logging.warning(
+            f"Only {num_trials} trials available. Using all for training, none for validation/test."
+        )
+        train_trials = valid_trials
+        valid_trials_split = valid_trials.select_by_mask(np.zeros(num_trials, dtype=bool))
+        test_trials = valid_trials.select_by_mask(np.zeros(num_trials, dtype=bool))
+    else:
+        train_trials, valid_trials_split, test_trials = valid_trials.split(
+            [0.7, 0.1, 0.2],
+            shuffle=True,
+            random_seed=42,
+        )
 
     # Handle split domain setting (accounting for empty intervals)
     if len(valid_trials_split) > 0 or len(test_trials) > 0:
@@ -310,7 +295,6 @@ def main():
     data.set_valid_domain(valid_trials_split)
     data.set_test_domain(test_trials)
 
-    # Save data to disk
     path = os.path.join(args.output_dir, f"{session_id}_{split_type}.h5")
     logging.info(f"Saving to: {path}")
 
