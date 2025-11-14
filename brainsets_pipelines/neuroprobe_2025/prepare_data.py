@@ -17,7 +17,7 @@ from brainsets.descriptions import (
 )
 from brainsets.taxonomy import RecordingTech, Species, Sex
 from brainsets import serialize_fn_map
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple
 
 logging.basicConfig(level=logging.INFO)
 
@@ -62,7 +62,9 @@ def extract_channel_data(subject: BrainTreebankSubject) -> ArrayDict:
     return channels
 
 
-def extract_splits(subject_id: int, trial_id: int) -> Tuple[Dict, ArrayDict]:
+def extract_splits(
+    subject_id: int, trial_id: int, **kwargs: Any
+) -> Tuple[Dict, ArrayDict]:
     split_indices = {}
     subject = BrainTreebankSubject(
         subject_id=subject_id,
@@ -78,28 +80,12 @@ def extract_splits(subject_id: int, trial_id: int) -> Tuple[Dict, ArrayDict]:
     ), "No tasks to extract splits for"
     for eval_name in neuroprobe_config.NEUROPROBE_TASKS_MAPPING:
         split_indices[eval_name] = {}
-
-        # TODO make this configurable at brainsets CLI level
-        dtype = torch.float32
-        binary_tasks = True
-        lite = True
-        nano = False
-        max_samples = None
-        start_neural_data_before_word_onset = 0
-        end_neural_data_after_word_onset = neuroprobe_config.SAMPLING_RATE * 1
-
         folds = neuroprobe_train_test_splits.generate_splits_within_session(
             test_subject=subject,
             test_trial_id=trial_id,
             eval_name=eval_name,
-            dtype=dtype,
-            lite=lite,
-            nano=nano,
-            binary_tasks=binary_tasks,
             output_indices=True,
-            start_neural_data_before_word_onset=start_neural_data_before_word_onset,
-            end_neural_data_after_word_onset=end_neural_data_after_word_onset,
-            max_samples=max_samples,
+            **kwargs,
         )
 
         assert len(folds) > 0, "No folds to extract splits for"
@@ -178,7 +164,24 @@ def main():
     parser.add_argument("--input_file", type=str)
     parser.add_argument("--output_dir", type=str, default="./processed")
 
-    args = parser.parse_args()
+    args, extra_args_unparsed = parser.parse_known_args()
+
+    # turn extras into a dict
+    extra_args = {}
+    key = None
+    for item in extra_args_unparsed:
+        if "=" in item:
+            key, value = item.split("=")
+            extra_args[key] = value
+            continue
+        if item.startswith("--"):
+            key = item.lstrip("-")
+            extra_args[key] = True
+        else:
+            if key is None:
+                raise ValueError(f"Unexpected value {item} with no flag")
+            extra_args[key] = item
+            key = None
 
     if args.input_file is None:
         logging.error("Input file is required (--input_file)")
@@ -232,7 +235,7 @@ def main():
 
     # extract all data
     subject = get_subject_metadata(subject_id)
-    split_indices, channels = extract_splits(subject_id, trial_id)
+    split_indices, channels = extract_splits(subject_id, trial_id, **extra_args)
     logging.info(f"Extracted {len(split_indices)} splits")
     seeg_data = extract_neural_data(args.input_file, channels)
 

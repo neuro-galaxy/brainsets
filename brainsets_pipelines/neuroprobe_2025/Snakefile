@@ -6,8 +6,8 @@ DATASET = "neuroprobe_2025"
 
 RAW_DIR = config["RAW_DIR"]
 PROCESSED_DIR = config["PROCESSED_DIR"]
+EXTRA_CONFIG = config.get("EXTRA_CONFIG") or ""
 PIPELINE_DIR = Path(workflow.basedir)
-
 
 checkpoint download_data:
     output:
@@ -49,7 +49,8 @@ rule prepare_data:
     shell:
         f"""
         mkdir -p {PROCESSED_DIR}/{DATASET}/tmp
-        ROOT_DIR_BRAINTREEBANK={RAW_DIR}/{DATASET} python -m brainsets_pipelines.{DATASET}.prepare_data --input_file {{input.h5_file}} --output_dir {PROCESSED_DIR}/{DATASET} 2>&1 | tee {{log}}
+        echo "ROOT_DIR_BRAINTREEBANK={RAW_DIR}/{DATASET} python -m brainsets_pipelines.{DATASET}.prepare_data --input_file {{input.h5_file}} --output_dir {PROCESSED_DIR}/{DATASET} {EXTRA_CONFIG} 2>&1 | tee {{log}}"
+        ROOT_DIR_BRAINTREEBANK={RAW_DIR}/{DATASET} python -m brainsets_pipelines.{DATASET}.prepare_data --input_file {{input.h5_file}} --output_dir {PROCESSED_DIR}/{DATASET} {EXTRA_CONFIG} 2>&1 | tee {{log}}
         find {PROCESSED_DIR}/{DATASET}/ -type f -name "*.h5" | sed "s|^{PROCESSED_DIR}/{DATASET}//||" > {{output}}
         """
 
