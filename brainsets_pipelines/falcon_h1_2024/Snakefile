@@ -15,7 +15,7 @@ PROCESSED_DIR = config["PROCESSED_DIR"]
 # Binning configuration for FALCON benchmark
 # FALCON standard: 20ms bins
 # To use unbinned spike times: set BIN_SIZE_MS = None and re-run
-BIN_SIZE_MS = 20
+BIN_SIZE_MS = None
 
 checkpoint falcon_h1_download_data:
     output:
