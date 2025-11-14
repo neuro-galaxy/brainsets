@@ -10,6 +10,7 @@ DATASET = "falcon_m1_2024"
 DANDI_ID = "000941"
 
 RAW_DIR = config["RAW_DIR"]
+PIPELINE_DIR = Path(workflow.basedir)
 PROCESSED_DIR = config["PROCESSED_DIR"]
 
 # Binning configuration for FALCON benchmark
@@ -41,7 +42,7 @@ rule prepare_data:
         f"""
         echo "Processing with {{params.bin_info}}"
         mkdir -p {PROCESSED_DIR}/{DATASET}/tmp
-        python -m brainsets_pipelines.{DATASET}.prepare_data --input_file {{input.nwb_file}} --output_dir {PROCESSED_DIR}/{DATASET} {{params.bin_flag}} >> {{log}}
+        python -m {PIPELINE_DIR}.{DATASET}.prepare_data --input_file {{input.nwb_file}} --output_dir {PROCESSED_DIR}/{DATASET} {{params.bin_flag}} >> {{log}}
         find {PROCESSED_DIR}/{DATASET}/ -type f -name "*.h5" | sed "s|^{PROCESSED_DIR}/{DATASET}//||" > {{output}}
         """
 
