@@ -63,7 +63,7 @@ def stack_trials(h5_data, test=False):
     )
 
     if not test:
-        transcripts = [x["transcript"] for x in h5_data]
+        transcripts = [x["transcription"] for x in h5_data]
         transcript = ["".join(chr(c) for c in s if c != 0).replace(u"\u2019", "'").encode("ascii", errors="ignore") for s in transcripts]
         # We assign the labels to the start of each trial.
         sentences = IrregularTimeSeries(
