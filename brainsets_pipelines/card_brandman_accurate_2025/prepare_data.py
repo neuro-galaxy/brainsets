@@ -183,7 +183,9 @@ def get_unit_metadata():
 
 def stack_trials(mat_data):
     """Stack all the trial data into a single array."""
-    threshold_xings = mat_data["tx1"].squeeze().tolist()
+    # threshold_xings = mat_data["tx1"].squeeze().tolist()
+    threshold_xings = mat_data["input_features"]
+
     threshold_xings = [x[:, :128] for x in threshold_xings]
     trial_times = [x.shape[0] / FREQ for x in threshold_xings]
     trial_bounds = np.cumsum(np.concatenate([[0], trial_times]))
@@ -275,15 +277,18 @@ def main():
     args = parser.parse_args()
 
     brainset_description = BrainsetDescription(
-        id="willett_henderson_speech_2023",
+        id="card_brandman_accurate_2025",
         origin_version="1.0.0",
         derived_version="1.0.0",
-        source="https://datadryad.org/stash/dataset/doi:10.5061/dryad.x69p8czpq",
-        description="This dataset contains neural activity and speech stimulus data "
-                    "from a paralyzed human participant who was implanted with two "
-                    "96-electrode intracortical arrays in the hand/arm area of "
-                    "primary motor cortex. The participant attempted to read sentences "
-                    "aloud, and a deep learning model decoded intended speech from the neural activity.",
+        source="https://www.kaggle.com/competitions/brain-to-text-25/data",
+        description="The dataset used in this competition consists of 10,948 sentences spoken "
+                    "by a single research participant as described in Card et al. “An Accurate "
+                    "and Rapidly Calibrating Speech Neuroprosthesis” (2024) New England Journal "
+                    "of Medicine. For each sentence, we provide the transcript of what the participant "
+                    "was attempting to say, along with the corresponding time series of neural spiking "
+                    "activity recorded from 256 microelectrodes in speech motor cortex. The dataset "
+                    "contains predefined train, val, and test partitions. The train and val partitions "
+                    "include the sentence labels",
     )
 
     logging.info(f"Processing file: {args.input_file}")
