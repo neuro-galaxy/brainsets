@@ -7,8 +7,7 @@ from zapbench.constants import CONDITION_OFFSETS, TEST_FRACTION, VAL_FRACTION
 from brainsets import serialize_fn_map
 from brainsets.descriptions import BrainsetDescription
 
-BASE_URL = "vast/projects/dyer1/lab/user/alex/20240930/traces/zapbench.h5"
-
+BASE_URL = "/vast/projects/dyer1/lab/user/alex/20240930"
 
 spec = {
     "driver": "zarr3",
@@ -17,7 +16,8 @@ spec = {
         "path": f"{BASE_URL}/traces",
     },
 }
-raw = ts.open(spec).result()
+raw = ts.open(spec).result().read().result()
+print(raw.shape)
 
 traces = RegularTimeSeries(raw=raw.T, sampling_rate=1.0, domain="auto")
 
