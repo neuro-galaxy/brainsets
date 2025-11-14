@@ -63,7 +63,7 @@ def stack_trials(h5_data):
     )
 
     transcripts = [x["transcript"] for x in h5_data]
-    transcript = ["".join(chr(c) for c in s if c != 0) for s in transcripts]
+    transcript = ["".join(chr(c) for c in s if c != 0).replace(u"\u2019", "'").encode("ascii", errors="ignore") for s in transcripts]
 
     # We assign the labels to the start of each trial.
     sentences = IrregularTimeSeries(
@@ -110,7 +110,7 @@ def main():
                 trial_data[key] = f[trial][key][:]
             h5_data.append(trial_data)
 
-    session_date = args.input_file.split("/")[-1]
+    session_date = args.input_file.split("/")[-2]
     _, year, month, day = session_date.split(".")
     recording_date = datetime.datetime(int(year), int(month), int(day))
     device_id = str.replace(session_date, ".", "_")
