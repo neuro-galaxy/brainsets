@@ -106,22 +106,6 @@ def prepare(
     click.echo(f"Raw data directory: {raw_dir}")
     click.echo(f"Processed data directory: {processed_dir}")
 
-    # Parse extra config from command line
-    extra_config = []
-    it = iter(ctx.args)
-    for token in it:
-        if token.startswith("--"):
-            key = token.lstrip("-").replace("-", "_")
-            try:
-                value = next(it)
-                if value.startswith("--"):
-                    raise StopIteration
-            except StopIteration:
-                raise click.BadParameter(f"Option {token} needs a value")
-            extra_config.append(f"{key}={value}")
-        else:
-            raise click.BadParameter(f"Unexpected extra argument: {token}")
-
     # Construct base Snakemake command with configuration
     command = [
         "snakemake",
@@ -130,7 +114,7 @@ def prepare(
         "--config",
         f"RAW_DIR={raw_dir}",
         f"PROCESSED_DIR={processed_dir}",
-        *extra_config,
+        f"EXTRA_CONFIG={' '.join(ctx.args)}",
         f"-c{cores}",
         "all",
         "--verbose" if verbose else "--quiet",
