@@ -1,14 +1,21 @@
 ######################################################
-# Karpowicz & Ye (2024)
+# Karpowicz & Ye et al. (2024)
 # FALCON M1 (Monkey EMG)
+#
+# Default: Bins spikes at 20ms (FALCON benchmark standard)
+# To preserve spike times: Edit BIN_SIZE_MS = None on line 20
 ######################################################
 
-DATASET = "falcon_m1"
+DATASET = "falcon_m1_2024"
 DANDI_ID = "000941"
 
 RAW_DIR = config["RAW_DIR"]
 PROCESSED_DIR = config["PROCESSED_DIR"]
 
+# Binning configuration for FALCON benchmark
+# FALCON standard: 20ms bins
+# To use unbinned spike times: set BIN_SIZE_MS = None and re-run
+BIN_SIZE_MS = None
 
 checkpoint falcon_m1_download_data:
     output:
@@ -27,10 +34,14 @@ rule prepare_data:
         temp(f"{PROCESSED_DIR}/{DATASET}/tmp/{{file}}.txt")
     log:
         f".snakemake/logs/{DATASET}/prepare_data.{{file}}.log"
+    params:
+        bin_flag = f"--bin-size-ms {BIN_SIZE_MS}" if BIN_SIZE_MS is not None else "",
+        bin_info = f"{BIN_SIZE_MS}ms bins" if BIN_SIZE_MS is not None else "spike times (unbinned)"
     shell:
         f"""
+        echo "Processing with {{params.bin_info}}"
         mkdir -p {PROCESSED_DIR}/{DATASET}/tmp
-        python -m brainsets_pipelines.{DATASET}.prepare_data --input_file {{input.nwb_file}} --output_dir {PROCESSED_DIR}/{DATASET} >> {{log}}
+        python -m brainsets_pipelines.{DATASET}.prepare_data --input_file {{input.nwb_file}} --output_dir {PROCESSED_DIR}/{DATASET} {{params.bin_flag}} >> {{log}}
         find {PROCESSED_DIR}/{DATASET}/ -type f -name "*.h5" | sed "s|^{PROCESSED_DIR}/{DATASET}//||" > {{output}}
         """
 

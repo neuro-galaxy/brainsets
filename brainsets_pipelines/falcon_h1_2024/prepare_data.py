@@ -11,6 +11,7 @@ from pynwb import NWBHDF5IO
 from temporaldata import (
     Data,
     IrregularTimeSeries,
+    RegularTimeSeries,
     Interval,
     ArrayDict,
 )
@@ -152,9 +153,6 @@ def extract_trials_from_trialnum(nwbfile, kinematics):
     )
 
     trials = Interval.from_dataframe(trial_data)
-
-    # All trials are marked as valid by default
-    # (FALCON data is already curated)
     trials.is_valid = np.ones(len(trials), dtype=bool)
 
     return trials
@@ -182,14 +180,12 @@ def extract_spikes_h1(nwbfile):
     all_spike_times = np.array(all_spike_times)[sort_idx]
     all_spike_units = np.array(all_spike_units)[sort_idx]
 
-    # Create IrregularTimeSeries for spikes
     spikes = IrregularTimeSeries(
         timestamps=all_spike_times,
         unit_index=all_spike_units,
         domain="auto",
     )
 
-    # Create units ArrayDict
     units = ArrayDict(
         id=np.array(units_df.index),
     )
@@ -237,10 +233,65 @@ def extract_eval_mask(nwbfile, kinematics):
     return eval_intervals
 
 
+def bin_spikes(spikes, units, bin_size_s, reference_timestamps):
+    """Bin spike times into regular time bins aligned with reference timestamps.
+
+    Args:
+        spikes: IrregularTimeSeries containing spike times and unit indices
+        units: ArrayDict containing unit metadata
+        bin_size_s: Bin size in seconds (e.g., 0.02 for 20ms)
+        reference_timestamps: Timestamps to align bins with (e.g., from kinematics)
+
+    Returns:
+        binned_counts: (n_bins, n_units) array of spike counts per bin
+        bin_timestamps: (n_bins,) array of bin center timestamps
+    """
+    n_units = len(units.id)
+
+    # Create bin edges aligned with reference timestamps
+    # Use reference timestamps as bin end times (like FALCON does)
+    bin_end_timestamps = reference_timestamps
+    n_bins = len(bin_end_timestamps)
+
+    # Initialize output array
+    binned_counts = np.zeros((n_bins, n_units), dtype=np.float32)
+
+    # Create bin edges (one extra edge at the start)
+    bin_edges = np.concatenate(
+        [np.array([bin_end_timestamps[0] - bin_size_s]), bin_end_timestamps]
+    )
+
+    # Bin spikes for each unit
+    spike_times = spikes.timestamps[:]
+    spike_units = spikes.unit_index[:]
+
+    for unit_idx in range(n_units):
+        # Get spike times for this unit
+        unit_mask = spike_units == unit_idx
+        unit_spike_times = spike_times[unit_mask]
+
+        # Histogram spike times into bins
+        counts, _ = np.histogram(unit_spike_times, bins=bin_edges)
+        binned_counts[:, unit_idx] = counts
+
+    # Bin center timestamps (for RegularTimeSeries domain_start)
+    bin_timestamps = bin_end_timestamps - (bin_size_s / 2.0)
+
+    return binned_counts, bin_timestamps
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_file", type=str, required=True)
     parser.add_argument("--output_dir", type=str, default="./processed")
+    parser.add_argument(
+        "--bin-size-ms",
+        type=float,
+        default=None,
+        help="Bin size in milliseconds. If provided, spikes will be binned into "
+        "RegularTimeSeries. If None (default), spike times are preserved as "
+        "IrregularTimeSeries. FALCON benchmark uses 20ms bins.",
+    )
 
     args = parser.parse_args()
 
@@ -291,12 +342,38 @@ def main():
         recording_tech=RecordingTech.UTAH_ARRAY_SPIKES,
     )
 
-    # Extract neural activity
-    # H1 has no electrodes table, must extract spikes manually
-    spikes, units = extract_spikes_h1(nwbfile)
-
-    # Extract 7D kinematics
+    # Extract 7D kinematics (needed for timestamps)
     kinematics = extract_kinematics(nwbfile)
+
+    # Extract neural activity (raw spike times first)
+    spikes_raw, units = extract_spikes_h1(nwbfile)
+
+    # Conditionally bin spikes based on --bin-size-ms flag
+    if args.bin_size_ms is not None:
+        bin_size_s = args.bin_size_ms / 1000.0  # Convert ms to seconds
+        logging.info(f"Binning spikes at {args.bin_size_ms}ms ({bin_size_s}s)")
+
+        # Bin spikes aligned with kinematics timestamps
+        binned_counts, bin_timestamps = bin_spikes(
+            spikes_raw, units, bin_size_s, kinematics.timestamps
+        )
+
+        logging.info(
+            f"Binned spikes: {binned_counts.shape} "
+            f"({binned_counts.shape[0]} bins × {binned_counts.shape[1]} units)"
+        )
+
+        # Create RegularTimeSeries for binned spikes
+        spikes = RegularTimeSeries(
+            counts=binned_counts,  # (n_bins, n_units)
+            sampling_rate=1.0 / bin_size_s,  # Hz
+            domain="auto",
+            domain_start=bin_timestamps[0],
+        )
+    else:
+        # Default: preserve spike times as IrregularTimeSeries
+        logging.info("Preserving spike times (no binning)")
+        spikes = spikes_raw
 
     # Extract trials (from TrialNum array, not trials table!)
     trials = extract_trials_from_trialnum(nwbfile, kinematics)
@@ -326,51 +403,53 @@ def main():
         "held_in" if session_id in HELD_IN_SESSIONS else "held_out"
     )
 
-    # Set up splits
+    # Add metadata about binning
+    if args.bin_size_ms is not None:
+        data.spike_bin_size_ms = args.bin_size_ms
+        data.spike_format = "binned"
+    else:
+        data.spike_format = "spike_times"
+
+    # Set up splits based on FALCON's pre-defined file-level splits
+    # CRITICAL: Use FALCON's split_type to assign data appropriately
+    # - held_in_calib  → train
+    # - held_out_calib → valid (minival too small, use held-out instead)
+    # - minival        → ignore (too small for meaningful validation)
+
     valid_trials = trials.select_by_mask(trials.is_valid)
 
-    # Standard splits: random split of trials using Interval.split()
-    # Handle case where there are very few trials
-    num_trials = len(valid_trials)
-
-    if num_trials < 10:
-        logging.warning(
-            f"Only {num_trials} trials available. "
-            f"Using all for training, none for validation/test."
-        )
-        train_trials = valid_trials
-        valid_trials_split = valid_trials.select_by_mask(
-            np.zeros(num_trials, dtype=bool)
-        )
-        test_trials = valid_trials.select_by_mask(np.zeros(num_trials, dtype=bool))
+    # Map file type to appropriate split
+    if "held_in" in split_type or "held-in" in split_type:
+        # Held-in calibration data → training set
+        data.set_train_domain(valid_trials)
+        data.set_valid_domain(Interval(start=np.array([]), end=np.array([])))
+        data.set_test_domain(Interval(start=np.array([]), end=np.array([])))
+        logging.info(f"Assigned {len(valid_trials)} trials to TRAIN (held-in-calib)")
+    elif "held_out" in split_type or "held-out" in split_type:
+        # Held-out calibration data → validation set
+        data.set_train_domain(Interval(start=np.array([]), end=np.array([])))
+        data.set_valid_domain(valid_trials)
+        data.set_test_domain(Interval(start=np.array([]), end=np.array([])))
+        logging.info(f"Assigned {len(valid_trials)} trials to VALID (held-out-calib)")
+    elif split_type == "minival":
+        # Minival data → test set (too small for validation)
+        data.set_train_domain(Interval(start=np.array([]), end=np.array([])))
+        data.set_valid_domain(Interval(start=np.array([]), end=np.array([])))
+        data.set_test_domain(valid_trials)
+        logging.info(f"Assigned {len(valid_trials)} trials to TEST (minival - small)")
     else:
-        train_trials, valid_trials_split, test_trials = valid_trials.split(
-            [0.7, 0.1, 0.2],
-            shuffle=True,
-            random_seed=42,
-        )
+        logging.warning(f"Unknown split_type: {split_type}, defaulting to train")
+        data.set_train_domain(valid_trials)
+        data.set_valid_domain(Interval(start=np.array([]), end=np.array([])))
+        data.set_test_domain(Interval(start=np.array([]), end=np.array([])))
 
-    # Handle split domain setting (accounting for empty intervals)
-    if len(valid_trials_split) > 0 or len(test_trials) > 0:
-        # Create combined valid+test interval
-        if len(valid_trials_split) > 0 and len(test_trials) > 0:
-            excluded = (valid_trials_split | test_trials).dilate(1.0)
-        elif len(valid_trials_split) > 0:
-            excluded = valid_trials_split.dilate(1.0)
-        else:
-            excluded = test_trials.dilate(1.0)
-
-        train_sampling_intervals = data.domain.difference(excluded)
+    # Generate filename with bin size info if binned
+    if args.bin_size_ms is not None:
+        filename = f"{session_id}_{split_type}_bin{int(args.bin_size_ms)}ms.h5"
     else:
-        # All data is training
-        train_sampling_intervals = data.domain
+        filename = f"{session_id}_{split_type}.h5"
 
-    data.set_train_domain(train_sampling_intervals)
-    data.set_valid_domain(valid_trials_split)
-    data.set_test_domain(test_trials)
-
-    # Save data to disk
-    path = os.path.join(args.output_dir, f"{session_id}_{split_type}.h5")
+    path = os.path.join(args.output_dir, filename)
     logging.info(f"Saving to: {path}")
 
     with h5py.File(path, "w") as file:
