@@ -119,6 +119,13 @@ def main():
     device_id = str.replace(session_date, ".", "_")
     session_id = device_id
 
+    if "train" in args.input_file:
+        session_id += "_train"
+    elif "val" in args.input_file:
+        session_id += "_val"
+    else:
+        session_id += "_test"
+
     session_description = SessionDescription(
         id=session_id,
         recording_date=recording_date,
