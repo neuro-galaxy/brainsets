@@ -169,19 +169,21 @@ def main():
     # turn extras into a dict
     extra_args = {}
     key = None
-    for item in extra_args_unparsed:
+    iter_extra_args_unparsed = iter(extra_args_unparsed)
+    for item in iter_extra_args_unparsed:
         if "=" in item:
             key, value = item.split("=")
             extra_args[key] = value
             continue
         if item.startswith("--"):
-            key = item.lstrip("-")
-            extra_args[key] = True
-        else:
-            if key is None:
-                raise ValueError(f"Unexpected value {item} with no flag")
-            extra_args[key] = item
-            key = None
+            key = item.lstrip("-").replace("-", "_")
+            try:
+                value = next(iter_extra_args_unparsed)
+                if value.startswith("--"):
+                    raise ValueError(f"Expected value for {key} but got another flag")
+                extra_args[key] = value
+            except StopIteration:
+                raise ValueError(f"Expected value for {key} but got no more arguments")
 
     if args.input_file is None:
         logging.error("Input file is required (--input_file)")
