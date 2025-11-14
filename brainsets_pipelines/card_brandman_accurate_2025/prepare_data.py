@@ -46,6 +46,7 @@ def stack_trials(h5_data, test=False):
     activity = [x["input_features"] for x in h5_data]
     trial_times = [x.shape[0] / FREQ for x in activity]
     trial_bounds = np.cumsum([0] + trial_times)
+    trial_bounds[0] = 0.01
 
     # Create the corresponding intervals for that dataset
     trials = Interval(start=trial_bounds[:-1], end=trial_bounds[1:])
@@ -67,7 +68,7 @@ def stack_trials(h5_data, test=False):
         transcript = ["".join(chr(c) for c in s if c != 0).replace(u"\u2019", "'").encode("ascii", errors="ignore") for s in transcripts]
         # We assign the labels to the start of each trial.
         sentences = IrregularTimeSeries(
-            timestamps=trial_bounds[:-1] + 1e-5,
+            timestamps=trial_bounds[:-1] + 0.01,
             transcript=np.array(transcript),
             domain="auto",
         )
