@@ -41,7 +41,7 @@ def get_unit_metadata():
     return units
 
 
-def stack_trials(h5_data):
+def stack_trials(h5_data, test=False):
     """Stack all the trial data into a single array."""
     activity = [x["input_features"] for x in h5_data]
     trial_times = [x.shape[0] / FREQ for x in activity]
@@ -62,15 +62,17 @@ def stack_trials(h5_data):
         domain=trials,
     )
 
-    transcripts = [x["transcript"] for x in h5_data]
-    transcript = ["".join(chr(c) for c in s if c != 0).replace(u"\u2019", "'").encode("ascii", errors="ignore") for s in transcripts]
-
-    # We assign the labels to the start of each trial.
-    sentences = IrregularTimeSeries(
-        timestamps=trial_bounds[:-1] + 1e-5,
-        transcript=np.array(transcript),
-        domain="auto",
-    )
+    if not test:
+        transcripts = [x["transcript"] for x in h5_data]
+        transcript = ["".join(chr(c) for c in s if c != 0).replace(u"\u2019", "'").encode("ascii", errors="ignore") for s in transcripts]
+        # We assign the labels to the start of each trial.
+        sentences = IrregularTimeSeries(
+            timestamps=trial_bounds[:-1] + 1e-5,
+            transcript=np.array(transcript),
+            domain="auto",
+        )
+    else:
+        sentences = None
 
     return spikes, units, trials, sentences
 
@@ -127,7 +129,7 @@ def main():
         recording_tech=RecordingTech.UTAH_ARRAY_THRESHOLD_CROSSINGS,
     )
 
-    spikes, units, trials, sentences = stack_trials(h5_data)
+    spikes, units, trials, sentences = stack_trials(h5_data, test=("test" in args.input_file))
 
     data = Data(
         brainset=brainset_description,
