@@ -33,6 +33,7 @@ pip install brainsets
 | falcon_m1_2024 | TBD | 297 MB | 368 MB |
 | falcon_m2_2024 | TBD | 15 GB | 26 MB |
 | falcon_h1_2024 | TBD | 98 MB | 253 MB |
+| temmar_link_2025 | TBD | 12 GB | 1.7 GB |
 
 
 ## Acknowledgements

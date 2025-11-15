@@ -2,8 +2,7 @@
 # Karpowicz & Ye et al. (2024)
 # FALCON M2 (Monkey 2D Finger Velocity)
 #
-# Default: Bins spikes at 20ms (FALCON benchmark standard)
-# To preserve spike times: Edit BIN_SIZE_MS = None on line 15
+# Default: Raw spike times (unbinned)
 ######################################################
 
 DATASET = "falcon_m2_2024"

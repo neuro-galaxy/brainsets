@@ -333,9 +333,11 @@ def main():
         domain=cursor.domain,
     )
 
-    train_sampling_intervals, valid_sampling_intervals, test_sampling_intervals = (
-        split_intervals(data)
-    )
+    (
+        train_sampling_intervals,
+        valid_sampling_intervals,
+        test_sampling_intervals,
+    ) = split_intervals(data)
     # set the domains
     data.set_train_domain(train_sampling_intervals)
     data.set_valid_domain(valid_sampling_intervals)

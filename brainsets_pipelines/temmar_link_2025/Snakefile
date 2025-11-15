@@ -1,23 +1,18 @@
 ######################################################
-# Karpowicz & Ye et al. (2024)
-# FALCON M1 (Monkey EMG)
+# Temmar et al. (2025)
+# LINK: Long-term Intracortical Neural activity and Kinematics
 #
-# Default: Bins spikes at 20ms (FALCON benchmark standard)
-# To preserve spike times: Edit BIN_SIZE_MS = None on line 20
+# 312 sessions from Monkey N over 3.5 years
+# 96-channel threshold crossings + 2-finger kinematics
 ######################################################
 
-DATASET = "falcon_m1_2024"
-DANDI_ID = "000941"
+DATASET = "temmar_link_2025"
+DANDI_ID = "001201"
 
-RAW_DIR = config["RAW_DIR"]
-PROCESSED_DIR = config["PROCESSED_DIR"]
+RAW_DIR = config.get("RAW_DIR", "../LINK_dataset/data")
+PROCESSED_DIR = config.get("PROCESSED_DIR", "./processed")
 
-# Binning configuration for FALCON benchmark
-# FALCON standard: 20ms bins
-# To use unbinned spike times: set BIN_SIZE_MS = None and re-run
-BIN_SIZE_MS = None
-
-checkpoint falcon_m1_download_data:
+checkpoint temmar_link_download_data:
     output:
         f"{RAW_DIR}/{DATASET}/manifest.txt"
     run:
@@ -53,14 +48,9 @@ rule prepare_data:
         temp(f"{PROCESSED_DIR}/{DATASET}/tmp/{{file}}.txt")
     log:
         f".snakemake/logs/{DATASET}/prepare_data.{{file}}.log"
-    params:
-        bin_flag = f"--bin-size-ms {BIN_SIZE_MS}" if BIN_SIZE_MS is not None else "",
-        bin_info = f"{BIN_SIZE_MS}ms bins" if BIN_SIZE_MS is not None else "spike times (unbinned)"
     run:
         from pathlib import Path
         import subprocess
-
-        print(f"Processing with {params.bin_info}")
 
         # Create output directory (including nested structure)
         output_path = Path(output[0])
@@ -73,7 +63,7 @@ rule prepare_data:
         # Run prepare_data script
         input_path = Path(input.nwb_file)
         output_dir = Path(f"{PROCESSED_DIR}/{DATASET}")
-        cmd = f'python -m brainsets_pipelines.{DATASET}.prepare_data --input_file "{input_path}" --output_dir "{output_dir}" {params.bin_flag}'
+        cmd = f'python -m brainsets_pipelines.{DATASET}.prepare_data --input_file "{input_path}" --output_dir "{output_dir}"'
 
         with open(log[0], 'w') as log_file:
             result = subprocess.run(cmd, shell=True, stdout=log_file, stderr=subprocess.STDOUT)
@@ -84,7 +74,7 @@ rule prepare_data:
         output_path.touch()
 
 def aggregate_input(wildcards):
-    with checkpoints.falcon_m1_download_data.get(**wildcards).output[0].open() as manifest:
+    with checkpoints.temmar_link_download_data.get(**wildcards).output[0].open() as manifest:
         files = [line.strip() for line in manifest]
     return expand(f"{PROCESSED_DIR}/{DATASET}/tmp/{{file}}.txt", file=files)
 
