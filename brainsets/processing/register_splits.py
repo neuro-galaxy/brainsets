@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+
 def register_splits(split_indices):
 
     data = SimpleNamespace()
@@ -18,7 +19,6 @@ def register_splits(split_indices):
             fold_obj = getattr(split_obj, fold_attr)
 
             fold_obj.train = fold_indices["train_intervals"]
-            fold_obj.test  = fold_indices["test_intervals"]
-    
+            fold_obj.test = fold_indices["test_intervals"]
+
     return data
-    
