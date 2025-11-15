@@ -1,4 +1,4 @@
-brainsets @ git+https://github.com/neuro-galaxy/brainsets@3f1d05459420960a3672c8390ea5cb1883567e02
+brainsets @ git+https://github.com/neuro-galaxy/brainsets@team_layer_V
 neuroprobe==0.1.5
 requests==2.32.5
 bs4==0.0.2

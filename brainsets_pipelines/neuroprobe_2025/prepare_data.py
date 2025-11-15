@@ -15,6 +15,7 @@ from brainsets.descriptions import (
     BrainsetDescription,
     SubjectDescription,
 )
+from brainsets.utils.temporaldata_utils import deep_register_intervals
 from brainsets.taxonomy import RecordingTech, Species, Sex
 from brainsets import serialize_fn_map
 from typing import Any, Dict, Tuple
@@ -257,18 +258,7 @@ def main():
     )
 
     # register all splits as root-level Intervals
-    for split_name, split_indices in split_indices.items():
-        for fold_idx, fold_indices in split_indices.items():
-            setattr(
-                data,
-                f"{split_name}_fold{fold_idx}_train",
-                fold_indices["train_intervals"],
-            )
-            setattr(
-                data,
-                f"{split_name}_fold{fold_idx}_test",
-                fold_indices["test_intervals"],
-            )
+    deep_register_intervals(data, {"split": split_indices})
 
     # save data to disk
     path = os.path.join(args.output_dir, input_file_basename)
