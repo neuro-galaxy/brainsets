@@ -28,6 +28,10 @@ class RecordingTech(StringIntEnum):
 
     TWO_PHOTON_IMAGING = 40
 
+    POLYSOMNOGRAPHY_EEG = 50
+    POLYSOMNOGRAPHY_EOG = 51
+    POLYSOMNOGRAPHY_EMG = 52
+
 
 class Hemisphere(StringIntEnum):
     UNKNOWN = 0
