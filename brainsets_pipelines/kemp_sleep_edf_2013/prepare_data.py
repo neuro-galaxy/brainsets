@@ -103,8 +103,8 @@ def extract_signals(raw_psg):
 
         unit_meta.append(
             {
-                "id": ch_name,
-                "modality": modality.value,
+                "id": str(ch_name),
+                "modality": str(modality.value),
             }
         )
 
@@ -127,7 +127,7 @@ def extract_signals(raw_psg):
 
 
 def extract_sleep_stages(hypnogram_file, psg_times):
-    """Extract sleep stage annotations from hypnogram EDF+ file."""
+    """Extract sleep stage annotations from hypnogram EDF+ file as an Interval object."""
     annotations = mne.read_annotations(hypnogram_file)
 
     sleep_stage_map = {
@@ -141,30 +141,32 @@ def extract_sleep_stages(hypnogram_file, psg_times):
         "Movement time": 7,
     }
 
-    stage_times = []
-    stage_labels = []
+    starts = []
+    ends = []
+    stage_names = []
+    stage_ids = []
 
     for annot_onset, annot_duration, annot_description in zip(
         annotations.onset, annotations.duration, annotations.description
     ):
         if annot_description in sleep_stage_map:
-            stage_times.append(annot_onset + annot_duration / 2)
-            stage_labels.append(sleep_stage_map[annot_description])
+            starts.append(annot_onset)
+            ends.append(annot_onset + annot_duration)
+            stage_names.append(annot_description)
+            stage_ids.append(sleep_stage_map[annot_description])
 
-    if len(stage_times) == 0:
+    if len(starts) == 0:
         logging.warning("No sleep stage annotations found in hypnogram")
         return None
 
-    stage_times = np.array(stage_times)
-    stage_labels = np.array(stage_labels, dtype=np.int64)
-
-    sleep_stages = IrregularTimeSeries(
-        timestamps=stage_times,
-        stage=stage_labels.reshape(-1, 1),
-        domain="auto",
+    stages = Interval(
+        start=np.array(starts),
+        end=np.array(ends),
+        names=np.array(stage_names),
+        id=np.array(stage_ids, dtype=np.int64),
     )
 
-    return sleep_stages
+    return stages
 
 
 def main():
@@ -259,7 +261,7 @@ def main():
         logging.error("No signals extracted from PSG file")
         return
 
-    sleep_stages = extract_sleep_stages(str(hypnogram_file), raw_psg.times)
+    stages = extract_sleep_stages(str(hypnogram_file), raw_psg.times)
 
     data_dict = {
         "brainset": brainset_description,
@@ -270,8 +272,8 @@ def main():
         "units": units,
     }
 
-    if sleep_stages is not None:
-        data_dict["sleep_stages"] = sleep_stages
+    if stages is not None:
+        data_dict["stages"] = stages
 
     data_dict["domain"] = signals.domain
 
