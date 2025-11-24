@@ -1,8 +1,20 @@
+# /// script
+# requires-python = ">=3.10,<3.11"
+# dependencies = [
+#     "mne",
+#     "brainsets @ git+https://github.com/neuro-galaxy/brainsets@main",
+#     "h5py",
+#     "numpy",
+#     "temporaldata"
+# ]
+# ///
+
 import argparse
 import logging
 import os
 from pathlib import Path
 
+import pandas as pd
 import h5py
 import mne
 import numpy as np
@@ -15,7 +27,17 @@ from brainsets.descriptions import (
     DeviceDescription,
 )
 from brainsets.taxonomy import RecordingTech, Species, Sex
-from temporaldata import Data, IrregularTimeSeries
+from brainsets.core import StringIntEnum
+from temporaldata import Data, Interval, RegularTimeSeries, ArrayDict
+
+
+class Modality(StringIntEnum):
+    EEG = "EEG"
+    EMG = "EMG"
+    EOG = "EOG"
+    RESP = "RESP"
+    TEMP = "TEMP"
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -25,7 +47,17 @@ def parse_subject_metadata(raw):
     info = raw.info
     subject_info = info.get("subject_info", {})
 
+    # Try to get age from "age" key, otherwise look in "last_name" (e.g. "54yr")
     age = subject_info.get("age")
+    if age is None:
+        age_str = subject_info.get("last_name")
+        if age_str and isinstance(age_str, str) and "yr" in age_str:
+            try:
+                age = int(age_str.replace("yr", ""))
+            except ValueError:
+                logging.warning(f"Could not parse age from last_name: {age_str}")
+                age = None
+
     sex_str = subject_info.get("sex")
 
     if sex_str is not None:
@@ -37,57 +69,61 @@ def parse_subject_metadata(raw):
 
 
 def extract_signals(raw_psg):
-    """Extract physiological signals from PSG EDF file as IrregularTimeSeries."""
+    """Extract physiological signals from PSG EDF file as a single IrregularTimeSeries."""
     data, times = raw_psg.get_data(return_times=True)
     ch_names = raw_psg.ch_names
 
-    signals = {}
+    signal_list = []
+    unit_meta = []
 
     for idx, ch_name in enumerate(ch_names):
         ch_name_lower = ch_name.lower()
         signal_data = data[idx, :]
 
+        modality = None
         if (
             "eeg" in ch_name_lower
             or "fpz-cz" in ch_name_lower
             or "pz-oz" in ch_name_lower
         ):
-            key = ch_name.replace(" ", "_").replace("-", "_")
-            signals[f"eeg_{key}"] = IrregularTimeSeries(
-                timestamps=times,
-                signal=signal_data.astype(np.float32).reshape(-1, 1),
-                domain="auto",
-            )
-
+            modality = Modality.EEG
         elif "eog" in ch_name_lower:
-            signals["eog"] = IrregularTimeSeries(
-                timestamps=times,
-                signal=signal_data.astype(np.float32).reshape(-1, 1),
-                domain="auto",
-            )
-
+            modality = Modality.EOG
         elif "emg" in ch_name_lower:
-            signals["emg"] = IrregularTimeSeries(
-                timestamps=times,
-                signal=signal_data.astype(np.float32).reshape(-1, 1),
-                domain="auto",
-            )
-
+            modality = Modality.EMG
         elif "resp" in ch_name_lower:
-            signals["respiration"] = IrregularTimeSeries(
-                timestamps=times,
-                signal=signal_data.astype(np.float32).reshape(-1, 1),
-                domain="auto",
-            )
-
+            modality = Modality.RESP
         elif "temp" in ch_name_lower:
-            signals["temperature"] = IrregularTimeSeries(
-                timestamps=times,
-                signal=signal_data.astype(np.float32).reshape(-1, 1),
-                domain="auto",
-            )
+            modality = Modality.TEMP
+        else:
+            # Skip channels that don't match our interest
+            continue
 
-    return signals
+        signal_list.append(signal_data)
+
+        unit_meta.append(
+            {
+                "id": ch_name,
+                "modality": modality.value,
+            }
+        )
+
+    if not signal_list:
+        return None, None
+
+    stacked_signals = np.stack(signal_list, axis=1)
+
+    signals = RegularTimeSeries(
+        signal=stacked_signals,
+        sampling_rate=raw_psg.info["sfreq"],
+        domain=Interval(start=times[0], end=times[-1]),
+    )
+
+    # Create units ArrayDict
+    units_df = pd.DataFrame(unit_meta)
+    units = ArrayDict.from_dataframe(units_df)
+
+    return signals, units
 
 
 def extract_sleep_stages(hypnogram_file, psg_times):
@@ -136,10 +172,10 @@ def main():
         description="Process Sleep-EDF data into brainsets format"
     )
     parser.add_argument(
-        "--input_file", type=str, required=True, help="Path to PSG EDF file"
+        "--input-file", type=str, required=True, help="Path to PSG EDF file"
     )
     parser.add_argument(
-        "--output_dir", type=str, default="./processed", help="Output directory"
+        "--output-dir", type=str, default="./processed", help="Output directory"
     )
 
     args = parser.parse_args()
@@ -162,11 +198,24 @@ def main():
         logging.error(f"Expected PSG file, got: {base_name}")
         return
 
-    hypnogram_name = base_name.replace("PSG", "Hypnogram")
-    hypnogram_file = input_path.parent / f"{hypnogram_name}.edf"
+    hypnogram_file = None
+    # We try matching the first 7 characters first (SC4ssNE), then 6 (SC4ssN).
+    for prefix_len in [7, 6]:
+        prefix = base_name[:prefix_len]
+        candidates = list(input_path.parent.glob(f"{prefix}*Hypnogram.edf"))
+        if len(candidates) == 1:
+            hypnogram_file = candidates[0]
+            logging.info(f"Found hypnogram: {hypnogram_file.name}")
+            break
+        elif len(candidates) > 1:
+            logging.warning(
+                f"Multiple hypnogram candidates found for prefix {prefix}: "
+                f"{[c.name for c in candidates]}. Skipping ambiguity."
+            )
+            break
 
-    if not hypnogram_file.exists():
-        logging.error(f"Hypnogram file not found: {hypnogram_file}")
+    if hypnogram_file is None or not hypnogram_file.exists():
+        logging.error(f"Hypnogram file not found for base name: {base_name}")
         return
 
     raw_psg = mne.io.read_raw_edf(args.input_file, preload=True, verbose=False)
@@ -201,12 +250,12 @@ def main():
 
     device_description = DeviceDescription(
         id=base_name,
-        recording_tech=RecordingTech.POLYSOMNOGRAPHY_EEG,
+        recording_tech=RecordingTech.POLYSOMNOGRAPHY,
     )
 
-    signals = extract_signals(raw_psg)
+    signals, units = extract_signals(raw_psg)
 
-    if len(signals) == 0:
+    if signals is None:
         logging.error("No signals extracted from PSG file")
         return
 
@@ -217,15 +266,14 @@ def main():
         "subject": subject,
         "session": session_description,
         "device": device_description,
+        "eeg": signals,
+        "units": units,
     }
-
-    data_dict.update(signals)
 
     if sleep_stages is not None:
         data_dict["sleep_stages"] = sleep_stages
 
-    first_signal = list(signals.values())[0]
-    data_dict["domain"] = first_signal.domain
+    data_dict["domain"] = signals.domain
 
     data = Data(**data_dict)
 
