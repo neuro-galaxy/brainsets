@@ -60,7 +60,7 @@ class BrainsetPipeline(ABC):
     brainset_id: str
     """Unique identifier for the brainset. Must be set by the Pipeline subclass."""
     parser: Optional[ArgumentParser] = None
-    """Optional :obj:`argparse.ArgumentParser` object for pipeline-specific 
+    """Optional :obj:`argparse.ArgumentParser` object for pipeline-specific
     command-line arguments.
     If set by a subclass, the runner will automatically parse any extra
     command-line arguments using this parser. The parsed arguments are then
@@ -186,7 +186,7 @@ class BrainsetPipeline(ABC):
 
 @contextmanager
 def redirect_stdio(log_out_path, log_err_path):
-    """Context manager to optionally redirect stdout/stderr to files.
+    """Context manager to redirect stdout/stderr to files.
     This is useful when running pipelines in parallel."""
     stdout_prev = sys.stdout
     stderr_prev = sys.stderr
