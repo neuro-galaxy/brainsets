@@ -1,0 +1,52 @@
+Category,Subcategory,Description
+Resting & Baseline States,Eyes open / closed rest,Standard resting-state EEG
+Resting & Baseline States,Sleep and drowsiness,"Includes naps, drowsy transitions, and light sleep"
+Resting & Baseline States,Sleep stage monitoring,Overnight PSG with expert-labeled sleep stages
+Resting & Baseline States,Mind-wandering / default-mode,Unconstrained rest for spontaneous thought analysis.
+Resting & Baseline States,Meditation & contemplative state,"Mindfulness, focused attention, open monitoring, or transcendental practices."
+Motor & Somatosensory,Motor execution,"Real movement (e.g., walking, joystick, table tennis)."
+Motor & Somatosensory,Motor imagery,"Imagined movement (e.g., limb, tongue, tempo-based)."
+Motor & Somatosensory,Somatosensory perception,Tactile/vibratory detection and decoding.
+Motor & Somatosensory,Proprioception & illusions,"Tendon vibration, rubber hand illusion."
+Motor & Somatosensory,Motor control & adaptation,"Gait changes, driving, steering, or beam walking."
+Attention & Cognitive Control,Sustained attention,"Continuous tasks like CCPT, SART, RSVP."
+Attention & Cognitive Control,Inhibitory control,"Go/No-Go, Stop-signal, Simon, MSIT, DPX."
+Attention & Cognitive Control,Task switching / flexibility,"Flanker, attention shift, set shifting."
+Attention & Cognitive Control,Oddball paradigms,"P300, roving, auditory/visual/chords."
+Attention & Cognitive Control,Mismatch negativity (MMN),Local-global deviance detection.
+Attention & Cognitive Control,Temporal prediction / expectation,Anticipating events in time.
+Attention & Cognitive Control,Cognitive load estimation,"Driving, piloting, or multitasking scenarios."
+Working Memory & Executive Function,Verbal working memory,"n-back, Sternberg, word/letter span."
+Working Memory & Executive Function,Visual/spatial working memory,"Cue-based VWM, spatial span."
+Working Memory & Executive Function,Multimodal working memory,"Dual-task, auditory-visual integration."
+Working Memory & Executive Function,Working memory manipulation,"Reordering, updating, transformation tasks."
+Perception & Sensory Processing,Visual perception,"Objects, motion, faces, illusions, contrast."
+Perception & Sensory Processing,Auditory perception,"Tones, speech, music listening."
+Perception & Sensory Processing,Multisensory integration,Audiovisual mismatch or fusion tasks.
+Perception & Sensory Processing,Sensory entrainment,"Rhythmic stimulation (e.g., 40 Hz flicker)."
+Language & Semantic Processing,Reading comprehension,Sentence-level violations (semantic/syntactic).
+Language & Semantic Processing,Speech perception & attention,"Attended speaker, speech vs. noise/music."
+Language & Semantic Processing,Verbal production,"Picture naming, fluency tasks."
+Language & Semantic Processing,Imagined / inner speech,"Covert articulation, imagined dialogue."
+Emotion & Social Cognition,Emotion perception,"Affective faces, prosody, IAPS stimuli."
+Emotion & Social Cognition,Emotion induction,"Music, film, guided recall."
+Emotion & Social Cognition,Emotion representation,"Valence/arousal mapping, self-assessment."
+Emotion & Social Cognition,Social cognition & judgment,"Social cue processing, empathy, political judgment."
+Learning & Memory,Memory encoding & retrieval,"Free recall, recognition, serial recall."
+Learning & Memory,Associative / sequence learning,"Paired associates, conditioning, sequence learning."
+Learning & Memory,Reinforcement learning & decision-making,"Feedback-based tasks, bandits."
+Learning & Memory,Spatial memory / navigation,"Virtual mazes, linear tracks."
+Neurofeedback & Brain Stimulation,EEG-based neurofeedback,Self-regulation of brain rhythms.
+Neurofeedback & Brain Stimulation,Multimodal neurofeedback,EEG–fMRI or other hybrid systems.
+Neurofeedback & Brain Stimulation,Non-invasive brain stimulation,"tES, TMS, ccPAS, rhythmic entrainment."
+Neurofeedback & Brain Stimulation,Closed-loop modulation,Real-time adaptive stimulation based on EEG.
+Naturalistic & Ecological Tasks,Narrative / movie comprehension,Story or film viewing.
+Naturalistic & Ecological Tasks,Video games / gamified tasks,"Attention, decision-making, FPS or MOBA gameplay."
+Naturalistic & Ecological Tasks,Driving / piloting simulation,With or without secondary tasks.
+Naturalistic & Ecological Tasks,Music-based tasks,"Listening, familiarity, or improvisation."
+Naturalistic & Ecological Tasks,Real-world behavior,"Free walking, guard duty, natural tasks."
+Specialized / Clinical Paradigms,Epilepsy monitoring,"Ictal/interictal activity, seizure prediction."
+Specialized / Clinical Paradigms,High-frequency oscillations,"HFO, ripple detection."
+Specialized / Clinical Paradigms,Perceptual manipulation / illusions,"Tilt illusion, surround suppression."
+Specialized / Clinical Paradigms,Agency & sense of control,"Intentional binding, agency response time."
+Specialized / Clinical Paradigms,Clinical protocols,"Sedation, coma, intraoperative or ischemia studies."
