@@ -14,7 +14,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "temporaldata",
     "scipy>=1.10.1",
@@ -36,11 +36,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest~=7.2.1", "black==24.2.0", "pre-commit>=3.5.0", "flake8"]
+dev = [
+    "pytest~=7.2.1",
+    "pytest-asyncio>=0.21.0",
+    "black==24.2.0",
+    "pre-commit>=3.5.0",
+    "flake8",
+]
 openneuro = [
     "aiofiles>=25.1.0",
     "dotenv>=0.9.9",
-    "langchain>=0.3.27",
+    "langchain>=1.1.0",
+    "langchain-core>=1.0.0",
+    "langgraph>=0.2.0",
     "langchain-cerebras>=0.6.0",
     "langchain-google-genai>=2.1.12",
     "langchain-google-vertexai>=2.1.2",

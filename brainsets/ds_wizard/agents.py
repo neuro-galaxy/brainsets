@@ -12,11 +12,7 @@ import tempfile
 import traceback
 from typing import Any, Dict, List, Literal, Optional
 
-from langchain.agents import AgentExecutor
-from langchain.agents.format_scratchpad.openai_tools import (
-    format_to_openai_tool_messages,
-)
-from langchain.agents.output_parsers.openai_tools import OpenAIToolsAgentOutputParser
+from langchain.agents import create_agent
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
@@ -171,7 +167,6 @@ class BaseAgent(ABC):
                 model=self.model_name,
                 temperature=self.temperature,
                 max_output_tokens=65536,
-                convert_system_message_to_human=True,
                 include_thoughts=True,
                 thinking_budget=5000,
             )
@@ -184,9 +179,9 @@ class BaseAgent(ABC):
         """
         Extract the actual text output from potentially complex output structure.
 
-        With thinking enabled, output can be:
-        - A simple string (old format)
-        - A list with dicts (thinking) and strings (actual output)
+        LangChain 1.x with thinking/structured outputs returns:
+        - A simple string (basic format)
+        - A list of content blocks: [{'type': 'thinking', 'thinking': '...'}, {'type': 'text', 'text': '...'}]
 
         Args:
             raw_output: The raw output from the agent
@@ -202,13 +197,27 @@ class BaseAgent(ABC):
         if isinstance(raw_output, str):
             return raw_output
 
-        # If it's a list, find the last string element
+        # If it's a list, handle content blocks or string items
         if isinstance(raw_output, list):
-            # Iterate backwards to find the last string
-            for item in reversed(raw_output):
-                if isinstance(item, str):
-                    return item
-            # If no string found, return empty
+            text_parts = []
+
+            for item in raw_output:
+                # Handle content block format: {'type': 'text', 'text': '...'}
+                if isinstance(item, dict):
+                    if item.get("type") == "text" and "text" in item:
+                        text_parts.append(item["text"])
+                    # Skip 'thinking' blocks - they're internal reasoning
+                    elif item.get("type") == "thinking":
+                        continue
+                # Handle plain string items
+                elif isinstance(item, str):
+                    text_parts.append(item)
+
+            # Join all text parts
+            if text_parts:
+                return "\n".join(text_parts)
+
+            # If no text found, return empty
             return ""
 
         # For any other type, convert to string
@@ -259,13 +268,13 @@ class BaseAgent(ABC):
             )
 
     async def _invoke_agent_with_retry(
-        self, agent: AgentExecutor, prompt: str, agent_name: str, dataset_id: str
+        self, agent, prompt: str, agent_name: str, dataset_id: str
     ) -> Dict[str, Any]:
         """
         Invoke agent with retry logic for empty outputs.
 
         Args:
-            agent: The agent executor to invoke
+            agent: The LangGraph agent to invoke
             prompt: The prompt to send to the agent
             agent_name: Name of the agent for logging
             dataset_id: Dataset ID being processed
@@ -284,8 +293,10 @@ class BaseAgent(ABC):
                     f"{agent_name} attempt {attempt + 1}/{self.max_retries} for {dataset_id}"
                 )
 
+                # LangGraph agents use a different invocation pattern
                 raw_result = await agent.ainvoke(
-                    {"input": prompt}, config={"callbacks": [token_callback]}
+                    {"messages": [("user", prompt)]},
+                    config={"callbacks": [token_callback]},
                 )
 
                 # Log diagnostics about agent execution
@@ -299,41 +310,48 @@ class BaseAgent(ABC):
                     logger.warning(f"{agent_name} returned None, retrying...")
                     continue
 
-                if "output" not in raw_result:
-                    last_error = (
-                        f"Agent result missing 'output' key. Keys: {raw_result.keys()}"
-                    )
-                    logger.warning(f"{agent_name} missing output key, retrying...")
+                # LangGraph returns messages instead of output
+                if "messages" not in raw_result:
+                    last_error = f"Agent result missing 'messages' key. Keys: {raw_result.keys()}"
+                    logger.warning(f"{agent_name} missing messages key, retrying...")
                     continue
 
-                # Extract the actual text output (handles thinking output format)
-                raw_output = raw_result["output"]
-                output_text = self._extract_output_text(raw_output)
+                # Extract the last message content
+                messages = raw_result["messages"]
+                if not messages:
+                    last_error = "Agent returned empty messages list"
+                    logger.warning(f"{agent_name} returned empty messages, retrying...")
+                    continue
+
+                # Get the last AI message content
+                last_message = messages[-1]
+
+                # Extract content from the message
+                if hasattr(last_message, "content"):
+                    output_text = self._extract_output_text(last_message.content)
+                elif isinstance(last_message, dict):
+                    output_text = self._extract_output_text(
+                        last_message.get("content", "")
+                    )
+                else:
+                    output_text = self._extract_output_text(str(last_message))
 
                 if not output_text or not output_text.strip():
-                    # Check if agent made any tool calls
-                    steps = raw_result.get("intermediate_steps", [])
-                    if not steps:
-                        last_error = (
-                            "Agent returned empty output without making any tool calls"
-                        )
-                        logger.warning(
-                            f"{agent_name} returned empty output without tool calls on attempt {attempt + 1}, retrying..."
-                        )
-                    else:
-                        last_error = (
-                            f"Agent returned empty output after {len(steps)} tool calls"
-                        )
-                        logger.warning(
-                            f"{agent_name} returned empty output despite making {len(steps)} tool calls on attempt {attempt + 1}, retrying..."
-                        )
+                    last_error = "Agent returned empty output"
+                    logger.warning(
+                        f"{agent_name} returned empty output on attempt {attempt + 1}, retrying..."
+                    )
                     continue
 
-                # Success! Return the result
+                # Success! Return the result with output key for backward compatibility
                 logger.info(
                     f"{agent_name} succeeded on attempt {attempt + 1} for {dataset_id}"
                 )
-                return raw_result
+                return {
+                    "output": output_text,
+                    "messages": messages,
+                    "intermediate_steps": [],  # LangGraph doesn't expose intermediate steps the same way
+                }
 
             except Exception as e:
                 last_error = str(e)
@@ -398,13 +416,11 @@ class BaseAgent(ABC):
 
         return few_shot_prompt
 
-    def create_agent(self) -> AgentExecutor:
-        """Create the LangChain agent executor based on provider."""
+    def create_agent(self):
+        """Create the agent using new LangChain 1.x API."""
         tools = self.get_tools()
 
         output_parser = self.get_output_parser()
-        # Bind tools first, then apply structured output
-        llm_with_tools = self.llm.bind_tools(tools)
 
         # Include format instructions in system prompt if we have a parser
         system_prompt = self.get_system_prompt()
@@ -413,47 +429,20 @@ class BaseAgent(ABC):
                 format_instructions=output_parser.get_format_instructions()
             )
 
-        # Build prompt messages list
-        prompt_messages = [("system", system_prompt)]
+        # Add few-shot examples to system prompt if available
+        if self.use_few_shot:
+            examples = self.get_few_shot_examples()
+            if examples:
+                examples = examples[: self.num_examples]
+                examples_text = "\n\nEXAMPLES:\n"
+                for i, example in enumerate(examples, 1):
+                    examples_text += f"\nExample {i}:\nInput: {example['input']}\nOutput: {example['output']}\n"
+                system_prompt += examples_text
 
-        # Add few-shot examples if available
-        few_shot_prompt = self._create_few_shot_prompt()
-        if few_shot_prompt:
-            prompt_messages.append(few_shot_prompt)
+        # Create agent using new LangChain 1.x create_agent API
+        agent = create_agent(self.llm, tools, system_prompt=system_prompt)
 
-        # Add user input and scratchpad
-        prompt_messages.extend(
-            [
-                ("user", "{input}"),
-                MessagesPlaceholder(variable_name="agent_scratchpad"),
-            ]
-        )
-
-        prompt = ChatPromptTemplate.from_messages(prompt_messages)
-
-        agent_chain = (
-            {
-                "input": lambda x: x["input"],
-                "agent_scratchpad": lambda x: format_to_openai_tool_messages(
-                    x["intermediate_steps"]
-                ),
-            }
-            | prompt
-            | llm_with_tools
-            | OpenAIToolsAgentOutputParser()
-        )
-
-        agent_executor = AgentExecutor(
-            agent=agent_chain,
-            tools=tools,
-            verbose=self.verbose,
-            max_iterations=30,  # Prevent infinite loops but allow enough iterations
-            max_execution_time=300,  # 5 minutes timeout
-            handle_parsing_errors=True,  # Handle parsing errors gracefully
-            return_intermediate_steps=True,  # Include intermediate steps for debugging
-        )
-
-        return agent_executor
+        return agent
 
     def get_output_parser(self) -> Optional[PydanticOutputParser]:
         """Get the Pydantic output parser for this agent's output schema."""
@@ -466,7 +455,10 @@ class BaseAgent(ABC):
         """Get a simplified JSON schema for prompt formatting"""
         schema = self.get_output_schema()
         if schema:
-            schema_json = schema.schema_json(indent=2)
+            import json
+
+            schema_dict = schema.model_json_schema()
+            schema_json = json.dumps(schema_dict, indent=2)
             return schema_json.replace("{", "[").replace("}", "]")
         return "{}"
 
@@ -847,7 +839,7 @@ class SupervisorAgent(BaseAgent):
     def get_output_schema(self) -> Optional[BaseModel]:
         return Dataset  # Supervisor returns the final Dataset object
 
-    def create_agent(self) -> AgentExecutor:
+    def create_agent(self):
         """Supervisor doesn't need tools, just coordination logic."""
         return None
 

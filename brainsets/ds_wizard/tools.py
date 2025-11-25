@@ -7,7 +7,7 @@ import logging
 import os
 from typing import Optional, List, Dict, Any, Type
 
-from langchain.tools import BaseTool
+from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from brainsets.utils.open_neuro import (
