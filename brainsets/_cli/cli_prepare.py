@@ -152,8 +152,7 @@ def prepare(
             has_brainsets = _brainsets_in_requirements(reqs_filepath)
             if not has_brainsets:
                 brainsets_spec = _determine_brainsets_spec()
-                click.echo("WARNING: Brainsets version not specified by pipeline.")
-                click.echo(f"         Detected installation from {brainsets_spec}")
+                click.echo(f"Detected brainsets installation from {brainsets_spec}")
                 if brainsets_spec.startswith("file://"):
                     # UV can be weird about caching local packages
                     # So, if we want to recreate a local version of the package,
