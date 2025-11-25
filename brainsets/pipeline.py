@@ -176,7 +176,7 @@ class BrainsetPipeline(ABC):
         log_out_path = log_dir / f"{self._asset_id}.out"
         log_err_path = log_dir / f"{self._asset_id}.err"
 
-        with redirect_stdio(log_out_path, log_err_path):
+        with _redirect_stdio(log_out_path, log_err_path):
             try:
                 self._run_item(manifest_item)
             except Exception:
@@ -185,7 +185,7 @@ class BrainsetPipeline(ABC):
 
 
 @contextmanager
-def redirect_stdio(log_out_path, log_err_path):
+def _redirect_stdio(log_out_path, log_err_path):
     """Context manager to redirect stdout/stderr to files.
     This is useful when running pipelines in parallel."""
     stdout_prev = sys.stdout
