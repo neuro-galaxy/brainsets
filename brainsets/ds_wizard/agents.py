@@ -22,10 +22,16 @@ from langchain_google_vertexai import ChatVertexAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import (
     ChatPromptTemplate,
-    MessagesPlaceholder,
     FewShotChatMessagePromptTemplate,
 )
 from pydantic import BaseModel, Field, ValidationError
+from rich.console import Console
+from rich.logging import RichHandler
+from rich.panel import Panel
+from rich.table import Table
+from rich.syntax import Syntax
+from rich.tree import Tree
+from rich import box
 
 from brainsets.utils.open_neuro import download_configuration_files
 from brainsets.ds_wizard.dataset_struct import (
@@ -124,6 +130,7 @@ class BaseAgent(ABC):
         use_few_shot: bool = True,
         num_examples: int = 2,
         max_retries: int = 3,
+        log_console: Optional[Console] = None,
     ):
         self.model_name = model_name
         self.temperature = temperature
@@ -132,6 +139,7 @@ class BaseAgent(ABC):
         self.use_few_shot = use_few_shot
         self.num_examples = num_examples
         self.max_retries = max_retries
+        self.log_console = log_console
         self._validate_model_provider_combination()
         self.llm = self._create_llm()
         self.output_parser = self.get_output_parser()
@@ -231,41 +239,148 @@ class BaseAgent(ABC):
         token_callback: Optional[TokenUsageCallbackHandler] = None,
     ) -> None:
         """Log diagnostic information about agent execution."""
-        if not raw_result:
+        if not raw_result or not self.log_console:
             return
 
-        # Log intermediate steps if available
+        self.log_console.print(
+            Panel(
+                f"[bold magenta]{agent_name}[/bold magenta] - Diagnostics for [cyan]{dataset_id}[/cyan]",
+                border_style="magenta",
+                box=box.ROUNDED,
+            )
+        )
+
+        if "messages" in raw_result:
+            messages = raw_result["messages"]
+
+            message_tree = Tree(f"[bold]Messages Exchanged: {len(messages)}[/bold]")
+
+            for i, msg in enumerate(messages):
+                msg_type = getattr(msg, "type", "unknown")
+                msg_node = message_tree.add(
+                    f"[yellow]Message {i+1}[/yellow] ({msg_type})"
+                )
+
+                if hasattr(msg, "content"):
+                    content = msg.content
+
+                    if isinstance(content, list):
+                        for block in content:
+                            if isinstance(block, dict):
+                                block_type = block.get("type", "unknown")
+
+                                if block_type == "thinking" and "thinking" in block:
+                                    thinking_panel = Panel(
+                                        block["thinking"][:1000],
+                                        title="[bold blue]🧠 Thinking Output[/bold blue]",
+                                        border_style="blue",
+                                        box=box.ROUNDED,
+                                    )
+                                    msg_node.add(thinking_panel)
+
+                                elif block_type == "text" and "text" in block:
+                                    text_content = block["text"][:500]
+                                    msg_node.add(
+                                        f"[green]📝 Text:[/green] {text_content}..."
+                                    )
+
+                                elif block_type == "tool_use":
+                                    tool_name = block.get("name", "unknown")
+                                    tool_input = block.get("input", {})
+
+                                    tool_node = msg_node.add(
+                                        f"[cyan]🔧 Tool Call:[/cyan] {tool_name}"
+                                    )
+
+                                    if tool_input:
+                                        syntax = Syntax(
+                                            json.dumps(tool_input, indent=2),
+                                            "json",
+                                            theme="monokai",
+                                            line_numbers=False,
+                                        )
+                                        tool_node.add(syntax)
+
+                    elif isinstance(content, str):
+                        msg_node.add(f"[dim]{content[:300]}...[/dim]")
+
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                    tools_node = msg_node.add(
+                        f"[cyan]Tool Calls: {len(msg.tool_calls)}[/cyan]"
+                    )
+                    for j, tool_call in enumerate(msg.tool_calls):
+                        tool_name = getattr(tool_call, "name", "unknown")
+                        tool_call_node = tools_node.add(f"{j+1}. {tool_name}")
+
+                        if hasattr(tool_call, "args"):
+                            syntax = Syntax(
+                                json.dumps(tool_call.args, indent=2),
+                                "json",
+                                theme="monokai",
+                                line_numbers=False,
+                            )
+                            tool_call_node.add(syntax)
+
+            self.log_console.print(message_tree)
+
         if "intermediate_steps" in raw_result:
             steps = raw_result["intermediate_steps"]
-            logger.info(
-                f"{agent_name} executed {len(steps)} tool calls for {dataset_id}"
-            )
 
             if steps:
-                for i, (action, result) in enumerate(steps):
-                    if hasattr(action, "tool"):
-                        tool_name = action.tool
-                        logger.info(f"  Step {i+1}: Called tool '{tool_name}'")
-                        logger.info(f"  Result preview: {str(result)[:100]}...")
-            else:
-                logger.warning(f"{agent_name} made NO tool calls before finishing")
+                steps_table = Table(
+                    title=f"[bold]Tool Execution Steps: {len(steps)}[/bold]",
+                    box=box.ROUNDED,
+                    show_header=True,
+                    header_style="bold cyan",
+                )
+                steps_table.add_column("Step", style="yellow", width=6)
+                steps_table.add_column("Tool", style="cyan", width=25)
+                steps_table.add_column("Input", style="green", width=40)
+                steps_table.add_column("Result Preview", style="magenta", width=40)
 
-        # Log token usage from callback handler
+                for i, (action, result) in enumerate(steps):
+                    tool_name = getattr(action, "tool", "unknown")
+                    tool_input = getattr(action, "tool_input", {})
+                    input_str = (
+                        json.dumps(tool_input, indent=2)[:100] if tool_input else "N/A"
+                    )
+                    result_str = (
+                        str(result)[:100] + "..."
+                        if len(str(result)) > 100
+                        else str(result)
+                    )
+
+                    steps_table.add_row(str(i + 1), tool_name, input_str, result_str)
+
+                self.log_console.print(steps_table)
+            else:
+                self.log_console.print("[yellow]⚠ No tool calls were made[/yellow]")
+
         if token_callback:
             usage_summary = token_callback.get_usage_summary()
-            logger.info(
-                f"{agent_name} token usage for {dataset_id}: "
-                f"input={usage_summary['input_tokens']}, "
-                f"output={usage_summary['output_tokens']}, "
-                f"total={usage_summary['total_tokens']}, "
-                f"llm_calls={usage_summary['llm_calls']}"
+
+            usage_table = Table(
+                title="[bold]Token Usage Statistics[/bold]",
+                box=box.SIMPLE,
+                show_header=True,
+                header_style="bold green",
+            )
+            usage_table.add_column("Metric", style="cyan")
+            usage_table.add_column("Value", style="yellow", justify="right")
+
+            usage_table.add_row("Input Tokens", f"{usage_summary['input_tokens']:,}")
+            usage_table.add_row("Output Tokens", f"{usage_summary['output_tokens']:,}")
+            usage_table.add_row("Total Tokens", f"{usage_summary['total_tokens']:,}")
+            usage_table.add_row("LLM Calls", str(usage_summary["llm_calls"]))
+
+            self.log_console.print(usage_table)
+
+        if "return_values" in raw_result:
+            self.log_console.print(
+                f"[dim]Return value keys: {list(raw_result['return_values'].keys())}[/dim]"
             )
 
-        # Log other metadata
-        if "return_values" in raw_result:
-            logger.info(
-                f"{agent_name} return_values keys: {raw_result['return_values'].keys()}"
-            )
+        self.log_console.print("")
 
     async def _invoke_agent_with_retry(
         self, agent, prompt: str, agent_name: str, dataset_id: str
@@ -821,8 +936,10 @@ class SupervisorAgent(BaseAgent):
             temperature=temperature,
             provider=provider,
             verbose=verbose,
+            log_console=None,
         )
         self.download_path = download_path
+        self.log_file_handler = None
 
     def get_system_prompt(self) -> str:
         return """You are the supervisor for the Dataset Wizard. Your responsibilities:
@@ -854,13 +971,62 @@ class SupervisorAgent(BaseAgent):
             temp_dir = tempfile.mkdtemp(prefix=f"dataset_{dataset_id}_")
         logger.info(f"Created temporary directory for configuration files: {temp_dir}")
 
+        self._setup_file_logging(temp_dir, dataset_id)
+
         enhanced_context = context.copy() if context else {}
         enhanced_context["config_files_dir"] = temp_dir
 
         return temp_dir, enhanced_context
 
+    def _setup_file_logging(self, log_dir: str, dataset_id: str) -> None:
+        """Set up file handler for detailed logging of agent operations."""
+        log_file = os.path.join(log_dir, f"{dataset_id}_agent_log.txt")
+
+        log_file_handle = open(log_file, "w", encoding="utf-8")
+        self.log_console = Console(file=log_file_handle, width=120, record=True)
+
+        self.log_file_handler = RichHandler(
+            console=self.log_console,
+            rich_tracebacks=True,
+            markup=True,
+            show_time=True,
+            show_level=True,
+            show_path=False,
+        )
+        self.log_file_handler.setLevel(logging.DEBUG)
+
+        logger.addHandler(self.log_file_handler)
+
+        self.log_console.print(
+            Panel.fit(
+                f"[bold cyan]Dataset Processing Log[/bold cyan]\n"
+                f"[yellow]Dataset ID:[/yellow] {dataset_id}\n"
+                f"[yellow]Log File:[/yellow] {log_file}",
+                border_style="cyan",
+                box=box.DOUBLE,
+            )
+        )
+
     def _cleanup_resources(self, temp_dir: str) -> None:
         """Clean up temporary directory and resources."""
+        if self.log_console:
+            self.log_console.print(
+                Panel(
+                    "[bold green]✓ Processing Completed Successfully[/bold green]",
+                    border_style="green",
+                    box=box.DOUBLE,
+                )
+            )
+
+        if self.log_file_handler:
+            logger.removeHandler(self.log_file_handler)
+            self.log_file_handler.close()
+            self.log_file_handler = None
+
+        if self.log_console and hasattr(self.log_console.file, "close"):
+            self.log_console.file.close()
+            self.log_console = None
+
         if os.path.exists(temp_dir) and not self.download_path:
             logger.info(f"Cleaning up temporary directory: {temp_dir}")
             shutil.rmtree(temp_dir)
@@ -869,47 +1035,126 @@ class SupervisorAgent(BaseAgent):
         self, dataset_id: str, enhanced_context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Run metadata agent and return raw results."""
+        if self.log_console:
+            self.log_console.print(
+                Panel(
+                    "[bold blue]🔍 STARTING METADATA AGENT[/bold blue]\n"
+                    "[dim]Extracting dataset metadata, descriptions, and task categorization[/dim]",
+                    border_style="blue",
+                    box=box.HEAVY,
+                )
+            )
+
         metadata_agent = MetadataAgent(
             model_name=self.model_name,
             temperature=self.temperature,
             provider=self.provider,
             verbose=self.verbose,
+            log_console=self.log_console,
         )
-        return await metadata_agent.process(dataset_id, enhanced_context)
+        result = await metadata_agent.process(dataset_id, enhanced_context)
+
+        if self.log_console:
+            status = (
+                "[green]✓ COMPLETED[/green]"
+                if "error" not in result
+                else "[red]✗ ERROR[/red]"
+            )
+            self.log_console.print(
+                Panel(
+                    f"[bold]{status} - METADATA AGENT[/bold]",
+                    border_style="green" if "error" not in result else "red",
+                    box=box.HEAVY,
+                )
+            )
+
+        return result
 
     async def _run_channel_agent(
         self, dataset_id: str, enhanced_context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Run channel agent and return raw results."""
+        if self.log_console:
+            self.log_console.print(
+                Panel(
+                    "[bold yellow]🎛️  STARTING CHANNEL AGENT[/bold yellow]\n"
+                    "[dim]Analyzing channel configurations and creating channel maps[/dim]",
+                    border_style="yellow",
+                    box=box.HEAVY,
+                )
+            )
+
         channel_agent = ChannelAgent(
             model_name=self.model_name,
             temperature=self.temperature,
             provider=self.provider,
             verbose=self.verbose,
+            log_console=self.log_console,
         )
-        return await channel_agent.process(dataset_id, enhanced_context)
+        result = await channel_agent.process(dataset_id, enhanced_context)
+
+        if self.log_console:
+            status = (
+                "[green]✓ COMPLETED[/green]"
+                if "error" not in result
+                else "[red]✗ ERROR[/red]"
+            )
+            self.log_console.print(
+                Panel(
+                    f"[bold]{status} - CHANNEL AGENT[/bold]",
+                    border_style="green" if "error" not in result else "red",
+                    box=box.HEAVY,
+                )
+            )
+
+        return result
 
     async def _run_recording_agent(
         self, dataset_id: str, recording_context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Run recording agent and return raw results."""
+        if self.log_console:
+            self.log_console.print(
+                Panel(
+                    "[bold magenta]📊 STARTING RECORDING AGENT[/bold magenta]\n"
+                    "[dim]Analyzing individual recordings and sessions[/dim]",
+                    border_style="magenta",
+                    box=box.HEAVY,
+                )
+            )
+
         recording_agent = RecordingAgent(
             model_name=self.model_name,
             temperature=self.temperature,
             provider=self.provider,
             verbose=self.verbose,
+            log_console=self.log_console,
         )
-        return await recording_agent.process(dataset_id, recording_context)
+        result = await recording_agent.process(dataset_id, recording_context)
+
+        if self.log_console:
+            status = (
+                "[green]✓ COMPLETED[/green]"
+                if "error" not in result
+                else "[red]✗ ERROR[/red]"
+            )
+            self.log_console.print(
+                Panel(
+                    f"[bold]{status} - RECORDING AGENT[/bold]",
+                    border_style="green" if "error" not in result else "red",
+                    box=box.HEAVY,
+                )
+            )
+
+        return result
 
     def _create_dataset(self, results: Dict[str, Any]) -> Optional[Dataset]:
         """Create and validate the final Dataset object."""
         try:
-            # Get the structured objects directly from agent results
             metadata = results.get("structured_metadata")
             channel_maps = results.get("channel_maps")
             recording_info = results.get("recording_info")
 
-            # Validate we have the required data
             if not metadata:
                 logger.error("No metadata found in results")
                 return None
@@ -922,12 +1167,42 @@ class SupervisorAgent(BaseAgent):
                 logger.error("No recording info found in results")
                 return None
 
-            # Create Dataset object
             dataset = Dataset(
                 metadata=metadata,
                 channel_maps=channel_maps,
                 recording_info=recording_info,
             )
+
+            if self.log_console:
+                summary_table = Table(
+                    title="[bold green]Dataset Creation Summary[/bold green]",
+                    box=box.DOUBLE,
+                    show_header=True,
+                    header_style="bold cyan",
+                )
+                summary_table.add_column("Component", style="yellow", width=25)
+                summary_table.add_column(
+                    "Count", style="green", justify="right", width=15
+                )
+                summary_table.add_column("Status", style="cyan", width=20)
+
+                summary_table.add_row(
+                    "Channel Maps",
+                    str(len(dataset.channel_maps.channel_maps)),
+                    "✓ Created",
+                )
+                summary_table.add_row(
+                    "Recordings",
+                    str(len(dataset.recording_info.recording_info)),
+                    "✓ Analyzed",
+                )
+                summary_table.add_row(
+                    "Metadata Fields",
+                    str(len(dataset.metadata.model_dump())),
+                    "✓ Extracted",
+                )
+
+                self.log_console.print(summary_table)
 
             logger.info(
                 f"Successfully created Dataset with {len(dataset.channel_maps.channel_maps)} channel maps and {len(dataset.recording_info.recording_info)} recordings"
@@ -936,6 +1211,14 @@ class SupervisorAgent(BaseAgent):
 
         except (ValidationError, KeyError) as e:
             logger.error(f"Failed to create Dataset object: {e}")
+            if self.log_console:
+                self.log_console.print(
+                    Panel(
+                        f"[bold red]✗ Dataset Creation Failed[/bold red]\n{str(e)}",
+                        border_style="red",
+                        box=box.HEAVY,
+                    )
+                )
             return None
 
     async def process(
@@ -998,6 +1281,15 @@ class SupervisorAgent(BaseAgent):
                 logger.error("Cannot proceed with recording agent without channel maps")
 
             # Step 5: Create final dataset object
+            if self.log_console:
+                self.log_console.print(
+                    Panel(
+                        "[bold cyan]🔨 Creating Final Dataset Object[/bold cyan]",
+                        border_style="cyan",
+                        box=box.ROUNDED,
+                    )
+                )
+
             dataset = self._create_dataset(results)
             return {
                 "dataset": dataset,
@@ -1007,6 +1299,19 @@ class SupervisorAgent(BaseAgent):
         except Exception as e:
             logger.error(f"Supervisor Agent failed: {e}")
             traceback.print_exc()
+
+            if self.log_console:
+                self.log_console.print(
+                    Panel(
+                        f"[bold red]✗ SUPERVISOR AGENT FAILED[/bold red]\n\n"
+                        f"[yellow]Error:[/yellow] {str(e)}\n\n"
+                        f"[dim]{traceback.format_exc()}[/dim]",
+                        border_style="red",
+                        box=box.HEAVY,
+                        title="ERROR",
+                    )
+                )
+
             return {"error": str(e), "partial_results": results}
         finally:
             self._cleanup_resources(temp_dir)
