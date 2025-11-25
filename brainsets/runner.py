@@ -1,4 +1,5 @@
 import sys
+from typing import Type
 from argparse import ArgumentParser
 import os
 import time
@@ -15,7 +16,7 @@ import pandas as pd
 from brainsets.pipeline import BrainsetPipeline
 
 
-def import_pipeline_cls_from_file(pipeline_filepath: Path) -> BrainsetPipeline:
+def import_pipeline_cls_from_file(pipeline_filepath: Path) -> Type[BrainsetPipeline]:
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("pipeline_module", pipeline_filepath)
@@ -74,6 +75,9 @@ def run_pool_in_background(actor_pool: ActorPool, work_items: List[Any]):
         lambda actor, task: actor._run_item_on_parallel_worker.remote(task),
         work_items,
     )
+
+    # For the actors to start working, we need to request results by
+    # iterating over the results_generator.
     for _ in results_generator:
         pass
 
@@ -152,9 +156,11 @@ def run():
 
     if args.single is None:
         # Parallel run
+
         # 1. Start ray
         os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"  # to avoid a warning
         ray.init("local", num_cpus=args.cores, log_to_driver=False)
+
         # 2. Start tracker and actors
         tracker = StatusTracker.remote()
         actor_cls = ray.remote(pipeline_cls)
@@ -171,8 +177,9 @@ def run():
             ]
         )
         run_pool_in_background.remote(actor_pool, list(manifest.itertuples()))
-        # 3. Spin until completed
-        if not spin_on_tracker(tracker, manifest):
+
+        success = spin_on_tracker(tracker, manifest)
+        if not success:
             sys.exit(1)
     else:
         # Single run
