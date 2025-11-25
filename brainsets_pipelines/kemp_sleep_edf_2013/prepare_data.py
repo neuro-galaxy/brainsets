@@ -28,6 +28,11 @@ from brainsets.descriptions import (
 )
 from brainsets.taxonomy import RecordingTech, Species, Sex
 from brainsets.core import StringIntEnum
+from brainsets.utils.split import (
+    chop_intervals,
+    filter_intervals,
+    generate_stratified_folds,
+)
 from temporaldata import Data, Interval, RegularTimeSeries, ArrayDict
 
 
@@ -169,6 +174,45 @@ def extract_sleep_stages(hypnogram_file, psg_times):
     return stages
 
 
+def create_splits(stages, epoch_duration=30.0, n_folds=5, seed=42):
+    """
+    Generate train/valid/test splits from sleep stage intervals.
+
+    Args:
+        stages: Interval object containing sleep stages with 'id' attribute
+        epoch_duration: Duration in seconds to chop intervals into
+        n_folds: Number of cross-validation folds
+        seed: Random seed for reproducibility
+
+    Returns:
+        Data object containing splits structure with intrasubject folds
+    """
+    if stages is None or len(stages) == 0:
+        logging.warning("No stages provided for splitting")
+        return None
+
+    chopped = chop_intervals(stages, duration=epoch_duration)
+    logging.info(f"Chopped {len(stages)} stages into {len(chopped)} epochs")
+
+    UNKNOWN_STAGE_ID = 6
+    filtered = filter_intervals(chopped, exclude_ids=[UNKNOWN_STAGE_ID])
+    logging.info(f"Filtered out unknown stages, {len(filtered)} epochs remaining")
+
+    if len(filtered) == 0:
+        logging.warning("No valid epochs after filtering")
+        return None
+
+    splits = generate_stratified_folds(
+        filtered,
+        n_folds=n_folds,
+        val_ratio=0.2,
+        seed=seed,
+    )
+    logging.info(f"Generated {n_folds} stratified folds")
+
+    return splits
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Process Sleep-EDF data into brainsets format"
@@ -263,6 +307,8 @@ def main():
 
     stages = extract_sleep_stages(str(hypnogram_file), raw_psg.times)
 
+    splits = create_splits(stages, n_folds=3, seed=42) if stages is not None else None
+
     data_dict = {
         "brainset": brainset_description,
         "subject": subject,
@@ -270,12 +316,14 @@ def main():
         "device": device_description,
         "eeg": signals,
         "units": units,
+        "domain": signals.domain,
     }
 
     if stages is not None:
         data_dict["stages"] = stages
 
-    data_dict["domain"] = signals.domain
+    if splits is not None:
+        data_dict["splits"] = splits
 
     data = Data(**data_dict)
 
