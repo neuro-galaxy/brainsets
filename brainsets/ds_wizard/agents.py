@@ -125,7 +125,6 @@ class BaseAgent(ABC):
         model_name: str = "llama-3.3-70b",
         temperature: float = 0.1,
         verbose: bool = False,
-        output_struct: BaseModel = None,
         use_few_shot: bool = True,
         num_examples: int = 2,
         max_retries: int = 3,
@@ -180,12 +179,6 @@ class BaseAgent(ABC):
             raise ValueError(
                 f"Unsupported provider: {self.provider}. Supported providers: {list(PROVIDER_MODELS.keys())}"
             )
-
-    def get_output_parser(self) -> Optional[PydanticOutputParser]:
-        """Get the Pydantic output parser for this agent's output schema."""
-        if self.output_struct:
-            return PydanticOutputParser(pydantic_object=self.output_struct)
-        return None
 
     def _extract_output_text(self, raw_output: Any) -> str:
         """

@@ -383,7 +383,9 @@ def download_subject_eeg_data(
     exclude = np.setdiff1d(participants_list, subjects_to_include)
 
     if subjects_to_include:
-        include = [path_signature.replace("sub-*", subj_id) for subj_id in include]
+        include = [
+            path_signature.replace("sub-*", subj_id) for subj_id in subjects_to_include
+        ]
     else:
         return
 
@@ -443,7 +445,10 @@ def download_openneuro_data(
     latest_version_tag = fetch_latest_version_tag(dataset_id)
 
     # validate subject id
-    participants_list = fetch_participants(dataset_id, latest_version_tag, logger)
+    participants_list = fetch_participants(
+        dataset_id,
+        latest_version_tag,
+    )
 
     # validate subject id
     if subject_id is None:
