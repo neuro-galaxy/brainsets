@@ -31,7 +31,6 @@ dependencies = [
     "uv",
     "prompt_toolkit",
     "numpy>=1.14.0",
-    "snakemake>=7.32.0",
     "pulp<2.8",
     "ray>=2.30.0"
 ]
