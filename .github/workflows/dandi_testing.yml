@@ -37,7 +37,7 @@ jobs:
       run: |
         uv run brainsets config --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare pei_pandarinath_nlb_2021
-    
+
     - name: Download perich_miller_population_2018
       run: |
         uv run brainsets config --raw-dir data/raw --processed-dir data/processed
@@ -45,7 +45,7 @@ jobs:
 
 
     - name: Download allen_visual_coding_ophys_2016
-      if: matrix.python-version <= '3.11'  
+      if: matrix.python-version <= '3.11'
       # allen SDK needs numpy < 1.24, which is not compatible with python3.12+
       run: |
         uv run brainsets config --raw-dir data/raw --processed-dir data/processed
@@ -57,9 +57,9 @@ jobs:
         uv run brainsets prepare churchland_shenoy_neural_2012 -s jenkins_20090912
 
     - name: Download flint_slutzky_accurate_2012
-      if: matrix.python-version <= '3.11'  
+      if: matrix.python-version <= '3.11'
       # uses scipy==1.10.1 which won't work with 3.12+
       run: |
         uv run brainsets config --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare flint_slutzky_accurate_2012 -s flint_2012_e1
-  
+
