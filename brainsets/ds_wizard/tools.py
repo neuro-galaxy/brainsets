@@ -531,6 +531,7 @@ CHANNEL_TOOLS = [
 RECORDING_TOOLS = [
     FetchParticipantsTool(),
     DatasetReadmeTool(),
+    DatasetFilenamesTool(),
     EEGBidsSpecsTool(),
     ListConfigurationFilesTool(),
     ReadConfigurationFileTool(),

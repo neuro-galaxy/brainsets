@@ -45,6 +45,7 @@ dev = [
 ]
 openneuro = [
     "aiofiles>=25.1.0",
+    "boto3>=1.26.0",
     "dotenv>=0.9.9",
     "langchain>=1.1.0",
     "langchain-core>=1.0.0",

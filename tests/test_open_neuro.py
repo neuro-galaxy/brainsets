@@ -95,10 +95,47 @@ def test_fetch_all_filenames(dataset_id, error):
         assert filenames is not None
         assert isinstance(filenames, list)
         assert len(filenames) > 0
-        # All elements should be strings representing file paths
+
+        has_nested_files = False
+
         for filename in filenames:
             assert isinstance(filename, str)
             assert len(filename) > 0
+
+            assert not filename.endswith("/"), f"Found directory in results: {filename}"
+
+            assert not filename.startswith(
+                dataset_id
+            ), f"Path should be relative, not include dataset_id: {filename}"
+
+            if "/" in filename:
+                has_nested_files = True
+
+        assert (
+            has_nested_files
+        ), "Should include files in subdirectories, not just root-level files"
+
+
+def test_fetch_all_filenames_with_tag():
+    """Test fetching filenames with an explicit tag parameter."""
+    dataset_id = "ds006695"
+
+    all_tags = fetch_all_version_tags(dataset_id)
+    assert len(all_tags) > 0, "Dataset should have at least one version tag"
+
+    tag = all_tags[0]
+
+    filenames = fetch_all_filenames(dataset_id, tag=tag)
+    assert filenames is not None
+    assert isinstance(filenames, list)
+    assert len(filenames) > 0
+
+    for filename in filenames:
+        assert isinstance(filename, str)
+        assert len(filename) > 0
+        assert not filename.endswith("/")
+        assert not filename.startswith(dataset_id)
+        assert not tag in filename.split("/")[0] if "/" in filename else True
 
 
 @pytest.mark.parametrize("dataset_id, error", [("ds006695", False), ("ds00555", True)])

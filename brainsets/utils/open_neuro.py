@@ -4,6 +4,9 @@ import requests
 import numpy as np
 import pandas as pd
 import xml.etree.ElementTree as ET
+import boto3
+from botocore import UNSIGNED
+from botocore.config import Config
 
 from typing import Union
 
@@ -11,6 +14,7 @@ from brainsets.utils.open_neuro_utils import download
 
 
 OPENNEURO_GRAPHQL_URL = "https://openneuro.org/crn/graphql"
+OPENNEURO_S3_BUCKET = "openneuro.org"
 
 
 METADATA_QUERY = """
@@ -50,28 +54,6 @@ VERSION_TAGS_QUERY = """
         dataset(id: $datasetId) {
             snapshots {
                 tag
-            }
-        }
-    }
-"""
-
-FILENAMES_QUERY = """
-    query Query($datasetId: ID!, $tag: String!) {
-        snapshot(datasetId: $datasetId, tag: $tag) {
-            downloadFiles {
-                filename
-            }
-        }
-    }
-"""
-
-FILENAMES_LATEST_TAG_QUERY = """
-    query Query($datasetId: ID!) {
-        dataset(id: $datasetId) {
-            latestSnapshot {
-                downloadFiles {
-                    filename
-                }
             }
         }
     }
@@ -251,26 +233,55 @@ def fetch_all_version_tags(dataset_id: str) -> list[str]:
 
 
 def fetch_all_filenames(dataset_id: str, tag: str = None) -> list[str]:
-    """Fetch the filenames for a given OpenNeuro dataset using the GraphQL API.
+    """Fetch the filenames for a given OpenNeuro dataset using AWS S3.
+
+    Note: The S3 bucket only contains the latest version of each dataset,
+    so the tag parameter is currently ignored. All files from the dataset
+    root are returned regardless of the tag value.
 
     Args:
         dataset_id: The OpenNeuro dataset identifier
-        tag: The dataset version tag (uses latest if None)
+        tag: The dataset version tag (currently ignored for S3 access)
 
     Returns:
-        List of filenames in the dataset
+        List of relative filenames in the dataset (excluding directories)
     """
 
     dataset_id = validate_dataset_id(dataset_id)
-    if tag is None:
-        return _fetch_all_filenames_latest_tag(dataset_id)
 
-    variables = {"datasetId": dataset_id, "tag": tag}
-    raw_result = _graphql_query(FILENAMES_QUERY, variables)
+    s3_client = boto3.client("s3", config=Config(signature_version=UNSIGNED))
 
-    # Extract the filenames from the response
-    result = raw_result["snapshot"]["downloadFiles"]
-    return [file["filename"] for file in result]
+    prefix = f"{dataset_id}/"
+    filenames = []
+
+    try:
+        paginator = s3_client.get_paginator("list_objects_v2")
+        pages = paginator.paginate(Bucket=OPENNEURO_S3_BUCKET, Prefix=prefix)
+
+        for page in pages:
+            if "Contents" not in page:
+                continue
+
+            for obj in page["Contents"]:
+                key = obj["Key"]
+
+                if not key.endswith("/"):
+                    relative_path = key[len(prefix) :]
+                    if relative_path:
+                        filenames.append(relative_path)
+
+    except Exception as e:
+        raise RuntimeError(
+            f"Error fetching filenames for dataset {dataset_id}: {str(e)}"
+        )
+
+    if len(filenames) == 0:
+        raise RuntimeError(
+            f"No files found for dataset {dataset_id}. "
+            "The dataset may not exist or may be empty."
+        )
+
+    return filenames
 
 
 def _fetch_all_filenames_latest_tag(dataset_id: str) -> list[str]:
@@ -283,12 +294,7 @@ def _fetch_all_filenames_latest_tag(dataset_id: str) -> list[str]:
         List of filenames in the latest dataset version
     """
 
-    variables = {"datasetId": dataset_id}
-    raw_result = _graphql_query(FILENAMES_LATEST_TAG_QUERY, variables)
-
-    # Extract the filenames from the response
-    result = raw_result["dataset"]["latestSnapshot"]["downloadFiles"]
-    return [file["filename"] for file in result]
+    return fetch_all_filenames(dataset_id, tag=None)
 
 
 def fetch_participants(dataset_id: str, tag: str = None) -> list[str]:
