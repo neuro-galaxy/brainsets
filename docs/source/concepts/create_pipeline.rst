@@ -37,10 +37,10 @@ Step 1 – Create a pipeline directory
 A pipelines lives in a directory with (typically) two files::
 
    my_brainset/
-   ├── prepare_data.py
+   ├── pipeline.py
    └── requirements.txt
 
-``prepare_data.py`` contains the pipeline class. ``requirements.txt`` is optional
+``pipeline.py`` contains the pipeline class. ``requirements.txt`` is optional
 and lists extra Python dependencies that should be installed into the temporary
 environment before your pipeline runs. If you do not need extras, you can omit
 the file entirely.
@@ -49,13 +49,13 @@ so that collaborators can reproduce results.
 
 The ``brainsets prepare`` command inspects this directory, installs the
 requirements (using `uv <https://github.com/astral-sh/uv>`_), and finally runs
-``prepare_data.py`` through :mod:`brainsets.runner`.
+``pipeline.py`` through :mod:`brainsets.runner`.
 
 
 Step 2 – Subclass :class:`BrainsetPipeline`
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Inside ``prepare_data.py`` define your pipeline class. At minimum you must set a
+Inside ``pipeline.py`` define your pipeline class. At minimum you must set a
 unique ``brainset_id`` and implement |get_manifest|, |download|, and |process|.
 Pipelines can also expose custom CLI arguments by attaching an
 :class:`argparse.ArgumentParser` to the ``parser`` attribute.
@@ -88,7 +88,7 @@ Pipelines can also expose custom CLI arguments by attaching an
         def process(self, download_output):
             ...
 
-The `Perich & Miller (2018) pipeline <https://github.com/neuro-galaxy/brainsets/blob/main/brainsets_pipelines/perich_miller_population_2018/prepare_data.py>`__
+The `Perich & Miller (2018) pipeline <https://github.com/neuro-galaxy/brainsets/blob/main/brainsets_pipelines/perich_miller_population_2018/pipeline.py>`__
 is a complete example that uses all of these hooks.
 
 

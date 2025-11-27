@@ -97,14 +97,14 @@ def prepare(
             )
         # Find snakefile
         pipeline_dir = PIPELINES_PATH / brainset
-        prepare_filepath = pipeline_dir / "prepare_data.py"
+        prepare_filepath = pipeline_dir / "pipeline.py"
         reqs_filepath = pipeline_dir / "requirements.txt"
 
         click.echo(f"Preparing {brainset}...")
     else:
         # Preparing using a local pipeline
         pipeline_dir = expand_path(brainset)
-        prepare_filepath = pipeline_dir / "prepare_data.py"
+        prepare_filepath = pipeline_dir / "pipeline.py"
         reqs_filepath = pipeline_dir / "requirements.txt"
 
         click.echo(f"Preparing local pipeline: {pipeline_dir}")
