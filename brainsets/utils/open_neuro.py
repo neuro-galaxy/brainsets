@@ -10,9 +10,6 @@ from botocore.config import Config
 
 from typing import Union
 
-from brainsets.utils.open_neuro_utils import download
-
-
 OPENNEURO_GRAPHQL_URL = "https://openneuro.org/crn/graphql"
 OPENNEURO_S3_BUCKET = "openneuro.org"
 
@@ -323,33 +320,68 @@ def fetch_participants(dataset_id: str, tag: str = None) -> list[str]:
     return subjects
 
 
-def download_configuration_files(
-    dataset_id: str, target_dir: str, tag: str = None
-) -> None:
-    """Download the configuration files for a given OpenNeuro dataset.
+def get_s3_file_size(dataset_id: str, file_path: str) -> int:
+    """Get the size of a file in an OpenNeuro dataset using S3 HEAD request.
 
     Args:
-        dataset_id: The OpenNeuro dataset identifier
-        tag: The dataset version tag
-        target_dir: Directory where files will be downloaded
+        dataset_id: The OpenNeuro dataset identifier (e.g., 'ds000001')
+        file_path: The relative path to the file within the dataset (e.g., 'dataset_description.json')
+
+    Returns:
+        File size in bytes
+
+    Raises:
+        RuntimeError: If the file doesn't exist or cannot be accessed
     """
+    dataset_id = validate_dataset_id(dataset_id)
+    s3_client = boto3.client("s3", config=Config(signature_version=UNSIGNED))
 
-    if tag is None:
-        tag = fetch_latest_version_tag(dataset_id)
+    s3_key = f"{dataset_id}/{file_path}"
 
-    include = ["*.json", "*.tsv"]
-    exclude = ["*events*", "*_T1w*", "*scans*"]
+    try:
+        response = s3_client.head_object(Bucket=OPENNEURO_S3_BUCKET, Key=s3_key)
+        return response["ContentLength"]
+    except Exception as e:
+        raise RuntimeError(
+            f"Error getting file size for {file_path} in dataset {dataset_id}: {str(e)}"
+        )
 
-    if not os.path.exists(target_dir):
-        os.mkdir(target_dir)
 
-    download(
-        dataset=dataset_id,
-        tag=tag,
-        target_dir=target_dir,
-        include=include,
-        exclude=exclude,
-    )
+def download_file_from_s3(
+    dataset_id: str, file_path: str, target_dir: str, force: bool = False
+) -> str:
+    """Download a single file from an OpenNeuro dataset using AWS S3.
+
+    Args:
+        dataset_id: The OpenNeuro dataset identifier (e.g., 'ds000001')
+        file_path: The relative path to the file within the dataset (e.g., 'dataset_description.json')
+        target_dir: Directory where the file will be downloaded
+        force: If True, re-download even if file exists locally (default: False)
+
+    Returns:
+        The local path to the downloaded file
+
+    Raises:
+        RuntimeError: If the file doesn't exist or cannot be downloaded
+    """
+    dataset_id = validate_dataset_id(dataset_id)
+    local_path = os.path.join(target_dir, file_path)
+
+    if os.path.exists(local_path) and not force:
+        return local_path
+
+    s3_client = boto3.client("s3", config=Config(signature_version=UNSIGNED))
+    s3_key = f"{dataset_id}/{file_path}"
+
+    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+
+    try:
+        s3_client.download_file(OPENNEURO_S3_BUCKET, s3_key, local_path)
+        return local_path
+    except Exception as e:
+        raise RuntimeError(
+            f"Error downloading {file_path} from dataset {dataset_id}: {str(e)}"
+        )
 
 
 def download_subject_eeg_data(

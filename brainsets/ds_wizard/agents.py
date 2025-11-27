@@ -33,7 +33,6 @@ from rich.syntax import Syntax
 from rich.tree import Tree
 from rich import box
 
-from brainsets.utils.open_neuro import download_configuration_files
 from brainsets.ds_wizard.dataset_struct import (
     Dataset,
     DatasetMetadata,
@@ -285,6 +284,7 @@ class BaseAgent(ABC):
                                     )
 
                                 elif block_type == "tool_use":
+                                    self.log_console.print(block)
                                     tool_name = block.get("name", "unknown")
                                     tool_input = block.get("input", {})
 
@@ -309,12 +309,17 @@ class BaseAgent(ABC):
                         f"[cyan]Tool Calls: {len(msg.tool_calls)}[/cyan]"
                     )
                     for j, tool_call in enumerate(msg.tool_calls):
-                        tool_name = getattr(tool_call, "name", "unknown")
+                        if isinstance(tool_call, dict):
+                            tool_name = tool_call.get("name", "unknown")
+                            tool_args = tool_call.get("args", {})
+                        else:
+                            tool_name = getattr(tool_call, "name", "unknown")
+                            tool_args = getattr(tool_call, "args", {})
                         tool_call_node = tools_node.add(f"{j+1}. {tool_name}")
 
-                        if hasattr(tool_call, "args"):
+                        if tool_args:
                             syntax = Syntax(
-                                json.dumps(tool_call.args, indent=2),
+                                json.dumps(tool_args, indent=2),
                                 "json",
                                 theme="monokai",
                                 line_numbers=False,
@@ -600,6 +605,7 @@ class MetadataAgent(BaseAgent):
     2. Use fetch_dataset_readme to get README content  
     3. Use get_task_taxonomy to get valid task categories
     4. Extract and categorize all required metadata fields
+    5. Use download_configuration_file to download any additional files you need (e.g., dataset_description.json, participants.tsv)
 
     GUIDELINES:
     - Summaries: ≤150 words, derived from README
@@ -608,6 +614,7 @@ class MetadataAgent(BaseAgent):
     - Authors: Extract from README or metadata fields
     - Categories: Match to taxonomy using get_task_taxonomy tool
     - Tools: Call each tool at most once with the same parameters.
+    - Download files on-demand: Use download_configuration_file when you need additional dataset files
 
     START by fetching metadata, README, and taxonomy, then extract all fields systematically.
     
@@ -696,18 +703,18 @@ class ChannelAgent(BaseAgent):
         Additionally, you'll need to extract the coordinates of the electrodes for EEG electrodes.
 
         PROCESS:
-        1. Use the DatasetReadmeTool to get README content. This is the primary source of information about the dataset that should be used to extract information.
-        2. Use the ModalitiesTool to get valid electrode types.
-        3. Use the ListConfigurationFilesTool to find channel configuration files (*_channels.tsv, *_electrodes.tsv)
-        4. Use the ReadConfigurationFileTool to examine file structure and content
-        5. Use the GetEEGBidsSpecsTool to understand BIDS format specifications
+        1. Use the fetch_dataset_readme tool to get README content. This is the primary source of information about the dataset that should be used to extract information.
+        2. Use the get_modalities tool to get valid electrode types.
+        3. Use download_configuration_file to download channel configuration files on-demand (*_channels.tsv, *_electrodes.tsv)
+        4. Use the read_configuration_file tool to examine downloaded file structure and content
+        5. Use the get_eeg_bids_specs tool to understand BIDS format specifications
         6. Get all the unique channels that exist per device session from the configuration files.
         7. For each of those channels, estimate the modality type based on the information available.
         8. For all the channels that you identified as EEG, if some of the channel names seem to not be standard names, try to map them to a standard name 
-        as could be found in an MNE montage. Use the ElectrodeToMontageMappingTool to get the mapping. Examples: 'EEG_Fp1 -> Fp1', 'Fp2-Fz -> Fp2'...
+        as could be found in an MNE montage. Use the get_electrode_to_montage_mapping tool to get the mapping. Examples: 'EEG_Fp1 -> Fp1', 'Fp2-Fz -> Fp2'...
         If you cannot find a match, use the modality EEG-OTHER.
         9. For all channels that you identified as EEG, extract the coordinates based on the information available.
-        Use the AllMontageMatchesTool to get the mapping of electrode names to montages.
+        Use the find_all_montage_matches tool to get the mapping of electrode names to montages.
         10. Create a ChannelMap object for each device, extracting the device name and manufacturer.
 
         CRITICAL OUTPUT REQUIREMENTS:
@@ -716,7 +723,8 @@ class ChannelAgent(BaseAgent):
         - If information is missing, use your best judgment to provide reasonable values
         - Complete the entire JSON structure before finishing
 
-        DO NOT ask for examples - discover the structure using your tools!"""
+        DO NOT ask for examples - discover the structure using your tools!
+        Download files on-demand as needed using download_configuration_file tool."""
 
     def get_tools(self) -> List:
         return CHANNEL_TOOLS
@@ -731,17 +739,12 @@ class ChannelAgent(BaseAgent):
         agent = self.create_agent()
 
         config_dir = context.get("config_files_dir", "") if context else ""
-        config_info = (
-            f"Configuration files have been downloaded to: {config_dir}"
-            if config_dir
-            else ""
-        )
 
         # Available metadata: {context.get("raw_metadata", {}).replace("{", "[").replace("}", "]")}
         prompt = f"""
         Create channel maps for dataset {dataset_id}.
         
-        {config_info}
+        Use the download_configuration_file tool to download channel files on-demand to: {config_dir}
         
         CRITICAL: You MUST return a valid JSON object. Do NOT return an empty string or incomplete output.
         If you're unsure about any field, provide your best estimate based on available information.
@@ -793,8 +796,8 @@ class RecordingAgent(BaseAgent):
     YOUR TASKS:
     1. Use fetch_participants to get the COMPLETE list of all participant IDs in the dataset
     2. Use fetch_dataset_filenames to identify ALL recording files for each participant
-    3. Use list_configuration_files to find participant/session metadata files (participants.tsv, sessions.tsv, etc.)
-    4. Use read_configuration_file to examine participant metadata and session information
+    3. Use download_configuration_file to download participant/session metadata files on-demand (participants.tsv, sessions.tsv, etc.)
+    4. Use read_configuration_file to examine downloaded participant metadata and session information
     5. Map each recording to the appropriate channel_map_id from ChannelAgent results
     6. Extract recording metadata and participant information for EVERY participant
 
@@ -806,11 +809,13 @@ class RecordingAgent(BaseAgent):
 
     CRITICAL DATA EXTRACTION REQUIREMENTS:
     - duration_seconds: MUST be extracted from the SPECIFIC recording's *_eeg.json sidecar file
+      * Download the file using download_configuration_file first
       * Look for fields like "RecordingDuration" or calculate from samples/sampling_rate
       * DO NOT assume all recordings have the same duration
       * DO NOT copy duration from other recordings
       * Each recording may have different duration - read each one individually
     - num_channels: MUST be counted from the SPECIFIC recording's *_channels.tsv file
+      * Download the file using download_configuration_file first
       * Count the actual number of rows in the recording-specific channels.tsv file
       * DO NOT assume all recordings have the same number of channels
       * DO NOT copy channel count from other recordings
@@ -819,20 +824,20 @@ class RecordingAgent(BaseAgent):
     PROCESS:
     1. START by calling fetch_participants to get the authoritative list of ALL participant IDs
     2. CALL fetch_dataset_filenames to get all recording files in the dataset
-    3. LIST configuration files to find all metadata files (participants.tsv, sessions.tsv, *_channels.tsv, *_eeg.json)
-    4. READ participants.tsv to understand participant information structure
-    5. For EACH recording found in the dataset:
+    3. DOWNLOAD participants.tsv using download_configuration_file to understand participant information structure
+    4. For EACH recording found in the dataset:
        a. Identify the recording (BIDS naming: sub-XX_[ses-YY_]task-ZZ_eeg.*)
-       b. Find and READ the recording's *_eeg.json sidecar file for metadata (duration, sampling rate)
-       c. Find and READ the recording's *_channels.tsv file to COUNT the actual number of channels
+       b. DOWNLOAD and READ the recording's *_eeg.json sidecar file for metadata (duration, sampling rate)
+       c. DOWNLOAD and READ the recording's *_channels.tsv file to COUNT the actual number of channels
        d. Extract task, session, and subject information from the filename
        e. Match recording to appropriate channel_map_id based on device/setup from channel file
        f. Get participant info from participants.tsv for that subject
-    6. VERIFY that you have created entries for ALL recordings and participants
+    5. VERIFY that you have created entries for ALL recordings and participants
 
     IMPORTANT: DO NOT make assumptions about duration or channel counts. Each recording is unique and must be examined individually!
 
     You must reference channel_maps from context to assign channel_map_id correctly!
+    Download files on-demand as needed using download_configuration_file tool.
     
     CRITICAL OUTPUT REQUIREMENTS:
     - You MUST always return a complete, valid JSON object
@@ -857,11 +862,6 @@ class RecordingAgent(BaseAgent):
         agent = self.create_agent()
 
         config_dir = context.get("config_files_dir", "")
-        config_info = (
-            f"Configuration files have been downloaded to: {config_dir}"
-            if config_dir
-            else ""
-        )
 
         # Format channel maps for display in prompt
         channel_maps_info = context.get("channel_maps", {})
@@ -874,14 +874,16 @@ class RecordingAgent(BaseAgent):
         Analyze recordings for dataset {dataset_id}.
         
         Available Channel Maps: {channel_maps_display}
-        {config_info}
+        
+        Use the download_configuration_file tool to download metadata files on-demand to: {config_dir}
         
         MANDATORY STEPS:
         1. FIRST: Use fetch_participants tool to get the complete list of ALL participant IDs for {dataset_id}
         2. Use fetch_dataset_filenames to get all recording files
-        3. Use list_configuration_files and read_configuration_file to get participant metadata
-        4. Create a recording_info entry for EVERY participant from step 1
-        5. Verify the total count of recording_info matches the number of participants
+        3. Use download_configuration_file to download participants.tsv and other metadata files
+        4. Use read_configuration_file to examine participant metadata
+        5. Create a recording_info entry for EVERY participant from step 1
+        6. Verify the total count of recording_info matches the number of participants
         
         You MUST return a valid JSON object. Do NOT return an empty string or incomplete output.
         If you're unsure about any field, provide your best estimate based on available information.
@@ -1232,31 +1234,12 @@ class SupervisorAgent(BaseAgent):
         results = {"config_files_dir": temp_dir}
 
         try:
-            logger.info(f"Starting download and metadata extraction for {dataset_id}")
+            logger.info(f"Starting metadata extraction for {dataset_id}")
 
-            # Step 1: Download configuration files and run metadata agent in parallel
-            # Check if files are already downloaded to avoid redundant downloads
-            if os.listdir(temp_dir):
-                logger.info(
-                    f"Configuration files already exist in {temp_dir}, skipping download"
-                )
-                download_task = None
-            else:
-                download_task = asyncio.get_event_loop().run_in_executor(
-                    None, download_configuration_files, dataset_id, temp_dir
-                )
-
-            metadata_task = self._run_metadata_agent(dataset_id, enhanced_context)
-
-            # Wait for both to complete (or just metadata if download was skipped)
-            if download_task:
-                _, metadata_result = await asyncio.gather(
-                    download_task, metadata_task, return_exceptions=True
-                )
-            else:
-                metadata_result = await metadata_task
-
-            logger.info(f"Configuration files downloaded to {temp_dir}")
+            # Step 1: Run metadata agent (files will be downloaded on-demand)
+            metadata_result = await self._run_metadata_agent(
+                dataset_id, enhanced_context
+            )
 
             # Step 2: Collect results from metadata agent
             if isinstance(metadata_result, Exception):

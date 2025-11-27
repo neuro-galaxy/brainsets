@@ -6,7 +6,8 @@ from brainsets.utils.open_neuro import (
     fetch_all_version_tags,
     fetch_all_filenames,
     fetch_participants,
-    download_configuration_files,
+    download_file_from_s3,
+    get_s3_file_size,
 )
 import pytest
 import tempfile
@@ -155,60 +156,71 @@ def test_fetch_participants(dataset_id, error):
             assert len(participant) > 4  # At least "sub-" + some ID
 
 
-def test_download_configuration_files():
-    """Test downloading configuration files to a temporary directory and verify their format."""
-    # Create a temporary directory
+def test_get_s3_file_size():
+    """Test getting file size from S3 without downloading."""
+    dataset_id = "ds006695"
+    file_path = "dataset_description.json"
+
+    file_size = get_s3_file_size(dataset_id, file_path)
+
+    assert file_size > 0, "File size should be greater than 0"
+    assert isinstance(file_size, int), "File size should be an integer"
+
+
+def test_get_s3_file_size_invalid():
+    """Test getting file size for non-existent file."""
+    dataset_id = "ds006695"
+    file_path = "non_existent_file.json"
+
+    with pytest.raises(RuntimeError):
+        get_s3_file_size(dataset_id, file_path)
+
+
+def test_download_file_from_s3():
+    """Test downloading a single file from S3."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Download configuration files
-        download_configuration_files(dataset_id="ds006695", target_dir=temp_dir)
+        dataset_id = "ds006695"
+        file_path = "dataset_description.json"
 
-        # Check that the temporary directory contains downloaded files
-        temp_path = Path(temp_dir)
-        downloaded_files = list(temp_path.rglob("*"))
+        local_path = download_file_from_s3(dataset_id, file_path, temp_dir)
 
-        # Filter out directories, only keep files
-        downloaded_files = [f for f in downloaded_files if f.is_file()]
+        assert Path(local_path).exists(), "Downloaded file should exist"
+        assert Path(local_path).is_file(), "Downloaded path should be a file"
 
-        # Assert that files were downloaded
-        assert len(downloaded_files) > 0, "No files were downloaded"
+        with open(local_path, "r") as f:
+            data = json.load(f)
 
-        # Check for expected file types (JSON and TSV files)
-        json_files = [f for f in downloaded_files if f.suffix == ".json"]
-        tsv_files = [f for f in downloaded_files if f.suffix == ".tsv"]
+        assert isinstance(data, dict), "JSON file should contain a dictionary"
+        assert len(data) > 0, "JSON file should not be empty"
 
-        # Should have at least some configuration files
+
+def test_download_file_from_s3_caching():
+    """Test that downloading the same file twice uses caching."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dataset_id = "ds006695"
+        file_path = "dataset_description.json"
+
+        local_path1 = download_file_from_s3(dataset_id, file_path, temp_dir)
+
+        mtime1 = Path(local_path1).stat().st_mtime
+
+        local_path2 = download_file_from_s3(dataset_id, file_path, temp_dir)
+        mtime2 = Path(local_path2).stat().st_mtime
+
+        assert local_path1 == local_path2, "Same file path should be returned"
         assert (
-            len(json_files) > 0 or len(tsv_files) > 0
-        ), "No JSON or TSV configuration files found"
+            mtime1 == mtime2
+        ), "File should not be re-downloaded (same modification time)"
 
-        # Validate JSON files are properly formatted
-        for json_file in json_files:
-            try:
-                with open(json_file, "r") as f:
-                    json.load(f)  # Should parse without error
-                assert (
-                    json_file.stat().st_size > 0
-                ), f"JSON file {json_file.name} is empty"
-            except json.JSONDecodeError:
-                pytest.fail(f"Invalid JSON format in file: {json_file.name}")
 
-        # Validate TSV files are properly formatted
-        for tsv_file in tsv_files:
-            try:
-                df = pd.read_csv(tsv_file, sep="\t")
-                assert not df.empty, f"TSV file {tsv_file.name} is empty"
-                assert len(df.columns) > 0, f"TSV file {tsv_file.name} has no columns"
-            except Exception as e:
-                pytest.fail(f"Invalid TSV format in file {tsv_file.name}: {str(e)}")
+def test_download_file_from_s3_invalid():
+    """Test downloading non-existent file from S3."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dataset_id = "ds006695"
+        file_path = "non_existent_file.json"
 
-        # Verify that excluded files are not present
-        excluded_patterns = ["events", "_T1w", "scans"]
-        for file in downloaded_files:
-            filename_lower = file.name.lower()
-            for pattern in excluded_patterns:
-                assert (
-                    pattern not in filename_lower
-                ), f"Excluded file pattern '{pattern}' found in {file.name}"
+        with pytest.raises(RuntimeError):
+            download_file_from_s3(dataset_id, file_path, temp_dir)
 
 
 # TODO: Implement this test

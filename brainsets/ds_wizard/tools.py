@@ -16,7 +16,8 @@ from brainsets.utils.open_neuro import (
     fetch_all_filenames,
     fetch_participants,
     validate_dataset_id,
-    download_configuration_files,
+    download_file_from_s3,
+    get_s3_file_size,
 )
 from brainsets.ds_wizard.context import (
     get_default_dataset_info,
@@ -129,6 +130,16 @@ class FilePathInput(BaseModel):
     """Input class for tools that require a file path."""
 
     file_path: str = Field(description="Path to file")
+
+
+class DownloadFileInput(BaseModel):
+    """Input class for downloading a specific file from OpenNeuro."""
+
+    dataset_id: str = Field(description="Dataset ID (e.g., 'ds000247')")
+    file_path: str = Field(
+        description="Relative path to file within dataset (e.g., 'dataset_description.json' or 'sub-01/ses-01/eeg/sub-01_ses-01_channels.tsv')"
+    )
+    target_dir: str = Field(description="Directory where file should be downloaded")
 
 
 class EmptyInput(BaseModel):
@@ -510,11 +521,106 @@ class ElectrodeToMontageMappingTool(BaseTool):
         )
 
 
+class DownloadConfigurationFileTool(BaseTool):
+    name: str = "download_configuration_file"
+    description: str = (
+        "Download a specific configuration file from an OpenNeuro dataset via AWS S3. "
+        "This tool downloads small configuration files on-demand (≤5 MB). "
+        "Supported file types: .json, .tsv, .txt, .md, .tsv.gz. "
+        "The file will be cached locally to avoid redundant downloads. "
+        "Use this to access dataset metadata, channel files, participant info, etc."
+    )
+    args_schema: Type[BaseModel] = DownloadFileInput
+
+    def _run(self, dataset_id: str, file_path: str, target_dir: str) -> str:
+        def _download_file(dataset_id: str, file_path: str, target_dir: str):
+            ALLOWED_EXTENSIONS = (".json", ".tsv", ".txt", ".md", ".tsv.gz")
+            MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+
+            if not any(file_path.lower().endswith(ext) for ext in ALLOWED_EXTENSIONS):
+                return json.dumps(
+                    {
+                        "error": f"File type not allowed. File must be one of: {', '.join(ALLOWED_EXTENSIONS)}",
+                        "file_path": file_path,
+                    },
+                    indent=2,
+                )
+
+            local_path = os.path.join(target_dir, file_path)
+
+            if os.path.exists(local_path):
+                logger.info(f"File already cached locally: {local_path}")
+                with open(local_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+                preview = content[:500] if len(content) > 500 else content
+                return json.dumps(
+                    {
+                        "status": "cached",
+                        "local_path": local_path,
+                        "file_path": file_path,
+                        "size_bytes": os.path.getsize(local_path),
+                        "content_preview": preview,
+                    },
+                    indent=2,
+                )
+
+            try:
+                file_size = get_s3_file_size(dataset_id, file_path)
+
+                if file_size > MAX_FILE_SIZE:
+                    return json.dumps(
+                        {
+                            "error": f"File too large ({file_size:,} bytes). Maximum allowed: {MAX_FILE_SIZE:,} bytes (5 MB)",
+                            "file_path": file_path,
+                            "file_size": file_size,
+                        },
+                        indent=2,
+                    )
+
+                local_path = download_file_from_s3(dataset_id, file_path, target_dir)
+
+                with open(local_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+                preview = content[:500] if len(content) > 500 else content
+                return json.dumps(
+                    {
+                        "status": "downloaded",
+                        "local_path": local_path,
+                        "file_path": file_path,
+                        "size_bytes": file_size,
+                        "content_preview": preview,
+                    },
+                    indent=2,
+                )
+
+            except Exception as e:
+                return json.dumps(
+                    {
+                        "error": str(e),
+                        "file_path": file_path,
+                        "dataset_id": dataset_id,
+                    },
+                    indent=2,
+                )
+
+        return safe_tool_execution(
+            "DownloadConfigurationFileTool",
+            _download_file,
+            ["dataset_id", "file_path", "target_dir"],
+            dataset_id=dataset_id,
+            file_path=file_path,
+            target_dir=target_dir,
+        )
+
+
 # Categorize tools by agent responsibility
 METADATA_TOOLS = [
     DatasetMetadataTool(),
     DatasetReadmeTool(),
     TaskTaxonomyTool(),
+    DownloadConfigurationFileTool(),
 ]
 
 CHANNEL_TOOLS = [
@@ -526,6 +632,7 @@ CHANNEL_TOOLS = [
     ElectrodeToMontageMappingTool(),
     ListConfigurationFilesTool(),
     ReadConfigurationFileTool(),
+    DownloadConfigurationFileTool(),
 ]
 
 RECORDING_TOOLS = [
@@ -535,4 +642,5 @@ RECORDING_TOOLS = [
     EEGBidsSpecsTool(),
     ListConfigurationFilesTool(),
     ReadConfigurationFileTool(),
+    DownloadConfigurationFileTool(),
 ]
