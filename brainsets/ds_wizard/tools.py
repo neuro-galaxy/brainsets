@@ -625,6 +625,367 @@ class DownloadConfigurationFileTool(BaseTool):
         )
 
 
+class AnalyzeAllRecordingsInput(BaseModel):
+    """Input class for batch recording analysis tool."""
+
+    dataset_id: str = Field(description="Dataset ID (e.g., 'ds000247')")
+    channel_maps: Dict[str, List[str]] = Field(
+        description="Channel maps from ChannelAgent: {map_id: [channel_names]}"
+    )
+
+
+def _parse_bids_filename(filename: str) -> Dict[str, Optional[str]]:
+    """
+    Extract BIDS entities from a filename.
+
+    Args:
+        filename: BIDS-compliant filename (e.g., 'sub-01_ses-02_task-rest_acq-eeg_run-01_eeg.json')
+
+    Returns:
+        Dictionary with extracted entities: subject_id, session, task, acquisition, run
+    """
+    import re
+
+    basename = os.path.basename(filename)
+    name_without_ext = (
+        basename.rsplit("_eeg", 1)[0]
+        if "_eeg" in basename
+        else basename.rsplit(".", 1)[0]
+    )
+
+    entities = {
+        "subject_id": None,
+        "session": None,
+        "task": None,
+        "acquisition": None,
+        "run": None,
+    }
+
+    patterns = {
+        "subject_id": r"sub-([^_]+)",
+        "session": r"ses-([^_]+)",
+        "task": r"task-([^_]+)",
+        "acquisition": r"acq-([^_]+)",
+        "run": r"run-([^_]+)",
+    }
+
+    for key, pattern in patterns.items():
+        match = re.search(pattern, name_without_ext)
+        if match:
+            entities[key] = match.group(1)
+
+    return entities
+
+
+def _parse_channels_tsv(content: str) -> Dict[str, Any]:
+    """
+    Parse a channels.tsv file and extract channel information.
+
+    Args:
+        content: Raw TSV file content
+
+    Returns:
+        Dictionary with channel_names, channel_types, and bad_channels
+    """
+    lines = content.strip().split("\n")
+    if not lines:
+        return {"channel_names": [], "channel_types": {}, "bad_channels": []}
+
+    header = lines[0].split("\t")
+    header_lower = [h.lower() for h in header]
+
+    name_idx = header_lower.index("name") if "name" in header_lower else 0
+    type_idx = header_lower.index("type") if "type" in header_lower else None
+    status_idx = header_lower.index("status") if "status" in header_lower else None
+
+    channel_names = []
+    channel_types = {}
+    bad_channels = []
+
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        cols = line.split("\t")
+        if len(cols) <= name_idx:
+            continue
+
+        ch_name = cols[name_idx].strip()
+        if not ch_name:
+            continue
+
+        channel_names.append(ch_name)
+
+        if type_idx is not None and len(cols) > type_idx:
+            channel_types[ch_name] = cols[type_idx].strip()
+
+        if status_idx is not None and len(cols) > status_idx:
+            if cols[status_idx].strip().lower() == "bad":
+                bad_channels.append(ch_name)
+
+    return {
+        "channel_names": channel_names,
+        "channel_types": channel_types,
+        "bad_channels": bad_channels,
+    }
+
+
+def _match_to_channel_map(
+    channel_names: List[str],
+    acquisition: Optional[str],
+    channel_maps: Dict[str, List[str]],
+) -> tuple[Optional[str], float]:
+    """
+    Match recording channels to the best channel map.
+
+    Args:
+        channel_names: List of channel names from the recording
+        acquisition: Acquisition type from BIDS filename (e.g., 'headband', 'psg')
+        channel_maps: Dictionary of {map_id: [channel_names]}
+
+    Returns:
+        Tuple of (best_match_map_id, match_score)
+    """
+    if not channel_names or not channel_maps:
+        return None, 0.0
+
+    best_match = None
+    best_score = 0.0
+    recording_channels = set(channel_names)
+
+    for map_id, map_channels in channel_maps.items():
+        map_channel_set = set(map_channels)
+
+        overlap = len(map_channel_set & recording_channels)
+        if overlap == 0:
+            continue
+
+        score = overlap / max(len(map_channel_set), len(recording_channels), 1)
+
+        if acquisition and acquisition.lower() in map_id.lower():
+            score += 0.3
+
+        if score > best_score:
+            best_score = score
+            best_match = map_id
+
+    return best_match, best_score
+
+
+def _parse_participants_tsv(content: str) -> Dict[str, Dict[str, str]]:
+    """
+    Parse participants.tsv and return participant info keyed by participant_id.
+
+    Args:
+        content: Raw TSV file content
+
+    Returns:
+        Dictionary of {participant_id: {field: value}}
+    """
+    lines = content.strip().split("\n")
+    if len(lines) < 2:
+        return {}
+
+    header = lines[0].split("\t")
+    participants = {}
+
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        cols = line.split("\t")
+        if not cols:
+            continue
+
+        row_data = {}
+        for i, col in enumerate(cols):
+            if i < len(header):
+                row_data[header[i]] = col.strip()
+
+        participant_id = row_data.get("participant_id", "")
+        if participant_id:
+            participants[participant_id] = row_data
+
+    return participants
+
+
+class AnalyzeAllRecordingsTool(BaseTool):
+    """
+    Batch analyze ALL recordings in a dataset.
+
+    Downloads and parses all *_eeg.json sidecar files and *_channels.tsv files,
+    extracts recording metadata, and matches recordings to channel maps.
+    """
+
+    name: str = "analyze_all_recordings"
+    description: str = (
+        "Batch analyze ALL recordings in a dataset. Downloads and parses all *_eeg.json "
+        "sidecar files and *_channels.tsv files. Extracts duration, sampling rate, "
+        "channel names, channel types, and bad channels. Matches recordings to the "
+        "appropriate channel maps based on channel name overlap and acquisition type. "
+        "Returns complete recording summaries ready for RecordingInfo generation."
+    )
+    args_schema: Type[BaseModel] = AnalyzeAllRecordingsInput
+    base_dir: str = ""
+
+    def __init__(self, base_dir: str = "", **kwargs):
+        super().__init__(**kwargs)
+        self.base_dir = base_dir
+
+    def _download_and_read_file(self, dataset_id: str, file_path: str) -> Optional[str]:
+        """Download a file from S3 and return its content."""
+        local_path = os.path.join(self.base_dir, file_path)
+
+        if os.path.exists(local_path):
+            with open(local_path, "r", encoding="utf-8") as f:
+                return f.read()
+
+        try:
+            download_file_from_s3(dataset_id, file_path, self.base_dir)
+            with open(local_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            logger.warning(f"Failed to download {file_path}: {e}")
+            return None
+
+    def _run(self, dataset_id: str, channel_maps: Dict[str, List[str]]) -> str:
+        def _analyze_all_recordings(
+            dataset_id: str, channel_maps: Dict[str, List[str]]
+        ) -> str:
+            filenames = fetch_all_filenames(dataset_id)
+
+            eeg_json_files = [f for f in filenames if f.endswith("_eeg.json")]
+            channels_tsv_files = [f for f in filenames if f.endswith("_channels.tsv")]
+
+            channels_tsv_map = {}
+            for f in channels_tsv_files:
+                key = f.rsplit("_channels.tsv", 1)[0]
+                channels_tsv_map[key] = f
+
+            participants = {}
+            participants_content = self._download_and_read_file(
+                dataset_id, "participants.tsv"
+            )
+            if participants_content:
+                participants = _parse_participants_tsv(participants_content)
+
+            recordings = []
+            errors = []
+
+            for eeg_json_path in eeg_json_files:
+                try:
+                    entities = _parse_bids_filename(eeg_json_path)
+
+                    recording_id_parts = []
+                    if entities["subject_id"]:
+                        recording_id_parts.append(f"sub-{entities['subject_id']}")
+                    if entities["session"]:
+                        recording_id_parts.append(f"ses-{entities['session']}")
+                    if entities["task"]:
+                        recording_id_parts.append(f"task-{entities['task']}")
+                    if entities["acquisition"]:
+                        recording_id_parts.append(f"acq-{entities['acquisition']}")
+                    if entities["run"]:
+                        recording_id_parts.append(f"run-{entities['run']}")
+
+                    recording_id = "_".join(recording_id_parts)
+
+                    eeg_json_content = self._download_and_read_file(
+                        dataset_id, eeg_json_path
+                    )
+                    sidecar_data = {}
+                    if eeg_json_content:
+                        try:
+                            sidecar_data = json.loads(eeg_json_content)
+                        except json.JSONDecodeError:
+                            logger.warning(f"Failed to parse JSON: {eeg_json_path}")
+
+                    duration_seconds = sidecar_data.get("RecordingDuration")
+                    sampling_frequency = sidecar_data.get("SamplingFrequency")
+                    manufacturer = sidecar_data.get("Manufacturer")
+
+                    base_key = eeg_json_path.rsplit("_eeg.json", 1)[0]
+                    channels_tsv_path = channels_tsv_map.get(base_key)
+
+                    channel_names = []
+                    channel_types = {}
+                    bad_channels = []
+                    num_channels = 0
+
+                    if channels_tsv_path:
+                        channels_content = self._download_and_read_file(
+                            dataset_id, channels_tsv_path
+                        )
+                        if channels_content:
+                            channel_info = _parse_channels_tsv(channels_content)
+                            channel_names = channel_info["channel_names"]
+                            channel_types = channel_info["channel_types"]
+                            bad_channels = channel_info["bad_channels"]
+                            num_channels = len(channel_names)
+
+                    matched_map_id, match_score = _match_to_channel_map(
+                        channel_names, entities["acquisition"], channel_maps
+                    )
+
+                    subject_key = (
+                        f"sub-{entities['subject_id']}"
+                        if entities["subject_id"]
+                        else None
+                    )
+                    participant_info = participants.get(subject_key, {})
+
+                    recordings.append(
+                        {
+                            "recording_id": recording_id,
+                            "subject_id": (
+                                f"sub-{entities['subject_id']}"
+                                if entities["subject_id"]
+                                else None
+                            ),
+                            "session": entities["session"],
+                            "task_id": entities["task"],
+                            "acquisition": entities["acquisition"],
+                            "run": entities["run"],
+                            "duration_seconds": duration_seconds,
+                            "sampling_frequency": sampling_frequency,
+                            "manufacturer": manufacturer,
+                            "channel_names": channel_names,
+                            "channel_types": channel_types,
+                            "num_channels": num_channels,
+                            "bad_channels": bad_channels,
+                            "matched_channel_map_id": matched_map_id,
+                            "channel_map_match_score": match_score,
+                            "participant_info": participant_info,
+                            "source_files": {
+                                "eeg_json": eeg_json_path,
+                                "channels_tsv": channels_tsv_path,
+                            },
+                        }
+                    )
+
+                except Exception as e:
+                    errors.append({"file": eeg_json_path, "error": str(e)})
+                    logger.error(f"Error processing {eeg_json_path}: {e}")
+
+            result = {
+                "dataset_id": dataset_id,
+                "total_recordings": len(recordings),
+                "total_participants": len(participants),
+                "recordings": recordings,
+                "participants": participants,
+                "channel_maps_provided": list(channel_maps.keys()),
+                "errors": errors if errors else None,
+            }
+
+            return json.dumps(result, indent=2, default=str)
+
+        return safe_tool_execution(
+            "AnalyzeAllRecordingsTool",
+            _analyze_all_recordings,
+            ["dataset_id", "channel_maps"],
+            dataset_id=dataset_id,
+            channel_maps=channel_maps,
+        )
+
+
 def create_metadata_tools(base_dir: str) -> List[BaseTool]:
     """Create metadata tools with the given base directory for file operations."""
     return [
@@ -657,10 +1018,7 @@ def create_channel_tools(base_dir: str) -> List[BaseTool]:
 def create_recording_tools(base_dir: str) -> List[BaseTool]:
     """Create recording tools with the given base directory for file operations."""
     return [
-        FetchParticipantsTool(),
-        DatasetReadmeTool(),
-        DatasetFilenamesTool(),
-        EEGBidsSpecsTool(),
+        AnalyzeAllRecordingsTool(base_dir=base_dir),
         ListConfigurationFilesTool(base_dir=base_dir),
         ReadConfigurationFileTool(base_dir=base_dir),
         DownloadConfigurationFileTool(base_dir=base_dir),

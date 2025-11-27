@@ -785,53 +785,84 @@ Return ONLY a valid JSON object matching this schema (no other text, explanation
     def get_output_schema(self) -> Optional[BaseModel]:
         return RecordingInfoOutput
 
+    def _extract_channel_maps_for_tool(
+        self, channel_maps_info: Any
+    ) -> Dict[str, List[str]]:
+        """
+        Extract channel map IDs and their channel names for the analyze_all_recordings tool.
+
+        Args:
+            channel_maps_info: Channel maps from ChannelAgent (ChannelMapsOutput or dict)
+
+        Returns:
+            Dictionary of {map_id: [channel_names]}
+        """
+        result = {}
+
+        if hasattr(channel_maps_info, "channel_maps"):
+            maps = channel_maps_info.channel_maps
+        elif (
+            isinstance(channel_maps_info, dict) and "channel_maps" in channel_maps_info
+        ):
+            maps = channel_maps_info["channel_maps"]
+        elif isinstance(channel_maps_info, dict):
+            maps = channel_maps_info
+        else:
+            return result
+
+        for map_id, channel_map in maps.items():
+            if hasattr(channel_map, "channels"):
+                result[map_id] = list(channel_map.channels.keys())
+            elif isinstance(channel_map, dict) and "channels" in channel_map:
+                result[map_id] = list(channel_map["channels"].keys())
+
+        return result
+
     async def process(
         self, dataset_id: str, context: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """Analyze recordings and create recording info."""
-        # Check if we have channel maps
         if not context or "channel_maps" not in context:
             return {"error": "RecordingAgent requires channel_maps from ChannelAgent"}
 
         agent = self.create_agent()
 
-        # Format channel maps for display in prompt
         channel_maps_info = context.get("channel_maps", {})
-        if isinstance(channel_maps_info, dict):
-            channel_maps_display = json.dumps(channel_maps_info, indent=2, default=str)
-        else:
-            channel_maps_display = str(channel_maps_info)
+        channel_maps_for_tool = self._extract_channel_maps_for_tool(channel_maps_info)
+        channel_maps_json = json.dumps(channel_maps_for_tool, indent=2)
 
         prompt = f"""
 Analyze recordings for dataset {dataset_id}.
 
-Available Channel Maps: {channel_maps_display}
+STEP 1: Call analyze_all_recordings with:
+- dataset_id: "{dataset_id}"
+- channel_maps: {channel_maps_json}
 
-FILE WORKFLOW:
-1. fetch_participants - Get the COMPLETE list of all participant IDs
-2. fetch_dataset_filenames - List all files to identify recording files (BIDS naming: sub-XX_[ses-YY_]task-ZZ_eeg.*)
-3. download_configuration_file - Download metadata files on-demand
-4. read_configuration_file - Read downloaded files to extract information
-5. list_configuration_files - List all downloaded files
+This tool will batch-download all *_eeg.json and *_channels.tsv files and extract:
+- Recording IDs, subject IDs, task IDs, sessions, acquisitions
+- Duration and sampling frequency from sidecar files
+- Channel names, types, and bad channels from channels.tsv
+- Matched channel_map_id based on channel overlap
+- Participant info from participants.tsv
 
-Use relative file paths (e.g., 'participants.tsv' or 'sub-01/eeg/sub-01_task-rest_eeg.json').
+STEP 2: Review the tool output and generate the final RecordingInfoOutput JSON.
 
-RECORDING ANALYSIS PROCESS:
-For EACH recording in the dataset:
-1. Download and read the recording's *_eeg.json sidecar file
-   - Extract duration_seconds from "RecordingDuration" or calculate from samples/sampling_rate
-2. Download and read the recording's *_channels.tsv file
-   - Count actual rows to get num_channels
-3. Extract task, session, and subject info from the filename
-4. Match recording to appropriate channel_map_id based on device/setup
-5. Get participant info from participants.tsv
+For each recording in the tool output, create a RecordingInfo entry with:
+- recording_id: Use the extracted recording_id
+- subject_id: Use the extracted subject_id
+- task_id: Use the extracted task_id
+- channel_map_id: Use matched_channel_map_id (verify it makes sense)
+- duration_seconds: Use the extracted duration_seconds
+- num_channels: Use the extracted num_channels
+- participant_info: Use the extracted participant_info (exclude participant_id key)
+- channels_to_remove: Use bad_channels list
 
-CRITICAL REQUIREMENTS:
-- Create recording_info entries for EVERY RECORDING FILE FOUND IN THE DATASET
-- DO NOT assume recordings have the same duration or channel count - examine each individually
-- Cross-reference participant list with recording files to ensure completeness
+VALIDATION:
+- Verify channel_map matches make sense 
+- If a match seems wrong, use acquisition type or channel count to determine correct map
+- Ensure all recordings have valid channel_map_id from: {list(channel_maps_for_tool.keys())}
 
-Return a complete, valid JSON object. If information is missing, use your best judgment."""
+Return a complete, valid JSON object with the recording_info list."""
 
         try:
             # Use retry logic

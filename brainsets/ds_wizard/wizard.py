@@ -31,7 +31,7 @@ class DatasetWizard:
     def __init__(
         self,
         model_name: str = "gpt-4",
-        temperature: float = 0.0,
+        temperature: float = 0.1,
         provider: LLMProvider = "cerebras",
         api_key: Optional[str] = None,
         verbose: bool = False,
@@ -146,11 +146,6 @@ class DatasetWizard:
                     serializable_results["dataset"] = dataset.model_dump()
                 else:
                     serializable_results["dataset"] = dataset
-
-            # Include processing metadata
-            serializable_results["processing_metadata"] = {
-                k: v for k, v in results.items() if k not in ["dataset"]
-            }
 
             with open(path, "w") as f:
                 json.dump(serializable_results, f, indent=2, default=str)
@@ -269,6 +264,14 @@ if __name__ == "__main__":
         help="Path to download configuration files to",
     )
 
+    parser.add_argument(
+        "-t",
+        "--temperature",
+        type=float,
+        default=0.1,
+        help="Temperature for LLM (default: 0.1)",
+    )
+
     args = parser.parse_args()
 
     dataset_id = args.dataset_id
@@ -279,6 +282,7 @@ if __name__ == "__main__":
     model = args.model
     verbose = args.verbose
     download_path = args.download_path
+    temperature = args.temperature
 
     if output_file is None:
         output_file = f"{dataset_id}_result.json"
@@ -292,5 +296,6 @@ if __name__ == "__main__":
         provider=provider,
         verbose=verbose,
         download_path=download_path,
+        temperature=temperature,
     )
     results = wizard.populate_dataset_sync(dataset_id, save_path=output_file)
