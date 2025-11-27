@@ -35,11 +35,3 @@ Serialization Functions
 
 .. autodata:: brainsets.core.serialize_fn_map
 
-BrainsetPipeline
-~~~~~~~~~~~~~~~~
-
-.. autoclass:: brainsets.pipeline.BrainsetPipeline
-    :members:
-    :show-inheritance:
-    :undoc-members:
-
