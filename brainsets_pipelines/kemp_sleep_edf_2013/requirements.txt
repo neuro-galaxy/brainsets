@@ -1,3 +1,2 @@
 mne
-brainsets @ git+https://github.com/neuro-galaxy/brainsets@main
-
+boto3
