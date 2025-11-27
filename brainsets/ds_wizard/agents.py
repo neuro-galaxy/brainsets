@@ -40,9 +40,9 @@ from brainsets.ds_wizard.dataset_struct import (
     RecordingInfoOutput,
 )
 from brainsets.ds_wizard.tools import (
-    METADATA_TOOLS,
-    CHANNEL_TOOLS,
-    RECORDING_TOOLS,
+    create_metadata_tools,
+    create_channel_tools,
+    create_recording_tools,
 )
 from brainsets.ds_wizard.examples import (
     METADATA_EXAMPLES,
@@ -130,6 +130,7 @@ class BaseAgent(ABC):
         num_examples: int = 2,
         max_retries: int = 3,
         log_console: Optional[Console] = None,
+        base_dir: Optional[str] = None,
     ):
         self.model_name = model_name
         self.temperature = temperature
@@ -139,6 +140,7 @@ class BaseAgent(ABC):
         self.num_examples = num_examples
         self.max_retries = max_retries
         self.log_console = log_console
+        self.base_dir = base_dir or ""
         self._validate_model_provider_combination()
         self.llm = self._create_llm()
         self.output_parser = self.get_output_parser()
@@ -175,7 +177,7 @@ class BaseAgent(ABC):
                 temperature=self.temperature,
                 max_output_tokens=65536,
                 include_thoughts=True,
-                thinking_budget=5000,
+                thinking_budget=10000,
             )
         else:
             raise ValueError(
@@ -270,7 +272,7 @@ class BaseAgent(ABC):
 
                                 if block_type == "thinking" and "thinking" in block:
                                     thinking_panel = Panel(
-                                        block["thinking"][:1000],
+                                        block["thinking"],
                                         title="[bold blue]🧠 Thinking Output[/bold blue]",
                                         border_style="blue",
                                         box=box.ROUNDED,
@@ -598,38 +600,16 @@ class MetadataAgent(BaseAgent):
         return METADATA_EXAMPLES
 
     def get_system_prompt(self) -> str:
-        return f"""You are a metadata extraction specialist for neuroscience datasets. Use your tools to extract information!
+        return f"""You are a metadata extraction specialist for neuroscience datasets.
 
-    YOUR TASKS:
-    1. Use fetch_dataset_metadata to get dataset information
-    2. Use fetch_dataset_readme to get README content  
-    3. Use get_task_taxonomy to get valid task categories
-    4. Extract and categorize all required metadata fields
-    5. Use download_configuration_file to download any additional files you need (e.g., dataset_description.json, participants.tsv)
+Your task is to analyze datasets and extract structured metadata information.
 
-    GUIDELINES:
-    - Summaries: ≤150 words, derived from README
-    - Task matching: Use most specific taxonomy match or null
-    - Brainset name format: <last_author>_<recognizable_word>_<dataset_id>_<year>
-    - Authors: Extract from README or metadata fields
-    - Categories: Match to taxonomy using get_task_taxonomy tool
-    - Tools: Call each tool at most once with the same parameters.
-    - Download files on-demand: Use download_configuration_file when you need additional dataset files
-
-    START by fetching metadata, README, and taxonomy, then extract all fields systematically.
-    
-    CRITICAL OUTPUT REQUIREMENTS:
-    - You MUST always return a complete, valid JSON object
-    - NEVER return an empty string, incomplete output, or stop mid-generation
-    - If information is missing, use your best judgment to provide reasonable values
-    - Complete the entire JSON structure before finishing
-
-    Return ONLY a structured json object with the following schema, no other text or explanation or markdown syntax:
-    {self.get_simplified_schema()}
-    """
+OUTPUT FORMAT:
+Return ONLY a valid JSON object matching this schema (no other text, explanation, or markdown):
+{self.get_simplified_schema()}"""
 
     def get_tools(self) -> List:
-        return METADATA_TOOLS
+        return create_metadata_tools(self.base_dir)
 
     def get_output_schema(self) -> Optional[BaseModel]:
         return DatasetMetadata
@@ -641,18 +621,29 @@ class MetadataAgent(BaseAgent):
         agent = self.create_agent()
 
         prompt = f"""
-        Analyze dataset {dataset_id} and extract metadata information.
-        
-        MANDATORY STEPS:
-        1. Use fetch_dataset_metadata to get dataset information
-        2. Use fetch_dataset_readme to get README content
-        3. Use get_task_taxonomy to get available categories
-        4. Extract all required DatasetMetadata fields from these sources
-        
-        CRITICAL: You MUST return a valid JSON object. Do NOT return an empty string or incomplete output.
-        If you're unsure about any field, provide your best estimate based on available information.
+Analyze dataset {dataset_id} and extract metadata information.
 
-        DO NOT ask for examples, figure out what to do using your tools!"""
+REQUIRED STEPS:
+1. fetch_dataset_metadata - Get dataset information (name, modalities, authors, etc.)
+2. fetch_dataset_readme - Get README content for summaries and descriptions
+3. get_task_taxonomy - Get valid task categories for classification
+
+OPTIONAL TOOLS (use if you need additional context):
+If the above tools don't provide sufficient information, you can:
+- fetch_dataset_filenames - List all files in the dataset
+- download_configuration_file - Download specific files (e.g., dataset_description.json, participants.tsv)
+- read_configuration_file - Read contents of downloaded files
+- list_configuration_files - List all downloaded files
+
+GUIDELINES:
+- Summaries: ≤150 words, derived from README
+- Task matching: Use most specific taxonomy match or null if no match
+- Brainset name format: <last_author>_<recognizable_word>_<dataset_id>_<year>
+- Authors: Extract from README or metadata fields
+- Call each tool at most once with the same parameters
+- Use relative file paths (e.g., 'dataset_description.json' or 'sub-01/eeg/sub-01_channels.tsv')
+
+Return a complete, valid JSON object. If information is missing, use your best judgment."""
 
         try:
             # Use retry logic
@@ -692,42 +683,19 @@ class ChannelAgent(BaseAgent):
         return CHANNEL_EXAMPLES
 
     def get_system_prompt(self) -> str:
-        return f"""
-        You are an EEG channel mapping specialist. 
+        return f"""You are an EEG channel mapping specialist.
 
-        Each dataset is usually recorded with a single EEG device, but some datasets might use multiple device. 
-        Given that data is manually collected, sessions recorded using the same devices could have different channel configurations, names and types from human error.
-        Your goal is to create one map for each of the device used in the dataset.
-        A channel map should map channel names as found in the dataset and map them to some standard names if that is already not the case.
-        Additionally, For each electrode in a channel map, you'll need to classify its type (modality) based on all the information available.
-        Additionally, you'll need to extract the coordinates of the electrodes for EEG electrodes.
+Your task is to create channel maps for neuroscience datasets. Each map should:
+- Map channel names to standard names (if not already standard)
+- Classify electrode types (modalities) based on available information
+- Extract 3D coordinates for EEG electrodes
 
-        PROCESS:
-        1. Use the fetch_dataset_readme tool to get README content. This is the primary source of information about the dataset that should be used to extract information.
-        2. Use the get_modalities tool to get valid electrode types.
-        3. Use download_configuration_file to download channel configuration files on-demand (*_channels.tsv, *_electrodes.tsv)
-        4. Use the read_configuration_file tool to examine downloaded file structure and content
-        5. Use the get_eeg_bids_specs tool to understand BIDS format specifications
-        6. Get all the unique channels that exist per device session from the configuration files.
-        7. For each of those channels, estimate the modality type based on the information available.
-        8. For all the channels that you identified as EEG, if some of the channel names seem to not be standard names, try to map them to a standard name 
-        as could be found in an MNE montage. Use the get_electrode_to_montage_mapping tool to get the mapping. Examples: 'EEG_Fp1 -> Fp1', 'Fp2-Fz -> Fp2'...
-        If you cannot find a match, use the modality EEG-OTHER.
-        9. For all channels that you identified as EEG, extract the coordinates based on the information available.
-        Use the find_all_montage_matches tool to get the mapping of electrode names to montages.
-        10. Create a ChannelMap object for each device, extracting the device name and manufacturer.
-
-        CRITICAL OUTPUT REQUIREMENTS:
-        - You MUST always return a complete, valid JSON object
-        - NEVER return an empty string, incomplete output, or stop mid-generation
-        - If information is missing, use your best judgment to provide reasonable values
-        - Complete the entire JSON structure before finishing
-
-        DO NOT ask for examples - discover the structure using your tools!
-        Download files on-demand as needed using download_configuration_file tool."""
+OUTPUT FORMAT:
+Return ONLY a valid JSON object matching this schema (no other text, explanation, or markdown):
+{self.get_simplified_schema()}"""
 
     def get_tools(self) -> List:
-        return CHANNEL_TOOLS
+        return create_channel_tools(self.base_dir)
 
     def get_output_schema(self) -> Optional[BaseModel]:
         return ChannelMapsOutput
@@ -738,20 +706,32 @@ class ChannelAgent(BaseAgent):
         """Analyze channel configurations and create channel maps."""
         agent = self.create_agent()
 
-        config_dir = context.get("config_files_dir", "") if context else ""
-
-        # Available metadata: {context.get("raw_metadata", {}).replace("{", "[").replace("}", "]")}
         prompt = f"""
-        Create channel maps for dataset {dataset_id}.
-        
-        Use the download_configuration_file tool to download channel files on-demand to: {config_dir}
-        
-        CRITICAL: You MUST return a valid JSON object. Do NOT return an empty string or incomplete output.
-        If you're unsure about any field, provide your best estimate based on available information.
+Create channel maps for dataset {dataset_id}.
 
-        Return ONLY a structured json object with the following schema, no other text or explanation or markdown syntax:
-        {self.get_simplified_schema()}
-        """
+FILE WORKFLOW:
+1. fetch_dataset_readme - Get dataset overview and device information
+2. fetch_dataset_filenames - List all files to find *_channels.tsv, *_electrodes.tsv files
+3. download_configuration_file - Download channel/electrode configuration files
+4. read_configuration_file - Read the downloaded files to extract channel information
+5. list_configuration_files - List all downloaded files
+
+Use relative file paths (e.g., 'channels.tsv' or 'sub-01/eeg/sub-01_channels.tsv').
+
+CHANNEL MAPPING PROCESS:
+1. Get all unique channels per device/session from configuration files
+2. Use get_modalities to get valid electrode types for classification
+3. For EEG channels with non-standard names, use get_electrode_to_montage_mapping to map them to standard names (e.g., 'EEG_Fp1' -> 'Fp1')
+4. If no standard match found, use modality EEG-OTHER
+5. Use find_all_montage_matches to get electrode coordinates
+6. Use get_eeg_bids_specs for BIDS format reference if needed
+7. Create one ChannelMap per device, including device name and manufacturer
+
+NOTES:
+- Datasets may use multiple devices with different channel configurations
+- Sessions with the same device may have variations due to manual data collection
+
+Return a complete, valid JSON object. If information is missing, use your best judgment."""
 
         try:
             # Use retry logic
@@ -791,62 +771,16 @@ class RecordingAgent(BaseAgent):
         return RECORDING_EXAMPLES
 
     def get_system_prompt(self) -> str:
-        return f"""You are a recording analysis specialist. Use your tools to discover recording information!
+        return f"""You are a recording analysis specialist.
 
-    YOUR TASKS:
-    1. Use fetch_participants to get the COMPLETE list of all participant IDs in the dataset
-    2. Use fetch_dataset_filenames to identify ALL recording files for each participant
-    3. Use download_configuration_file to download participant/session metadata files on-demand (participants.tsv, sessions.tsv, etc.)
-    4. Use read_configuration_file to examine downloaded participant metadata and session information
-    5. Map each recording to the appropriate channel_map_id from ChannelAgent results
-    6. Extract recording metadata and participant information for EVERY participant
+Your task is to analyze individual recordings and sessions in neuroscience datasets, extracting metadata for each recording and mapping them to the appropriate channel configurations.
 
-    CRITICAL REQUIREMENTS:
-    - You MUST use fetch_participants FIRST to get the complete list of ALL participants
-    - You MUST create recording_info entries for EVERY participant returned by fetch_participants
-    - Cross-reference the participant list with recording files to ensure nothing is missed
-    - If a participant has no recording files, investigate why and include all available info
-
-    CRITICAL DATA EXTRACTION REQUIREMENTS:
-    - duration_seconds: MUST be extracted from the SPECIFIC recording's *_eeg.json sidecar file
-      * Download the file using download_configuration_file first
-      * Look for fields like "RecordingDuration" or calculate from samples/sampling_rate
-      * DO NOT assume all recordings have the same duration
-      * DO NOT copy duration from other recordings
-      * Each recording may have different duration - read each one individually
-    - num_channels: MUST be counted from the SPECIFIC recording's *_channels.tsv file
-      * Download the file using download_configuration_file first
-      * Count the actual number of rows in the recording-specific channels.tsv file
-      * DO NOT assume all recordings have the same number of channels
-      * DO NOT copy channel count from other recordings
-      * Each recording may have different channels - read each one individually
-
-    PROCESS:
-    1. START by calling fetch_participants to get the authoritative list of ALL participant IDs
-    2. CALL fetch_dataset_filenames to get all recording files in the dataset
-    3. DOWNLOAD participants.tsv using download_configuration_file to understand participant information structure
-    4. For EACH recording found in the dataset:
-       a. Identify the recording (BIDS naming: sub-XX_[ses-YY_]task-ZZ_eeg.*)
-       b. DOWNLOAD and READ the recording's *_eeg.json sidecar file for metadata (duration, sampling rate)
-       c. DOWNLOAD and READ the recording's *_channels.tsv file to COUNT the actual number of channels
-       d. Extract task, session, and subject information from the filename
-       e. Match recording to appropriate channel_map_id based on device/setup from channel file
-       f. Get participant info from participants.tsv for that subject
-    5. VERIFY that you have created entries for ALL recordings and participants
-
-    IMPORTANT: DO NOT make assumptions about duration or channel counts. Each recording is unique and must be examined individually!
-
-    You must reference channel_maps from context to assign channel_map_id correctly!
-    Download files on-demand as needed using download_configuration_file tool.
-    
-    CRITICAL OUTPUT REQUIREMENTS:
-    - You MUST always return a complete, valid JSON object
-    - NEVER return an empty string, incomplete output, or stop mid-generation
-    - If information is missing, use your best judgment to provide reasonable values
-    - Complete the entire JSON structure before finishing"""
+OUTPUT FORMAT:
+Return ONLY a valid JSON object matching this schema (no other text, explanation, or markdown):
+{self.get_simplified_schema()}"""
 
     def get_tools(self) -> List:
-        return RECORDING_TOOLS
+        return create_recording_tools(self.base_dir)
 
     def get_output_schema(self) -> Optional[BaseModel]:
         return RecordingInfoOutput
@@ -861,8 +795,6 @@ class RecordingAgent(BaseAgent):
 
         agent = self.create_agent()
 
-        config_dir = context.get("config_files_dir", "")
-
         # Format channel maps for display in prompt
         channel_maps_info = context.get("channel_maps", {})
         if isinstance(channel_maps_info, dict):
@@ -871,26 +803,35 @@ class RecordingAgent(BaseAgent):
             channel_maps_display = str(channel_maps_info)
 
         prompt = f"""
-        Analyze recordings for dataset {dataset_id}.
-        
-        Available Channel Maps: {channel_maps_display}
-        
-        Use the download_configuration_file tool to download metadata files on-demand to: {config_dir}
-        
-        MANDATORY STEPS:
-        1. FIRST: Use fetch_participants tool to get the complete list of ALL participant IDs for {dataset_id}
-        2. Use fetch_dataset_filenames to get all recording files
-        3. Use download_configuration_file to download participants.tsv and other metadata files
-        4. Use read_configuration_file to examine participant metadata
-        5. Create a recording_info entry for EVERY participant from step 1
-        6. Verify the total count of recording_info matches the number of participants
-        
-        You MUST return a valid JSON object. Do NOT return an empty string or incomplete output.
-        If you're unsure about any field, provide your best estimate based on available information.
-        
-        Return ONLY a structured json object with the following schema, no other text or explanation or markdown syntax:
-        {self.get_simplified_schema()}
-        """
+Analyze recordings for dataset {dataset_id}.
+
+Available Channel Maps: {channel_maps_display}
+
+FILE WORKFLOW:
+1. fetch_participants - Get the COMPLETE list of all participant IDs
+2. fetch_dataset_filenames - List all files to identify recording files (BIDS naming: sub-XX_[ses-YY_]task-ZZ_eeg.*)
+3. download_configuration_file - Download metadata files on-demand
+4. read_configuration_file - Read downloaded files to extract information
+5. list_configuration_files - List all downloaded files
+
+Use relative file paths (e.g., 'participants.tsv' or 'sub-01/eeg/sub-01_task-rest_eeg.json').
+
+RECORDING ANALYSIS PROCESS:
+For EACH recording in the dataset:
+1. Download and read the recording's *_eeg.json sidecar file
+   - Extract duration_seconds from "RecordingDuration" or calculate from samples/sampling_rate
+2. Download and read the recording's *_channels.tsv file
+   - Count actual rows to get num_channels
+3. Extract task, session, and subject info from the filename
+4. Match recording to appropriate channel_map_id based on device/setup
+5. Get participant info from participants.tsv
+
+CRITICAL REQUIREMENTS:
+- Create recording_info entries for EVERY RECORDING FILE FOUND IN THE DATASET
+- DO NOT assume recordings have the same duration or channel count - examine each individually
+- Cross-reference participant list with recording files to ensure completeness
+
+Return a complete, valid JSON object. If information is missing, use your best judgment."""
 
         try:
             # Use retry logic
@@ -1053,6 +994,7 @@ class SupervisorAgent(BaseAgent):
             provider=self.provider,
             verbose=self.verbose,
             log_console=self.log_console,
+            base_dir=enhanced_context.get("config_files_dir", ""),
         )
         result = await metadata_agent.process(dataset_id, enhanced_context)
 
@@ -1092,6 +1034,7 @@ class SupervisorAgent(BaseAgent):
             provider=self.provider,
             verbose=self.verbose,
             log_console=self.log_console,
+            base_dir=enhanced_context.get("config_files_dir", ""),
         )
         result = await channel_agent.process(dataset_id, enhanced_context)
 
@@ -1131,6 +1074,7 @@ class SupervisorAgent(BaseAgent):
             provider=self.provider,
             verbose=self.verbose,
             log_console=self.log_console,
+            base_dir=recording_context.get("config_files_dir", ""),
         )
         result = await recording_agent.process(dataset_id, recording_context)
 

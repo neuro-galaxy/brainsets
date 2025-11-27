@@ -35,6 +35,8 @@ from brainsets.utils.eeg_montages import (
 
 logger = logging.getLogger(__name__)
 
+ALLOWED_EXTENSIONS = (".json", ".tsv", ".txt", ".md", ".csv")
+
 
 def safe_tool_execution(
     tool_name: str, func, required_params: List[str] = None, **kwargs
@@ -120,16 +122,12 @@ class MontageNameInput(BaseModel):
 
 
 # Common input classes for configuration file operations
-class DirectoryPathInput(BaseModel):
-    """Input class for tools that require a directory path."""
+class RelativeFilePathInput(BaseModel):
+    """Input class for tools that require a relative file path."""
 
-    directory_path: str = Field(description="Path to directory")
-
-
-class FilePathInput(BaseModel):
-    """Input class for tools that require a file path."""
-
-    file_path: str = Field(description="Path to file")
+    file_path: str = Field(
+        description="Relative path to file (e.g., 'dataset_description.json' or 'sub-01/eeg/sub-01_channels.tsv')"
+    )
 
 
 class DownloadFileInput(BaseModel):
@@ -139,7 +137,6 @@ class DownloadFileInput(BaseModel):
     file_path: str = Field(
         description="Relative path to file within dataset (e.g., 'dataset_description.json' or 'sub-01/ses-01/eeg/sub-01_ses-01_channels.tsv')"
     )
-    target_dir: str = Field(description="Directory where file should be downloaded")
 
 
 class EmptyInput(BaseModel):
@@ -420,11 +417,20 @@ class AllMontageMatchesTool(BaseTool):
 
 class ListConfigurationFilesTool(BaseTool):
     name: str = "list_configuration_files"
-    description: str = "List all downloaded configuration files in a directory"
-    args_schema: Type[BaseModel] = DirectoryPathInput
+    description: str = (
+        "List all downloaded configuration files. "
+        "Returns relative paths to all configuration files that have been downloaded."
+    )
+    args_schema: Type[BaseModel] = EmptyInput
+    base_dir: str = ""
 
-    def _run(self, directory_path: str) -> str:
-        def _list_config_files(directory_path: str):
+    def __init__(self, base_dir: str = "", **kwargs):
+        super().__init__(**kwargs)
+        self.base_dir = base_dir
+
+    def _run(self) -> str:
+        def _list_config_files():
+            directory_path = self.base_dir
             if not os.path.exists(directory_path):
                 return f"Error: Directory '{directory_path}' does not exist"
             if not os.path.isdir(directory_path):
@@ -433,47 +439,49 @@ class ListConfigurationFilesTool(BaseTool):
             files = []
             for root, dirs, filenames in os.walk(directory_path):
                 for filename in filenames:
-                    if filename.endswith((".json", ".tsv")):
+                    if filename.endswith(ALLOWED_EXTENSIONS):
                         abs_path = os.path.join(root, filename)
-                        files.append(abs_path)
+                        rel_path = os.path.relpath(abs_path, directory_path)
+                        files.append(rel_path)
 
-            files.sort()  # Sort for consistent ordering
+            files.sort()
             return json.dumps({"files": files, "count": len(files)}, indent=2)
 
-        return safe_tool_execution(
-            "ListConfigurationFilesTool",
-            _list_config_files,
-            ["directory_path"],
-            directory_path=directory_path,
-        )
+        return safe_tool_execution("ListConfigurationFilesTool", _list_config_files)
 
 
 class ReadConfigurationFileTool(BaseTool):
     name: str = "read_configuration_file"
-    description: str = "Read the contents of a specific configuration file"
-    args_schema: Type[BaseModel] = FilePathInput
+    description: str = (
+        "Read the contents of a downloaded configuration file. "
+        "Provide a relative path (e.g., 'dataset_description.json' or 'sub-01/eeg/sub-01_channels.tsv')."
+    )
+    args_schema: Type[BaseModel] = RelativeFilePathInput
+    base_dir: str = ""
+
+    def __init__(self, base_dir: str = "", **kwargs):
+        super().__init__(**kwargs)
+        self.base_dir = base_dir
 
     def _run(self, file_path: str) -> str:
         def _read_config_file(file_path: str):
-            if not os.path.exists(file_path):
+            abs_path = os.path.join(self.base_dir, file_path)
+            if not os.path.exists(abs_path):
                 return f"Error: File '{file_path}' does not exist"
-            if not os.path.isfile(file_path):
+            if not os.path.isfile(abs_path):
                 return f"Error: '{file_path}' is not a file"
-            if not file_path.endswith((".json", ".tsv")):
-                return (
-                    f"Error: '{file_path}' is not a configuration file (.json or .tsv)"
-                )
+            if not file_path.endswith(ALLOWED_EXTENSIONS):
+                return f"Error: '{file_path}' is not a configuration file ({', '.join(ALLOWED_EXTENSIONS)})"
 
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(abs_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
-            # Try to parse JSON files for better formatting
             if file_path.endswith(".json"):
                 try:
                     parsed = json.loads(content)
                     return json.dumps(parsed, indent=2)
                 except json.JSONDecodeError:
-                    pass  # Return raw content if JSON parsing fails
+                    pass
 
             return content
 
@@ -528,14 +536,19 @@ class DownloadConfigurationFileTool(BaseTool):
         "This tool downloads small configuration files on-demand (≤5 MB). "
         "Supported file types: .json, .tsv, .txt, .md, .tsv.gz. "
         "The file will be cached locally to avoid redundant downloads. "
-        "Use this to access dataset metadata, channel files, participant info, etc."
+        "Provide relative file paths (e.g., 'dataset_description.json' or 'sub-01/eeg/sub-01_channels.tsv')."
     )
     args_schema: Type[BaseModel] = DownloadFileInput
+    base_dir: str = ""
 
-    def _run(self, dataset_id: str, file_path: str, target_dir: str) -> str:
-        def _download_file(dataset_id: str, file_path: str, target_dir: str):
-            ALLOWED_EXTENSIONS = (".json", ".tsv", ".txt", ".md", ".tsv.gz")
+    def __init__(self, base_dir: str = "", **kwargs):
+        super().__init__(**kwargs)
+        self.base_dir = base_dir
+
+    def _run(self, dataset_id: str, file_path: str) -> str:
+        def _download_file(dataset_id: str, file_path: str):
             MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+            target_dir = self.base_dir
 
             if not any(file_path.lower().endswith(ext) for ext in ALLOWED_EXTENSIONS):
                 return json.dumps(
@@ -557,7 +570,6 @@ class DownloadConfigurationFileTool(BaseTool):
                 return json.dumps(
                     {
                         "status": "cached",
-                        "local_path": local_path,
                         "file_path": file_path,
                         "size_bytes": os.path.getsize(local_path),
                         "content_preview": preview,
@@ -578,7 +590,7 @@ class DownloadConfigurationFileTool(BaseTool):
                         indent=2,
                     )
 
-                local_path = download_file_from_s3(dataset_id, file_path, target_dir)
+                download_file_from_s3(dataset_id, file_path, target_dir)
 
                 with open(local_path, "r", encoding="utf-8") as f:
                     content = f.read()
@@ -587,7 +599,6 @@ class DownloadConfigurationFileTool(BaseTool):
                 return json.dumps(
                     {
                         "status": "downloaded",
-                        "local_path": local_path,
                         "file_path": file_path,
                         "size_bytes": file_size,
                         "content_preview": preview,
@@ -608,39 +619,49 @@ class DownloadConfigurationFileTool(BaseTool):
         return safe_tool_execution(
             "DownloadConfigurationFileTool",
             _download_file,
-            ["dataset_id", "file_path", "target_dir"],
+            ["dataset_id", "file_path"],
             dataset_id=dataset_id,
             file_path=file_path,
-            target_dir=target_dir,
         )
 
 
-# Categorize tools by agent responsibility
-METADATA_TOOLS = [
-    DatasetMetadataTool(),
-    DatasetReadmeTool(),
-    TaskTaxonomyTool(),
-    DownloadConfigurationFileTool(),
-]
+def create_metadata_tools(base_dir: str) -> List[BaseTool]:
+    """Create metadata tools with the given base directory for file operations."""
+    return [
+        DatasetMetadataTool(),
+        DatasetReadmeTool(),
+        TaskTaxonomyTool(),
+        DatasetFilenamesTool(),
+        ListConfigurationFilesTool(base_dir=base_dir),
+        ReadConfigurationFileTool(base_dir=base_dir),
+        DownloadConfigurationFileTool(base_dir=base_dir),
+    ]
 
-CHANNEL_TOOLS = [
-    DatasetReadmeTool(),
-    ModalitiesTool(),
-    EEGBidsSpecsTool(),
-    AllMontageMatchesTool(),
-    MontagePositionsTool(),
-    ElectrodeToMontageMappingTool(),
-    ListConfigurationFilesTool(),
-    ReadConfigurationFileTool(),
-    DownloadConfigurationFileTool(),
-]
 
-RECORDING_TOOLS = [
-    FetchParticipantsTool(),
-    DatasetReadmeTool(),
-    DatasetFilenamesTool(),
-    EEGBidsSpecsTool(),
-    ListConfigurationFilesTool(),
-    ReadConfigurationFileTool(),
-    DownloadConfigurationFileTool(),
-]
+def create_channel_tools(base_dir: str) -> List[BaseTool]:
+    """Create channel tools with the given base directory for file operations."""
+    return [
+        DatasetReadmeTool(),
+        DatasetFilenamesTool(),
+        ModalitiesTool(),
+        EEGBidsSpecsTool(),
+        AllMontageMatchesTool(),
+        MontagePositionsTool(),
+        ElectrodeToMontageMappingTool(),
+        ListConfigurationFilesTool(base_dir=base_dir),
+        ReadConfigurationFileTool(base_dir=base_dir),
+        DownloadConfigurationFileTool(base_dir=base_dir),
+    ]
+
+
+def create_recording_tools(base_dir: str) -> List[BaseTool]:
+    """Create recording tools with the given base directory for file operations."""
+    return [
+        FetchParticipantsTool(),
+        DatasetReadmeTool(),
+        DatasetFilenamesTool(),
+        EEGBidsSpecsTool(),
+        ListConfigurationFilesTool(base_dir=base_dir),
+        ReadConfigurationFileTool(base_dir=base_dir),
+        DownloadConfigurationFileTool(base_dir=base_dir),
+    ]
