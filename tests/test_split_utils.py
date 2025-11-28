@@ -8,7 +8,7 @@ from brainsets.utils.split import (
 )
 
 
-def test_chop_intervals():
+def test_chop_intervals_exact_multiple():
     start = np.array([0.0, 200.0])
     end = np.array([100.0, 250.0])
     ids = np.array([1, 2])
@@ -33,6 +33,56 @@ def test_chop_intervals():
     # Verify IDs are preserved
     assert np.all(chopped.id[:10] == 1)
     assert np.all(chopped.id[10:] == 2)
+
+
+def test_chop_intervals_with_remainder():
+    start = np.array([0.0])
+    end = np.array([25.0])
+    ids = np.array([1])
+    intervals = Interval(start=start, end=end, id=ids)
+
+    duration = 10.0
+    chopped = chop_intervals(intervals, duration=duration)
+
+    # 2 full chunks (0-10, 10-20) + 1 shorter chunk (20-25)
+    assert len(chopped) == 3
+    assert np.allclose(chopped.start, [0.0, 10.0, 20.0])
+    assert np.allclose(chopped.end, [10.0, 20.0, 25.0])
+    assert np.all(chopped.id == 1)
+
+
+def test_chop_intervals_shorter_than_duration():
+    start = np.array([0.0, 100.0])
+    end = np.array([5.0, 103.0])
+    ids = np.array([1, 2])
+    intervals = Interval(start=start, end=end, id=ids)
+
+    duration = 10.0
+    chopped = chop_intervals(intervals, duration=duration)
+
+    # Both intervals are shorter than duration, kept as-is
+    assert len(chopped) == 2
+    assert np.allclose(chopped.start, [0.0, 100.0])
+    assert np.allclose(chopped.end, [5.0, 103.0])
+    assert np.array_equal(chopped.id, [1, 2])
+
+
+def test_chop_intervals_overlapping_raises():
+    start = np.array([0.0, 50.0])
+    end = np.array([100.0, 150.0])
+    intervals = Interval(start=start, end=end)
+
+    with pytest.raises(ValueError, match="Intervals overlap"):
+        chop_intervals(intervals, duration=10.0, check_no_overlap=True)
+
+
+def test_chop_intervals_overlapping_no_check():
+    start = np.array([0.0, 50.0])
+    end = np.array([100.0, 150.0])
+    intervals = Interval(start=start, end=end)
+
+    chopped = chop_intervals(intervals, duration=10.0, check_no_overlap=False)
+    assert len(chopped) == 20
 
 
 def test_filter_intervals():

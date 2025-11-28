@@ -171,33 +171,70 @@ def generate_train_valid_test_splits(epoch_dict, grid):
     return train_intervals, valid_intervals, test_intervals
 
 
-def chop_intervals(intervals: Interval, duration: float) -> Interval:
+def _check_no_overlapping_intervals(intervals: Interval) -> None:
+    """Raises ValueError if any intervals overlap."""
+    if len(intervals) <= 1:
+        return
+
+    sorted_indices = np.argsort(intervals.start)
+    sorted_starts = intervals.start[sorted_indices]
+    sorted_ends = intervals.end[sorted_indices]
+
+    for i in range(len(sorted_starts) - 1):
+        if sorted_ends[i] > sorted_starts[i + 1]:
+            raise ValueError(
+                f"Intervals overlap: interval {sorted_indices[i]} "
+                f"[{sorted_starts[i]}, {sorted_ends[i]}] overlaps with "
+                f"interval {sorted_indices[i + 1]} [{sorted_starts[i + 1]}, {sorted_ends[i + 1]}]"
+            )
+
+
+def chop_intervals(
+    intervals: Interval, duration: float, check_no_overlap: bool = False
+) -> Interval:
     """
     Subdivides intervals into fixed-length epochs.
+
+    If some intervals are shorter than the duration, keep them as they are.
+    If an interval is not a perfect multiple of the duration, the last chunk will be shorter.
 
     Args:
         intervals: The original intervals to chop.
         duration: The duration of each chopped interval in seconds.
+        check_no_overlap: If True, verify the resulting intervals don't overlap.
 
     Returns:
         Interval: A new Interval object containing the chopped segments.
                   Metadata from the original intervals is preserved and repeated for each segment.
+
+    Raises:
+        ValueError: If check_no_overlap is True and intervals overlap.
     """
     new_starts = []
     new_ends = []
     original_indices = []
 
     for i, (start, end) in enumerate(zip(intervals.start, intervals.end)):
-        n_chunks = int((end - start) // duration)
-        if n_chunks == 0:
+        interval_duration = end - start
+
+        if interval_duration <= duration:
+            new_starts.append([start])
+            new_ends.append([end])
+            original_indices.append(i)
             continue
 
-        chunk_starts = start + np.arange(n_chunks) * duration
+        n_full_chunks = int(interval_duration // duration)
+        chunk_starts = start + np.arange(n_full_chunks) * duration
         chunk_ends = chunk_starts + duration
+
+        remainder = interval_duration - (n_full_chunks * duration)
+        if remainder > 0:
+            chunk_starts = np.append(chunk_starts, chunk_ends[-1])
+            chunk_ends = np.append(chunk_ends, end)
 
         new_starts.append(chunk_starts)
         new_ends.append(chunk_ends)
-        original_indices.extend([i] * n_chunks)
+        original_indices.extend([i] * len(chunk_starts))
 
     if not new_starts:
         return Interval(start=np.array([]), end=np.array([]))
@@ -217,7 +254,12 @@ def chop_intervals(intervals: Interval, duration: float) -> Interval:
                 else:
                     kwargs[key] = [val[i] for i in original_indices]
 
-    return Interval(start=new_starts, end=new_ends, **kwargs)
+    result = Interval(start=new_starts, end=new_ends, **kwargs)
+
+    if check_no_overlap:
+        _check_no_overlapping_intervals(result)
+
+    return result
 
 
 def filter_intervals(intervals: Interval, exclude_ids: list) -> Interval:

@@ -3,13 +3,12 @@ from pathlib import Path
 from typing import Optional
 
 import boto3
-from botocore import UNSIGNED
-from botocore.config import Config
 import h5py
 import logging
 import mne
 import numpy as np
 import pandas as pd
+import time
 
 from brainsets import serialize_fn_map
 from brainsets.descriptions import (
@@ -30,7 +29,7 @@ from temporaldata import Data, Interval, RegularTimeSeries, ArrayDict
 
 
 BUCKET = "physionet-open"
-PREFIX = "sleep-edf/1.0.0"
+PREFIX = "sleep-edfx/1.0.0"
 
 logging.basicConfig(level=logging.INFO)
 
@@ -56,7 +55,32 @@ parser.add_argument(
 
 
 def get_s3_client():
-    return boto3.client("s3", config=Config(signature_version=UNSIGNED))
+    from botocore import UNSIGNED
+    from botocore.config import Config
+
+    config = Config(
+        signature_version=UNSIGNED,
+        retries={"max_attempts": 5, "mode": "adaptive"},
+        max_pool_connections=10,
+    )
+    return boto3.client("s3", config=config)
+
+
+def download_with_retry(s3, bucket, key, local_path, max_retries=3):
+    """Download file from S3 with retry logic for transient failures."""
+    for attempt in range(max_retries):
+        try:
+            s3.download_file(bucket, key, str(local_path))
+            return
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait_time = 2**attempt
+                logging.warning(
+                    f"Download failed (attempt {attempt + 1}), retrying in {wait_time}s: {e}"
+                )
+                time.sleep(wait_time)
+            else:
+                raise
 
 
 def parse_subject_metadata(raw):
@@ -189,12 +213,20 @@ def create_splits(stages, epoch_duration=30.0, n_folds=5, seed=42):
         logging.warning("No stages provided for splitting")
         return None
 
-    chopped = chop_intervals(stages, duration=epoch_duration)
+    chopped = chop_intervals(stages, duration=epoch_duration, check_no_overlap=True)
     logging.info(f"Chopped {len(stages)} stages into {len(chopped)} epochs")
 
     UNKNOWN_STAGE_ID = 6
     filtered = filter_intervals(chopped, exclude_ids=[UNKNOWN_STAGE_ID])
     logging.info(f"Filtered out unknown stages, {len(filtered)} epochs remaining")
+
+    # if one of the stages happens less tha n_folds, then we need to remove it to be able to create the folds fairly
+    for stage_id, count in zip(*np.unique(chopped.id, return_counts=True)):
+        if count < n_folds:
+            filtered = filter_intervals(filtered, exclude_ids=[stage_id])
+            logging.info(
+                f"Filtered out stage {stage_id}, {len(filtered)} epochs remaining"
+            )
 
     if len(filtered) == 0:
         logging.warning("No valid epochs after filtering")
@@ -292,8 +324,8 @@ class Pipeline(BrainsetPipeline):
         psg_local.parent.mkdir(parents=True, exist_ok=True)
 
         if not psg_local.exists() or self.args.redownload:
-            logging.info(f"Downloading {psg_key} to {psg_local}")
-            s3.download_file(BUCKET, psg_key, str(psg_local))
+            logging.info(f"Downloading PSG: {Path(psg_key).name}")
+            download_with_retry(s3, BUCKET, psg_key, psg_local)
         else:
             logging.info(f"Skipping download, file exists: {psg_local}")
 
@@ -303,8 +335,8 @@ class Pipeline(BrainsetPipeline):
             hypnogram_local.parent.mkdir(parents=True, exist_ok=True)
 
             if not hypnogram_local.exists() or self.args.redownload:
-                logging.info(f"Downloading {hypnogram_key} to {hypnogram_local}")
-                s3.download_file(BUCKET, hypnogram_key, str(hypnogram_local))
+                logging.info(f"Downloading Hypnogram: {Path(hypnogram_key).name}")
+                download_with_retry(s3, BUCKET, hypnogram_key, hypnogram_local)
             else:
                 logging.info(f"Skipping download, file exists: {hypnogram_local}")
 
