@@ -3,6 +3,7 @@
 This module provides the OpenNeuroEEGPipeline abstract class, which serves as a base class for creating pipelines that process EEG data from OpenNeuro datasets. It includes default implementations for get_manifest(), download(), and process() methods that handle common OpenNeuro EEG dataset processing tasks. Subclasses can extend these methods by calling super() and adding dataset-specific logic.
 """
 
+from abc import ABC, abstractmethod
 from argparse import ArgumentParser
 from pathlib import Path
 from typing import Optional
@@ -37,7 +38,7 @@ from brainsets.utils.open_neuro_utils.data_extraction import (
 )
 
 
-class OpenNeuroEEGPipeline(BrainsetPipeline):
+class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
     """Abstract base class for OpenNeuro EEG dataset pipelines.
 
     This class extends BrainsetPipeline and provides common functionality for
@@ -103,6 +104,24 @@ class OpenNeuroEEGPipeline(BrainsetPipeline):
     description: Optional[str] = None
     """Optional description of the dataset. If None, will be fetched from OpenNeuro metadata."""
 
+    # ------------------------------------------------------------------
+    # Abstract hooks to enforce dataset-specific configuration.
+    # Subclasses must at least provide a brainset identifier and
+    # an OpenNeuro dataset identifier via these methods.
+    # ------------------------------------------------------------------
+
+    @classmethod
+    @abstractmethod
+    def get_brainset_id(cls) -> str:
+        """Return the unique brainset identifier used for this pipeline."""
+        ...
+
+    @classmethod
+    @abstractmethod
+    def get_dataset_id(cls) -> str:
+        """Return the OpenNeuro dataset identifier (e.g., 'ds005555')."""
+        ...
+
     @classmethod
     def get_manifest(cls, raw_dir: Path, args: Optional[Namespace]) -> pd.DataFrame:
         """Generate a manifest DataFrame listing all assets to process.
@@ -128,7 +147,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline):
             The index is set to 'subject_id'.
         """
         # Validate dataset ID
-        dataset_id = validate_dataset_id(cls.dataset_id)
+        dataset_id = validate_dataset_id(cls.get_dataset_id())
 
         # Get version tag (use latest if not specified)
         if cls.version_tag is None:
@@ -368,7 +387,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline):
 
             # Create brainset description
             brainset_description = extract_brainset_description(
-                dataset_id=self.brainset_id,
+                dataset_id=type(self).get_brainset_id(),
                 origin_version=f"openneuro/{dataset_id}/{version_tag}",
                 derived_version=self.derived_version,
                 source=source,
