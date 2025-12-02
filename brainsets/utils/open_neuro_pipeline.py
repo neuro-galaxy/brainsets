@@ -10,6 +10,9 @@ from typing import Optional
 from argparse import Namespace
 import datetime
 import glob
+import json
+import inspect
+import subprocess
 
 import h5py
 import mne
@@ -26,7 +29,6 @@ from brainsets.utils.open_neuro import (
     fetch_all_filenames,
     fetch_metadata,
 )
-from brainsets.utils.open_neuro_utils import download
 from brainsets.utils.open_neuro_utils.data_extraction import (
     extract_brainset_description,
     extract_subject_description,
@@ -59,9 +61,10 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
     **The pipeline workflow consists of:**
         1. Generating a manifest (list of assets to process) via :meth:`get_manifest()`.
-           This uses OpenNeuro utilities to fetch participant and file information.
-        2. Downloading each asset via :meth:`download()`. This downloads files from
-           OpenNeuro S3 using the openneuro-py library.
+           This loads recording information from a config file ({dataset_id}_config.json)
+           located in the pipeline directory and creates manifest entries organized by recording_id.
+        2. Downloading each asset via :meth:`download()`. This downloads files directly from
+           OpenNeuro's S3 bucket using AWS CLI (s3://openneuro.org/{dataset_id}/).
         3. Processing each downloaded asset via :meth:`process()`. This default
            implementation handles common OpenNeuro EEG dataset processing tasks, but can be extended
            by subclasses by calling super().process() and adding additional logic.
@@ -123,12 +126,115 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         ...
 
     @classmethod
+    def _get_config_file_path(cls) -> Path:
+        """Get the path to the config file for this pipeline.
+
+        Subclasses can override this method to customize config file location.
+        Default implementation expects config file to be named {dataset_id}_config.json
+        and located in the same directory as the pipeline module.
+
+        Returns
+        -------
+        Path
+            Path to the config file.
+        """
+        # Get the file path of the pipeline class module
+        pipeline_module = inspect.getmodule(cls)
+        if pipeline_module is None or not hasattr(pipeline_module, "__file__"):
+            raise RuntimeError(
+                f"Could not determine pipeline module file path for {cls.__name__}"
+            )
+
+        pipeline_file = Path(pipeline_module.__file__)
+        pipeline_dir = pipeline_file.parent
+
+        # Construct config file path: {dataset_id}_config.json
+        dataset_id = cls.get_dataset_id()
+        config_file = pipeline_dir / f"{dataset_id}_config.json"
+
+        if not config_file.exists():
+            raise FileNotFoundError(
+                f"Config file not found at {config_file}. "
+                f"Expected config file named {dataset_id}_config.json in the pipeline directory."
+            )
+
+        return config_file
+
+    @classmethod
+    def _load_config(cls) -> dict:
+        """Load the config file for this pipeline.
+
+        Returns
+        -------
+        dict
+            Configuration dictionary loaded from the config file.
+        """
+        config_file = cls._get_config_file_path()
+        with open(config_file, "r") as f:
+            return json.load(f)
+
+    @classmethod
+    def _construct_s3_url(
+        cls, dataset_id: str, recording_id: str, version_tag: Optional[str] = None
+    ) -> str:
+        """Construct the S3 URL for a recording.
+
+        OpenNeuro datasets are hosted at s3://openneuro.org/{dataset_id}/
+        The BIDS structure typically follows: {subject_id}/.../{task_id}/...
+
+        The S3 structure for OpenNeuro is:
+        s3://openneuro.org/{dataset_id}/{version}/{subject_id}/...
+
+        Where version is typically the dataset version tag (e.g., "1.0.0").
+
+        Parameters
+        ----------
+        dataset_id : str
+            OpenNeuro dataset identifier.
+        recording_id : str
+            Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband').
+        version_tag : Optional[str]
+            Version tag. If provided, included in the S3 path.
+
+        Returns
+        -------
+        str
+            S3 URL prefix for the recording (e.g., 's3://openneuro.org/ds005555/1.0.0/sub-1/')
+        """
+        # Parse recording_id to extract subject_id
+        # Format: sub-{N}_task-{TASK}_acq-{ACQ}
+        parts = recording_id.split("_")
+        subject_id = None
+
+        for part in parts:
+            if part.startswith("sub-"):
+                subject_id = part
+                break
+
+        if not subject_id:
+            raise ValueError(
+                f"Could not parse subject_id from recording_id: {recording_id}"
+            )
+
+        # Construct S3 path: s3://openneuro.org/{dataset_id}/{version}/{subject_id}/
+        # OpenNeuro S3 structure includes the version tag in the path
+        base_path = f"s3://openneuro.org/{dataset_id}"
+        if version_tag:
+            base_path = f"{base_path}/{version_tag}"
+
+        # Construct subject-level path
+        # We download the entire subject directory, which will include all tasks/acquisitions
+        s3_path = f"{base_path}/{subject_id}"
+
+        return s3_path
+
+    @classmethod
     def get_manifest(cls, raw_dir: Path, args: Optional[Namespace]) -> pd.DataFrame:
         """Generate a manifest DataFrame listing all assets to process.
 
-        This implementation uses OpenNeuro utilities to fetch participant
-        information and create a manifest. Each row represents a subject
-        to be downloaded and processed.
+        This implementation loads the config file to get recording information
+        and creates a manifest organized by recording_id. Each row represents
+        a recording to be downloaded and processed.
 
         Parameters
         ----------
@@ -141,10 +247,14 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         -------
         pd.DataFrame
             DataFrame with columns:
-                - 'subject_id': Subject identifier (e.g., 'sub-01')
+                - 'recording_id': Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband')
+                - 'subject_id': Subject identifier (e.g., 'sub-1')
+                - 'task_id': Task identifier (e.g., 'Sleep')
+                - 'channel_map_id': Channel map identifier
                 - 'dataset_id': OpenNeuro dataset identifier
                 - 'version_tag': Version tag to download
-            The index is set to 'subject_id'.
+                - 's3_url': S3 URL prefix for downloading this recording
+            The index is set to 'recording_id'.
         """
         # Validate dataset ID
         dataset_id = validate_dataset_id(cls.get_dataset_id())
@@ -155,51 +265,139 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         else:
             version_tag = cls.version_tag
 
-        # Get list of participants
-        if cls.subject_ids is None:
-            participants = fetch_participants(dataset_id, version_tag)
-        else:
-            # Validate that requested subjects exist
-            all_participants = fetch_participants(dataset_id, version_tag)
-            participants = [
-                subj for subj in cls.subject_ids if subj in all_participants
+        # Load config file
+        config = cls._load_config()
+        recording_info = (
+            config.get("dataset", {})
+            .get("recording_info", {})
+            .get("recording_info", [])
+        )
+
+        if not recording_info:
+            raise ValueError(
+                f"No recording_info found in config file. "
+                f"Expected path: dataset.recording_info.recording_info"
+            )
+
+        # Filter recordings if subject_ids is specified
+        if cls.subject_ids is not None:
+            recording_info = [
+                rec
+                for rec in recording_info
+                if rec.get("subject_id") in cls.subject_ids
             ]
-            if not participants:
+            if not recording_info:
                 raise ValueError(
                     f"None of the requested subjects {cls.subject_ids} "
-                    f"were found in dataset {dataset_id}"
+                    f"were found in the config file"
                 )
 
-        # Create manifest
-        # Note: subject_id is used as the index, so we don't include it as a column
-        manifest_list = [
-            {
-                "dataset_id": dataset_id,
-                "version_tag": version_tag,
-            }
-            for subj_id in participants
-        ]
+        # Create manifest entries
+        manifest_list = []
+        for rec in recording_info:
+            recording_id = rec.get("recording_id")
+            if not recording_id:
+                continue
 
-        manifest = pd.DataFrame(manifest_list, index=participants)
-        manifest.index.name = "subject_id"
+            # Construct S3 URL
+            s3_url = cls._construct_s3_url(dataset_id, recording_id, version_tag)
+
+            manifest_list.append(
+                {
+                    "recording_id": recording_id,
+                    "subject_id": rec.get("subject_id"),
+                    "task_id": rec.get("task_id"),
+                    "channel_map_id": rec.get("channel_map_id"),
+                    "dataset_id": dataset_id,
+                    "version_tag": version_tag,
+                    "s3_url": s3_url,
+                }
+            )
+
+        if not manifest_list:
+            raise ValueError("No recordings found in config file to process")
+
+        # Create DataFrame with recording_id as index
+        manifest = pd.DataFrame(manifest_list)
+        manifest = manifest.set_index("recording_id")
         return manifest
 
-    def download(self, manifest_item) -> dict:
-        """Download data for a single subject from OpenNeuro.
-
-        This implementation downloads EEG data for the subject specified in
-        manifest_item using the openneuro-py download utility.
+    def _download_from_s3(self, s3_url: str, target_dir: Path) -> None:
+        """Download files from OpenNeuro S3 bucket using AWS CLI.
 
         Parameters
         ----------
-        manifest_item : NamedTuple
+        s3_url : str
+            S3 URL prefix to download from (e.g., 's3://openneuro.org/ds005555/sub-1')
+        target_dir : Path
+            Local directory to download files to.
+
+        Raises
+        ------
+        RuntimeError
+            If AWS CLI is not available or download fails.
+        """
+        # Check if AWS CLI is available
+        try:
+            subprocess.run(
+                ["aws", "--version"], check=True, capture_output=True, timeout=5
+            )
+        except (
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+            subprocess.TimeoutExpired,
+        ):
+            raise RuntimeError(
+                "AWS CLI is not available. Please install AWS CLI to download from OpenNeuro S3. "
+                "See: https://aws.amazon.com/cli/"
+            )
+
+        # Use AWS S3 sync to download files
+        # --no-sign-request: OpenNeuro S3 bucket allows public access
+        # --exclude: Exclude unnecessary files to speed up download
+        # We'll download the entire subject directory structure
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            self.update_status(f"Downloading from {s3_url}")
+            result = subprocess.run(
+                [
+                    "aws",
+                    "s3",
+                    "sync",
+                    s3_url,
+                    str(target_dir),
+                    "--no-sign-request",
+                    "--quiet",  # Reduce output
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=3600,  # 1 hour timeout
+            )
+        except subprocess.CalledProcessError as e:
+            error_msg = e.stderr if e.stderr else "Unknown error"
+            raise RuntimeError(f"Failed to download from {s3_url}: {error_msg}")
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"Download from {s3_url} timed out after 1 hour")
+
+    def download(self, manifest_item) -> dict:
+        """Download data for a single recording from OpenNeuro S3.
+
+        This implementation downloads EEG data for the recording specified in
+        manifest_item using AWS CLI to download directly from OpenNeuro's S3 bucket.
+
+        Parameters
+        ----------
+        manifest_item : pandas.Series
             A single row of the manifest returned by :meth:`get_manifest()`.
-            Should contain 'subject_id', 'dataset_id', and 'version_tag' fields.
+            Should contain 'recording_id', 'subject_id', 'dataset_id', 'version_tag', and 's3_url' fields.
 
         Returns
         -------
         dict
             Dictionary with keys:
+                - 'recording_id': Recording identifier
                 - 'subject_id': Subject identifier
                 - 'data_dir': Path to downloaded data directory
                 - 'dataset_id': OpenNeuro dataset identifier
@@ -209,49 +407,42 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         self.raw_dir.mkdir(exist_ok=True, parents=True)
 
         # Access fields from manifest_item (pandas Series)
-        # The index is 'subject_id', accessible via .Index (set by runner)
-        subject_id = manifest_item.Index
+        # The index is 'recording_id', accessible via .Index (set by runner)
+        recording_id = manifest_item.Index
+        subject_id = manifest_item.subject_id
         dataset_id = manifest_item.dataset_id
         version_tag = manifest_item.version_tag
+        s3_url = manifest_item.s3_url
 
-        # Create subject-specific directory
-        subject_dir = self.raw_dir / subject_id
-        subject_dir.mkdir(exist_ok=True, parents=True)
+        # Create recording-specific directory
+        # Use recording_id to ensure unique directories for each recording
+        recording_dir = self.raw_dir / recording_id
+        recording_dir.mkdir(exist_ok=True, parents=True)
 
         # Check if already downloaded (unless redownload is requested)
-        if subject_dir.exists() and any(subject_dir.iterdir()):
+        if recording_dir.exists() and any(recording_dir.iterdir()):
             if not (self.args and getattr(self.args, "redownload", False)):
                 self.update_status("Already Downloaded")
                 return {
+                    "recording_id": recording_id,
                     "subject_id": subject_id,
-                    "data_dir": subject_dir,
+                    "data_dir": recording_dir,
                     "dataset_id": dataset_id,
                     "version_tag": version_tag,
                 }
 
-        # Download subject data using openneuro-py
-        # Include pattern for EEG files (BIDS structure)
-        include_pattern = f"{subject_id}/**/*"
-
+        # Download recording data from S3 using AWS CLI
         try:
-            download(
-                dataset=dataset_id,
-                tag=version_tag,
-                target_dir=str(subject_dir),
-                include=[include_pattern],
-                verify_hash=True,
-                verify_size=True,
-                max_retries=5,
-                max_concurrent_downloads=5,
-            )
+            self._download_from_s3(s3_url, recording_dir)
         except Exception as e:
             raise RuntimeError(
-                f"Failed to download data for {subject_id} from {dataset_id}: {str(e)}"
+                f"Failed to download data for {recording_id} from {dataset_id}: {str(e)}"
             )
 
         return {
+            "recording_id": recording_id,
             "subject_id": subject_id,
-            "data_dir": subject_dir,
+            "data_dir": recording_dir,
             "dataset_id": dataset_id,
             "version_tag": version_tag,
         }
@@ -273,6 +464,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         ----------
         download_output : dict
             Dictionary returned by :meth:`download()` containing:
+                - 'recording_id': Recording identifier (if available)
                 - 'subject_id': Subject identifier
                 - 'data_dir': Path to downloaded data directory
                 - 'dataset_id': OpenNeuro dataset identifier
@@ -280,10 +472,14 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         """
         self.processed_dir.mkdir(exist_ok=True, parents=True)
 
+        recording_id = download_output.get("recording_id")
         subject_id = download_output["subject_id"]
         data_dir = download_output["data_dir"]
         dataset_id = download_output["dataset_id"]
         version_tag = download_output["version_tag"]
+
+        # Use recording_id if available, otherwise fall back to subject_id
+        identifier = recording_id if recording_id else subject_id
 
         # Find EEG files in BIDS structure
         # Look for common EEG file formats: .fif, .set, .edf, .bdf, .vhdr, .eeg
@@ -330,7 +526,12 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             full_session_id = f"{subject_id}_ses-{session_id}"
 
             # Check if already processed
-            store_path = self.processed_dir / f"{full_session_id}.h5"
+            # Use recording_id if available for more specific naming
+            if recording_id:
+                store_name = f"{recording_id}.h5"
+            else:
+                store_name = f"{full_session_id}.h5"
+            store_path = self.processed_dir / store_name
             if store_path.exists() and not (
                 self.args and getattr(self.args, "reprocess", False)
             ):
