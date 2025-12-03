@@ -224,7 +224,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
         # Construct subject-level path
         # We download the entire subject directory, which will include all tasks/acquisitions
-        s3_path = f"{base_path}/{subject_id}"
+        s3_path = f"{base_path}/{subject_id}/"
 
         return s3_path
 
@@ -322,6 +322,46 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         manifest = manifest.set_index("recording_id")
         return manifest
 
+    def _check_recording_files_exist(
+        self, recording_id: str, subject_dir: Path
+    ) -> bool:
+        """Check if files for a specific recording exist in the subject directory.
+
+        This checks for BIDS-compliant files matching the recording_id pattern.
+        Looks for EEG data files.
+
+        Parameters
+        ----------
+        recording_id : str
+            Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband').
+        subject_dir : Path
+            Subject directory to search in.
+
+        Returns
+        -------
+        bool
+            True if at least one recording file is found, False otherwise.
+        """
+        if not subject_dir.exists():
+            return False
+
+        # Common BIDS file patterns for a recording
+        # Check for EEG data files (most important)
+        eeg_patterns = [
+            f"**/{recording_id}_eeg.edf",
+            f"**/{recording_id}_eeg.fif",
+            f"**/{recording_id}_eeg.set",
+            f"**/{recording_id}_eeg.bdf",
+            f"**/{recording_id}_eeg.vhdr",
+            f"**/{recording_id}_eeg.eeg",
+        ]
+
+        # Check if any EEG data file exists (using any() with generator for efficiency)
+        if any(subject_dir.glob(pattern) for pattern in eeg_patterns):
+            return True
+
+        return False
+
     def _download_from_s3(self, s3_url: str, target_dir: Path) -> None:
         """Download files from OpenNeuro S3 bucket using AWS CLI.
 
@@ -387,6 +427,12 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         This implementation downloads EEG data for the recording specified in
         manifest_item using AWS CLI to download directly from OpenNeuro's S3 bucket.
 
+        **Important**: The manifest is per recording, but downloads are per subject.
+        When syncing the subject directory (e.g., `s3://.../sub-1/`), `aws s3 sync`
+        downloads ALL files recursively for that subject, including all recordings,
+        tasks, and acquisitions. Subsequent recordings from the same subject will
+        skip the download since the subject directory already exists.
+
         Parameters
         ----------
         manifest_item : pandas.Series
@@ -414,35 +460,44 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         version_tag = manifest_item.version_tag
         s3_url = manifest_item.s3_url
 
-        # Create recording-specific directory
-        # Use recording_id to ensure unique directories for each recording
-        recording_dir = self.raw_dir / recording_id
-        recording_dir.mkdir(exist_ok=True, parents=True)
+        target_dir = self.raw_dir
+        # Create subject-specific directory
+        # Use subject_id to ensure unique directories for each subject
+        # All recordings for the same subject will be stored in the same directory
+        subject_dir = target_dir / subject_id
+        subject_dir.mkdir(exist_ok=True, parents=True)
 
-        # Check if already downloaded (unless redownload is requested)
-        if recording_dir.exists() and any(recording_dir.iterdir()):
+        # Check if files for this specific recording already exist
+        # Since we download the entire subject directory (all recordings/tasks/acquisitions)
+        # in one sync operation, we check if the specific recording files exist rather than
+        # This ensures we only skip downloads hen the actual recording data is present.
+        if self._check_recording_files_exist(recording_id, subject_dir):
             if not (self.args and getattr(self.args, "redownload", False)):
                 self.update_status("Already Downloaded")
                 return {
                     "recording_id": recording_id,
                     "subject_id": subject_id,
-                    "data_dir": recording_dir,
+                    "data_dir": subject_dir,
                     "dataset_id": dataset_id,
                     "version_tag": version_tag,
                 }
+        # TODO: add download of the missing recording if subject_dir exists.
 
-        # Download recording data from S3 using AWS CLI
+        # Download entire subject directory from S3 using AWS CLI
+        # This downloads ALL files for the subject (all recordings, tasks, acquisitions)
+        # The s3_url points to the subject directory (e.g., s3://.../sub-1/)
+        # and aws s3 sync recursively downloads all files under that prefix
         try:
-            self._download_from_s3(s3_url, recording_dir)
+            self._download_from_s3(s3_url, subject_dir)
         except Exception as e:
             raise RuntimeError(
-                f"Failed to download data for {recording_id} from {dataset_id}: {str(e)}"
+                f"Failed to download data for {subject_id} from {dataset_id}: {str(e)}"
             )
 
         return {
             "recording_id": recording_id,
             "subject_id": subject_id,
-            "data_dir": recording_dir,
+            "data_dir": subject_dir,
             "dataset_id": dataset_id,
             "version_tag": version_tag,
         }
