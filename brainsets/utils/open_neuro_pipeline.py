@@ -183,9 +183,11 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         The BIDS structure typically follows: {subject_id}/.../{task_id}/...
 
         The S3 structure for OpenNeuro is:
-        s3://openneuro.org/{dataset_id}/{version}/{subject_id}/...
+        s3://openneuro.org/{dataset_id}/{subject_id}/...
 
-        Where version is typically the dataset version tag (e.g., "1.0.0").
+        Note: The S3 bucket only contains the latest version of each dataset,
+        so the tag parameter is currently ignored. All files from the dataset
+        root are stored directly under the dataset root.
 
         Parameters
         ----------
@@ -194,12 +196,12 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         recording_id : str
             Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband').
         version_tag : Optional[str]
-            Version tag. If provided, included in the S3 path.
+            Version tag. Ignored for S3 path construction (OpenNeuro S3 only has latest version).
 
         Returns
         -------
         str
-            S3 URL prefix for the recording (e.g., 's3://openneuro.org/ds005555/1.0.0/sub-1/')
+            S3 URL prefix for the recording (e.g., 's3://openneuro.org/ds005555/sub-1/')
         """
         # Parse recording_id to extract subject_id
         # Format: sub-{N}_task-{TASK}_acq-{ACQ}
@@ -216,11 +218,9 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 f"Could not parse subject_id from recording_id: {recording_id}"
             )
 
-        # Construct S3 path: s3://openneuro.org/{dataset_id}/{version}/{subject_id}/
-        # OpenNeuro S3 structure includes the version tag in the path
+        # Construct S3 path: s3://openneuro.org/{dataset_id}/{subject_id}/
+        # OpenNeuro S3 structure: files are stored directly under dataset root (latest version only)
         base_path = f"s3://openneuro.org/{dataset_id}"
-        if version_tag:
-            base_path = f"{base_path}/{version_tag}"
 
         # Construct subject-level path
         # We download the entire subject directory, which will include all tasks/acquisitions
@@ -470,7 +470,8 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         # Check if files for this specific recording already exist
         # Since we download the entire subject directory (all recordings/tasks/acquisitions)
         # in one sync operation, we check if the specific recording files exist rather than
-        # This ensures we only skip downloads hen the actual recording data is present.
+        # just checking if the subject directory exists. This ensures we only skip downloads
+        # when the actual recording data is present.
         if self._check_recording_files_exist(recording_id, subject_dir):
             if not (self.args and getattr(self.args, "redownload", False)):
                 self.update_status("Already Downloaded")
