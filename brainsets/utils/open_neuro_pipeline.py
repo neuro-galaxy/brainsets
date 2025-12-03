@@ -174,6 +174,73 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             return json.load(f)
 
     @classmethod
+    def _list_dataset_level_files(cls, dataset_id: str) -> list[str]:
+        """List dataset-level files and directories at the S3 dataset root.
+
+        This excludes subject directories (sub-*) and returns only files/directories
+        at the dataset root level (e.g., participants.tsv, stimuli/, etc.).
+
+        Parameters
+        ----------
+        dataset_id : str
+            OpenNeuro dataset identifier.
+
+        Returns
+        -------
+        list[str]
+            List of dataset-level file/directory names (e.g., ['participants.tsv', 'stimuli/']).
+        """
+        dataset_s3_url = f"s3://openneuro.org/{dataset_id}/"
+
+        try:
+            # List contents at dataset root using AWS CLI
+            result = subprocess.run(
+                [
+                    "aws",
+                    "s3",
+                    "ls",
+                    dataset_s3_url,
+                    "--no-sign-request",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+        except subprocess.CalledProcessError as e:
+            # If listing fails, return empty list (will skip metadata files)
+            return []
+        except FileNotFoundError:
+            # AWS CLI not available
+            return []
+
+        # Parse output: AWS S3 ls returns lines like:
+        # "PRE sub-1/"  (for directories)
+        # "2024-01-01 12:00:00     1234 participants.tsv"  (for files)
+        dataset_level_items = []
+        for line in result.stdout.strip().split("\n"):
+            if not line.strip():
+                continue
+
+            # Check if it's a directory (starts with "PRE")
+            if line.startswith("PRE"):
+                # Extract directory name (e.g., "PRE stimuli/" -> "stimuli/")
+                item_name = line.split()[-1].rstrip("/")
+                # Exclude subject directories (sub-*)
+                if not item_name.startswith("sub-"):
+                    dataset_level_items.append(item_name + "/")
+            else:
+                # It's a file, extract filename (last part after spaces)
+                parts = line.split()
+                if len(parts) >= 4:
+                    filename = parts[-1]
+                    # Exclude subject directories and any files that look like subject-related
+                    if not filename.startswith("sub-"):
+                        dataset_level_items.append(filename)
+
+        return dataset_level_items
+
+    @classmethod
     def _construct_s3_url(
         cls, dataset_id: str, recording_id: str, version_tag: Optional[str] = None
     ) -> str:
@@ -233,8 +300,9 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         """Generate a manifest DataFrame listing all assets to process.
 
         This implementation loads the config file to get recording information
-        and creates a manifest organized by recording_id. Each row represents
-        a recording to be downloaded and processed.
+        and creates a manifest organized by recording_id. It also discovers and
+        adds dataset-level metadata files/directories (e.g., participants.tsv, stimuli/)
+        as manifest entries.
 
         Parameters
         ----------
@@ -248,13 +316,16 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         pd.DataFrame
             DataFrame with columns:
                 - 'recording_id': Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband')
-                - 'subject_id': Subject identifier (e.g., 'sub-1')
-                - 'task_id': Task identifier (e.g., 'Sleep')
-                - 'channel_map_id': Channel map identifier
+                  or None for metadata files
+                - 'subject_id': Subject identifier (e.g., 'sub-1') or None for metadata files
+                - 'task_id': Task identifier (e.g., 'Sleep') or None for metadata files
+                - 'channel_map_id': Channel map identifier or None for metadata files
                 - 'dataset_id': OpenNeuro dataset identifier
                 - 'version_tag': Version tag to download
-                - 's3_url': S3 URL prefix for downloading this recording
-            The index is set to 'recording_id'.
+                - 's3_url': S3 URL prefix for downloading
+                - 'is_metadata': Boolean indicating if this is a metadata file (True) or recording (False)
+                - 'metadata_filename': Name of metadata file/directory (only for metadata entries)
+            The index is set to 'recording_id' for data files and 'md_{filename}' for metadata files.
         """
         # Validate dataset ID
         dataset_id = validate_dataset_id(cls.get_dataset_id())
@@ -292,7 +363,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                     f"were found in the config file"
                 )
 
-        # Create manifest entries
+        # Create manifest entries for recordings
         manifest_list = []
         for rec in recording_info:
             recording_id = rec.get("recording_id")
@@ -304,6 +375,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
             manifest_list.append(
                 {
+                    "manifest_item_id": recording_id,
                     "recording_id": recording_id,
                     "subject_id": rec.get("subject_id"),
                     "task_id": rec.get("task_id"),
@@ -311,6 +383,35 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                     "dataset_id": dataset_id,
                     "version_tag": version_tag,
                     "s3_url": s3_url,
+                    "is_metadata": False,
+                }
+            )
+
+        # Add dataset-level metadata files/directories as manifest entries
+        dataset_level_items = cls._list_dataset_level_files(dataset_id)
+        for item_name in dataset_level_items:
+            # Construct S3 URL for metadata file/directory
+            metadata_s3_url = f"s3://openneuro.org/{dataset_id}/{item_name}"
+            # For directories, ensure trailing slash
+            if item_name.endswith("/"):
+                metadata_s3_url = metadata_s3_url.rstrip("/") + "/"
+
+            # Create manifest entry with index format: md_{filename}
+            # Remove trailing slash from index if it's a directory
+            index_name = item_name.rstrip("/")
+
+            manifest_list.append(
+                {
+                    "manifest_item_id": f"md_{index_name}",
+                    "recording_id": None,
+                    "subject_id": None,
+                    "task_id": None,
+                    "channel_map_id": None,
+                    "dataset_id": dataset_id,
+                    "version_tag": version_tag,
+                    "s3_url": metadata_s3_url,
+                    "is_metadata": True,
+                    "metadata_filename": item_name,
                 }
             )
 
@@ -319,7 +420,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
         # Create DataFrame with recording_id as index
         manifest = pd.DataFrame(manifest_list)
-        manifest = manifest.set_index("recording_id")
+        manifest = manifest.set_index("manifest_item_id")
         return manifest
 
     def _check_recording_files_exist(
@@ -362,7 +463,12 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
         return False
 
-    def _download_from_s3(self, s3_url: str, target_dir: Path) -> None:
+    def _download_from_s3(
+        self,
+        s3_url: str,
+        target_dir: Path,
+        exclude_patterns: Optional[list[str]] = None,
+    ) -> None:
         """Download files from OpenNeuro S3 bucket using AWS CLI.
 
         Parameters
@@ -371,6 +477,8 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             S3 URL prefix to download from (e.g., 's3://openneuro.org/ds005555/sub-1')
         target_dir : Path
             Local directory to download files to.
+        exclude_patterns : Optional[list[str]]
+            Optional list of patterns to exclude from download (e.g., ['sub-*/*']).
 
         Raises
         ------
@@ -398,18 +506,26 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         # We'll download the entire subject directory structure
         target_dir.mkdir(parents=True, exist_ok=True)
 
+        # Build command with optional exclude patterns
+        cmd = [
+            "aws",
+            "s3",
+            "sync",
+            s3_url,
+            str(target_dir),
+            "--no-sign-request",
+            "--quiet",  # Reduce output
+        ]
+
+        # Add exclude patterns if provided
+        if exclude_patterns:
+            for pattern in exclude_patterns:
+                cmd.extend(["--exclude", pattern])
+
         try:
             self.update_status(f"Downloading from {s3_url}")
             result = subprocess.run(
-                [
-                    "aws",
-                    "s3",
-                    "sync",
-                    s3_url,
-                    str(target_dir),
-                    "--no-sign-request",
-                    "--quiet",  # Reduce output
-                ],
+                cmd,
                 check=True,
                 capture_output=True,
                 text=True,
@@ -453,55 +569,121 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         self.raw_dir.mkdir(exist_ok=True, parents=True)
 
         # Access fields from manifest_item (pandas Series)
-        # The index is 'recording_id', accessible via .Index (set by runner)
-        recording_id = manifest_item.Index
-        subject_id = manifest_item.subject_id
+        is_metadata = manifest_item.is_metadata
         dataset_id = manifest_item.dataset_id
         version_tag = manifest_item.version_tag
         s3_url = manifest_item.s3_url
 
-        target_dir = self.raw_dir
-        # Create subject-specific directory
-        # Use subject_id to ensure unique directories for each subject
-        # All recordings for the same subject will be stored in the same directory
-        subject_dir = target_dir / subject_id
-        subject_dir.mkdir(exist_ok=True, parents=True)
+        if is_metadata:
+            # Handle metadata files: download to raw_dir root
+            target_dir = self.raw_dir
+            metadata_filename = manifest_item.metadata_filename
+            is_directory = metadata_filename.endswith("/")
 
-        # Check if files for this specific recording already exist
-        # Since we download the entire subject directory (all recordings/tasks/acquisitions)
-        # in one sync operation, we check if the specific recording files exist rather than
-        # just checking if the subject directory exists. This ensures we only skip downloads
-        # when the actual recording data is present.
-        if self._check_recording_files_exist(recording_id, subject_dir):
-            if not (self.args and getattr(self.args, "redownload", False)):
-                self.update_status("Already Downloaded")
-                return {
-                    "recording_id": recording_id,
-                    "subject_id": subject_id,
-                    "data_dir": subject_dir,
-                    "dataset_id": dataset_id,
-                    "version_tag": version_tag,
-                }
-        # TODO: add download of the missing recording if subject_dir exists.
+            # Check if metadata file/directory already exists
+            metadata_path = target_dir / metadata_filename.rstrip("/")
+            if metadata_path.exists():
+                if not (self.args and getattr(self.args, "redownload", False)):
+                    self.update_status("Already Downloaded")
+                    return {
+                        "recording_id": None,
+                        "subject_id": None,
+                        "data_dir": target_dir,
+                        "dataset_id": dataset_id,
+                        "version_tag": version_tag,
+                        "is_metadata": True,
+                        "metadata_filename": metadata_filename,
+                    }
+                    # FIX : need to only return the path of the downloaded file
 
-        # Download entire subject directory from S3 using AWS CLI
-        # This downloads ALL files for the subject (all recordings, tasks, acquisitions)
-        # The s3_url points to the subject directory (e.g., s3://.../sub-1/)
-        # and aws s3 sync recursively downloads all files under that prefix
-        try:
-            self._download_from_s3(s3_url, subject_dir)
-        except Exception as e:
-            raise RuntimeError(
-                f"Failed to download data for {subject_id} from {dataset_id}: {str(e)}"
-            )
+            # Download metadata file/directory from S3
+            # For directories, we need to sync to preserve the directory structure
+            # For files, we sync to the target directory
+            # IMPORTANT: Exclude all subject directories (sub-*/) to avoid downloading subject data
+            if is_directory:
+                # For directories, sync to a subdirectory to preserve structure
+                # e.g., s3://bucket/stimuli/ -> raw_dir/stimuli/
+                dir_name = metadata_filename.rstrip("/")
+                download_target = target_dir / dir_name
+            else:
+                # For files, sync to target_dir (file will be created there)
+                download_target = target_dir
 
-        return {
-            "recording_id": recording_id,
-            "subject_id": subject_id,
-            "data_dir": subject_dir,
-            "dataset_id": dataset_id,
-            "version_tag": version_tag,
-        }
+            try:
+                # Exclude subject directories when downloading metadata
+                # This prevents downloading sub-*/ directories that might be at the same level
+                self._download_from_s3(
+                    s3_url,
+                    download_target,
+                    exclude_patterns=["sub-*", "sub-*/*"],
+                )
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to download metadata file {metadata_filename} from {dataset_id}: {str(e)}"
+                )
+
+            return {
+                "recording_id": None,
+                "subject_id": None,
+                "data_dir": target_dir,
+                "dataset_id": dataset_id,
+                "version_tag": version_tag,
+                "is_metadata": True,
+                "metadata_filename": metadata_filename,
+            }
+            # FIX : need to only return the path of the downloaded file
+        else:
+            # Handle recording files: download to subject directory
+            # The index is 'recording_id' for data files, accessible via .Index (set by runner)
+            recording_id = manifest_item.Index
+            subject_id = manifest_item.subject_id
+
+            target_dir = self.raw_dir
+            # Create subject-specific directory
+            # Use subject_id to ensure unique directories for each subject
+            # All recordings for the same subject will be stored in the same directory
+            subject_dir = target_dir / subject_id
+            subject_dir.mkdir(exist_ok=True, parents=True)
+
+            # Check if files for this specific recording already exist
+            # Since we download the entire subject directory (all recordings/tasks/acquisitions)
+            # in one sync operation, we check if the specific recording files exist rather than
+            # just checking if the subject directory exists. This ensures we only skip downloads
+            # when the actual recording data is present.
+            if self._check_recording_files_exist(recording_id, subject_dir):
+                if not (self.args and getattr(self.args, "redownload", False)):
+                    self.update_status("Already Downloaded")
+                    return {
+                        "recording_id": recording_id,
+                        "subject_id": subject_id,
+                        "data_dir": subject_dir,
+                        "dataset_id": dataset_id,
+                        "version_tag": version_tag,
+                        "is_metadata": False,
+                    }
+            # TODO: add download of the missing recording if subject_dir exists.
+            # FIX : need to only return the path of the downloaded file
+
+            # Download entire subject directory from S3 using AWS CLI
+            # This downloads ALL files for the subject (all recordings, tasks, acquisitions)
+            # The s3_url points to the subject directory (e.g., s3://.../sub-1/)
+            # and aws s3 sync recursively downloads all files under that prefix
+            try:
+                self._download_from_s3(s3_url, subject_dir)
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to download data for {subject_id} from {dataset_id}: {str(e)}"
+                )
+
+            return {
+                "recording_id": recording_id,
+                "subject_id": subject_id,
+                "data_dir": subject_dir,
+                "dataset_id": dataset_id,
+                "version_tag": version_tag,
+                "is_metadata": False,
+            }
+            # FIX : need to only return the path of the downloaded file
 
     def process(self, download_output: dict):
         """Process and save the dataset.
@@ -525,7 +707,13 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 - 'data_dir': Path to downloaded data directory
                 - 'dataset_id': OpenNeuro dataset identifier
                 - 'version_tag': Version tag that was downloaded
+                - 'is_metadata': Boolean indicating if this is a metadata file
         """
+        # Skip processing for metadata files
+        if download_output.get("is_metadata", False):
+            self.update_status("Skipped Processing (metadata file)")
+            return
+
         self.processed_dir.mkdir(exist_ok=True, parents=True)
 
         recording_id = download_output.get("recording_id")
