@@ -144,12 +144,36 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         """
         # Get the file path of the pipeline class module
         pipeline_module = inspect.getmodule(cls)
-        if pipeline_module is None or not hasattr(pipeline_module, "__file__"):
+        pipeline_file = None
+
+        # Try inspect.getmodule() first
+        if pipeline_module is not None and hasattr(pipeline_module, "__file__"):
+            pipeline_file = Path(pipeline_module.__file__)
+        else:
+            # Fallback: use brainset_id to construct path from brainsets_pipelines
+            try:
+                import brainsets_pipelines
+
+                brainset_id = cls.get_brainset_id()
+                pipeline_dir = Path(brainsets_pipelines.__path__[0]) / brainset_id
+                pipeline_file = pipeline_dir / "pipeline.py"
+                # Verify the file exists
+                if not pipeline_file.exists():
+                    raise RuntimeError(
+                        f"Could not determine pipeline module file path for {cls.__name__}. "
+                        f"Pipeline file not found at {pipeline_file}"
+                    )
+            except (ImportError, AttributeError, IndexError) as e:
+                raise RuntimeError(
+                    f"Could not determine pipeline module file path for {cls.__name__}. "
+                    f"Failed to locate pipeline directory: {e}"
+                )
+
+        if pipeline_file is None:
             raise RuntimeError(
                 f"Could not determine pipeline module file path for {cls.__name__}"
             )
 
-        pipeline_file = Path(pipeline_module.__file__)
         pipeline_dir = pipeline_file.parent
 
         # Construct config file path: {dataset_id}_config.json
