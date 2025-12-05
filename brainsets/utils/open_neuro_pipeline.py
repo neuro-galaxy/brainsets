@@ -92,9 +92,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
     ...         ...
     """
 
-    brainset_id: str
-    """Unique brainset name. Must be set by the Pipeline subclass."""
-
     dataset_id: str
     """OpenNeuro dataset identifier (e.g., "ds005555"). Must be set by the Pipeline subclass."""
 
@@ -453,7 +450,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 - 'subject_id': Subject identifier
                 - 'dataset_id': OpenNeuro dataset identifier
                 - 'version_tag': Version tag that was downloaded
-                - 'data_dir': Path to downloaded data directory #TODO : redundant with fpath - remove
                 - 'fpath': Local file path where the manifest item was downloaded
         """
         self.update_status("DOWNLOADING")
@@ -479,7 +475,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                     "subject_id": subject_id,
                     "dataset_id": dataset_id,
                     "version_tag": version_tag,
-                    "data_dir": subject_dir,  # TODO : redundant with fpath - remove
                     "fpath": fpath,
                 }
         # TODO: make prefix per recording not subject
@@ -496,7 +491,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             "subject_id": subject_id,
             "dataset_id": dataset_id,
             "version_tag": version_tag,
-            "data_dir": subject_dir,
             "fpath": fpath,
         }
 
@@ -521,7 +515,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 - 'subject_id': Subject identifier
                 - 'dataset_id': OpenNeuro dataset identifier
                 - 'version_tag': Version tag that was downloaded
-                - 'data_dir': Path to downloaded data directory
                 - 'fpath': Local file path where the manifest item was downloaded
         """
 
@@ -529,9 +522,9 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
         recording_id = download_output.get("recording_id")
         subject_id = download_output["subject_id"]
-        data_dir = download_output["data_dir"]
         dataset_id = download_output["dataset_id"]
         version_tag = download_output["version_tag"]
+        data_dir = Path(download_output["fpath"]).parent
 
         # TODO: verif pattern /eeg/*.ext in BIDS ?
         eeg_patterns = [
