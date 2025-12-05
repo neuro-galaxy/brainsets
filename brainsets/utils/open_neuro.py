@@ -4,6 +4,9 @@ import requests
 import numpy as np
 import pandas as pd
 import xml.etree.ElementTree as ET
+from pathlib import Path
+from typing import Optional
+from urllib.parse import urlparse
 import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
@@ -320,6 +323,57 @@ def fetch_participants(dataset_id: str, tag: str = None) -> list[str]:
     return subjects
 
 
+def construct_s3_url(
+    dataset_id: str, recording_id: str, version_tag: Optional[str] = None
+) -> str:
+    # TODO: fix the url to match the recoding_id pattern, not the parent directory
+    """Construct the S3 URL for a recording.
+
+    OpenNeuro datasets are hosted at s3://openneuro.org/{dataset_id}/
+    The BIDS structure typically follows: {subject_id}/.../{task_id}/...
+
+    The S3 structure for OpenNeuro is:
+    s3://openneuro.org/{dataset_id}/{subject_id}/...
+
+    Note: The S3 bucket only contains the latest version of each dataset,
+    so the tag parameter is currently ignored. All files from the dataset
+    root are stored directly under the dataset root.
+
+    Parameters
+    ----------
+    dataset_id : str
+        OpenNeuro dataset identifier.
+    recording_id : str
+        Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband').
+    version_tag : Optional[str]
+        Version tag. Ignored for S3 path construction (OpenNeuro S3 only has latest version).
+
+    Returns
+    -------
+    str
+        S3 URL prefix for the recording (e.g., 's3://openneuro.org/ds005555/sub-1/')
+    """
+    parts = recording_id.split("_")
+    subject_id = None
+
+    for part in parts:
+        if part.startswith("sub-"):
+            subject_id = part
+            break
+
+    if not subject_id:
+        raise ValueError(
+            f"Could not parse subject_id from recording_id: {recording_id}"
+        )
+
+    base_path = f"s3://openneuro.org/{dataset_id}"
+
+    # TODO:  get files per session/recording instead of per subject
+    s3_path = f"{base_path}/{subject_id}/"
+
+    return s3_path
+
+
 def get_s3_file_size(dataset_id: str, file_path: str) -> int:
     """Get the size of a file in an OpenNeuro dataset using S3 HEAD request.
 
@@ -345,6 +399,39 @@ def get_s3_file_size(dataset_id: str, file_path: str) -> int:
         raise RuntimeError(
             f"Error getting file size for {file_path} in dataset {dataset_id}: {str(e)}"
         )
+
+
+def check_recording_files_exist(recording_id: str, subject_dir: Path) -> bool:
+    """Check if BIDS-compliant EEG files matching the recording_id pattern exist in the subject directory.
+
+    Parameters
+    ----------
+    recording_id : str
+        Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband').
+    subject_dir : Path
+        Subject directory to search in.
+
+    Returns
+    -------
+    bool
+        True if at least one recording file is found, False otherwise.
+    """
+    if not subject_dir.exists():
+        return False
+
+    eeg_patterns = [
+        f"**/{recording_id}_eeg.edf",
+        f"**/{recording_id}_eeg.fif",
+        f"**/{recording_id}_eeg.set",
+        f"**/{recording_id}_eeg.bdf",
+        f"**/{recording_id}_eeg.vhdr",
+        f"**/{recording_id}_eeg.eeg",
+    ]
+
+    if any(subject_dir.glob(pattern) for pattern in eeg_patterns):
+        return True
+
+    return False
 
 
 def download_file_from_s3(
@@ -382,6 +469,67 @@ def download_file_from_s3(
         raise RuntimeError(
             f"Error downloading {file_path} from dataset {dataset_id}: {str(e)}"
         )
+
+
+def download_prefix_from_s3(self, s3_url: str, target_dir: Path) -> None:
+    """Download all files from an S3 prefix (directory) using boto3.
+
+    Downloads all files under the given S3 prefix (typically a subject directory)
+    to the target directory, preserving directory structure.
+
+    Parameters
+    ----------
+    s3_url : str
+        S3 URL prefix to download from (e.g., 's3://openneuro.org/ds005555/sub-1/')
+    target_dir : Path
+        Local directory to download files to.
+
+    Raises
+    ------
+    RuntimeError
+        If download fails.
+    """
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    parsed = urlparse(s3_url)
+    if parsed.scheme != "s3":
+        raise ValueError(f"Invalid S3 URL: {s3_url}")
+
+    bucket = parsed.netloc
+    key = parsed.path.lstrip("/")
+
+    prefix = key if key.endswith("/") else key + "/"
+
+    s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
+
+    try:
+        self.update_status(f"Downloading from {s3_url}")
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            if "Contents" not in page:
+                continue
+
+            for obj in page["Contents"]:
+                obj_key = obj["Key"]
+                if obj_key.endswith("/"):
+                    continue
+
+                rel_key = obj_key[len(prefix) :]
+                if not rel_key:
+                    continue
+
+                local_path = target_dir / rel_key
+                local_path.parent.mkdir(parents=True, exist_ok=True)
+
+                for attempt in range(3):
+                    try:
+                        s3.download_file(bucket, obj_key, str(local_path))
+                        return local_path
+                    except Exception:
+                        if attempt == 2:
+                            raise
+    except Exception as e:
+        raise RuntimeError(f"Failed to download from {s3_url}: {e}")
 
 
 def download_subject_eeg_data(
