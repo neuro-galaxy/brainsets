@@ -11,11 +11,7 @@ import datetime
 import glob
 import json
 import inspect
-from urllib.parse import urlparse
 
-import boto3
-from botocore import UNSIGNED
-from botocore.config import Config
 import h5py
 import mne
 import pandas as pd
@@ -26,6 +22,9 @@ from brainsets import serialize_fn_map
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.utils.open_neuro import (
     validate_dataset_id,
+    construct_s3_url,
+    download_prefix_from_s3,
+    check_recording_files_exist,
     fetch_latest_version_tag,
     fetch_metadata,
 )
@@ -187,56 +186,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             return json.load(f)
 
     @classmethod
-    def _construct_s3_url(
-        cls, dataset_id: str, recording_id: str, version_tag: Optional[str] = None
-    ) -> str:
-        """Construct the S3 URL for a recording.
-
-        OpenNeuro datasets are hosted at s3://openneuro.org/{dataset_id}/
-        The BIDS structure typically follows: {subject_id}/.../{task_id}/...
-
-        The S3 structure for OpenNeuro is:
-        s3://openneuro.org/{dataset_id}/{subject_id}/...
-
-        Note: The S3 bucket only contains the latest version of each dataset,
-        so the tag parameter is currently ignored. All files from the dataset
-        root are stored directly under the dataset root.
-
-        Parameters
-        ----------
-        dataset_id : str
-            OpenNeuro dataset identifier.
-        recording_id : str
-            Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband').
-        version_tag : Optional[str]
-            Version tag. Ignored for S3 path construction (OpenNeuro S3 only has latest version).
-
-        Returns
-        -------
-        str
-            S3 URL prefix for the recording (e.g., 's3://openneuro.org/ds005555/sub-1/')
-        """
-        parts = recording_id.split("_")
-        subject_id = None
-
-        for part in parts:
-            if part.startswith("sub-"):
-                subject_id = part
-                break
-
-        if not subject_id:
-            raise ValueError(
-                f"Could not parse subject_id from recording_id: {recording_id}"
-            )
-
-        base_path = f"s3://openneuro.org/{dataset_id}"
-
-        # TODO:  get files per session/recording instead of per subject
-        s3_path = f"{base_path}/{subject_id}/"
-
-        return s3_path
-
-    @classmethod
     def get_manifest(cls, raw_dir: Path, args: Optional[Namespace]) -> pd.DataFrame:
         """Generate a manifest DataFrame listing all assets to process.
 
@@ -303,7 +252,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             if not recording_id:
                 continue
 
-            s3_url = cls._construct_s3_url(dataset_id, recording_id, version_tag)
+            s3_url = construct_s3_url(dataset_id, recording_id, version_tag)
 
             # Compute expected fpath: raw_dir / subject_id / recording_id
             # (base path containing all files for this recording)
@@ -329,100 +278,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         manifest = pd.DataFrame(manifest_list)
         manifest = manifest.set_index("recording_id")
         return manifest
-
-    def _check_recording_files_exist(
-        self, recording_id: str, subject_dir: Path
-    ) -> bool:
-        """Check if BIDS-compliant EEG files matching the recording_id pattern exist in the subject directory.
-
-        Parameters
-        ----------
-        recording_id : str
-            Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband').
-        subject_dir : Path
-            Subject directory to search in.
-
-        Returns
-        -------
-        bool
-            True if at least one recording file is found, False otherwise.
-        """
-        if not subject_dir.exists():
-            return False
-
-        eeg_patterns = [
-            f"**/{recording_id}_eeg.edf",
-            f"**/{recording_id}_eeg.fif",
-            f"**/{recording_id}_eeg.set",
-            f"**/{recording_id}_eeg.bdf",
-            f"**/{recording_id}_eeg.vhdr",
-            f"**/{recording_id}_eeg.eeg",
-        ]
-
-        if any(subject_dir.glob(pattern) for pattern in eeg_patterns):
-            return True
-
-        return False
-
-    def _download_prefix_from_s3(self, s3_url: str, target_dir: Path) -> None:
-        """Download all files from an S3 prefix (directory) using boto3.
-
-        Downloads all files under the given S3 prefix (typically a subject directory)
-        to the target directory, preserving directory structure.
-
-        Parameters
-        ----------
-        s3_url : str
-            S3 URL prefix to download from (e.g., 's3://openneuro.org/ds005555/sub-1/')
-        target_dir : Path
-            Local directory to download files to.
-
-        Raises
-        ------
-        RuntimeError
-            If download fails.
-        """
-        target_dir.mkdir(parents=True, exist_ok=True)
-
-        parsed = urlparse(s3_url)
-        if parsed.scheme != "s3":
-            raise ValueError(f"Invalid S3 URL: {s3_url}")
-
-        bucket = parsed.netloc
-        key = parsed.path.lstrip("/")
-
-        prefix = key if key.endswith("/") else key + "/"
-
-        s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
-
-        try:
-            self.update_status(f"Downloading from {s3_url}")
-            paginator = s3.get_paginator("list_objects_v2")
-            for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-                if "Contents" not in page:
-                    continue
-
-                for obj in page["Contents"]:
-                    obj_key = obj["Key"]
-                    if obj_key.endswith("/"):
-                        continue
-
-                    rel_key = obj_key[len(prefix) :]
-                    if not rel_key:
-                        continue
-
-                    local_path = target_dir / rel_key
-                    local_path.parent.mkdir(parents=True, exist_ok=True)
-
-                    for attempt in range(3):
-                        try:
-                            s3.download_file(bucket, obj_key, str(local_path))
-                            break
-                        except Exception:
-                            if attempt == 2:
-                                raise
-        except Exception as e:
-            raise RuntimeError(f"Failed to download from {s3_url}: {e}")
 
     def download(self, manifest_item) -> dict:
         """Download data for a single recording from OpenNeuro S3.
@@ -466,7 +321,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         subject_dir = target_dir / subject_id
         subject_dir.mkdir(exist_ok=True, parents=True)
 
-        if self._check_recording_files_exist(recording_id, subject_dir):
+        if check_recording_files_exist(recording_id, subject_dir):
             if not (self.args and getattr(self.args, "redownload", False)):
                 self.update_status("Already Downloaded")
                 fpath = self.raw_dir / subject_id / recording_id
@@ -479,13 +334,13 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 }
         # TODO: make prefix per recording not subject
         try:
-            self._download_prefix_from_s3(s3_url, subject_dir)
+            fpath = download_prefix_from_s3(s3_url, subject_dir)
         except Exception as e:
+            fpath = None
             raise RuntimeError(
                 f"Failed to download data for {subject_id} from {dataset_id}: {str(e)}"
             )
 
-        fpath = self.raw_dir / subject_id / recording_id
         return {
             "recording_id": recording_id,
             "subject_id": subject_id,
