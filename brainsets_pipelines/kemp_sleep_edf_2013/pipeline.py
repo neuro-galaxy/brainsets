@@ -1,14 +1,12 @@
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
-import boto3
 import h5py
 import logging
 import mne
 import numpy as np
 import pandas as pd
-import time
 
 from brainsets import serialize_fn_map
 from brainsets.descriptions import (
@@ -25,6 +23,7 @@ from brainsets.utils.split import (
     filter_intervals,
     generate_stratified_folds,
 )
+from brainsets.utils.s3_utils import get_s3_client
 from temporaldata import Data, Interval, RegularTimeSeries, ArrayDict
 
 
@@ -52,195 +51,6 @@ parser.add_argument(
     default="both",
     help="Which study to download: 'sc' (Sleep Cassette), 'st' (Sleep Telemetry), or 'both'",
 )
-
-
-def get_s3_client():
-    from botocore import UNSIGNED
-    from botocore.config import Config
-
-    config = Config(
-        signature_version=UNSIGNED,
-        retries={"max_attempts": 5, "mode": "adaptive"},
-        max_pool_connections=10,
-    )
-    return boto3.client("s3", config=config)
-
-
-def download_with_retry(s3, bucket, key, local_path, max_retries=3):
-    """Download file from S3 with retry logic for transient failures."""
-    for attempt in range(max_retries):
-        try:
-            s3.download_file(bucket, key, str(local_path))
-            return
-        except Exception as e:
-            if attempt < max_retries - 1:
-                wait_time = 2**attempt
-                logging.warning(
-                    f"Download failed (attempt {attempt + 1}), retrying in {wait_time}s: {e}"
-                )
-                time.sleep(wait_time)
-            else:
-                raise
-
-
-def parse_subject_metadata(raw):
-    """Extract subject metadata from EDF header."""
-    info = raw.info
-    subject_info = info.get("subject_info", {})
-
-    age = subject_info.get("age")
-    if age is None:
-        age_str = subject_info.get("last_name")
-        if age_str and isinstance(age_str, str) and "yr" in age_str:
-            try:
-                age = int(age_str.replace("yr", ""))
-            except ValueError:
-                logging.warning(f"Could not parse age from last_name: {age_str}")
-                age = None
-
-    sex_str = subject_info.get("sex")
-
-    if sex_str is not None:
-        sex = Sex.MALE if sex_str == 1 else Sex.FEMALE if sex_str == 2 else Sex.UNKNOWN
-    else:
-        sex = Sex.UNKNOWN
-
-    return age, sex
-
-
-def extract_signals(raw_psg):
-    """Extract physiological signals from PSG EDF file as a RegularTimeSeries."""
-    data, times = raw_psg.get_data(return_times=True)
-    ch_names = raw_psg.ch_names
-
-    signal_list = []
-    unit_meta = []
-
-    for idx, ch_name in enumerate(ch_names):
-        ch_name_lower = ch_name.lower()
-        signal_data = data[idx, :]
-
-        modality = None
-        if (
-            "eeg" in ch_name_lower
-            or "fpz-cz" in ch_name_lower
-            or "pz-oz" in ch_name_lower
-        ):
-            modality = Modality.EEG
-        elif "eog" in ch_name_lower:
-            modality = Modality.EOG
-        elif "emg" in ch_name_lower:
-            modality = Modality.EMG
-        elif "resp" in ch_name_lower:
-            modality = Modality.RESP
-        elif "temp" in ch_name_lower:
-            modality = Modality.TEMP
-        else:
-            continue
-
-        signal_list.append(signal_data)
-
-        unit_meta.append(
-            {
-                "id": str(ch_name),
-                "modality": str(modality.value),
-            }
-        )
-
-    if not signal_list:
-        return None, None
-
-    stacked_signals = np.stack(signal_list, axis=1)
-
-    signals = RegularTimeSeries(
-        signal=stacked_signals,
-        sampling_rate=raw_psg.info["sfreq"],
-        domain=Interval(start=times[0], end=times[-1]),
-    )
-
-    units_df = pd.DataFrame(unit_meta)
-    units = ArrayDict.from_dataframe(units_df)
-
-    return signals, units
-
-
-def extract_sleep_stages(hypnogram_file, psg_times):
-    """Extract sleep stage annotations from hypnogram EDF+ file as an Interval object."""
-    annotations = mne.read_annotations(hypnogram_file)
-
-    sleep_stage_map = {
-        "Sleep stage W": 0,
-        "Sleep stage 1": 1,
-        "Sleep stage 2": 2,
-        "Sleep stage 3": 3,
-        "Sleep stage 4": 4,
-        "Sleep stage R": 5,
-        "Sleep stage ?": 6,
-        "Movement time": 7,
-    }
-
-    starts = []
-    ends = []
-    stage_names = []
-    stage_ids = []
-
-    for annot_onset, annot_duration, annot_description in zip(
-        annotations.onset, annotations.duration, annotations.description
-    ):
-        if annot_description in sleep_stage_map:
-            starts.append(annot_onset)
-            ends.append(annot_onset + annot_duration)
-            stage_names.append(annot_description)
-            stage_ids.append(sleep_stage_map[annot_description])
-
-    if len(starts) == 0:
-        logging.warning("No sleep stage annotations found in hypnogram")
-        return None
-
-    stages = Interval(
-        start=np.array(starts),
-        end=np.array(ends),
-        names=np.array(stage_names),
-        id=np.array(stage_ids, dtype=np.int64),
-    )
-
-    return stages
-
-
-def create_splits(stages, epoch_duration=30.0, n_folds=5, seed=42):
-    """Generate train/valid/test splits from sleep stage intervals."""
-    if stages is None or len(stages) == 0:
-        logging.warning("No stages provided for splitting")
-        return None
-
-    chopped = chop_intervals(stages, duration=epoch_duration, check_no_overlap=True)
-    logging.info(f"Chopped {len(stages)} stages into {len(chopped)} epochs")
-
-    UNKNOWN_STAGE_ID = 6
-    filtered = filter_intervals(chopped, exclude_ids=[UNKNOWN_STAGE_ID])
-    logging.info(f"Filtered out unknown stages, {len(filtered)} epochs remaining")
-
-    # if one of the stages happens less tha n_folds, then we need to remove it to be able to create the folds fairly
-    for stage_id, count in zip(*np.unique(chopped.id, return_counts=True)):
-        if count < n_folds:
-            filtered = filter_intervals(filtered, exclude_ids=[stage_id])
-            logging.info(
-                f"Filtered out stage {stage_id}, {len(filtered)} epochs remaining"
-            )
-
-    if len(filtered) == 0:
-        logging.warning("No valid epochs after filtering")
-        return None
-
-    splits = generate_stratified_folds(
-        filtered,
-        n_folds=n_folds,
-        val_ratio=0.2,
-        seed=seed,
-    )
-    logging.info(f"Generated {n_folds} stratified folds")
-
-    return splits
 
 
 class Pipeline(BrainsetPipeline):
@@ -313,36 +123,37 @@ class Pipeline(BrainsetPipeline):
 
         return None
 
-    def download(self, manifest_item):
+    def download(self, manifest_item) -> Tuple[Path, Path]:
         self.update_status("DOWNLOADING")
         s3 = get_s3_client()
 
         psg_key = manifest_item.psg_s3_key
         hypnogram_key = manifest_item.hypnogram_s3_key
 
+        if not hypnogram_key:
+            raise ValueError(f"No hypnogram found for PSG file: {psg_key}")
+
         psg_local = self.raw_dir / Path(psg_key).relative_to(PREFIX)
         psg_local.parent.mkdir(parents=True, exist_ok=True)
 
         if not psg_local.exists() or self.args.redownload:
             logging.info(f"Downloading PSG: {Path(psg_key).name}")
-            download_with_retry(s3, BUCKET, psg_key, psg_local)
+            s3.download_file(BUCKET, psg_key, str(psg_local))
         else:
             logging.info(f"Skipping download, file exists: {psg_local}")
 
-        hypnogram_local = None
-        if hypnogram_key:
-            hypnogram_local = self.raw_dir / Path(hypnogram_key).relative_to(PREFIX)
-            hypnogram_local.parent.mkdir(parents=True, exist_ok=True)
+        hypnogram_local = self.raw_dir / Path(hypnogram_key).relative_to(PREFIX)
+        hypnogram_local.parent.mkdir(parents=True, exist_ok=True)
 
-            if not hypnogram_local.exists() or self.args.redownload:
-                logging.info(f"Downloading Hypnogram: {Path(hypnogram_key).name}")
-                download_with_retry(s3, BUCKET, hypnogram_key, hypnogram_local)
-            else:
-                logging.info(f"Skipping download, file exists: {hypnogram_local}")
+        if not hypnogram_local.exists() or self.args.redownload:
+            logging.info(f"Downloading Hypnogram: {Path(hypnogram_key).name}")
+            s3.download_file(BUCKET, hypnogram_key, str(hypnogram_local))
+        else:
+            logging.info(f"Skipping download, file exists: {hypnogram_local}")
 
         return psg_local, hypnogram_local
 
-    def process(self, download_output):
+    def process(self, download_output: Tuple[Path, Path]) -> None:
         psg_path, hypnogram_path = download_output
 
         self.update_status("PROCESSING")
@@ -406,38 +217,23 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Extracting Signals")
         signals, units = extract_signals(raw_psg)
 
-        if signals is None:
-            logging.error("No signals extracted from PSG file")
-            self.update_status("FAILED")
-            return
+        self.update_status("Extracting Sleep Stages")
+        stages = extract_sleep_stages(str(hypnogram_path))
 
-        stages = None
-        if hypnogram_path and hypnogram_path.exists():
-            self.update_status("Extracting Sleep Stages")
-            stages = extract_sleep_stages(str(hypnogram_path), raw_psg.times)
+        self.update_status("Creating Splits")
+        splits = create_splits(stages, n_folds=3, seed=42)
 
-        splits = None
-        if stages is not None:
-            self.update_status("Creating Splits")
-            splits = create_splits(stages, n_folds=3, seed=42)
-
-        data_dict = {
-            "brainset": brainset_description,
-            "subject": subject,
-            "session": session_description,
-            "device": device_description,
-            "eeg": signals,
-            "units": units,
-            "domain": signals.domain,
-        }
-
-        if stages is not None:
-            data_dict["stages"] = stages
-
-        if splits is not None:
-            data_dict["splits"] = splits
-
-        data = Data(**data_dict)
+        data = Data(
+            brainset=brainset_description,
+            subject=subject,
+            session=session_description,
+            device=device_description,
+            eeg=signals,
+            units=units,
+            stages=stages,
+            splits=splits,
+            domain=signals.domain,
+        )
 
         self.update_status("Storing")
         self.processed_dir.mkdir(parents=True, exist_ok=True)
@@ -446,3 +242,163 @@ class Pipeline(BrainsetPipeline):
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
 
         logging.info(f"Saved processed data to: {output_path}")
+
+
+def parse_subject_metadata(raw: mne.io.Raw) -> Tuple[Optional[int], Sex]:
+    """Extract subject metadata from EDF header."""
+    info = raw.info
+    subject_info = info.get("subject_info", {})
+
+    age = subject_info.get("age")
+    if age is None:
+        age_str = subject_info.get("last_name")
+        if age_str and isinstance(age_str, str) and "yr" in age_str:
+            try:
+                age = int(age_str.replace("yr", ""))
+            except ValueError:
+                logging.warning(f"Could not parse age from last_name: {age_str}")
+                age = None
+
+    sex_str = subject_info.get("sex")
+
+    if sex_str is not None:
+        sex = Sex.MALE if sex_str == 1 else Sex.FEMALE if sex_str == 2 else Sex.UNKNOWN
+    else:
+        sex = Sex.UNKNOWN
+
+    return age, sex
+
+
+def extract_signals(raw_psg: mne.io.Raw) -> Tuple[RegularTimeSeries, ArrayDict]:
+    """Extract physiological signals from PSG EDF file as a RegularTimeSeries."""
+    data, times = raw_psg.get_data(return_times=True)
+    ch_names = raw_psg.ch_names
+
+    signal_list = []
+    unit_meta = []
+
+    for idx, ch_name in enumerate(ch_names):
+        ch_name_lower = ch_name.lower()
+        signal_data = data[idx, :]
+
+        modality = None
+        if (
+            "eeg" in ch_name_lower
+            or "fpz-cz" in ch_name_lower
+            or "pz-oz" in ch_name_lower
+        ):
+            modality = Modality.EEG
+        elif "eog" in ch_name_lower:
+            modality = Modality.EOG
+        elif "emg" in ch_name_lower:
+            modality = Modality.EMG
+        elif "resp" in ch_name_lower:
+            modality = Modality.RESP
+        elif "temp" in ch_name_lower:
+            modality = Modality.TEMP
+        else:
+            continue
+
+        signal_list.append(signal_data)
+
+        unit_meta.append(
+            {
+                "id": str(ch_name),
+                "modality": str(modality.value),
+            }
+        )
+
+    if not signal_list:
+        raise ValueError("No signals extracted from PSG file")
+
+    stacked_signals = np.stack(signal_list, axis=1)
+
+    signals = RegularTimeSeries(
+        signal=stacked_signals,
+        sampling_rate=raw_psg.info["sfreq"],
+        domain=Interval(start=times[0], end=times[-1]),
+    )
+
+    units_df = pd.DataFrame(unit_meta)
+    units = ArrayDict.from_dataframe(units_df)
+
+    return signals, units
+
+
+def extract_sleep_stages(hypnogram_file: str) -> Interval:
+    """Extract sleep stage annotations from hypnogram EDF+ file as an Interval object."""
+    annotations = mne.read_annotations(hypnogram_file)
+
+    sleep_stage_map = {
+        "Sleep stage W": 0,
+        "Sleep stage 1": 1,
+        "Sleep stage 2": 2,
+        "Sleep stage 3": 3,
+        "Sleep stage 4": 4,
+        "Sleep stage R": 5,
+        "Sleep stage ?": 6,
+        "Movement time": 7,
+    }
+
+    starts = []
+    ends = []
+    stage_names = []
+    stage_ids = []
+
+    for annot_onset, annot_duration, annot_description in zip(
+        annotations.onset, annotations.duration, annotations.description
+    ):
+        if annot_description in sleep_stage_map:
+            starts.append(annot_onset)
+            ends.append(annot_onset + annot_duration)
+            stage_names.append(annot_description)
+            stage_ids.append(sleep_stage_map[annot_description])
+
+    if len(starts) == 0:
+        raise ValueError(
+            f"No sleep stage annotations found in hypnogram: {hypnogram_file}"
+        )
+
+    stages = Interval(
+        start=np.array(starts),
+        end=np.array(ends),
+        names=np.array(stage_names),
+        id=np.array(stage_ids, dtype=np.int64),
+    )
+
+    return stages
+
+
+def create_splits(
+    stages: Interval, epoch_duration: float = 30.0, n_folds: int = 5, seed: int = 42
+) -> Data:
+    """Generate train/valid/test splits from sleep stage intervals."""
+    if len(stages) == 0:
+        raise ValueError("No stages provided for splitting")
+
+    chopped = chop_intervals(stages, duration=epoch_duration, check_no_overlap=True)
+    logging.info(f"Chopped {len(stages)} stages into {len(chopped)} epochs")
+
+    UNKNOWN_STAGE_ID = 6
+    filtered = filter_intervals(chopped, exclude_values=[UNKNOWN_STAGE_ID])
+    logging.info(f"Filtered out unknown stages, {len(filtered)} epochs remaining")
+
+    for stage_id, count in zip(*np.unique(chopped.id, return_counts=True)):
+        if count < n_folds:
+            filtered = filter_intervals(filtered, exclude_values=[stage_id])
+            logging.info(
+                f"Filtered out stage {stage_id}, {len(filtered)} epochs remaining"
+            )
+
+    if len(filtered) == 0:
+        raise ValueError("No valid epochs remaining after filtering")
+
+    splits = generate_stratified_folds(
+        filtered,
+        n_folds=n_folds,
+        val_ratio=0.2,
+        seed=seed,
+    )
+    logging.info(f"Generated {n_folds} stratified folds")
+
+    return splits
