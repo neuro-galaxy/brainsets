@@ -11,7 +11,6 @@ import datetime
 import glob
 import json
 import inspect
-import warnings
 from urllib.parse import urlparse
 
 import boto3
@@ -28,9 +27,7 @@ from brainsets.pipeline import BrainsetPipeline
 from brainsets.utils.open_neuro import (
     validate_dataset_id,
     fetch_latest_version_tag,
-    fetch_all_filenames,
     fetch_metadata,
-    download_file_from_s3,
 )
 from brainsets.utils.open_neuro_utils.data_extraction import (
     extract_brainset_description,
@@ -94,6 +91,9 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
     ...         # Add dataset-specific processing here
     ...         ...
     """
+
+    brainset_id: str
+    """Unique brainset name. Must be set by the Pipeline subclass."""
 
     dataset_id: str
     """OpenNeuro dataset identifier (e.g., "ds005555"). Must be set by the Pipeline subclass."""
@@ -244,9 +244,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         """Generate a manifest DataFrame listing all assets to process.
 
         This implementation loads the config file to get recording information
-        and creates a manifest organized by recording_id. It also discovers and
-        adds dataset-level metadata files/directories (e.g., participants.tsv, stimuli/)
-        as manifest entries.
+        and creates a manifest organized by recording_id.
 
         Parameters
         ----------
@@ -259,21 +257,16 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         -------
         pd.DataFrame
             DataFrame with columns:
-                - 'manifest_item_id': Unique identifier for the manifest item
-                - 'recording_id': Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband')
-                  or None for metadata files
-                - 'subject_id': Subject identifier (e.g., 'sub-1') or None for metadata files
-                - 'task_id': Task identifier (e.g., 'Sleep') or None for metadata files
-                - 'channel_map_id': Channel map identifier or None for metadata files
+                - 'recording_id': Recording/Session identifier (e.g., 'sub-1_task-Sleep_acq-headband')
+                - 'subject_id': Subject identifier (e.g., 'sub-1')
+                - 'task_id': Task identifier (e.g., 'Sleep')
+                - 'channel_map_id': Channel map identifier
                 - 'dataset_id': OpenNeuro dataset identifier
                 - 'version_tag': Version tag to download
-                - 's3_url': S3 URL for downloading (subject directory for recordings, file path for metadata)
-                - 'is_metadata': Boolean indicating if this is a metadata file (True) or recording (False)
+                - 's3_url': S3 URL for downloading
                 - 'fpath': Local file path where the manifest item will be downloaded
-                  (directory path for recordings, file path for metadata files)
-            The index is set to 'manifest_item_id'.
+            The index is set to 'recording_id'.
         """
-        # TODO: remove all dataset-level related metadata pipeline
         dataset_id = validate_dataset_id(cls.get_dataset_id())
 
         if cls.version_tag is None:
@@ -322,7 +315,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
             manifest_list.append(
                 {
-                    "manifest_item_id": recording_id,
                     "recording_id": recording_id,
                     "subject_id": subject_id,
                     "task_id": rec.get("task_id"),
@@ -330,63 +322,21 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                     "dataset_id": dataset_id,
                     "version_tag": version_tag,
                     "s3_url": s3_url,
-                    "is_metadata": False,  # TODO: remove metadadata
                     "fpath": fpath,
                 }
-            )
-
-        # TODO: remove dataset-level related metadata pipeline
-        try:
-            all_filenames = fetch_all_filenames(dataset_id)
-            dataset_level_files = [
-                filename
-                for filename in all_filenames
-                if not filename.split("/")[0].startswith("sub-")
-            ]
-
-            # Create one manifest entry per metadata file
-            for file_path in dataset_level_files:
-                manifest_item_id = f"md_{file_path.replace('/', '_')}"
-
-                s3_url = f"s3://openneuro.org/{dataset_id}/{file_path}"
-
-                fpath = raw_dir / file_path
-
-                manifest_list.append(
-                    {
-                        "manifest_item_id": manifest_item_id,
-                        "recording_id": None,
-                        "subject_id": None,
-                        "task_id": None,
-                        "channel_map_id": None,
-                        "dataset_id": dataset_id,
-                        "version_tag": version_tag,
-                        "s3_url": s3_url,
-                        "is_metadata": True,
-                        "fpath": fpath,
-                    }
-                )
-        except Exception as e:
-            warnings.warn(
-                f"Failed to discover metadata files for dataset {dataset_id}: {str(e)}. "
-                f"Continuing with recording entries only.",
-                UserWarning,
             )
 
         if not manifest_list:
             raise ValueError("No recordings found in config file to process")
 
         manifest = pd.DataFrame(manifest_list)
-        manifest = manifest.set_index("manifest_item_id")
+        manifest = manifest.set_index("recording_id")
         return manifest
 
     def _check_recording_files_exist(
         self, recording_id: str, subject_dir: Path
     ) -> bool:
-        """Check if files for a specific recording exist in the subject directory.
-
-        This checks for BIDS-compliant files matching the recording_id pattern.
-        Looks for EEG data files.
+        """Check if BIDS-compliant EEG files matching the recording_id pattern exist in the subject directory.
 
         Parameters
         ----------
@@ -499,99 +449,56 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         -------
         dict
             Dictionary with keys:
-                - 'recording_id': Recording identifier (or None for metadata files)
-                - 'subject_id': Subject identifier (or None for metadata files)
+                - 'recording_id': Recording identifier
+                - 'subject_id': Subject identifier
                 - 'dataset_id': OpenNeuro dataset identifier
                 - 'version_tag': Version tag that was downloaded
-                - 'is_metadata': Boolean indicating if this is a metadata file
-                - 'data_dir': Path to downloaded data directory
-                    - For metadata: raw_dir (brainset directory)
-                    - For recordings: raw_dir / subject_id (subject directory)
+                - 'data_dir': Path to downloaded data directory #TODO : redundant with fpath - remove
                 - 'fpath': Local file path where the manifest item was downloaded
-                    - For metadata: raw_dir / file_path (specific file path)
-                    - For recordings: raw_dir / subject_id / recording_id (base path for recording files)
         """
         self.update_status("DOWNLOADING")
         self.raw_dir.mkdir(exist_ok=True, parents=True)
 
-        is_metadata = manifest_item.is_metadata
         dataset_id = manifest_item.dataset_id
         version_tag = manifest_item.version_tag
         s3_url = manifest_item.s3_url
 
-        # TODO: remove dataset-level related metadata pipeline
-        if is_metadata:
-            manifest_item_id = manifest_item.Index
-            if manifest_item_id and manifest_item_id.startswith("md_"):
-                metadata_filename = manifest_item_id[3:].replace("_", "/")
-            else:
-                raise ValueError(
-                    f"Could not determine metadata_filename from manifest_item_id: {manifest_item_id}. "
-                    f"Expected format: md_{{filename}}"
-                )
+        recording_id = manifest_item.Index
+        subject_id = manifest_item.subject_id
 
-            target_dir = str(self.raw_dir)
-            force_redownload = self.args is not None and getattr(
-                self.args, "redownload", False
+        target_dir = self.raw_dir
+        subject_dir = target_dir / subject_id
+        subject_dir.mkdir(exist_ok=True, parents=True)
+
+        if self._check_recording_files_exist(recording_id, subject_dir):
+            if not (self.args and getattr(self.args, "redownload", False)):
+                self.update_status("Already Downloaded")
+                fpath = self.raw_dir / subject_id / recording_id
+                return {
+                    "recording_id": recording_id,
+                    "subject_id": subject_id,
+                    "dataset_id": dataset_id,
+                    "version_tag": version_tag,
+                    "data_dir": subject_dir,  # TODO : redundant with fpath - remove
+                    "fpath": fpath,
+                }
+        # TODO: make prefix per recording not subject
+        try:
+            self._download_prefix_from_s3(s3_url, subject_dir)
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to download data for {subject_id} from {dataset_id}: {str(e)}"
             )
 
-            try:
-                local_path = download_file_from_s3(
-                    dataset_id, metadata_filename, target_dir, force=force_redownload
-                )
-            except Exception as e:
-                raise RuntimeError(
-                    f"Failed to download metadata file {metadata_filename} from {dataset_id}: {str(e)}"
-                )
-
-            return {
-                "recording_id": None,
-                "subject_id": None,
-                "dataset_id": dataset_id,
-                "version_tag": version_tag,
-                "is_metadata": True,
-                "data_dir": self.raw_dir,
-                "fpath": Path(local_path),
-            }
-        else:
-            recording_id = manifest_item.Index
-            subject_id = manifest_item.subject_id
-
-            target_dir = self.raw_dir
-            subject_dir = target_dir / subject_id
-            subject_dir.mkdir(exist_ok=True, parents=True)
-
-            if self._check_recording_files_exist(recording_id, subject_dir):
-                if not (self.args and getattr(self.args, "redownload", False)):
-                    self.update_status("Already Downloaded")
-                    fpath = self.raw_dir / subject_id / recording_id
-                    return {
-                        "recording_id": recording_id,
-                        "subject_id": subject_id,
-                        "dataset_id": dataset_id,
-                        "version_tag": version_tag,
-                        "is_metadata": False,
-                        "data_dir": subject_dir,
-                        "fpath": fpath,
-                    }
-            # TODO: make prefix per recording not subject
-            try:
-                self._download_prefix_from_s3(s3_url, subject_dir)
-            except Exception as e:
-                raise RuntimeError(
-                    f"Failed to download data for {subject_id} from {dataset_id}: {str(e)}"
-                )
-
-            fpath = self.raw_dir / subject_id / recording_id
-            return {
-                "recording_id": recording_id,
-                "subject_id": subject_id,
-                "dataset_id": dataset_id,
-                "version_tag": version_tag,
-                "is_metadata": False,
-                "data_dir": subject_dir,
-                "fpath": fpath,
-            }
+        fpath = self.raw_dir / subject_id / recording_id
+        return {
+            "recording_id": recording_id,
+            "subject_id": subject_id,
+            "dataset_id": dataset_id,
+            "version_tag": version_tag,
+            "data_dir": subject_dir,
+            "fpath": fpath,
+        }
 
     def process(self, download_output: dict):
         """Process and save the dataset.
@@ -614,14 +521,9 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 - 'subject_id': Subject identifier
                 - 'dataset_id': OpenNeuro dataset identifier
                 - 'version_tag': Version tag that was downloaded
-                - 'is_metadata': Boolean indicating if this is a metadata file
                 - 'data_dir': Path to downloaded data directory
                 - 'fpath': Local file path where the manifest item was downloaded
         """
-        # TODO: remove dataset-level related metadata pipeline
-        if download_output.get("is_metadata", False):
-            self.update_status("Skipped Processing (metadata file)")
-            return
 
         self.processed_dir.mkdir(exist_ok=True, parents=True)
 
