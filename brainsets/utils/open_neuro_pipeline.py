@@ -252,7 +252,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             if not recording_id:
                 continue
 
-            s3_url = construct_s3_url(dataset_id, recording_id, version_tag)
+            s3_url = construct_s3_url(dataset_id, recording_id)
 
             # Compute expected fpath: raw_dir / subject_id / recording_id
             # (base path containing all files for this recording)
@@ -318,13 +318,15 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         subject_id = manifest_item.subject_id
 
         target_dir = self.raw_dir
-        subject_dir = target_dir / subject_id
-        subject_dir.mkdir(exist_ok=True, parents=True)
+        target_dir.mkdir(exist_ok=True, parents=True)
 
+        subject_dir = target_dir / subject_id
         if check_recording_files_exist(recording_id, subject_dir):
             if not (self.args and getattr(self.args, "redownload", False)):
                 self.update_status("Already Downloaded")
-                fpath = self.raw_dir / subject_id / recording_id
+                fpath = subject_dir
+                # FIXME: fix fpath to return the full path including session/modality
+                # For now, use subject_dir as the base
                 return {
                     "recording_id": recording_id,
                     "subject_id": subject_id,
@@ -332,9 +334,13 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                     "version_tag": version_tag,
                     "fpath": fpath,
                 }
-        # TODO: make prefix per recording not subject
+
         try:
-            fpath = download_prefix_from_s3(s3_url, subject_dir)
+            self.update_status(f"Downloading from {s3_url}")
+
+            download_prefix_from_s3(s3_url, target_dir)
+            # TODO: download_prefix_from_s3 should return the fpath instead of None
+            fpath = subject_dir
         except Exception as e:
             fpath = None
             raise RuntimeError(
@@ -381,7 +387,8 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         version_tag = download_output["version_tag"]
         data_dir = Path(download_output["fpath"]).parent
 
-        # TODO: verif pattern /eeg/*.ext in BIDS ?
+        # FIXME: verif pattern /eeg/*.ext in BIDS ?
+        # there are more possible extension like .mat or .set
         eeg_patterns = [
             "**/*.fif",
             "**/*.set",

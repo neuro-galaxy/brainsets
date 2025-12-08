@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 import requests
 import numpy as np
@@ -323,55 +324,125 @@ def fetch_participants(dataset_id: str, tag: str = None) -> list[str]:
     return subjects
 
 
-def construct_s3_url(
-    dataset_id: str, recording_id: str, version_tag: Optional[str] = None
-) -> str:
-    # TODO: fix the url to match the recoding_id pattern, not the parent directory
-    """Construct the S3 URL for a recording.
-
-    OpenNeuro datasets are hosted at s3://openneuro.org/{dataset_id}/
-    The BIDS structure typically follows: {subject_id}/.../{task_id}/...
-
-    The S3 structure for OpenNeuro is:
-    s3://openneuro.org/{dataset_id}/{subject_id}/...
-
-    Note: The S3 bucket only contains the latest version of each dataset,
-    so the tag parameter is currently ignored. All files from the dataset
-    root are stored directly under the dataset root.
+def construct_s3_url(dataset_id: str, recording_id: str) -> str:
+    """Construct the S3 URL for a recording matching the given pattern.
 
     Parameters
     ----------
     dataset_id : str
         OpenNeuro dataset identifier.
     recording_id : str
-        Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband').
-    version_tag : Optional[str]
-        Version tag. Ignored for S3 path construction (OpenNeuro S3 only has latest version).
+        Recording identifier to be used as a prefix pattern to match files.
 
     Returns
     -------
     str
-        S3 URL prefix for the recording (e.g., 's3://openneuro.org/ds005555/sub-1/')
+        S3 URL for the recording files matching this prefix.
+
+    Raises
+    ------
+    ValueError
+        If subject_id cannot be parsed from recording_id.
+    RuntimeError
+        If no files matching the recording_id pattern are found.
     """
+    dataset_id = validate_dataset_id(dataset_id)
+
+    # Get Subject_id and Session_id (if exists)
     parts = recording_id.split("_")
     subject_id = None
+    session_id = None
 
     for part in parts:
-        if part.startswith("sub-"):
-            subject_id = part
-            break
+        if "sub-" in part:
+            match = re.search(r"sub-([^_]+)", part)
+            if match:
+                subject_id = f"sub-{match.group(1)}"
+        if "ses-" in part:
+            match = re.search(r"ses-([^_]+)", part)
+            if match:
+                session_id = f"ses-{match.group(1)}"
 
     if not subject_id:
         raise ValueError(
             f"Could not parse subject_id from recording_id: {recording_id}"
         )
 
-    base_path = f"s3://openneuro.org/{dataset_id}"
+    # Find the modality
+    s3_client = boto3.client("s3", config=Config(signature_version=UNSIGNED))
 
-    # TODO:  get files per session/recording instead of per subject
-    s3_path = f"{base_path}/{subject_id}/"
+    datatypes = [
+        "eeg",
+        "ieeg",
+        "anat",
+        "func",
+        "meg",
+        "fmap",
+        "dwi",
+        "beh",
+        "perf",
+        "pet",
+        "micr",
+        "nirs",
+        "motion",
+        "mrs",
+    ]
 
-    return s3_path
+    subject_prefix = f"{dataset_id}/{subject_id}/"
+
+    if session_id:
+        try:
+            session_prefix = f"{subject_prefix}{session_id}/"
+            modality = None
+            for datatype in datatypes:
+                search_prefix = f"{session_prefix}{datatype}/{recording_id}"
+                try:
+                    paginator = s3_client.get_paginator("list_objects_v2")
+                    for page in paginator.paginate(
+                        Bucket=OPENNEURO_S3_BUCKET, Prefix=search_prefix, MaxKeys=1
+                    ):
+                        if "Contents" in page and len(page["Contents"]) > 0:
+                            modality = datatype
+                            break
+                except Exception:
+                    continue
+
+            if modality:
+                base_path = f"s3://openneuro.org/{dataset_id}"
+                s3_path = (
+                    f"{base_path}/{subject_id}/{session_id}/{modality}/{recording_id}"
+                )
+                return s3_path
+
+        except Exception:
+            # Fallback to non-session directory if session search fails
+            pass
+
+    modality = None
+    for datatype in datatypes:
+        search_prefix = f"{subject_prefix}{datatype}/{recording_id}"
+        try:
+            paginator = s3_client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(
+                Bucket=OPENNEURO_S3_BUCKET, Prefix=search_prefix, MaxKeys=1
+            ):
+                if "Contents" in page and len(page["Contents"]) > 0:
+                    modality = datatype
+                    break
+        except Exception:
+            continue
+
+    if modality:
+        base_path = f"s3://openneuro.org/{dataset_id}"
+        s3_path = f"{base_path}/{subject_id}/{modality}/{recording_id}"
+        return s3_path
+
+    # If no modality found after all searches, raise error
+    session_info = f" and session {session_id}" if session_id else ""
+    raise RuntimeError(
+        f"No files found matching recording_id pattern '{recording_id}' "
+        f"for subject {subject_id}{session_info} in dataset {dataset_id}"
+    )
 
 
 def get_s3_file_size(dataset_id: str, file_path: str) -> int:
@@ -419,6 +490,7 @@ def check_recording_files_exist(recording_id: str, subject_dir: Path) -> bool:
     if not subject_dir.exists():
         return False
 
+    # FIXME: more eeg patterns could be found
     eeg_patterns = [
         f"**/{recording_id}_eeg.edf",
         f"**/{recording_id}_eeg.fif",
@@ -471,16 +543,22 @@ def download_file_from_s3(
         )
 
 
-def download_prefix_from_s3(self, s3_url: str, target_dir: Path) -> None:
-    """Download all files from an S3 prefix (directory) using boto3.
+def download_prefix_from_s3(s3_url: str, target_dir: Path) -> None:
+    """
+    Downloads all files matching an S3 prefix pattern using boto3.
 
-    Downloads all files under the given S3 prefix (typically a subject directory)
-    to the target directory, preserving directory structure.
+    The s3_url should be a prefix pattern like:
+    's3://openneuro.org/ds005555/sub-1/eeg/sub-1_task-Sleep_acq-headband'
+
+    This will download all files matching that prefix, such as:
+    - ds005555/sub-1/eeg/sub-1_task-Sleep_acq-headband_eeg.edf
+    - ds005555/sub-1/eeg/sub-1_task-Sleep_acq-headband_eeg.json
+    - ds005555/sub-1/eeg/sub-1_task-Sleep_acq-headband_channels.tsv
 
     Parameters
     ----------
     s3_url : str
-        S3 URL prefix to download from (e.g., 's3://openneuro.org/ds005555/sub-1/')
+        S3 URL prefix pattern to match files
     target_dir : Path
         Local directory to download files to.
 
@@ -489,6 +567,7 @@ def download_prefix_from_s3(self, s3_url: str, target_dir: Path) -> None:
     RuntimeError
         If download fails.
     """
+    # TODO: return fpath instead of None
     target_dir.mkdir(parents=True, exist_ok=True)
 
     parsed = urlparse(s3_url)
@@ -496,14 +575,12 @@ def download_prefix_from_s3(self, s3_url: str, target_dir: Path) -> None:
         raise ValueError(f"Invalid S3 URL: {s3_url}")
 
     bucket = parsed.netloc
-    key = parsed.path.lstrip("/")
-
-    prefix = key if key.endswith("/") else key + "/"
+    prefix = parsed.path.lstrip("/")
 
     s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
 
+    downloaded_files = []
     try:
-        self.update_status(f"Downloading from {s3_url}")
         paginator = s3.get_paginator("list_objects_v2")
         for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
             if "Contents" not in page:
@@ -511,23 +588,37 @@ def download_prefix_from_s3(self, s3_url: str, target_dir: Path) -> None:
 
             for obj in page["Contents"]:
                 obj_key = obj["Key"]
+                # Skip directory markers
                 if obj_key.endswith("/"):
                     continue
 
-                rel_key = obj_key[len(prefix) :]
-                if not rel_key:
+                dataset_id = prefix.split("/")[0]
+                if obj_key.startswith(f"{dataset_id}/"):
+                    rel_path = obj_key[len(f"{dataset_id}/") :]
+                else:
                     continue
 
-                local_path = target_dir / rel_key
+                local_path = target_dir / rel_path
                 local_path.parent.mkdir(parents=True, exist_ok=True)
 
                 for attempt in range(3):
                     try:
                         s3.download_file(bucket, obj_key, str(local_path))
-                        return local_path
-                    except Exception:
+                        downloaded_files.append(local_path)
+                        break
+                    except Exception as e:
                         if attempt == 2:
-                            raise
+                            raise RuntimeError(
+                                f"Failed to download {obj_key} after 3 attempts: {str(e)}"
+                            )
+
+        if not downloaded_files:
+            raise RuntimeError(
+                f"No files found matching prefix pattern '{prefix}' in bucket '{bucket}'"
+            )
+
+    except RuntimeError:
+        raise
     except Exception as e:
         raise RuntimeError(f"Failed to download from {s3_url}: {e}")
 
