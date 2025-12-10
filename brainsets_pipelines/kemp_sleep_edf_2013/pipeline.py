@@ -16,7 +16,6 @@ from brainsets.descriptions import (
     DeviceDescription,
 )
 from brainsets.taxonomy import RecordingTech, Species, Sex
-from brainsets.core import StringIntEnum
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.utils.split import (
     chop_intervals,
@@ -26,18 +25,7 @@ from brainsets.utils.s3_utils import get_s3_client
 from temporaldata import Data, Interval, RegularTimeSeries, ArrayDict
 
 
-BUCKET = "physionet-open"
-PREFIX = "sleep-edfx/1.0.0"
-
 logging.basicConfig(level=logging.INFO)
-
-
-class Modality(StringIntEnum):
-    EEG = "EEG"
-    EMG = "EMG"
-    EOG = "EOG"
-    RESP = "RESP"
-    TEMP = "TEMP"
 
 
 parser = ArgumentParser()
@@ -52,25 +40,10 @@ parser.add_argument(
 )
 
 
-def find_hypnogram_key(s3, psg_key: str) -> Optional[str]:
-    """Find the hypnogram file corresponding to a PSG file."""
-    psg_path = Path(psg_key)
-    base_name = psg_path.stem
-
-    for prefix_len in [7, 6]:
-        prefix = base_name[:prefix_len]
-        search_prefix = str(psg_path.parent / prefix)
-        response = s3.list_objects_v2(Bucket=BUCKET, Prefix=search_prefix)
-
-        for obj in response.get("Contents", []):
-            if "Hypnogram" in obj["Key"] and obj["Key"].endswith(".edf"):
-                return obj["Key"]
-
-    return None
-
-
 class Pipeline(BrainsetPipeline):
     brainset_id = "kemp_sleep_edf_2013"
+    bucket = "physionet-open"
+    prefix = "sleep-edfx/1.0.0"
     parser = parser
 
     @classmethod
@@ -79,9 +52,9 @@ class Pipeline(BrainsetPipeline):
 
         prefixes = []
         if args.study_type in ["sc", "both"]:
-            prefixes.append(f"{PREFIX}/sleep-cassette/")
+            prefixes.append(f"{cls.prefix}/sleep-cassette/")
         if args.study_type in ["st", "both"]:
-            prefixes.append(f"{PREFIX}/sleep-telemetry/")
+            prefixes.append(f"{cls.prefix}/sleep-telemetry/")
 
         def find_hypnogram_key(s3, psg_key: str) -> Optional[str]:
             """Find the hypnogram file corresponding to a PSG file."""
@@ -91,7 +64,7 @@ class Pipeline(BrainsetPipeline):
             for prefix_len in [7, 6]:
                 prefix = base_name[:prefix_len]
                 search_prefix = str(psg_path.parent / prefix)
-                response = s3.list_objects_v2(Bucket=BUCKET, Prefix=search_prefix)
+                response = s3.list_objects_v2(Bucket=cls.bucket, Prefix=search_prefix)
 
                 for obj in response.get("Contents", []):
                     if "Hypnogram" in obj["Key"] and obj["Key"].endswith(".edf"):
@@ -103,7 +76,7 @@ class Pipeline(BrainsetPipeline):
 
         for prefix in prefixes:
             paginator = s3.get_paginator("list_objects_v2")
-            for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
+            for page in paginator.paginate(Bucket=cls.bucket, Prefix=prefix):
                 for obj in page.get("Contents", []):
                     key = obj["Key"]
                     if key.endswith("PSG.edf"):
@@ -147,23 +120,23 @@ class Pipeline(BrainsetPipeline):
         if not hypnogram_key:
             raise ValueError(f"No hypnogram found for PSG file: {psg_key}")
 
-        psg_local = self.raw_dir / Path(psg_key).relative_to(PREFIX)
+        psg_local = self.raw_dir / Path(psg_key).relative_to(self.prefix)
         psg_local.parent.mkdir(parents=True, exist_ok=True)
 
         if not psg_local.exists() or self.args.redownload:
             logging.info(f"Downloading PSG: {Path(psg_key).name}")
-            s3.download_file(BUCKET, psg_key, str(psg_local))
+            s3.download_file(self.bucket, psg_key, str(psg_local))
         else:
-            logging.info(f"Skipping download, file exists: {psg_local}")
+            logging.info(f"Skipping PSG download, file exists: {psg_local}")
 
-        hypnogram_local = self.raw_dir / Path(hypnogram_key).relative_to(PREFIX)
+        hypnogram_local = self.raw_dir / Path(hypnogram_key).relative_to(self.prefix)
         hypnogram_local.parent.mkdir(parents=True, exist_ok=True)
 
         if not hypnogram_local.exists() or self.args.redownload:
             logging.info(f"Downloading Hypnogram: {Path(hypnogram_key).name}")
-            s3.download_file(BUCKET, hypnogram_key, str(hypnogram_local))
+            s3.download_file(self.bucket, hypnogram_key, str(hypnogram_local))
         else:
-            logging.info(f"Skipping download, file exists: {hypnogram_local}")
+            logging.info(f"Skipping Hypnogram download, file exists: {hypnogram_local}")
 
         return psg_local, hypnogram_local
 
@@ -301,15 +274,15 @@ def extract_signals(raw_psg: mne.io.Raw) -> Tuple[RegularTimeSeries, ArrayDict]:
             or "fpz-cz" in ch_name_lower
             or "pz-oz" in ch_name_lower
         ):
-            modality = Modality.EEG
+            modality = "EEG"
         elif "eog" in ch_name_lower:
-            modality = Modality.EOG
+            modality = "EOG"
         elif "emg" in ch_name_lower:
-            modality = Modality.EMG
+            modality = "EMG"
         elif "resp" in ch_name_lower:
-            modality = Modality.RESP
+            modality = "RESP"
         elif "temp" in ch_name_lower:
-            modality = Modality.TEMP
+            modality = "TEMP"
         else:
             continue
 
@@ -318,7 +291,7 @@ def extract_signals(raw_psg: mne.io.Raw) -> Tuple[RegularTimeSeries, ArrayDict]:
         unit_meta.append(
             {
                 "id": str(ch_name),
-                "modality": str(modality.value),
+                "modality": modality,
             }
         )
 
