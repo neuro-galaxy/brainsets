@@ -20,7 +20,6 @@ from brainsets.core import StringIntEnum
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.utils.split import (
     chop_intervals,
-    filter_intervals,
     generate_stratified_folds,
 )
 from brainsets.utils.s3_utils import get_s3_client
@@ -53,6 +52,23 @@ parser.add_argument(
 )
 
 
+def find_hypnogram_key(s3, psg_key: str) -> Optional[str]:
+    """Find the hypnogram file corresponding to a PSG file."""
+    psg_path = Path(psg_key)
+    base_name = psg_path.stem
+
+    for prefix_len in [7, 6]:
+        prefix = base_name[:prefix_len]
+        search_prefix = str(psg_path.parent / prefix)
+        response = s3.list_objects_v2(Bucket=BUCKET, Prefix=search_prefix)
+
+        for obj in response.get("Contents", []):
+            if "Hypnogram" in obj["Key"] and obj["Key"].endswith(".edf"):
+                return obj["Key"]
+
+    return None
+
+
 class Pipeline(BrainsetPipeline):
     brainset_id = "kemp_sleep_edf_2013"
     parser = parser
@@ -67,6 +83,22 @@ class Pipeline(BrainsetPipeline):
         if args.study_type in ["st", "both"]:
             prefixes.append(f"{PREFIX}/sleep-telemetry/")
 
+        def find_hypnogram_key(s3, psg_key: str) -> Optional[str]:
+            """Find the hypnogram file corresponding to a PSG file."""
+            psg_path = Path(psg_key)
+            base_name = psg_path.stem
+
+            for prefix_len in [7, 6]:
+                prefix = base_name[:prefix_len]
+                search_prefix = str(psg_path.parent / prefix)
+                response = s3.list_objects_v2(Bucket=BUCKET, Prefix=search_prefix)
+
+                for obj in response.get("Contents", []):
+                    if "Hypnogram" in obj["Key"] and obj["Key"].endswith(".edf"):
+                        return obj["Key"]
+
+            return None
+
         manifest_rows = []
 
         for prefix in prefixes:
@@ -78,7 +110,7 @@ class Pipeline(BrainsetPipeline):
                         filename = Path(key).name
                         base_name = filename.replace(".edf", "")
 
-                        hypnogram_key = cls._find_hypnogram_key(s3, key)
+                        hypnogram_key = find_hypnogram_key(s3, key)
 
                         if "sleep-cassette" in key:
                             subject_id = base_name[3:5]
@@ -104,24 +136,6 @@ class Pipeline(BrainsetPipeline):
 
         manifest = pd.DataFrame(manifest_rows).set_index("session_id")
         return manifest
-
-    @classmethod
-    def _find_hypnogram_key(cls, s3, psg_key: str) -> Optional[str]:
-        """Find the hypnogram file corresponding to a PSG file."""
-        psg_path = Path(psg_key)
-        base_name = psg_path.stem
-
-        for prefix_len in [7, 6]:
-            prefix = base_name[:prefix_len]
-            search_prefix = str(psg_path.parent / prefix)
-
-            response = s3.list_objects_v2(Bucket=BUCKET, Prefix=search_prefix)
-
-            for obj in response.get("Contents", []):
-                if "Hypnogram" in obj["Key"] and obj["Key"].endswith(".edf"):
-                    return obj["Key"]
-
-        return None
 
     def download(self, manifest_item) -> Tuple[Path, Path]:
         self.update_status("DOWNLOADING")
@@ -380,12 +394,14 @@ def create_splits(
     logging.info(f"Chopped {len(stages)} stages into {len(chopped)} epochs")
 
     UNKNOWN_STAGE_ID = 6
-    filtered = filter_intervals(chopped, exclude_values=[UNKNOWN_STAGE_ID])
+    mask = ~np.isin(chopped.id, [UNKNOWN_STAGE_ID])
+    filtered = chopped.select_by_mask(mask)
     logging.info(f"Filtered out unknown stages, {len(filtered)} epochs remaining")
 
     for stage_id, count in zip(*np.unique(chopped.id, return_counts=True)):
         if count < n_folds:
-            filtered = filter_intervals(filtered, exclude_values=[stage_id])
+            mask = ~np.isin(filtered.id, [stage_id])
+            filtered = filtered.select_by_mask(mask)
             logging.info(
                 f"Filtered out stage {stage_id}, {len(filtered)} epochs remaining"
             )
@@ -393,12 +409,16 @@ def create_splits(
     if len(filtered) == 0:
         raise ValueError("No valid epochs remaining after filtering")
 
-    splits = generate_stratified_folds(
+    folds = generate_stratified_folds(
         filtered,
+        stratify_by="id",
         n_folds=n_folds,
         val_ratio=0.2,
         seed=seed,
     )
     logging.info(f"Generated {n_folds} stratified folds")
+
+    folds_dict = {f"fold_{i}": fold for i, fold in enumerate(folds)}
+    splits = Data(**folds_dict, domain=filtered)
 
     return splits

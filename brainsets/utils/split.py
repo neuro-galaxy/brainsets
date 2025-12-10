@@ -1,6 +1,7 @@
 import logging
 import numpy as np
-from temporaldata import Interval, Data, ArrayDict
+from typing import List
+from temporaldata import Interval, Data
 from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
 
 
@@ -216,11 +217,8 @@ def chop_intervals(
             if key in ["start", "end"]:
                 continue
             val = getattr(intervals, key)
-            if isinstance(val, (np.ndarray, list)) and len(val) == len(intervals):
-                if isinstance(val, np.ndarray):
-                    kwargs[key] = val[original_indices]
-                else:
-                    kwargs[key] = [val[i] for i in original_indices]
+            if isinstance(val, np.ndarray) and len(val) == len(intervals):
+                kwargs[key] = val[original_indices]
 
     result = Interval(start=all_starts, end=all_ends, **kwargs)
 
@@ -229,33 +227,6 @@ def chop_intervals(
             raise ValueError("Intervals overlap after chopping")
 
     return result
-
-
-def filter_intervals(
-    intervals: Interval, exclude_values: list, stratify_by: str = "id"
-) -> Interval:
-    """
-    Filters out intervals with specified values in a given attribute.
-
-    Args:
-        intervals: The intervals to filter.
-        exclude_values: A list of values to exclude.
-        stratify_by: The attribute name to use for filtering. Defaults to "id".
-
-    Returns:
-        Interval: A new Interval object with excluded values removed.
-
-    Raises:
-        ValueError: If the intervals don't have the specified attribute.
-    """
-    if not hasattr(intervals, stratify_by):
-        raise ValueError(
-            f"Intervals must have a '{stratify_by}' attribute for filtering."
-        )
-
-    attr_values = getattr(intervals, stratify_by)
-    mask = ~np.isin(attr_values, exclude_values)
-    return intervals.select_by_mask(mask)
 
 
 def _create_interval_split(intervals: Interval, indices: np.ndarray) -> Interval:
@@ -269,11 +240,11 @@ def _create_interval_split(intervals: Interval, indices: np.ndarray) -> Interval
 
 def generate_stratified_folds(
     intervals: Interval,
+    stratify_by: str,
     n_folds: int = 5,
     val_ratio: float = 0.2,
     seed: int = 42,
-    stratify_by: str = "id",
-) -> Data:
+) -> List[Data]:
     """
     Generates stratified train/valid/test splits using a two-stage splitting process.
 
@@ -295,8 +266,7 @@ def generate_stratified_folds(
             "class"). The intervals must have this attribute.
 
     Returns:
-        Data: A Data object containing the splits structure.
-              splits.intrasubject.fold_i.{train, valid, test}
+        List of Data objects, one for each fold.
 
     Raises:
         ValueError: If the intervals don't have the specified stratify_by attribute.
@@ -314,7 +284,7 @@ def generate_stratified_folds(
         )
 
     outer_splitter = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
-    folds_dict = {}
+    folds = []
     sample_indices = np.arange(len(intervals))
 
     for fold_idx, (train_val_indices, test_indices) in enumerate(
@@ -345,14 +315,6 @@ def generate_stratified_folds(
                 domain=combined_domain,
             )
 
-            folds_dict[f"fold_{fold_idx}"] = fold_data
+            folds.append(fold_data)
 
-    overall_domain = intervals
-    intrasubject = Data(**folds_dict, domain=overall_domain)
-    splits = Data(
-        intrasubject=intrasubject,
-        intersubject=Data(domain=overall_domain),
-        domain=overall_domain,
-    )
-
-    return splits
+    return folds
