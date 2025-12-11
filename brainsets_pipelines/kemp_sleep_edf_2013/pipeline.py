@@ -237,14 +237,12 @@ def parse_subject_metadata(raw: mne.io.Raw) -> Tuple[Optional[int], Sex]:
     subject_info = info.get("subject_info", {})
 
     age = subject_info.get("age")
-    if age is None:
+    try:
         age_str = subject_info.get("last_name")
-        if age_str and isinstance(age_str, str) and "yr" in age_str:
-            try:
-                age = int(age_str.replace("yr", ""))
-            except ValueError:
-                logging.warning(f"Could not parse age from last_name: {age_str}")
-                age = None
+        age = int(age_str.replace("yr", ""))
+    except ValueError:
+        logging.warning(f"Could not parse age from last_name: {age_str}")
+        age = None
 
     sex_str = subject_info.get("sex")
 
@@ -335,31 +333,37 @@ def extract_sleep_stages(hypnogram_file: str) -> Interval:
     for annot_onset, annot_duration, annot_description in zip(
         annotations.onset, annotations.duration, annotations.description
     ):
-        if annot_description in sleep_stage_map:
-            starts.append(annot_onset)
-            ends.append(annot_onset + annot_duration)
-            stage_names.append(annot_description)
-            stage_ids.append(sleep_stage_map[annot_description])
+        starts.append(annot_onset)
+        ends.append(annot_onset + annot_duration)
+        stage_names.append(annot_description)
+        stage_ids.append(sleep_stage_map[annot_description])
 
     if len(starts) == 0:
         raise ValueError(
             f"No sleep stage annotations found in hypnogram: {hypnogram_file}"
         )
 
-    stages = Interval(
+    return Interval(
         start=np.array(starts),
         end=np.array(ends),
         names=np.array(stage_names),
         id=np.array(stage_ids, dtype=np.int64),
     )
 
-    return stages
-
 
 def create_splits(
     stages: Interval, epoch_duration: float = 30.0, n_folds: int = 5, seed: int = 42
 ) -> Data:
-    """Generate train/valid/test splits from sleep stage intervals."""
+    """Generate train/valid/test splits from sleep stage intervals.
+
+    The Sleep-EDF dataset does not provide predefined splits. We generate standardized
+    splits to enable reproducible cross-validation and ensure the research community
+    can share and compare results using the same data partitions.
+
+    The unknown sleep stage (stage 6) is the only one removed from the splits to maintain flexibility.
+    Users can still access all stages in the raw data and choose the number of sleep stages relevant
+    to their research.
+    """
     if len(stages) == 0:
         raise ValueError("No stages provided for splitting")
 
