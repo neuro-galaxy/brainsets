@@ -66,5 +66,5 @@ jobs:
     - name: Download kemp_sleep_edf_2013
       run: |
         uv run brainsets config --raw-dir data/raw --processed-dir data/processed
-        uv run brainsets prepare kemp_sleep_edf_2013 -s SC4001E0-PSG.h5
+        uv run brainsets prepare kemp_sleep_edf_2013 -s SC4001E0-PSG
 
