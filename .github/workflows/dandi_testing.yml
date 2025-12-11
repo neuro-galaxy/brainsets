@@ -63,7 +63,8 @@ jobs:
         uv run brainsets prepare flint_slutzky_accurate_2012 -s flint_2012_e1
 
     - name: Download kemp_sleep_edf_2013
-      if: matrix.python-version >= '3.10'
+      if: matrix.python-version != '3.9'
+      # scikit-learn>=1.7.2 is not compatible with python3.9
       run: |
         uv run brainsets config --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare kemp_sleep_edf_2013 -s SC4001E0-PSG
