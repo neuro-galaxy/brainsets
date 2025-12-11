@@ -1,9 +1,4 @@
-"""Base class for OpenNeuro EEG pipelines.
-
-This module provides the OpenNeuroEEGPipeline abstract class, which serves as a base class for creating pipelines that process EEG data from OpenNeuro datasets. It includes default implementations for get_manifest(), download(), and process() methods that handle common OpenNeuro EEG dataset processing tasks. Subclasses can extend these methods by calling super() and adding dataset-specific logic.
-"""
-
-from abc import ABC, abstractmethod
+from abc import ABC, ABCMeta, abstractmethod
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from typing import Optional
@@ -37,6 +32,20 @@ from brainsets.utils.open_neuro_utils.data_extraction import (
     extract_signal,
     extract_channels,
 )
+
+
+class AutoLoadIdentifiersMeta(ABCMeta):
+    """
+    Metaclass to automatically load brainset_id and dataset_id during class creation.
+    """
+    def __new__(mcs, name, bases, namespace, **kwargs):
+        cls = super().__new__(mcs, name, bases, namespace, **kwargs)
+        
+        brainset_id, dataset_id = cls._get_identifiers()
+        cls.brainset_id = brainset_id
+        cls.dataset_id = dataset_id
+        
+        return cls
 
 
 class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
@@ -108,23 +117,22 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
     @classmethod
     @abstractmethod
-    def get_brainset_id(cls) -> str:
-        """Return the unique brainset identifier used for this pipeline."""
-        ...
+    def _get_identifiers(cls) -> tuple[str, str]:
+        """Get brainset_id and dataset_id for this pipeline.
+        
+        This method must be implemented by subclasses. It can either:
+        - Load identifiers from a config file
+        - Return hardcoded values
 
-    @classmethod
-    @abstractmethod
-    def get_dataset_id(cls) -> str:
-        """Return the OpenNeuro dataset identifier (e.g., 'ds005555')."""
+        """
         ...
 
     @classmethod
     def _get_config_file_path(cls) -> Path:
         """Get the path to the config file for this pipeline.
 
-        Subclasses can override this method to customize config file location.
-        Default implementation expects config file to be named {dataset_id}_config.json
-        and located in the same directory as the pipeline module.
+        Default implementation searches for a file matching the pattern *_config.json
+        in the same directory as the pipeline module. It expects exactly one such file.
 
         Returns
         -------
@@ -132,45 +140,31 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             Path to the config file.
         """
         pipeline_module = inspect.getmodule(cls)
-        pipeline_file = None
-
+        
         if pipeline_module is not None and hasattr(pipeline_module, "__file__"):
             pipeline_file = Path(pipeline_module.__file__)
         else:
-            try:
-                import brainsets_pipelines
-
-                brainset_id = cls.get_brainset_id()
-                pipeline_dir = Path(brainsets_pipelines.__path__[0]) / brainset_id
-                pipeline_file = pipeline_dir / "pipeline.py"
-                if not pipeline_file.exists():
-                    raise RuntimeError(
-                        f"Could not determine pipeline module file path for {cls.__name__}. "
-                        f"Pipeline file not found at {pipeline_file}"
-                    )
-            except (ImportError, AttributeError, IndexError) as e:
-                raise RuntimeError(
-                    f"Could not determine pipeline module file path for {cls.__name__}. "
-                    f"Failed to locate pipeline directory: {e}"
-                )
-
-        if pipeline_file is None:
             raise RuntimeError(
                 f"Could not determine pipeline module file path for {cls.__name__}"
             )
-
+        
         pipeline_dir = pipeline_file.parent
 
-        dataset_id = cls.get_dataset_id()
-        config_file = pipeline_dir / f"{dataset_id}_config.json"
-
-        if not config_file.exists():
+        config_files = list(pipeline_dir.glob("*_config.json"))
+        
+        if not config_files:
             raise FileNotFoundError(
-                f"Config file not found at {config_file}. "
-                f"Expected config file named {dataset_id}_config.json in the pipeline directory."
+                f"Config file not found in {pipeline_dir}. "
+                f"Expected a file named *_config.json in the pipeline directory."
             )
-
-        return config_file
+        
+        if len(config_files) > 1:
+            raise RuntimeError(
+                f"Multiple config files found in {pipeline_dir}: {config_files}. "
+                f"Expected exactly one *_config.json file."
+            )
+        
+        return config_files[0]
 
     @classmethod
     def _load_config(cls) -> dict:
@@ -213,7 +207,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 - 'fpath': Local file path where the manifest item will be downloaded
             The index is set to 'recording_id'.
         """
-        dataset_id = validate_dataset_id(cls.get_dataset_id())
+        dataset_id = validate_dataset_id(cls.dataset_id)
 
         if cls.version_tag is None:
             version_tag = fetch_latest_version_tag(dataset_id)
@@ -285,17 +279,11 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         This implementation downloads EEG data for the recording specified in
         manifest_item using boto3 to download directly from OpenNeuro's S3 bucket.
 
-        **Important**: The manifest is per recording, but downloads are per subject.
-        When downloading the subject directory (e.g., `s3://.../sub-1/`), all files
-        are downloaded recursively for that subject, including all recordings,
-        tasks, and acquisitions. Subsequent recordings from the same subject will
-        skip the download since the subject directory already exists.
-
         Parameters
         ----------
         manifest_item : pandas.Series
             A single row of the manifest returned by :meth:`get_manifest()`.
-            Should contain 'recording_id', 'subject_id', 'dataset_id', 'version_tag', and 's3_url' fields.
+            Should contain 'recording_id', 'subject_id', 'dataset_id', 'version_tag', 's3_url' and 'fpath' fields.
 
         Returns
         -------
@@ -485,7 +473,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
             # TODO: verif if BrainsetDescription will not be deprecated
             brainset_description = extract_brainset_description(
-                dataset_id=type(self).get_brainset_id(),
+                dataset_id=type(self).brainset_id,
                 origin_version=f"openneuro/{dataset_id}/{version_tag}",
                 derived_version=self.derived_version,
                 source=source,
