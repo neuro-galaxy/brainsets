@@ -239,8 +239,9 @@ def parse_subject_metadata(raw: mne.io.Raw) -> Tuple[Optional[int], Sex]:
     age = subject_info.get("age")
     try:
         age_str = subject_info.get("last_name")
-        age = int(age_str.replace("yr", ""))
-    except ValueError:
+        if age_str is not None:
+            age = int(age_str.replace("yr", ""))
+    except (ValueError, AttributeError) as e:
         logging.warning(f"Could not parse age from last_name: {age_str}")
         age = None
 
@@ -375,7 +376,7 @@ def create_splits(
     filtered = chopped.select_by_mask(mask)
     logging.info(f"Filtered out unknown stages, {len(filtered)} epochs remaining")
 
-    for stage_id, count in zip(*np.unique(chopped.id, return_counts=True)):
+    for stage_id, count in zip(*np.unique(filtered.id, return_counts=True)):
         if count < n_folds:
             mask = ~np.isin(filtered.id, [stage_id])
             filtered = filtered.select_by_mask(mask)
