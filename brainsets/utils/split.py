@@ -1,7 +1,7 @@
 import logging
 import numpy as np
-from temporaldata import Interval, Data, ArrayDict
-from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
+from typing import List
+from temporaldata import Interval, Data
 
 
 def split_one_epoch(epoch, grid, split_ratios=[0.6, 0.1, 0.3]):
@@ -171,29 +171,11 @@ def generate_train_valid_test_splits(epoch_dict, grid):
     return train_intervals, valid_intervals, test_intervals
 
 
-def _check_no_overlapping_intervals(intervals: Interval) -> None:
-    """Raises ValueError if any intervals overlap."""
-    if len(intervals) <= 1:
-        return
-
-    sorted_indices = np.argsort(intervals.start)
-    sorted_starts = intervals.start[sorted_indices]
-    sorted_ends = intervals.end[sorted_indices]
-
-    for i in range(len(sorted_starts) - 1):
-        if sorted_ends[i] > sorted_starts[i + 1]:
-            raise ValueError(
-                f"Intervals overlap: interval {sorted_indices[i]} "
-                f"[{sorted_starts[i]}, {sorted_ends[i]}] overlaps with "
-                f"interval {sorted_indices[i + 1]} [{sorted_starts[i + 1]}, {sorted_ends[i + 1]}]"
-            )
-
-
 def chop_intervals(
     intervals: Interval, duration: float, check_no_overlap: bool = False
 ) -> Interval:
     """
-    Subdivides intervals into fixed-length epochs.
+    Subdivides intervals into fixed-length epochs using Interval.arange().
 
     If some intervals are shorter than the duration, keep them as they are.
     If an interval is not a perfect multiple of the duration, the last chunk will be shorter.
@@ -210,37 +192,23 @@ def chop_intervals(
     Raises:
         ValueError: If check_no_overlap is True and intervals overlap.
     """
-    new_starts = []
-    new_ends = []
+    if len(intervals) == 0:
+        return Interval(start=np.array([]), end=np.array([]))
+
+    chopped_intervals = []
     original_indices = []
 
     for i, (start, end) in enumerate(zip(intervals.start, intervals.end)):
-        interval_duration = end - start
+        if end - start <= duration:
+            chopped = Interval(start=start, end=end)
+        else:
+            chopped = Interval.arange(start, end, step=duration, include_end=True)
 
-        if interval_duration <= duration:
-            new_starts.append([start])
-            new_ends.append([end])
-            original_indices.append(i)
-            continue
+        chopped_intervals.append(chopped)
+        original_indices.extend([i] * len(chopped))
 
-        n_full_chunks = int(interval_duration // duration)
-        chunk_starts = start + np.arange(n_full_chunks) * duration
-        chunk_ends = chunk_starts + duration
-
-        remainder = interval_duration - (n_full_chunks * duration)
-        if remainder > 0:
-            chunk_starts = np.append(chunk_starts, chunk_ends[-1])
-            chunk_ends = np.append(chunk_ends, end)
-
-        new_starts.append(chunk_starts)
-        new_ends.append(chunk_ends)
-        original_indices.extend([i] * len(chunk_starts))
-
-    if not new_starts:
-        return Interval(start=np.array([]), end=np.array([]))
-
-    new_starts = np.concatenate(new_starts)
-    new_ends = np.concatenate(new_ends)
+    all_starts = np.concatenate([c.start for c in chopped_intervals])
+    all_ends = np.concatenate([c.end for c in chopped_intervals])
 
     kwargs = {}
     if hasattr(intervals, "keys"):
@@ -248,36 +216,16 @@ def chop_intervals(
             if key in ["start", "end"]:
                 continue
             val = getattr(intervals, key)
-            if isinstance(val, (np.ndarray, list)) and len(val) == len(intervals):
-                if isinstance(val, np.ndarray):
-                    kwargs[key] = val[original_indices]
-                else:
-                    kwargs[key] = [val[i] for i in original_indices]
+            if isinstance(val, np.ndarray) and len(val) == len(intervals):
+                kwargs[key] = val[original_indices]
 
-    result = Interval(start=new_starts, end=new_ends, **kwargs)
+    result = Interval(start=all_starts, end=all_ends, **kwargs)
 
     if check_no_overlap:
-        _check_no_overlapping_intervals(result)
+        if not result.is_disjoint():
+            raise ValueError("Intervals overlap after chopping")
 
     return result
-
-
-def filter_intervals(intervals: Interval, exclude_ids: list) -> Interval:
-    """
-    Filters out epochs with specified IDs.
-
-    Args:
-        intervals: The intervals to filter.
-        exclude_ids: A list of IDs to exclude. The intervals must have an 'id' attribute.
-
-    Returns:
-        Interval: A new Interval object with excluded IDs removed.
-    """
-    if not hasattr(intervals, "id"):
-        raise ValueError("Intervals must have an 'id' attribute for filtering.")
-
-    mask = ~np.isin(intervals.id, exclude_ids)
-    return intervals.select_by_mask(mask)
 
 
 def _create_interval_split(intervals: Interval, indices: np.ndarray) -> Interval:
@@ -291,35 +239,60 @@ def _create_interval_split(intervals: Interval, indices: np.ndarray) -> Interval
 
 def generate_stratified_folds(
     intervals: Interval,
+    stratify_by: str,
     n_folds: int = 5,
     val_ratio: float = 0.2,
     seed: int = 42,
-) -> Data:
+) -> List[Data]:
     """
-    Generates stratified train/valid/test splits using StratifiedKFold.
+    Generates stratified train/valid/test splits using a two-stage splitting process.
+
+    The splitting is performed in two stages:
+        1. Outer split (StratifiedKFold): The intervals are divided into n_folds,
+           where each fold uses one partition as the test set and the remaining
+           partitions as train+valid. Stratification ensures each fold maintains
+           the class distribution of the original data.
+        2. Inner split (StratifiedShuffleSplit): The train+valid portion of each fold
+           is further split into train and valid sets using val_ratio, while preserving
+           the class distribution.
 
     Args:
-        intervals: The intervals to split. Must have an 'id' attribute for stratification.
+        intervals: The intervals to split.
         n_folds: Number of folds for cross-validation.
         val_ratio: Ratio of validation set relative to train+valid combined.
         seed: Random seed.
+        stratify_by: The attribute name to use for stratification (e.g., "id", "label",
+            "class"). The intervals must have this attribute.
 
     Returns:
-        Data: A Data object containing the splits structure.
-              splits.intrasubject.fold_i.{train, valid, test}
-    """
-    if not hasattr(intervals, "id"):
-        raise ValueError("Intervals must have an 'id' attribute for stratification.")
+        List of Data objects, one for each fold.
 
-    if len(intervals.id) < n_folds:
+    Raises:
+        ValueError: If the intervals don't have the specified stratify_by attribute.
+        ValueError: If there are fewer samples than n_folds.
+    """
+    try:
+        from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
+    except ImportError:
+        raise ImportError(
+            "This function requires the scikit-learn library which you can install with "
+            "`pip install scikit-learn`"
+        )
+
+    if not hasattr(intervals, stratify_by):
         raise ValueError(
-            f"Not enough samples ({len(intervals.id)}) for {n_folds} folds."
+            f"Intervals must have a '{stratify_by}' attribute for stratification."
+        )
+
+    class_labels = getattr(intervals, stratify_by)
+    if len(class_labels) < n_folds:
+        raise ValueError(
+            f"Not enough samples ({len(class_labels)}) for {n_folds} folds."
         )
 
     outer_splitter = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
-    folds_dict = {}
+    folds = []
     sample_indices = np.arange(len(intervals))
-    class_labels = intervals.id
 
     for fold_idx, (train_val_indices, test_indices) in enumerate(
         outer_splitter.split(sample_indices, class_labels)
@@ -349,14 +322,6 @@ def generate_stratified_folds(
                 domain=combined_domain,
             )
 
-            folds_dict[f"fold_{fold_idx}"] = fold_data
+            folds.append(fold_data)
 
-    overall_domain = intervals
-    intrasubject = Data(**folds_dict, domain=overall_domain)
-    splits = Data(
-        intrasubject=intrasubject,
-        intersubject=Data(domain=overall_domain),
-        domain=overall_domain,
-    )
-
-    return splits
+    return folds

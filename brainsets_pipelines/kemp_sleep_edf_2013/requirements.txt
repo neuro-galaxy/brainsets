@@ -1,2 +1,3 @@
-mne
-boto3
+mne~=1.11.0
+boto3~=1.41.0
+scikit-learn==1.7.2

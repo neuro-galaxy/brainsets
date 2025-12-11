@@ -3,7 +3,6 @@ import pytest
 from temporaldata import Data, Interval
 from brainsets.utils.split import (
     chop_intervals,
-    filter_intervals,
     generate_stratified_folds,
 )
 
@@ -85,19 +84,6 @@ def test_chop_intervals_overlapping_no_check():
     assert len(chopped) == 20
 
 
-def test_filter_intervals():
-    start = np.arange(0, 50, 10)
-    end = start + 10
-    ids = np.array([0, 1, 2, 3, 4])
-    intervals = Interval(start=start, end=end, id=ids)
-
-    filtered = filter_intervals(intervals, exclude_ids=[1, 3])
-
-    assert len(filtered) == 3
-    assert np.array_equal(np.unique(filtered.id), np.array([0, 2, 4]))
-    assert np.all(np.isin(filtered.id, [0, 2, 4]))
-
-
 def test_generate_stratified_folds():
     n_samples = 100
     start = np.arange(n_samples, dtype=float)
@@ -117,21 +103,17 @@ def test_generate_stratified_folds():
 
     n_folds = 5
     val_ratio = 0.25
-    splits = generate_stratified_folds(
-        intervals, n_folds=n_folds, val_ratio=val_ratio, seed=42
+    folds = generate_stratified_folds(
+        intervals, stratify_by="id", n_folds=n_folds, val_ratio=val_ratio, seed=42
     )
 
-    assert isinstance(splits, Data)
-    assert hasattr(splits, "intrasubject")
-    intrasubject = splits.intrasubject
-
-    fold_keys = [k for k in intrasubject.keys() if k.startswith("fold_")]
-    assert len(fold_keys) == n_folds
+    assert isinstance(folds, list)
+    assert len(folds) == n_folds
 
     test_indices_all = []
 
-    for i in range(n_folds):
-        fold = getattr(intrasubject, f"fold_{i}")
+    for fold in folds:
+        assert isinstance(fold, Data)
         train, valid, test = fold.train, fold.valid, fold.test
 
         # 1. Verify sizes
@@ -178,3 +160,42 @@ def test_generate_stratified_folds():
     original_starts_sorted = np.sort(intervals.start)
 
     assert np.allclose(all_test_starts_sorted, original_starts_sorted)
+
+
+def test_generate_stratified_folds_custom_attribute():
+    n_samples = 50
+    start = np.arange(n_samples, dtype=float)
+    end = start + 1.0
+    # Use "label" instead of "id"
+    labels = np.array(["A"] * 25 + ["B"] * 25)
+
+    rng = np.random.default_rng(42)
+    perm = rng.permutation(n_samples)
+    labels = labels[perm]
+    start = start[perm]
+    end = end[perm]
+
+    intervals = Interval(start=start, end=end, label=labels)
+
+    folds = generate_stratified_folds(
+        intervals, stratify_by="label", n_folds=5, val_ratio=0.25, seed=42
+    )
+
+    assert isinstance(folds, list)
+    assert len(folds) == 5
+
+    for fold in folds:
+        assert isinstance(fold, Data)
+        test_labels = fold.test.label
+        unique, counts = np.unique(test_labels, return_counts=True)
+        assert len(unique) == 2
+        assert all(c == 5 for c in counts)
+
+
+def test_generate_stratified_folds_missing_attribute():
+    start = np.arange(10, dtype=float)
+    end = start + 1.0
+    intervals = Interval(start=start, end=end)
+
+    with pytest.raises(ValueError, match="must have a 'label' attribute"):
+        generate_stratified_folds(intervals, stratify_by="label", n_folds=5)
