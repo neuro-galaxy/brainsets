@@ -33,9 +33,6 @@ dependencies = [
     "numpy>=1.14.0",
     "pulp<2.8",
     "ray>=2.30.0",
-    "h5py>=3.14.0",
-    "mne>=1.8.0",
-    "scikit-learn>=1.0.0",
 ]
 
 [project.optional-dependencies]

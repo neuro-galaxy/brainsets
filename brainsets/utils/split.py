@@ -2,7 +2,6 @@ import logging
 import numpy as np
 from typing import List
 from temporaldata import Interval, Data
-from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
 
 
 def split_one_epoch(epoch, grid, split_ratios=[0.6, 0.1, 0.3]):
@@ -272,6 +271,14 @@ def generate_stratified_folds(
         ValueError: If the intervals don't have the specified stratify_by attribute.
         ValueError: If there are fewer samples than n_folds.
     """
+    try:
+        from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
+    except ImportError:
+        raise ImportError(
+            "This function requires the scikit-learn library which you can install with "
+            "`pip install scikit-learn`"
+        )
+
     if not hasattr(intervals, stratify_by):
         raise ValueError(
             f"Intervals must have a '{stratify_by}' attribute for stratification."
