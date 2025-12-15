@@ -26,44 +26,42 @@ class Pipeline(OpenNeuroEEGPipeline, metaclass=AutoLoadIdentifiersMeta):
 
     Dataset-specific processing can be added later by overriding :meth:`process()`
     and calling ``super().process(download_output)``.
-    
+
     The brainset_id and dataset_id are loaded from the config file.
     """
 
     parser = parser
-    
+
     @classmethod
     def _get_identifiers(cls) -> tuple[str, str]:
         """
         Get brainset_id and dataset_id from config metadata.
-        
+
         Returns
         -------
         tuple[str, str]
             Tuple of (brainset_id, dataset_id) extracted from config metadata.
         """
-        config = cls._load_config()
+        # Use the config_file_path attribute set by the metaclass
+        config = cls._load_config(cls.config_file_path)
         metadata = config.get("dataset", {}).get("metadata", {})
-        
+
         brainset_id = metadata.get("brainset_name")
         dataset_id = metadata.get("dataset_id")
-        
+
         if brainset_id is None:
             raise KeyError(
                 f"brainset_name not found in config metadata. "
-                f"Config loaded from {cls._get_config_file_path()}"
+                f"Config loaded from {cls.config_file_path}"
             )
-        
+
         if dataset_id is None:
             raise KeyError(
                 f"dataset_id not found in config metadata. "
-                f"Config loaded from {cls._get_config_file_path()}"
+                f"Config loaded from {cls.config_file_path}"
             )
-        
-        return brainset_id, dataset_id
 
-    brainset_id: str
-    dataset_id: str
+        return brainset_id, dataset_id
 
     def process(self, download_output: Dict[str, Any]) -> None:
         """Process Klinzing sleep dataset (ds005555) downloads.

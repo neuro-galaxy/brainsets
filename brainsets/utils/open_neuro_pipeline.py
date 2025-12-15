@@ -1,5 +1,5 @@
 from abc import ABC, ABCMeta, abstractmethod
-from argparse import ArgumentParser, Namespace
+from argparse import Namespace
 from pathlib import Path
 from typing import Optional
 import datetime
@@ -36,15 +36,20 @@ from brainsets.utils.open_neuro_utils.data_extraction import (
 
 class AutoLoadIdentifiersMeta(ABCMeta):
     """
-    Metaclass to automatically load brainset_id and dataset_id during class creation.
+    Metaclass to automatically load brainset_id, dataset_id, and config_file_path during class creation.
     """
+
     def __new__(mcs, name, bases, namespace, **kwargs):
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
-        
+
+        # Get config_file_path once and store it as a class attribute
+        config_file_path = cls._get_config_file_path()
+        cls.config_file_path = config_file_path
+
         brainset_id, dataset_id = cls._get_identifiers()
         cls.brainset_id = brainset_id
         cls.dataset_id = dataset_id
-        
+
         return cls
 
 
@@ -103,6 +108,12 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
     dataset_id: str
     """OpenNeuro dataset identifier (e.g., "ds005555"). Must be set by the Pipeline subclass."""
 
+    brainset_id: str
+    """Brainset identifier (e.g., "klinzing_sleep"). Must be set by the Pipeline subclass."""
+
+    config_file_path: Path
+    """Path to the config file for this pipeline. Set automatically by AutoLoadIdentifiersMeta."""
+
     version_tag: Optional[str] = None
     """Optional version tag to use. If None, uses the latest version."""
 
@@ -119,7 +130,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
     @abstractmethod
     def _get_identifiers(cls) -> tuple[str, str]:
         """Get brainset_id and dataset_id for this pipeline.
-        
+
         This method must be implemented by subclasses. It can either:
         - Load identifiers from a config file
         - Return hardcoded values
@@ -137,37 +148,55 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         Returns
         -------
         Path
-            Path to the config file.
+            Path to the brainsetconfig file.
         """
-        pipeline_module = inspect.getmodule(cls)
-        
-        if pipeline_module is not None and hasattr(pipeline_module, "__file__"):
-            pipeline_file = Path(pipeline_module.__file__)
-        else:
+        pipeline_file = None
+        stack = inspect.stack()
+
+        current_file = Path(__file__).resolve()
+        for frame_info in stack[1:]:  # Skip frame 0 (this method itself)
+            filename = frame_info.filename
+            # Skip if it's this file, a built-in, or internal Python files
+            if (
+                filename
+                and not filename.startswith("<")
+                and not filename.startswith("<frozen")
+            ):
+                try:
+                    frame_file = Path(filename).resolve()
+                    if frame_file.exists() and frame_file != current_file:
+                        pipeline_file = frame_file
+                        break
+                except (OSError, ValueError):
+                    # Skip if path resolution fails
+                    continue
+
+        if pipeline_file is None or not pipeline_file.exists():
             raise RuntimeError(
-                f"Could not determine pipeline module file path for {cls.__name__}"
+                f"Could not determine pipeline module file path for {cls.__name__}. "
+                f"Tried inspect.getfile(), module.__file__, and stack inspection."
             )
-        
+
         pipeline_dir = pipeline_file.parent
 
         config_files = list(pipeline_dir.glob("*_config.json"))
-        
+
         if not config_files:
             raise FileNotFoundError(
                 f"Config file not found in {pipeline_dir}. "
                 f"Expected a file named *_config.json in the pipeline directory."
             )
-        
+
         if len(config_files) > 1:
             raise RuntimeError(
                 f"Multiple config files found in {pipeline_dir}: {config_files}. "
                 f"Expected exactly one *_config.json file."
             )
-        
+
         return config_files[0]
 
     @classmethod
-    def _load_config(cls) -> dict:
+    def _load_config(cls, config_file: Path) -> dict:
         """Load the config file for this pipeline.
 
         Returns
@@ -175,7 +204,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         dict
             Configuration dictionary loaded from the config file.
         """
-        config_file = cls._get_config_file_path()
         with open(config_file, "r") as f:
             return json.load(f)
 
@@ -209,12 +237,12 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         """
         dataset_id = validate_dataset_id(cls.dataset_id)
 
-        if cls.version_tag is None:
+        if cls.version_tag is None:  # FIXME get version tag from config file
             version_tag = fetch_latest_version_tag(dataset_id)
         else:
             version_tag = cls.version_tag
 
-        config = cls._load_config()
+        config = cls._load_config(cls.config_file_path)
         recording_info = (
             config.get("dataset", {})
             .get("recording_info", {})
