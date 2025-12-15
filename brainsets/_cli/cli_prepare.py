@@ -309,9 +309,8 @@ def _read_inline_metadata(filepath: Path) -> Optional[dict]:
             line[2:] if line.startswith("# ") else line[1:]
             for line in matches[0].group("content").splitlines(keepends=True)
         )
-        # Parse the TOML block, then filter keys to only "python-version" and "dependencies"
-        parsed = tomllib.loads(content)
 
+        parsed = tomllib.loads(content)
         if not set(parsed.keys()).issubset(_ALLOWED_INLINE_MD_KEYS):
             unsupported_keys = set(parsed.keys()) - _ALLOWED_INLINE_MD_KEYS
             raise ValueError(
