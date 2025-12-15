@@ -173,7 +173,11 @@ import requests
         assert result == {"dependencies": ["numpy>=1.20", "pandas", "scipy>=1.10.0"]}
 
     def test_coexists_with_pep723_script_block(self):
-        """Can coexist with a separate PEP 723 script block."""
+        r"""Can coexist with a separate PEP 723 script block.
+
+        We want to stay semi-complaint with PEP 723, which requires that tools
+        that don't use a particular metadata block, should just ignore it.
+        """
         script = """\
 # /// script
 # requires-python = ">=3.9"
@@ -209,3 +213,23 @@ import nlb_tools
         filepath = _write_temp_script(script)
         result = _read_inline_metadata(filepath)
         assert result is None
+
+    def test_multiple_brainset_pipeline_blocks_errors(self):
+        """Raises ValueError if there are multiple brainset-pipeline blocks.
+
+        PEP723 Says: When there are multiple comment blocks of the same TYPE defined,
+        tools MUST produce an error.
+        """
+        script = """\
+# /// brainset-pipeline
+# python-version = "3.10"
+# ///
+# some code here
+
+# /// brainset-pipeline
+# python-version = "3.11"
+# ///
+"""
+        filepath = _write_temp_script(script)
+        with pytest.raises(ValueError):
+            _read_inline_metadata(filepath)
