@@ -8,8 +8,8 @@ from prompt_toolkit import prompt
 import re
 import json
 
-try:
-    import tomllib  # Python 3.11+
+try:  # Python 3.11+
+    import tomllib  # type: ignore[import-not-fount]
 except ModuleNotFoundError:  # Python <3.11
     import tomli as tomllib  # type: ignore[import-not-found]
 
