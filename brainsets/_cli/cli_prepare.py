@@ -163,7 +163,6 @@ def prepare(
             uv_prefix_command.extend(["--python", python_version])
 
         deps = inline_md.get("dependencies", [])
-        editable_deps = []
         if not _brainsets_in_dependencies(deps):
             brainsets_spec = _determine_brainsets_spec()
             click.echo(f"Detected brainsets installation from {brainsets_spec}")
@@ -172,15 +171,12 @@ def prepare(
                 # So, if we want to recreate a local version of the package,
                 # it is safer to do so in editable mode, which does not go
                 # through UV's caching.
-                editable_deps.append(brainsets_spec)
+                uv_prefix_command.extend(["--with-editable", brainsets_spec])
             else:
                 deps.append(brainsets_spec)
 
         if len(deps) > 0:
-            uv_prefix_command.extend(["--with", *deps])
-
-        if len(editable_deps) > 0:
-            uv_prefix_command.extend(["--with-editable", *editable_deps])
+            uv_prefix_command.extend(["--with", ",".join(deps)])
 
         if verbose:
             uv_prefix_command.append("--verbose")
