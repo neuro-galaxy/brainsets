@@ -237,12 +237,21 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         """
         dataset_id = validate_dataset_id(cls.dataset_id)
 
-        if cls.version_tag is None:  # FIXME get version tag from config file
-            version_tag = fetch_latest_version_tag(dataset_id)
+        config = cls._load_config(cls.config_file_path)
+
+        if cls.version_tag is None:
+            try:
+                version_tag = (
+                    config.get("dataset", {}).get("metadata", {}).get("version", None)
+                )
+                cls.version_tag = version_tag
+            except Exception as e:
+                raise ValueError(
+                    f"Version number not found in config file metadata. {e}"
+                )
         else:
             version_tag = cls.version_tag
 
-        config = cls._load_config(cls.config_file_path)
         recording_info = (
             config.get("dataset", {})
             .get("recording_info", {})
