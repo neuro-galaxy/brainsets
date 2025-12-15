@@ -8,6 +8,11 @@ from prompt_toolkit import prompt
 import re
 import json
 
+try:
+    import tomllib  # Python 3.11+
+except ModuleNotFoundError:  # Python <3.11
+    import tomli as tomllib  # type: ignore[import-not-found]
+
 from .utils import (
     PIPELINES_PATH,
     load_config,
@@ -97,27 +102,29 @@ def prepare(
             )
         # Find snakefile
         pipeline_dir = PIPELINES_PATH / brainset
-        prepare_filepath = pipeline_dir / "pipeline.py"
-        reqs_filepath = pipeline_dir / "requirements.txt"
+        pipeline_filepath = pipeline_dir / "pipeline.py"
 
         click.echo(f"Preparing {brainset}...")
     else:
         # Preparing using a local pipeline
         pipeline_dir = expand_path(brainset)
-        prepare_filepath = pipeline_dir / "pipeline.py"
-        reqs_filepath = pipeline_dir / "requirements.txt"
+        pipeline_filepath = pipeline_dir / "pipeline.py"
 
         click.echo(f"Preparing local pipeline: {pipeline_dir}")
 
     click.echo(f"Raw data directory: {raw_dir}")
     click.echo(f"Processed data directory: {processed_dir}")
 
+    inline_md = _read_inline_metadata(pipeline_filepath)
+    if verbose:
+        click.echo(f"Inline metadata: {inline_md}")
+
     # Construct base Snakemake command with configuration
     command = [
         "python",
         "-m",
         "brainsets.runner",
-        str(prepare_filepath),
+        str(pipeline_filepath),
         f"--raw-dir={raw_dir}",
         f"--processed-dir={processed_dir}",
         f"-c{cores}",
@@ -129,47 +136,60 @@ def prepare(
             "WARNING: Working in active environment due to --use-active-env.\n"
             "         This mode is only intended for brainset development purposes."
         )
-        if reqs_filepath.exists():
-            click.echo(
-                f"WARNING: {reqs_filepath} found.\n"
-                f"         These will not be installed automatically due to --use-active-env usage.\n"
-                f"         Make sure to install necessary requirements manually."
-            )
-    elif reqs_filepath.exists():
+    elif inline_md is not None:
         # If dataset has additional requirements, prefix command with uv package manager
-        if not use_active_env:
-            uv_prefix_command = [
-                "uv",
-                "run",
-                "--with-requirements",
-                str(reqs_filepath),
-                "--directory",
-                str(pipeline_dir),
-                "--isolated",
-                "--no-project",
-            ]
+        uv_prefix_command = [
+            "uv",
+            "run",
+            "--directory",
+            str(pipeline_dir),
+            "--isolated",
+            "--no-project",
+        ]
 
-            has_brainsets = _brainsets_in_requirements(reqs_filepath)
-            if not has_brainsets:
-                brainsets_spec = _determine_brainsets_spec()
-                click.echo(f"Detected brainsets installation from {brainsets_spec}")
-                if brainsets_spec.startswith("file://"):
-                    # UV can be weird about caching local packages
-                    # So, if we want to recreate a local version of the package,
-                    # it is safer to do so in editable mode, which does not go
-                    # through UV's caching.
-                    uv_prefix_command.extend(["--with-editable", brainsets_spec])
-                else:
-                    uv_prefix_command.extend(["--with", brainsets_spec])
+        if "python-version" in inline_md:
+            python_version = inline_md["python-version"]
+            # Check that python_version is a string representing a single version
+            # number (e.g., "3.10"), not a version range or other format
+            # Reason: uv run sometimes fails (stalls) when version range is given
+            if (
+                not isinstance(python_version, str)
+                or not python_version.strip().replace(".", "", 1).isdigit()
+            ):
+                raise click.ClickException(
+                    f"Invalid python version in inline metadata: '{python_version}'. "
+                    "Only a single version (e.g., '3.10') is allowed, not a range."
+                )
+            uv_prefix_command.extend(["--python", python_version])
 
-            if verbose:
-                uv_prefix_command.append("--verbose")
+        deps = inline_md.get("dependencies", [])
+        editable_deps = []
+        if not _brainsets_in_dependencies(deps):
+            brainsets_spec = _determine_brainsets_spec()
+            click.echo(f"Detected brainsets installation from {brainsets_spec}")
+            if brainsets_spec.startswith("file://"):
+                # UV can be weird about caching local packages
+                # So, if we want to recreate a local version of the package,
+                # it is safer to do so in editable mode, which does not go
+                # through UV's caching.
+                editable_deps.append(brainsets_spec)
+            else:
+                deps.append(brainsets_spec)
 
-            command = uv_prefix_command + command
-            click.echo(
-                "Building temporary virtual environment using"
-                f" requirements from {reqs_filepath}"
-            )
+        if len(deps) > 0:
+            uv_prefix_command.extend(["--with", *deps])
+
+        if len(editable_deps) > 0:
+            uv_prefix_command.extend(["--with-editable", *editable_deps])
+
+        if verbose:
+            uv_prefix_command.append("--verbose")
+
+        command = uv_prefix_command + command
+        click.echo(f"Building temporary virtual environment for {pipeline_filepath}")
+
+    if verbose:
+        click.echo(f"Command: {command}")
 
     # Run snakemake workflow for dataset download with live output
     try:
@@ -188,11 +208,9 @@ def prepare(
         sys.exit(1)
 
 
-def _brainsets_in_requirements(reqs_filepath: Path) -> tuple[list[str], bool]:
-    with open(reqs_filepath, "r") as f:
-        lines = f.readlines()
-
-    for line in lines:
+def _brainsets_in_dependencies(dependencies: list[str]) -> tuple[list[str], bool]:
+    """Check if any dependency refers to brainsets."""
+    for line in dependencies:
         stripped = line.strip()
         if stripped and re.search(r"\bbrainsets\b", stripped, re.IGNORECASE):
             return True
@@ -260,3 +278,51 @@ def _detect_brainsets_installation_url() -> Optional[str]:
                 return url_info
 
     return None
+
+
+_ALLOWED_INLINE_MD_KEYS = {
+    "python-version",
+    "dependencies",
+}
+
+
+def _read_inline_metadata(filepath: Path) -> Optional[dict]:
+    """
+    Extract and parse the inline metadata block of type '# /// brainset-pipeline' from the given script file.
+
+    Searches the specified file for a '# /// brainset-pipeline' block delimited by lines starting with '# /// brainset-pipeline'
+    and ending with '# ///'. The contents between these markers are parsed as TOML and returned as a dict.
+    If no such block is found, returns None.
+    Raises ValueError if multiple 'brainset-pipeline' metadata blocks are found (following PEP 723).
+
+    Implementation inspired by reference implementation in PEP 723:
+    https://peps.python.org/pep-0723/#reference-implementation
+    """
+    with open(filepath, "r", encoding="utf-8") as f:
+        script = f.read()
+
+    REGEX = r"(?m)^# /// (?P<type>[a-zA-Z0-9-]+)$\s(?P<content>(^#(| .*)$\s)+)^# ///$"
+    name = "brainset-pipeline"
+    matches = list(
+        filter(lambda m: m.group("type") == name, re.finditer(REGEX, script))
+    )
+    if len(matches) > 1:
+        raise ValueError(f"Multiple {name} blocks found")
+    elif len(matches) == 1:
+        content = "".join(
+            line[2:] if line.startswith("# ") else line[1:]
+            for line in matches[0].group("content").splitlines(keepends=True)
+        )
+        # Parse the TOML block, then filter keys to only "python-version" and "dependencies"
+        parsed = tomllib.loads(content)
+
+        if not set(parsed.keys()).issubset(_ALLOWED_INLINE_MD_KEYS):
+            unsupported_keys = set(parsed.keys()) - _ALLOWED_INLINE_MD_KEYS
+            raise ValueError(
+                f"Unsupported key(s) in brainset-pipeline metadata block: "
+                f"{', '.join(unsupported_keys)}"
+            )
+
+        return parsed
+    else:
+        return None
