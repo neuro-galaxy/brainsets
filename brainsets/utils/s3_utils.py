@@ -3,12 +3,12 @@ from botocore import UNSIGNED
 from botocore.config import Config
 
 
-def get_s3_client(
+def get_s3_client_for_download(
     max_retries: int = 5,
     max_pool_connections: int = 10,
 ) -> boto3.client:
     """
-    Create an S3 client configured for anonymous access to public buckets.
+    Create an S3 client configured for anonymous access to public buckets for downloading data.
 
     Args:
         max_retries: Maximum number of retry attempts for failed requests.

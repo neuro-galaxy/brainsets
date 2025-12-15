@@ -21,7 +21,7 @@ from brainsets.utils.split import (
     chop_intervals,
     generate_stratified_folds,
 )
-from brainsets.utils.s3_utils import get_s3_client
+from brainsets.utils.s3_utils import get_s3_client_for_download
 from temporaldata import Data, Interval, RegularTimeSeries, ArrayDict
 
 
@@ -48,7 +48,7 @@ class Pipeline(BrainsetPipeline):
 
     @classmethod
     def get_manifest(cls, raw_dir: Path, args) -> pd.DataFrame:
-        s3 = get_s3_client()
+        s3 = get_s3_client_for_download()
 
         prefixes = []
         if args.study_type in ["sc", "both"]:
@@ -112,7 +112,7 @@ class Pipeline(BrainsetPipeline):
 
     def download(self, manifest_item) -> Tuple[Path, Path]:
         self.update_status("DOWNLOADING")
-        s3 = get_s3_client()
+        s3 = get_s3_client_for_download()
 
         psg_key = manifest_item.psg_s3_key
         hypnogram_key = manifest_item.hypnogram_s3_key
