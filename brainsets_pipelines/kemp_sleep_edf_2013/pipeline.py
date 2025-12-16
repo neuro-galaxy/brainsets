@@ -1,3 +1,12 @@
+# /// brainset-pipeline
+# python-version = "3.11"
+# dependencies = [
+#   "mne~=1.11.0",
+#   "boto3~=1.41.0",
+#   "scikit-learn==1.7.2",
+# ]
+# ///
+
 from argparse import ArgumentParser
 from pathlib import Path
 from typing import Optional, Tuple
