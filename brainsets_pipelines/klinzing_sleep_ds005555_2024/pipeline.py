@@ -7,7 +7,6 @@ from brainsets.utils.open_neuro_pipeline import (
 )
 
 
-# Define CLI arguments specific to this pipeline
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
 parser.add_argument("--reprocess", action="store_true")
@@ -42,7 +41,6 @@ class Pipeline(OpenNeuroEEGPipeline, metaclass=AutoLoadIdentifiersMeta):
         tuple[str, str]
             Tuple of (brainset_id, dataset_id) extracted from config metadata.
         """
-        # Use the config_file_path attribute set by the metaclass
         config = cls._load_config(cls.config_file_path)
         metadata = config.get("dataset", {}).get("metadata", {})
 

@@ -85,37 +85,19 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
     **Extending the process() method:**
         Subclasses can override process() and call super().process() to use the
         default implementation, then add dataset-specific processing:
-
-    Examples
-    --------
-    >>> from argparse import ArgumentParser
-    >>> parser = ArgumentParser()
-    >>> parser.add_argument("--redownload", action="store_true")
-    >>> parser.add_argument("--reprocess", action="store_true")
-    >>>
-    >>> class Pipeline(OpenNeuroEEGPipeline):
-    ...     brainset_name = "klinzing_sleep_ds005555_2024"
-    ...     dataset_id = "ds005555"
-    ...     parser = parser
-    ...
-    ...     def process(self, download_output):
-    ...         # Call default implementation
-    ...         super().process(download_output)
-    ...         # Add dataset-specific processing here
-    ...         ...
     """
 
     dataset_id: str
-    """OpenNeuro dataset identifier (e.g., "ds005555"). Must be set by the Pipeline subclass."""
+    """OpenNeuro dataset identifier. Set according to config file metadata."""
 
     brainset_id: str
-    """Brainset identifier (e.g., "klinzing_sleep"). Must be set by the Pipeline subclass."""
+    """Brainset identifier. Set according to config file metadata."""
 
     config_file_path: Path
-    """Path to the config file for this pipeline. Set automatically by AutoLoadIdentifiersMeta."""
+    """Path to the config file for this pipeline. Set automatically."""
 
     version_tag: Optional[str] = None
-    """Optional version tag to use. If None, uses the latest version."""
+    """Optional version tag to use. Set according to config file metadata."""
 
     subject_ids: Optional[list[str]] = None
     """Optional list of subject IDs to process. If None, processes all subjects."""
@@ -140,21 +122,20 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
     @classmethod
     def _get_config_file_path(cls) -> Path:
-        """Get the path to the config file for this pipeline.
-
-        Default implementation searches for a file matching the pattern *_config.json
+        """
+        Searches for a file matching the pattern *_config.json
         in the same directory as the pipeline module. It expects exactly one such file.
 
         Returns
         -------
         Path
-            Path to the brainsetconfig file.
+            Path to the brainset config file.
         """
         pipeline_file = None
         stack = inspect.stack()
 
         current_file = Path(__file__).resolve()
-        for frame_info in stack[1:]:  # Skip frame 0 (this method itself)
+        for frame_info in stack[1:]:
             filename = frame_info.filename
             # Skip if it's this file, a built-in, or internal Python files
             if (
@@ -168,7 +149,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                         pipeline_file = frame_file
                         break
                 except (OSError, ValueError):
-                    # Skip if path resolution fails
                     continue
 
         if pipeline_file is None or not pipeline_file.exists():
@@ -252,6 +232,11 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         else:
             version_tag = cls.version_tag
 
+        cls.description = (
+            config.get("dataset", {}).get("metadata", {}).get("name", None)
+        )
+
+        # TODO check what is taking alot of time here
         recording_info = (
             config.get("dataset", {})
             .get("recording_info", {})
@@ -265,6 +250,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             )
 
         # Filter recordings if subject_ids is specified
+        # FIXME
         if cls.subject_ids is not None:
             recording_info = [
                 rec
@@ -285,10 +271,9 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
             s3_url = construct_s3_url(dataset_id, recording_id)
 
-            # Compute expected fpath: raw_dir / subject_id / recording_id
-            # (base path containing all files for this recording)
             subject_id = rec.get("subject_id")
             fpath = raw_dir / subject_id / recording_id if subject_id else None
+            # FIXME fpath = raw_dir / subject_id / eeg /recording_id
 
             manifest_list.append(
                 {
@@ -375,8 +360,8 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         return {
             "recording_id": recording_id,
             "subject_id": subject_id,
-            "dataset_id": dataset_id,
-            "version_tag": version_tag,
+            # "dataset_id": dataset_id,
+            # "version_tag": version_tag,
             "fpath": fpath,
         }
 
@@ -408,9 +393,24 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
         recording_id = download_output.get("recording_id")
         subject_id = download_output["subject_id"]
-        dataset_id = download_output["dataset_id"]
-        version_tag = download_output["version_tag"]
-        data_dir = Path(download_output["fpath"]).parent
+        # FIXME do we need these from the download, or just get them from attributes ?
+        # data_dir = Path(download_output["fpath"]).parent # TODO debug & delete
+        data_dir = Path(download_output["fpath"])
+
+        self.update_status("Extracting Metadata")
+        source = f"https://openneuro.org/datasets/{self.dataset_id}"
+        if self.description is not None:
+            dataset_description = self.description
+        else:
+            dataset_description = f"OpenNeuro dataset {self.dataset_id}"
+
+        brainset_description = extract_brainset_description(
+            dataset_id=self.dataset_id,
+            origin_version=f"openneuro/{self.dataset_id}/{self.version_tag}",
+            derived_version=self.derived_version,
+            source=source,
+            description=dataset_description,
+        )
 
         # FIXME: verif pattern /eeg/*.ext in BIDS ?
         # there are more possible extension like .mat or .set
@@ -422,6 +422,9 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             "**/*.vhdr",
             "**/*.eeg",
         ]
+        # FIXME fix the eeg patterns to look only under subject directory
+        # not all eeg files under dataset_directory
+        # fix data_dir
 
         eeg_files = []
         for pattern in eeg_patterns:
@@ -432,7 +435,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         if not eeg_files:
             raise RuntimeError(
                 f"No EEG files found in {data_dir}. "
-                f"Expected BIDS structure with EEG files in sub-*/ses-*/eeg/ directories."
+                f"Expected BIDS structure with EEG files in sub-*/eeg/ directories."
             )
 
         for eeg_file_path in eeg_files:
@@ -457,6 +460,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             else:
                 store_name = f"{full_session_id}.h5"
             store_path = self.processed_dir / store_name
+            # TODO should we add subject directory ?
             if store_path.exists() and not (
                 self.args and getattr(self.args, "reprocess", False)
             ):
@@ -489,34 +493,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             except Exception as e:
                 raise RuntimeError(f"Failed to load EEG file {eeg_file}: {str(e)}")
 
-            self.update_status("Extracting Metadata")
-            # TODO: verif if fetch_metadata will not be deprecated
-            try:
-                metadata = fetch_metadata(dataset_id)
-                dataset_description = (
-                    self.description
-                    if self.description is not None
-                    else metadata.get("datasetName", f"OpenNeuro dataset {dataset_id}")
-                )
-                source = f"https://openneuro.org/datasets/{dataset_id}"
-            except Exception:
-                # Fallback if metadata fetch fails
-                dataset_description = (
-                    self.description
-                    if self.description is not None
-                    else f"OpenNeuro dataset {dataset_id}"
-                )
-                source = f"https://openneuro.org/datasets/{dataset_id}"
-
-            # TODO: verif if BrainsetDescription will not be deprecated
-            brainset_description = extract_brainset_description(
-                dataset_id=type(self).brainset_id,
-                origin_version=f"openneuro/{dataset_id}/{version_tag}",
-                derived_version=self.derived_version,
-                source=source,
-                description=dataset_description,
-            )
-
             subject_description = extract_subject_description(subject_id)
 
             meas_date = extract_meas_date(raw)
@@ -534,6 +510,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             eeg_signal = extract_signal(raw)
 
             channels = extract_channels(raw)
+            # TODO need to map channels to standard channel names in config file
 
             self.update_status("Creating Data Object")
             data = Data(
@@ -545,6 +522,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 channels=channels,
                 domain=eeg_signal.domain,
             )
+            # TODO IMPORTANT : get the channel maps from the config file
 
             self.update_status("Storing")
             with h5py.File(store_path, "w") as file:
