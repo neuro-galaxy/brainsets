@@ -63,6 +63,39 @@ class TestPrepareCommand:
             assert f"--processed-dir={mock_config['processed_dir']}" in command
             assert "-c4" in command  # default cores
 
+    def test_cli_raw_processed_dirs_override(self, tmp_path):
+        """Test prepare command with raw and processed dirs overridden."""
+        runner = CliRunner()
+
+        raw_dir = tmp_path / "raw"
+        processed_dir = tmp_path / "processed"
+        raw_dir.mkdir()
+        processed_dir.mkdir()
+
+        with (patch("brainsets._cli.cli_prepare.subprocess.run") as mock_subprocess,):
+            mock_subprocess.return_value = MagicMock(returncode=0)
+            result = runner.invoke(
+                cli,
+                [
+                    "prepare",
+                    "pei_pandarinath_nlb_2021",
+                    "--raw-dir",
+                    str(raw_dir),
+                    "--processed-dir",
+                    str(processed_dir),
+                ],
+            )
+            assert result.exit_code == 0, f"CLI failed with: {result.output}"
+            assert "Preparing pei_pandarinath_nlb_2021" in result.output
+
+            # Verify subprocess was called with correct arguments
+            mock_subprocess.assert_called_once()
+            call_args = mock_subprocess.call_args
+            command = call_args[1].get("command") or call_args[0][0]
+
+            assert f"--raw-dir={str(raw_dir)}" in command
+            assert f"--processed-dir={str(processed_dir)}" in command
+
     def test_extra_option_passthrough(self, mock_config):
         """Test that extra options are passed through to the subprocess."""
         runner = CliRunner()
