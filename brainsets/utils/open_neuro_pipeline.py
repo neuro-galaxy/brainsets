@@ -42,7 +42,6 @@ class AutoLoadIdentifiersMeta(ABCMeta):
     def __new__(mcs, name, bases, namespace, **kwargs):
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
 
-        # Get config_file_path once and store it as a class attribute
         config_file_path = cls._get_config_file_path()
         cls.config_file_path = config_file_path
 
@@ -63,14 +62,14 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
     **Required class attributes:**
         - :attr:`brainset_id`: Unique identifier for the brainset
-        - :attr:`dataset_id`: OpenNeuro dataset identifier (e.g., "ds005555")
+        - :attr:`dataset_id`: OpenNeuro dataset identifier
 
     **Optional class attributes:**
         - :attr:`parser`: ArgumentParser for pipeline-specific CLI arguments
-        - :attr:`version_tag`: Specific version tag to use (defaults to latest)
+        - :attr:`version_tag`: Specific version tag
         - :attr:`subject_ids`: List of subject IDs to process (defaults to all)
         - :attr:`derived_version`: Version of the processed data (defaults to "1.0.0")
-        - :attr:`description`: Description of the dataset (defaults to fetched from OpenNeuro)
+        - :attr:`description`: Description of the dataset
 
     **The pipeline workflow consists of:**
         1. Generating a manifest (list of assets to process) via :meth:`get_manifest()`.
@@ -106,7 +105,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
     """Version of the processed data. Defaults to "1.0.0"."""
 
     description: Optional[str] = None
-    """Optional description of the dataset. If None, will be fetched from OpenNeuro metadata."""
+    """Optional description of the dataset. Set according to dataset `name` in config file."""
 
     @classmethod
     @abstractmethod
@@ -236,7 +235,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             config.get("dataset", {}).get("metadata", {}).get("name", None)
         )
 
-        # TODO check what is taking alot of time here
         recording_info = (
             config.get("dataset", {})
             .get("recording_info", {})
@@ -298,9 +296,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
     def download(self, manifest_item) -> dict:
         """Download data for a single recording from OpenNeuro S3.
 
-        This implementation downloads EEG data for the recording specified in
-        manifest_item using boto3 to download directly from OpenNeuro's S3 bucket.
-
         Parameters
         ----------
         manifest_item : pandas.Series
@@ -313,8 +308,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             Dictionary with keys:
                 - 'recording_id': Recording identifier
                 - 'subject_id': Subject identifier
-                - 'dataset_id': OpenNeuro dataset identifier
-                - 'version_tag': Version tag that was downloaded
                 - 'fpath': Local file path where the manifest item was downloaded
         """
         self.update_status("DOWNLOADING")
@@ -335,13 +328,9 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             if not (self.args and getattr(self.args, "redownload", False)):
                 self.update_status("Already Downloaded")
                 fpath = subject_dir
-                # FIXME: fix fpath to return the full path including session/modality
-                # For now, use subject_dir as the base
                 return {
                     "recording_id": recording_id,
                     "subject_id": subject_id,
-                    "dataset_id": dataset_id,
-                    "version_tag": version_tag,
                     "fpath": fpath,
                 }
 
@@ -349,7 +338,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             self.update_status(f"Downloading from {s3_url}")
 
             download_prefix_from_s3(s3_url, target_dir)
-            # TODO: download_prefix_from_s3 should return the fpath instead of None
             fpath = subject_dir
         except Exception as e:
             fpath = None
@@ -360,8 +348,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         return {
             "recording_id": recording_id,
             "subject_id": subject_id,
-            # "dataset_id": dataset_id,
-            # "version_tag": version_tag,
             "fpath": fpath,
         }
 
@@ -384,8 +370,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             Dictionary returned by :meth:`download()` containing:
                 - 'recording_id': Recording identifier (if available)
                 - 'subject_id': Subject identifier
-                - 'dataset_id': OpenNeuro dataset identifier
-                - 'version_tag': Version tag that was downloaded
                 - 'fpath': Local file path where the manifest item was downloaded
         """
 
@@ -393,8 +377,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
         recording_id = download_output.get("recording_id")
         subject_id = download_output["subject_id"]
-        # FIXME do we need these from the download, or just get them from attributes ?
-        # data_dir = Path(download_output["fpath"]).parent # TODO debug & delete
         data_dir = Path(download_output["fpath"])
 
         self.update_status("Extracting Metadata")
@@ -415,16 +397,13 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         # FIXME: verif pattern /eeg/*.ext in BIDS ?
         # there are more possible extension like .mat or .set
         eeg_patterns = [
-            "**/*.fif",
-            "**/*.set",
-            "**/*.edf",
-            "**/*.bdf",
-            "**/*.vhdr",
-            "**/*.eeg",
+            f"**/{recording_id}*.fif",
+            f"**/{recording_id}*.set",
+            f"**/{recording_id}*.edf",
+            f"**/{recording_id}*.bdf",
+            f"**/{recording_id}*.vhdr",
+            f"**/{recording_id}*.eeg",
         ]
-        # FIXME fix the eeg patterns to look only under subject directory
-        # not all eeg files under dataset_directory
-        # fix data_dir
 
         eeg_files = []
         for pattern in eeg_patterns:
