@@ -302,4 +302,5 @@ Supported keys:
 .. note::
 
     The ``brainsets`` package itself is automatically added to the environment
-    if not explicitly listed in ``dependencies``.
+    if not explicitly listed in ``dependencies``. Not adding ``brainsets`` to the 
+    dependencies list is the recommended practice.
