@@ -116,7 +116,11 @@ import requests
         assert result is None
 
     def test_multiple_blocks_raises_error(self):
-        """Raises ValueError when multiple brainset-pipeline blocks exist."""
+        """Raises ValueError if there are multiple brainset-pipeline blocks.
+
+        PEP723 Says: When there are multiple comment blocks of the same TYPE defined,
+        tools MUST produce an error.
+        """
         script = """\
 # /// brainset-pipeline
 # python-version = "3.10"
@@ -213,23 +217,3 @@ import nlb_tools
         filepath = _write_temp_script(script)
         result = _read_inline_metadata(filepath)
         assert result is None
-
-    def test_multiple_brainset_pipeline_blocks_errors(self):
-        """Raises ValueError if there are multiple brainset-pipeline blocks.
-
-        PEP723 Says: When there are multiple comment blocks of the same TYPE defined,
-        tools MUST produce an error.
-        """
-        script = """\
-# /// brainset-pipeline
-# python-version = "3.10"
-# ///
-# some code here
-
-# /// brainset-pipeline
-# python-version = "3.11"
-# ///
-"""
-        filepath = _write_temp_script(script)
-        with pytest.raises(ValueError):
-            _read_inline_metadata(filepath)

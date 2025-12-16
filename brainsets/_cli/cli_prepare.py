@@ -100,17 +100,14 @@ def prepare(
                 f"Brainset '{brainset}' not found. "
                 f"Run 'brainsets list' to get the available list of brainsets."
             )
-        # Find snakefile
         pipeline_dir = PIPELINES_PATH / brainset
-        pipeline_filepath = pipeline_dir / "pipeline.py"
-
         click.echo(f"Preparing {brainset}...")
     else:
         # Preparing using a local pipeline
         pipeline_dir = expand_path(brainset)
-        pipeline_filepath = pipeline_dir / "pipeline.py"
-
         click.echo(f"Preparing local pipeline: {pipeline_dir}")
+
+    pipeline_filepath = pipeline_dir / "pipeline.py"
 
     click.echo(f"Raw data directory: {raw_dir}")
     click.echo(f"Processed data directory: {processed_dir}")
@@ -119,7 +116,7 @@ def prepare(
     if verbose:
         click.echo(f"Inline metadata: {inline_md}")
 
-    # Construct base Snakemake command with configuration
+    # Construct command to run pipeline through runner
     command = [
         "python",
         "-m",
@@ -137,7 +134,10 @@ def prepare(
             "         This mode is only intended for brainset development purposes."
         )
     elif inline_md is not None:
-        # If dataset has additional requirements, prefix command with uv package manager
+        # Additional dependencies / Python version specified in inline metadata
+        # We need to create an isolated environment for the pipeline to ensure
+        # that the pipeline runs with the correct dependencies and Python version.
+
         uv_prefix_command = [
             "uv",
             "run",
@@ -163,6 +163,11 @@ def prepare(
             uv_prefix_command.extend(["--python", python_version])
 
         deps = inline_md.get("dependencies", [])
+
+        # Ensure a reasonable brainsets install spec is added to the dependencies.
+        # If not already present in the inline dependencies list, make a best guess
+        # at the install spec to use.
+        # The typical case is for brainsets to not be in the inline dependencies list.
         if not _brainsets_in_dependencies(deps):
             brainsets_spec = _determine_brainsets_spec()
             click.echo(f"Detected brainsets installation from {brainsets_spec}")
@@ -187,7 +192,6 @@ def prepare(
     if verbose:
         click.echo(f"Command: {command}")
 
-    # Run snakemake workflow for dataset download with live output
     try:
         process = subprocess.run(
             command,
