@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  dandi-testing:
+  dandi-testing-matrix:
     runs-on: ubuntu-latest
 
     strategy:
