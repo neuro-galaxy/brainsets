@@ -236,14 +236,14 @@ def parse_subject_metadata(raw: mne.io.Raw) -> Tuple[Optional[int], Sex]:
     info = raw.info
     subject_info = info.get("subject_info", {})
 
-    age = subject_info.get("age")
+    # In this dataset, the age is stored in the last_name field, in format "Xyr".
     try:
         age_str = subject_info.get("last_name")
         if age_str is not None:
             age = int(age_str.replace("yr", ""))
     except (ValueError, AttributeError) as e:
-        logging.warning(f"Could not parse age from last_name: {age_str}")
-        age = None
+        logging.warning(f"Could not parse age from last_name: {age_str}, setting to 0")
+        age = 0
 
     sex_str = subject_info.get("sex")
 
