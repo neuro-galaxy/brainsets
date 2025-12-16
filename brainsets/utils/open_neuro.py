@@ -500,8 +500,10 @@ def check_recording_files_exist(recording_id: str, subject_dir: Path) -> bool:
         f"**/{recording_id}_eeg.eeg",
     ]
 
-    if any(subject_dir.glob(pattern) for pattern in eeg_patterns):
-        return True
+    for pattern in eeg_patterns:
+        matches = list(subject_dir.glob(pattern))
+        if matches:
+            return True
 
     return False
 
