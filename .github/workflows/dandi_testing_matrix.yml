@@ -1,4 +1,4 @@
-name: dandi Testing
+name: dandi Testing Matrix
 
 on:
   push:
