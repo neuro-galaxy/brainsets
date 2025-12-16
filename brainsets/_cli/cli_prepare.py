@@ -295,7 +295,7 @@ def _read_inline_metadata(filepath: Path) -> Optional[dict]:
     If no such block is found, returns None.
     Raises ValueError if multiple 'brainset-pipeline' metadata blocks are found (following PEP 723).
 
-    Implementation inspired by reference implementation in PEP 723:
+    Implementation adapted from reference implementation in PEP 723:
     https://peps.python.org/pep-0723/#reference-implementation
     """
     with open(filepath, "r", encoding="utf-8") as f:
