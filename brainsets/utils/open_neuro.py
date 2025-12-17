@@ -3,16 +3,18 @@ import re
 import logging
 import requests
 import numpy as np
-import pandas as pd
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Tuple, Union
 from urllib.parse import urlparse
 import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
 
-from typing import Union
+try:
+    import mne
+except ImportError:
+    mne = None
 
 OPENNEURO_GRAPHQL_URL = "https://openneuro.org/crn/graphql"
 OPENNEURO_S3_BUCKET = "openneuro.org"
@@ -753,3 +755,108 @@ def download_openneuro_data(
     }
 
     return result
+
+
+def _modality_to_mne_type(modality: str) -> str:
+    """Map modality string to MNE channel type."""
+    modality_upper = modality.upper() if modality else ""
+
+    # Direct mappings
+    modality_map = {
+        "EEG": "eeg",
+        "SCALP": "eeg",
+        "SCALP_EEG": "eeg",
+        "EOG": "eog",
+        "HEOG": "eog",
+        "VEOG": "eog",
+        "EMG": "emg",
+        "MUSCLE": "emg",
+        "ECG": "ecg",
+        "EKG": "ecg",
+        "CARDIAC": "ecg",
+        "ECOG": "ecog",
+        "SEEG": "seeg",
+        "STEREO_EEG": "seeg",
+        "RESP": "resp",
+        "RESPIRATORY": "resp",
+        "RESPIRATION": "resp",
+        "BREATHING": "resp",
+        "TMP": "temperature",
+        "TEMP": "temperature",
+        "THERM": "temperature",
+        "TEMPERATURE": "temperature",
+        "MEG": "meg",
+        "MAG": "meg",
+        "REF_MEG": "ref_meg",
+        "MEG_REF": "ref_meg",
+        "STIM": "stim",
+        "STI": "stim",
+        "EVENTS": "stim",
+        "TRIGGER": "stim",
+        "GSR": "gsr",
+        "SKIN": "gsr",
+        "GALVANIC": "gsr",
+        "GALVANIC_SKIN_RESPONSE": "gsr",
+        "BIO": "bio",
+        "CHPI": "chpi",
+        "DBS": "dbs",
+        "DIPOLE": "dipole",
+        "EXCI": "exci",
+        "EYETRACK": "eyetrack",
+        "FNIRS": "fnirs",
+        "GOF": "gof",
+        "GoodnessOfFit": "gof",
+        "IAS": "ias",
+        "SYST": "syst",
+        "SYSTEM": "syst",
+        "MISC": "misc",
+    }
+    # TODO: verif other possible modalities
+    # THER, CAN, PULSE, BEAT, SPO2
+
+    return modality_map.get(modality_upper, "misc")
+
+
+def apply_channel_mapping(
+    raw: "mne.io.Raw",
+    channel_mapping: Dict[str, Tuple[str, str]],
+) -> None:
+    """Apply channel name mapping and type updates to an MNE Raw object.
+
+    Parameters
+    ----------
+    raw : mne.io.Raw
+        The MNE Raw object to modify.
+    channel_mapping : dict
+        Dictionary mapping old channel names to tuples of (new_name, modality).
+        Format: {old_name: (new_name, modality)}
+    Returns:
+        None. the raw object is modified in place.
+
+    """
+    if not channel_mapping:
+        return
+
+    current_ch_names = raw.ch_names
+    rename_dict = {}
+    type_dict = {}
+
+    for old_name, mapping_info in channel_mapping.items():
+        if old_name in current_ch_names:
+            if isinstance(mapping_info, tuple) and len(mapping_info) >= 2:
+                new_name = mapping_info[0]
+                modality = mapping_info[1]
+                rename_dict[old_name] = new_name
+                mne_channel_type = _modality_to_mne_type(modality)
+                type_dict[new_name] = mne_channel_type
+            elif isinstance(mapping_info, tuple) and len(mapping_info) >= 1:
+                new_name = mapping_info[0]
+                rename_dict[old_name] = new_name
+            elif isinstance(mapping_info, str):
+                rename_dict[old_name] = mapping_info
+
+    if rename_dict:
+        raw.rename_channels(rename_dict, allow_duplicates=False)
+
+    if type_dict:
+        raw.set_channel_types(type_dict)
