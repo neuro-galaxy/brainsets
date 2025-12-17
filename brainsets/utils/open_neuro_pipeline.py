@@ -351,28 +351,25 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             "fpath": fpath,
         }
 
-    def process(self, download_output: dict):
-        """Process and save the dataset.
+    def _process_common(self, download_output: dict) -> tuple[Data, Path]:
+        """Process EEG files and create a Data object.
 
-        This default implementation handles common OpenNeuro EEG processing tasks:
-        1. Finds EEG files in BIDS structure
-        2. Loads them using MNE
+        This method handles the common OpenNeuro EEG processing tasks:
+        1. Loads EEG files using MNE
         3. Extracts metadata (subject, session, device, brainset descriptions)
         4. Extracts EEG signal and channel information
-        5. Creates a Data object and saves it to disk
-
-        Subclasses can override this method and call super().process() to use
-        the default implementation, then add dataset-specific processing logic.
+        5. Creates a Data object
 
         Parameters
         ----------
         download_output : dict
-            Dictionary returned by :meth:`download()` containing:
-                - 'recording_id': Recording identifier (if available)
-                - 'subject_id': Subject identifier
-                - 'fpath': Local file path where the manifest item was downloaded
-        """
+            Dictionary returned by :meth:`download()`
 
+        Returns
+        -------
+        tuple[Data, Path]
+            Tuple containing (Data object, store_path) for the processed EEG file.
+        """
         self.processed_dir.mkdir(exist_ok=True, parents=True)
 
         recording_id = download_output.get("recording_id")
@@ -417,92 +414,126 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 f"Expected BIDS structure with EEG files in sub-*/eeg/ directories."
             )
 
-        for eeg_file_path in eeg_files:
-            eeg_file = Path(eeg_file_path)
-            self.update_status(f"Processing {eeg_file.name}")
+        # Process the first EEG file found
+        eeg_file_path = eeg_files[0]
+        eeg_file = Path(eeg_file_path)
+        self.update_status(f"Processing {eeg_file.name}")
 
-            # TODO: reverif ses- patterns in BIDS ?
-            parts = eeg_file.parts
-            session_id = None
-            for i, part in enumerate(parts):
-                if part.startswith("ses-"):
-                    session_id = part.replace("ses-", "")
-                    break
+        # TODO: reverif ses- patterns in BIDS ?
+        parts = eeg_file.parts
+        session_id = None
+        for i, part in enumerate(parts):
+            if part.startswith("ses-"):
+                session_id = part.replace("ses-", "")
+                break
 
-            if session_id is None:
-                session_id = subject_id.replace("sub-", "")
+        if session_id is None:
+            session_id = subject_id.replace("sub-", "")
 
-            full_session_id = f"{subject_id}_ses-{session_id}"
+        full_session_id = f"{subject_id}_ses-{session_id}"
 
-            if recording_id:
-                store_name = f"{recording_id}.h5"
-            else:
-                store_name = f"{full_session_id}.h5"
-            store_path = self.processed_dir / store_name
-            # TODO should we add subject directory ?
-            if store_path.exists() and not (
-                self.args and getattr(self.args, "reprocess", False)
-            ):
-                self.update_status("Skipped Processing")
-                continue
+        if recording_id:
+            store_name = f"{recording_id}.h5"
+        else:
+            store_name = f"{full_session_id}.h5"
+        store_path = self.processed_dir / store_name
+        # TODO should we add subject directory ?
+        if store_path.exists() and not (
+            self.args and getattr(self.args, "reprocess", False)
+        ):
+            raise RuntimeError(
+                f"Processed file already exists at {store_path}. "
+                f"Use --reprocess flag to reprocess."
+            )
 
-            self.update_status("Loading EEG file")
-            try:
-                if eeg_file.suffix == ".fif":
-                    raw = mne.io.read_raw_fif(eeg_file, preload=True, verbose=False)
-                elif eeg_file.suffix == ".set":
-                    raw = mne.io.read_raw_eeglab(eeg_file, preload=True, verbose=False)
-                elif eeg_file.suffix in [".edf", ".bdf"]:
-                    raw = mne.io.read_raw_edf(eeg_file, preload=True, verbose=False)
-                elif eeg_file.suffix == ".vhdr":
+        self.update_status("Loading EEG file")
+        try:
+            if eeg_file.suffix == ".fif":
+                raw = mne.io.read_raw_fif(eeg_file, preload=True, verbose=False)
+            elif eeg_file.suffix == ".set":
+                raw = mne.io.read_raw_eeglab(eeg_file, preload=True, verbose=False)
+            elif eeg_file.suffix in [".edf", ".bdf"]:
+                raw = mne.io.read_raw_edf(eeg_file, preload=True, verbose=False)
+            elif eeg_file.suffix == ".vhdr":
+                raw = mne.io.read_raw_brainvision(eeg_file, preload=True, verbose=False)
+            elif eeg_file.suffix == ".eeg":
+                # .eeg files are often paired with .vhdr, try to find .vhdr
+                vhdr_file = eeg_file.with_suffix(".vhdr")
+                if vhdr_file.exists():
                     raw = mne.io.read_raw_brainvision(
-                        eeg_file, preload=True, verbose=False
+                        vhdr_file, preload=True, verbose=False
                     )
-                elif eeg_file.suffix == ".eeg":
-                    # .eeg files are often paired with .vhdr, try to find .vhdr
-                    vhdr_file = eeg_file.with_suffix(".vhdr")
-                    if vhdr_file.exists():
-                        raw = mne.io.read_raw_brainvision(
-                            vhdr_file, preload=True, verbose=False
-                        )
-                    else:
-                        raise ValueError(f"Could not find .vhdr file for {eeg_file}")
                 else:
-                    raise ValueError(f"Unsupported EEG file format: {eeg_file.suffix}")
-            except Exception as e:
-                raise RuntimeError(f"Failed to load EEG file {eeg_file}: {str(e)}")
+                    raise ValueError(f"Could not find .vhdr file for {eeg_file}")
+            else:
+                raise ValueError(f"Unsupported EEG file format: {eeg_file.suffix}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to load EEG file {eeg_file}: {str(e)}")
 
-            subject_description = extract_subject_description(subject_id)
+        subject_description = extract_subject_description(subject_id)
 
-            meas_date = extract_meas_date(raw)
-            if meas_date is None:
-                meas_date = datetime.datetime.now()
+        meas_date = extract_meas_date(raw)
+        if meas_date is None:
+            meas_date = datetime.datetime.now()
 
-            session_description = extract_session_description(
-                session_id=full_session_id, recording_date=meas_date
-            )
+        session_description = extract_session_description(
+            session_id=full_session_id, recording_date=meas_date
+        )
 
-            device_id = f"{subject_id}_{session_id}"
-            device_description = extract_device_description(device_id=device_id)
+        device_id = f"{subject_id}_{session_id}"
+        device_description = extract_device_description(device_id=device_id)
 
-            self.update_status("Extracting EEG Signal")
-            eeg_signal = extract_signal(raw)
+        self.update_status("Extracting EEG Signal")
+        eeg_signal = extract_signal(raw)
 
-            channels = extract_channels(raw)
-            # TODO need to map channels to standard channel names in config file
+        channels = extract_channels(raw)
+        # TODO need to map channels to standard channel names in config file
 
-            self.update_status("Creating Data Object")
-            data = Data(
-                brainset=brainset_description,
-                subject=subject_description,
-                session=session_description,
-                device=device_description,
-                eeg=eeg_signal,
-                channels=channels,
-                domain=eeg_signal.domain,
-            )
-            # TODO IMPORTANT : get the channel maps from the config file
+        self.update_status("Creating Data Object")
+        data = Data(
+            brainset=brainset_description,
+            subject=subject_description,
+            session=session_description,
+            device=device_description,
+            eeg=eeg_signal,
+            channels=channels,
+            domain=eeg_signal.domain,
+        )
+        # TODO IMPORTANT : get the channel maps from the config file
 
-            self.update_status("Storing")
-            with h5py.File(store_path, "w") as file:
-                data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
+        return data, store_path
+
+    def process(self, download_output: dict):
+        """Process and save the dataset according to two options:
+
+        **Option 1: Use the default implementation**
+            Simply call ``super().process(download_output)`` in your subclass::
+
+                def process(self, download_output: dict):
+                    super().process(download_output)
+
+        **Option 2: Add dataset-specific processing**
+            Override this method and call ``_process_common()`` to get the Data object
+            modify it, then save it::
+
+                def process(self, download_output: dict):
+                    data, store_path = self._process_common(download_output)
+
+                    # Add dataset-specific processing here
+
+                    # Save the processed Data object to HDF5 file
+                    import h5py
+                    from brainsets import serialize_fn_map
+                    with h5py.File(store_path, "w") as file:
+                        data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
+
+        Parameters
+        ----------
+        download_output : dict
+            Dictionary returned by :meth:`download()`
+        """
+        data, store_path = self._process_common(download_output)
+
+        self.update_status("Storing")
+        with h5py.File(store_path, "w") as file:
+            data.to_hdf5(file, serialize_fn_map=serialize_fn_map)

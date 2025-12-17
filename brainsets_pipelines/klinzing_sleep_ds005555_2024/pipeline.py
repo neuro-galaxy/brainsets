@@ -62,19 +62,7 @@ class Pipeline(OpenNeuroEEGPipeline, metaclass=AutoLoadIdentifiersMeta):
         return brainset_id, dataset_id
 
     def process(self, download_output: Dict[str, Any]) -> None:
-        """Process Klinzing sleep dataset (ds005555) downloads.
-
-        This implementation delegates the core EEG processing to
-        :class:`OpenNeuroEEGPipeline`, then leaves a hook for adding
-        dataset-specific post-processing steps.
         """
-        # Run the default OpenNeuro EEG processing:
-        #  - finds EEG files in the downloaded subject directory
-        #  - loads them with MNE
-        #  - extracts metadata, EEG signal and channels
-        #  - writes standardized HDF5 files in ``self.processed_dir``
+        Process Klinzing sleep dataset (ds005555) downloads.
+        """
         super().process(download_output)
-
-        # ------------------------------------------------------------------
-        # Dataset-specific post-processing can be added here.
-        # ------------------------------------------------------------------
