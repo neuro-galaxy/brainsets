@@ -44,6 +44,7 @@ dev = [
     "flake8",
     "pytest-cov",
     "scikit-learn>=1.6.1",
+    "pytorch_brain@git+https://github.com/neuro-galaxy/torch_brain@refs/pull/154/head",
 ]
 
 [project.urls]
