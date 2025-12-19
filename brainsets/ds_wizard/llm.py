@@ -87,9 +87,9 @@ def create_llm(
             temperature=temperature,
             max_output_tokens=65536,
             include_thoughts=True,
-            thinking_budget=10000,
+            thinking_budget=5000,
             max_retries=5,
-            timeout=120,
+            timeout=300,
             rate_limiter=rate_limiter,
         )
     else:
