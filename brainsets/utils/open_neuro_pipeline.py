@@ -31,6 +31,7 @@ from brainsets.utils.open_neuro_utils.data_extraction import (
     extract_device_description,
     extract_meas_date,
     extract_signal,
+    channels_from_channel_map,
     extract_channels,
 )
 
@@ -206,12 +207,13 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         pd.DataFrame
             DataFrame with columns:
                 - 'recording_id': Recording/Session identifier (e.g., 'sub-1_task-Sleep_acq-headband')
-                - 'subject_id': Subject identifier (e.g., 'sub-1')
-                - 'task_id': Task identifier (e.g., 'Sleep')
-                - 'channel_map_id': Channel map identifier
-                - 'channel_mapping': Dictionary mapping old channel names to standard names
                 - 'dataset_id': OpenNeuro dataset identifier
                 - 'version_tag': Version tag to download
+                - 'subject_id': Subject identifier
+                - 'subject_info': Subject information
+                - 'task_id': Task identifier (e.g., 'Sleep')
+                - 'channel_mapping': Dictionary mapping old channel names to standard names
+                - 'device_info': Device information
                 - 's3_url': S3 URL for downloading
                 - 'fpath': Local file path where the manifest item will be downloaded
             The index is set to 'recording_id'.
@@ -308,7 +310,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                     "subject_id": subject_id,
                     "subject_info": subject_info,
                     "task_id": rec.get("task_id"),
-                    "channel_map_id": channel_map_id,
                     "channel_mapping": channel_mapping,
                     "device_info": device_info,
                     "s3_url": s3_url,
@@ -338,15 +339,15 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             Dictionary with keys:
                 - 'recording_id': Recording identifier
                 - 'subject_id': Subject identifier
+                - 'subject_info': Subject information (e.g., {'age': '25', 'sex': 'F'})
+                - 'device_info': Device information
+                - 'channel_mapping': Dictionary mapping old channel names to standard names
                 - 'fpath': Local file path where the manifest item was downloaded
-                - 'channel_map_id': Channel map identifier (if available in manifest)
-                - 'channel_mapping': Dictionary mapping old channel names to standard names (if available)
         """
         self.update_status("DOWNLOADING")
         self.raw_dir.mkdir(exist_ok=True, parents=True)
 
         dataset_id = manifest_item.dataset_id
-        version_tag = manifest_item.version_tag
         s3_url = manifest_item.s3_url
 
         recording_id = manifest_item.Index
@@ -358,7 +359,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         subject_dir = target_dir / subject_id
         subject_info = getattr(manifest_item, "subject_info", {})
         device_info = getattr(manifest_item, "device_info", {})
-        channel_map_id = getattr(manifest_item, "channel_map_id", None)
         channel_mapping = getattr(manifest_item, "channel_mapping", None)
 
         if check_recording_files_exist(recording_id, subject_dir):
@@ -370,9 +370,8 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                     "subject_id": subject_id,
                     "subject_info": subject_info,
                     "device_info": device_info,
-                    "fpath": fpath,
-                    "channel_map_id": channel_map_id,
                     "channel_mapping": channel_mapping,
+                    "fpath": fpath,
                 }
 
         try:
@@ -391,9 +390,8 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             "subject_id": subject_id,
             "subject_info": subject_info,
             "device_info": device_info,
-            "fpath": fpath,
-            "channel_map_id": channel_map_id,
             "channel_mapping": channel_mapping,
+            "fpath": fpath,
         }
 
     def _process_common(self, download_output: dict) -> tuple[Data, Path]:
@@ -401,7 +399,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
         This method handles the common OpenNeuro EEG processing tasks:
         1. Loads EEG files using MNE
-        2. Maps channel names to standard names using channel_map_id from config (if provided)
+        2. Maps channel names to standard channel names from config
         3. Extracts metadata (subject, session, device, brainset descriptions)
         4. Extracts EEG signal and channel information
         5. Creates a Data object
@@ -546,14 +544,12 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
         channel_mapping = download_output.get("channel_mapping")
         if channel_mapping:
-            channel_map_id = download_output.get("channel_map_id", "unknown")
-            self.update_status(f"Mapping channels using {channel_map_id}")
-            apply_channel_mapping(raw, channel_mapping)
+            channels = channels_from_channel_map(channel_mapping)
+        else:
+            channels = extract_channels(raw)
 
         self.update_status("Extracting EEG Signal")
         eeg_signal = extract_signal(raw)
-
-        channels = extract_channels(raw)
 
         self.update_status("Creating Data Object")
         data = Data(

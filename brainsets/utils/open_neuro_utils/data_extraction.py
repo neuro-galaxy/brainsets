@@ -202,6 +202,32 @@ def extract_channels(
     return channels
 
 
+def channels_from_channel_map(channel_map: dict[str, tuple[str, str]]) -> ArrayDict:
+    """
+    Create an ArrayDict from a channel map.
+
+    Args:
+        channel_map : dict
+            The channel map where values are tuples of (channel_id, channel_type).
+
+    Returns:
+        ArrayDict with fields
+            - id: array of channel IDs
+            - types: array of channel types
+    """
+    channel_names = []
+    channel_types = []
+
+    for ch_name, ch_type in channel_map.values():
+        channel_names.append(ch_name)
+        channel_types.append(ch_type)
+
+    return ArrayDict(
+        id=np.array(channel_names, dtype="U"),
+        types=np.array(channel_types, dtype="U"),
+    )
+
+
 def generate_train_valid_splits_one_epoch(
     epoch: Interval, split_ratios: list[float] = [0.9, 0.1]
 ) -> tuple[Interval, Interval]:
