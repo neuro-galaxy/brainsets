@@ -1,6 +1,5 @@
-from typing import Optional, Literal
+from typing import Callable, Optional, Literal
 from pathlib import Path
-from torch_brain.transforms import TransformType
 from torch_brain.utils import np_string_prefix
 from temporaldata import Data
 
@@ -13,7 +12,7 @@ class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
         root: str,
         dirname: str = "odoherty_sabes_nonhuman_2017",
         recording_ids: Optional[list[str]] = None,
-        transform: Optional[TransformType] = None,
+        transform: Optional[Callable] = None,
         split_type: Optional[Literal["cursor_velocity"]] = "cursor_velocity",
         **kwargs,
     ):

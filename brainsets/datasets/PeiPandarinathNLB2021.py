@@ -1,6 +1,5 @@
-from typing import Optional, Literal
+from typing import Callable, Optional, Literal
 from pathlib import Path
-from torch_brain.transforms import TransformType
 from torch_brain.utils import np_string_prefix
 from temporaldata import Data
 
@@ -13,7 +12,7 @@ class PeiPandarinathNLB2021(SpikingDatasetMixin, Dataset):
         root: str,
         dirname: str = "pei_pandarinath_nlb_2021",
         recording_ids: Optional[list[str]] = None,
-        transform: Optional[TransformType] = None,
+        transform: Optional[Callable] = None,
         **kwargs,
     ):
         super().__init__(

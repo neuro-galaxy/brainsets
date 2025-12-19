@@ -1,6 +1,5 @@
-from typing import Optional, Literal
+from typing import Callable, Optional, Literal
 from pathlib import Path
-from torch_brain.transforms import TransformType
 from torch_brain.utils import np_string_prefix
 from temporaldata import Data
 
@@ -13,7 +12,7 @@ class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
         root: str,
         dirname: str = "churchland_shenoy_neural_2012",
         recording_ids: Optional[list[str]] = None,
-        transform: Optional[TransformType] = None,
+        transform: Optional[Callable] = None,
         split_type: Optional[Literal["cursor_velocity"]] = "cursor_velocity",
         **kwargs,
     ):
