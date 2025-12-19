@@ -105,7 +105,7 @@ def extract_session_description(
     """
     return SessionDescription(
         id=session_id,
-        recording_date=recording_date.strftime("%Y%m%d"),
+        recording_date=recording_date,
     )
 
 
