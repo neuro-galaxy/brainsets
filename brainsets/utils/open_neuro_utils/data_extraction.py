@@ -9,7 +9,7 @@ from temporaldata import (
     Interval,
 )
 
-from brainsets.taxonomy import Species, Sex
+from brainsets.taxonomy import Species, Sex, Task
 from brainsets.descriptions import (
     BrainsetDescription,
     SessionDescription,
@@ -106,6 +106,7 @@ def extract_session_description(
     return SessionDescription(
         id=session_id,
         recording_date=recording_date,
+        # task=task, # TODO: add task to the taxonomy
     )
 
 

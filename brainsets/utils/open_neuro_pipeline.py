@@ -535,6 +535,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         session_description = extract_session_description(
             session_id=full_session_id, recording_date=meas_date
         )
+        # TODO: add task to the session description + add task taxonomy for EEG
 
         device_name = device_info.get("device_name", None)
         device_name = device_name.replace(" ", "_") if device_name else None
