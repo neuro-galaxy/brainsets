@@ -7,7 +7,6 @@ PPG,"Photoplethysmography: Measures blood volume changes (commonly used for hear
 TEMPERATURE,"Temperature: Measures body or skin temperature"
 STIMULUS,"Stimulus Marker: A trigger or event marker indicating a specific point in time"
 EOG,"Electrooculography: Measures eye movements"
-RM,"Reference Measurement: A reference or ground channel for other signals"
 ECG,"Electrocardiography: Measures the electrical activity of the heart"
 EEG-OTHER,"Other EEG: EEG channels where the location cannot be found"
 MOTION,"Motion: Measures movement or acceleration (e.g., via accelerometer)"
