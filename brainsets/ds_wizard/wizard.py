@@ -36,6 +36,7 @@ class DatasetWizard:
         api_key: Optional[str] = None,
         verbose: bool = False,
         download_path: Optional[str] = None,
+        request_delay: float = 0.0,
     ):
         """
         Initialize the Dataset Wizard.
@@ -46,11 +47,14 @@ class DatasetWizard:
             provider: LLM provider to use ("openai", "google", or "ollama")
             api_key: API key for the provider (uses environment variable if None)
             verbose: Whether to enable verbose output for debugging (default: False)
+            download_path: Path to download configuration files to
+            request_delay: Delay in seconds between API requests to avoid rate limiting (default: 0.0)
         """
         self.model_name = model_name
         self.temperature = temperature
         self.provider = provider
         self.download_path = download_path
+        self.request_delay = request_delay
         # Set up API key based on provider
         if api_key:
             if provider == "openai":
@@ -77,6 +81,7 @@ class DatasetWizard:
             provider=provider,
             verbose=verbose,
             download_path=download_path,
+            request_delay=request_delay,
         )
 
     async def populate_dataset(
@@ -178,6 +183,7 @@ async def populate_dataset(
     model_name: str = "gpt-4",
     provider: LLMProvider = "openai",
     save_path: Optional[str] = None,
+    request_delay: float = 0.0,
 ) -> Dict[str, Any]:
     """
     Convenience function to populate a dataset with default settings.
@@ -187,11 +193,14 @@ async def populate_dataset(
         model_name: LLM model to use
         provider: LLM provider ("openai", "google", or "ollama")
         save_path: Optional path to save results
+        request_delay: Delay in seconds between API requests to avoid rate limiting
 
     Returns:
         Dictionary containing populated Dataset and metadata
     """
-    wizard = DatasetWizard(model_name=model_name, provider=provider)
+    wizard = DatasetWizard(
+        model_name=model_name, provider=provider, request_delay=request_delay
+    )
     return await wizard.populate_dataset(dataset_id, save_path=save_path)
 
 
@@ -200,6 +209,7 @@ def populate_dataset_sync(
     model_name: str = "gpt-4",
     provider: LLMProvider = "openai",
     save_path: Optional[str] = None,
+    request_delay: float = 0.0,
 ) -> Dict[str, Any]:
     """
     Synchronous convenience function to populate a dataset.
@@ -209,11 +219,14 @@ def populate_dataset_sync(
         model_name: LLM model to use
         provider: LLM provider ("openai", "google", or "ollama")
         save_path: Optional path to save results
+        request_delay: Delay in seconds between API requests to avoid rate limiting
 
     Returns:
         Dictionary containing populated Dataset and metadata
     """
-    wizard = DatasetWizard(model_name=model_name, provider=provider)
+    wizard = DatasetWizard(
+        model_name=model_name, provider=provider, request_delay=request_delay
+    )
     return wizard.populate_dataset_sync(dataset_id, save_path=save_path)
 
 
@@ -272,6 +285,13 @@ if __name__ == "__main__":
         help="Temperature for LLM (default: 0.1)",
     )
 
+    parser.add_argument(
+        "--request-delay",
+        type=float,
+        default=0.0,
+        help="Delay in seconds between API requests to avoid rate limiting (default: 0.0)",
+    )
+
     args = parser.parse_args()
 
     dataset_id = args.dataset_id
@@ -283,6 +303,7 @@ if __name__ == "__main__":
     verbose = args.verbose
     download_path = args.download_path
     temperature = args.temperature
+    request_delay = args.request_delay
 
     if output_file is None:
         output_file = f"{dataset_id}_result.json"
@@ -290,6 +311,8 @@ if __name__ == "__main__":
     print(f"Populating dataset {dataset_id} using {provider}:{model}...")
     if verbose:
         print("Verbose mode enabled - you'll see all tool calls and outputs")
+    if request_delay > 0:
+        print(f"Request delay: {request_delay}s between API calls")
 
     wizard = DatasetWizard(
         model_name=model,
@@ -297,5 +320,6 @@ if __name__ == "__main__":
         verbose=verbose,
         download_path=download_path,
         temperature=temperature,
+        request_delay=request_delay,
     )
     results = wizard.populate_dataset_sync(dataset_id, save_path=output_file)

@@ -131,6 +131,7 @@ class BaseAgent(ABC):
         max_retries: int = 3,
         log_console: Optional[Console] = None,
         base_dir: Optional[str] = None,
+        request_delay: float = 0.0,
     ):
         self.model_name = model_name
         self.temperature = temperature
@@ -141,6 +142,7 @@ class BaseAgent(ABC):
         self.max_retries = max_retries
         self.log_console = log_console
         self.base_dir = base_dir or ""
+        self.request_delay = request_delay
         self._validate_model_provider_combination()
         self.llm = self._create_llm()
         self.output_parser = self.get_output_parser()
@@ -469,6 +471,12 @@ class BaseAgent(ABC):
                 logger.info(
                     f"{agent_name} succeeded on attempt {attempt + 1} for {dataset_id}"
                 )
+
+                # Apply request delay to avoid rate limiting
+                if self.request_delay > 0:
+                    logger.debug(f"Waiting {self.request_delay}s before next request")
+                    await asyncio.sleep(self.request_delay)
+
                 return {
                     "output": output_text,
                     "messages": messages,
@@ -904,6 +912,7 @@ class SupervisorAgent(BaseAgent):
         provider: LLMProvider = "cerebras",
         verbose: bool = False,
         download_path: str = None,
+        request_delay: float = 0.0,
     ):
         super().__init__(
             model_name=model_name,
@@ -911,6 +920,7 @@ class SupervisorAgent(BaseAgent):
             provider=provider,
             verbose=verbose,
             log_console=None,
+            request_delay=request_delay,
         )
         self.download_path = download_path
         self.log_file_handler = None
@@ -1026,6 +1036,7 @@ class SupervisorAgent(BaseAgent):
             verbose=self.verbose,
             log_console=self.log_console,
             base_dir=enhanced_context.get("config_files_dir", ""),
+            request_delay=self.request_delay,
         )
         result = await metadata_agent.process(dataset_id, enhanced_context)
 
@@ -1066,6 +1077,7 @@ class SupervisorAgent(BaseAgent):
             verbose=self.verbose,
             log_console=self.log_console,
             base_dir=enhanced_context.get("config_files_dir", ""),
+            request_delay=self.request_delay,
         )
         result = await channel_agent.process(dataset_id, enhanced_context)
 
@@ -1106,6 +1118,7 @@ class SupervisorAgent(BaseAgent):
             verbose=self.verbose,
             log_console=self.log_console,
             base_dir=recording_context.get("config_files_dir", ""),
+            request_delay=self.request_delay,
         )
         result = await recording_agent.process(dataset_id, recording_context)
 

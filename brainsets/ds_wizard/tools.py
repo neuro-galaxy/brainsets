@@ -35,7 +35,7 @@ from brainsets.utils.eeg_montages import (
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_EXTENSIONS = (".json", ".tsv", ".txt", ".md", ".csv")
+ALLOWED_EXTENSIONS = (".json", ".tsv", ".txt", ".md", ".csv", ".elp")
 
 
 def safe_tool_execution(
@@ -634,6 +634,18 @@ class AnalyzeAllRecordingsInput(BaseModel):
     )
 
 
+EEG_DATA_EXTENSIONS = (
+    "_eeg.cdt",
+    "_eeg.set",
+    "_eeg.edf",
+    "_eeg.bdf",
+    "_eeg.fif",
+    "_eeg.vhdr",
+    "_eeg.cnt",
+    "_eeg.mff",
+)
+
+
 def _parse_bids_filename(filename: str) -> Dict[str, Optional[str]]:
     """
     Extract BIDS entities from a filename.
@@ -675,6 +687,87 @@ def _parse_bids_filename(filename: str) -> Dict[str, Optional[str]]:
             entities[key] = match.group(1)
 
     return entities
+
+
+def _extract_recordings_from_filenames(
+    filenames: List[str],
+    participants: Dict[str, Dict[str, str]],
+    channel_maps: Dict[str, List[str]],
+) -> List[Dict[str, Any]]:
+    """
+    Extract recording info from EEG data filenames when sidecar JSON files are unavailable.
+
+    Args:
+        filenames: List of all filenames in the dataset
+        participants: Participant info dictionary
+        channel_maps: Channel maps from ChannelAgent
+
+    Returns:
+        List of recording info dictionaries
+    """
+    eeg_data_files = [
+        f
+        for f in filenames
+        if any(f.lower().endswith(ext) for ext in EEG_DATA_EXTENSIONS)
+        and not f.startswith("derivatives/")
+    ]
+
+    seen_recordings = set()
+    recordings = []
+
+    for data_file in eeg_data_files:
+        entities = _parse_bids_filename(data_file)
+
+        if not entities["subject_id"]:
+            continue
+
+        recording_id_parts = []
+        if entities["subject_id"]:
+            recording_id_parts.append(f"sub-{entities['subject_id']}")
+        if entities["session"]:
+            recording_id_parts.append(f"ses-{entities['session']}")
+        if entities["task"]:
+            recording_id_parts.append(f"task-{entities['task']}")
+        if entities["acquisition"]:
+            recording_id_parts.append(f"acq-{entities['acquisition']}")
+        if entities["run"]:
+            recording_id_parts.append(f"run-{entities['run']}")
+
+        recording_id = "_".join(recording_id_parts)
+
+        if recording_id in seen_recordings:
+            continue
+        seen_recordings.add(recording_id)
+
+        subject_key = f"sub-{entities['subject_id']}"
+        participant_info = participants.get(subject_key, {})
+
+        matched_map_id = list(channel_maps.keys())[0] if channel_maps else None
+
+        recordings.append(
+            {
+                "recording_id": recording_id,
+                "subject_id": subject_key,
+                "session": entities["session"],
+                "task_id": entities["task"],
+                "acquisition": entities["acquisition"],
+                "run": entities["run"],
+                "duration_seconds": None,
+                "sampling_frequency": None,
+                "manufacturer": None,
+                "channel_names": [],
+                "channel_types": {},
+                "num_channels": None,
+                "bad_channels": [],
+                "matched_channel_map_id": matched_map_id,
+                "channel_map_match_score": None,
+                "participant_info": participant_info,
+                "source_files": {"data_file": data_file},
+                "extracted_from_filename": True,
+            }
+        )
+
+    return recordings
 
 
 def _parse_channels_tsv(content: str) -> Dict[str, Any]:
@@ -866,9 +959,35 @@ class AnalyzeAllRecordingsTool(BaseTool):
             )
             if participants_content:
                 participants = _parse_participants_tsv(participants_content)
+            else:
+                participant_ids = fetch_participants(dataset_id)
+                participants = {pid: {"participant_id": pid} for pid in participant_ids}
+                logger.info(
+                    f"participants.tsv not found, using API fallback: {len(participants)} participants"
+                )
 
             recordings = []
             errors = []
+
+            if not eeg_json_files:
+                logger.info(
+                    f"No *_eeg.json sidecar files found, extracting recordings from data filenames"
+                )
+                recordings = _extract_recordings_from_filenames(
+                    filenames, participants, channel_maps
+                )
+                result = {
+                    "dataset_id": dataset_id,
+                    "total_recordings": len(recordings),
+                    "total_participants": len(participants),
+                    "recordings": recordings,
+                    "participants": participants,
+                    "channel_maps_provided": list(channel_maps.keys()),
+                    "extracted_from_filenames": True,
+                    "note": "Recording metadata (duration, sampling_frequency) unavailable - no sidecar JSON files found",
+                    "errors": None,
+                }
+                return json.dumps(result, indent=2, default=str)
 
             for eeg_json_path in eeg_json_files:
                 try:
