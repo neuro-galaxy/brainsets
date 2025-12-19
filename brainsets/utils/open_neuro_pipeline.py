@@ -463,7 +463,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 break
 
         if session_id is None:
-            session_id = subject_id.replace("sub-", "")
+            session_id = str(1)
 
         full_session_id = f"{subject_id}_ses-{session_id}"
 
