@@ -3,7 +3,6 @@ LLM factory and utilities for the Dataset Wizard.
 """
 
 import logging
-import re
 from typing import Any, Optional
 
 from langchain_cerebras import ChatCerebras
@@ -33,20 +32,6 @@ def get_rate_limiter(
         )
         logger.info(f"Created rate limiter for {provider}: {requests_per_second} req/s")
     return _rate_limiters[provider]
-
-
-def parse_retry_delay(error_message: str) -> Optional[float]:
-    """Extract retry delay from API error messages."""
-    patterns = [
-        r"retry in (\d+(?:\.\d+)?)s",
-        r"retryDelay.*?(\d+)s",
-        r"Please retry in (\d+(?:\.\d+)?)s",
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, error_message, re.IGNORECASE)
-        if match:
-            return float(match.group(1))
-    return None
 
 
 def create_llm(

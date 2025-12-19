@@ -25,7 +25,6 @@ from brainsets.ds_wizard.llm import (
     create_llm,
     TokenUsageCallbackHandler,
     extract_output_text,
-    parse_retry_delay,
 )
 from brainsets.ds_wizard.diagnostics import log_agent_diagnostics
 from brainsets.ds_wizard.dataset_struct import (
@@ -105,28 +104,61 @@ class BaseAgent(ABC):
             return schema_json.replace("{", "[").replace("}", "]")
         return "{}"
 
-    def create_agent(self):
-        """Create the agent using LangChain 1.x API."""
-        tools = self.get_tools()
-        system_prompt = self.get_system_prompt().format(
+    def _build_system_prompt_with_examples(self) -> str:
+        """Build system prompt with few-shot examples."""
+        base_prompt = self.get_system_prompt().format(
             format_instructions=self._get_simplified_schema()
         )
 
-        if self.use_few_shot:
-            examples = self.get_few_shot_examples()
-            if examples:
-                examples = examples[: self.num_examples]
-                examples_text = "\n\nEXAMPLES:\n"
-                for i, example in enumerate(examples, 1):
-                    examples_text += f"\nExample {i}:\nInput: {example['input']}\nOutput: {example['output']}\n"
-                system_prompt += examples_text
+        if not self.use_few_shot:
+            return base_prompt
 
-        return create_agent(self.llm, tools, system_prompt=system_prompt)
+        examples = self.get_few_shot_examples()
+        if not examples:
+            return base_prompt
 
-    async def _invoke_with_retry(
+        examples = examples[: self.num_examples]
+        examples_text = "\n\nEXAMPLES:\n" + "\n\n".join(
+            f"Input: {ex['input']}\nOutput: {ex['output']}" for ex in examples
+        )
+
+        return base_prompt + examples_text
+
+    def create_agent(self):
+        """Create the agent using LangChain 1.x API with built-in retry."""
+        tools = self.get_tools()
+        system_prompt = self._build_system_prompt_with_examples()
+        agent = create_agent(self.llm, tools, system_prompt=system_prompt)
+
+        return agent.with_retry(
+            stop_after_attempt=self.max_retries,
+            wait_exponential_jitter=True,
+        )
+
+    def _extract_output_from_result(self, raw_result: Dict[str, Any]) -> Optional[str]:
+        """Extract and validate output text from agent result."""
+        if not raw_result or "messages" not in raw_result:
+            return None
+
+        messages = raw_result["messages"]
+        if not messages:
+            return None
+
+        last_message = messages[-1]
+
+        if hasattr(last_message, "content"):
+            output_text = extract_output_text(last_message.content)
+        elif isinstance(last_message, dict):
+            output_text = extract_output_text(last_message.get("content", ""))
+        else:
+            output_text = extract_output_text(str(last_message))
+
+        return output_text if output_text and output_text.strip() else None
+
+    async def _invoke_with_validation(
         self, agent, prompt: str, dataset_id: str
     ) -> Dict[str, Any]:
-        """Invoke agent with retry logic for empty outputs and rate limit handling."""
+        """Invoke agent and validate response, retrying on empty outputs."""
         last_error = None
 
         for attempt in range(self.max_retries):
@@ -146,62 +178,30 @@ class BaseAgent(ABC):
                     self.log_console, raw_result, dataset_id, self.name, token_callback
                 )
 
-                if not raw_result:
-                    last_error = "Agent returned None"
-                    logger.warning(f"{self.name} returned None, retrying...")
-                    continue
+                output_text = self._extract_output_from_result(raw_result)
 
-                if "messages" not in raw_result:
-                    last_error = f"Agent result missing 'messages' key. Keys: {raw_result.keys()}"
-                    logger.warning(f"{self.name} missing messages key, retrying...")
-                    continue
-
-                messages = raw_result["messages"]
-                if not messages:
-                    last_error = "Agent returned empty messages list"
-                    logger.warning(f"{self.name} returned empty messages, retrying...")
-                    continue
-
-                last_message = messages[-1]
-
-                if hasattr(last_message, "content"):
-                    output_text = extract_output_text(last_message.content)
-                elif isinstance(last_message, dict):
-                    output_text = extract_output_text(last_message.get("content", ""))
-                else:
-                    output_text = extract_output_text(str(last_message))
-
-                if not output_text or not output_text.strip():
-                    last_error = "Agent returned empty output"
-                    logger.warning(
-                        f"{self.name} returned empty output on attempt {attempt + 1}, retrying..."
+                if output_text:
+                    logger.info(
+                        f"{self.name} succeeded on attempt {attempt + 1} for {dataset_id}"
                     )
-                    continue
+                    return {
+                        "output": output_text,
+                        "messages": raw_result.get("messages", []),
+                    }
 
-                logger.info(
-                    f"{self.name} succeeded on attempt {attempt + 1} for {dataset_id}"
+                last_error = "Agent returned empty or invalid output"
+                logger.warning(
+                    f"{self.name} returned empty output on attempt {attempt + 1}, retrying..."
                 )
 
-                return {"output": output_text, "messages": messages}
+                if attempt < self.max_retries - 1:
+                    await asyncio.sleep(2 ** (attempt + 1))
 
             except Exception as e:
                 last_error = str(e)
                 logger.warning(
                     f"{self.name} attempt {attempt + 1} failed with exception: {e}"
                 )
-
-                retry_delay = parse_retry_delay(str(e))
-                if retry_delay:
-                    wait_time = retry_delay + 5
-                    logger.info(
-                        f"Rate limited. Waiting {wait_time:.1f}s (API suggested {retry_delay:.1f}s)"
-                    )
-                    await asyncio.sleep(wait_time)
-                elif attempt < self.max_retries - 1:
-                    base_delay = 2 ** (attempt + 1)
-                    logger.info(f"Retrying {self.name} in {base_delay}s...")
-                    await asyncio.sleep(base_delay)
-                continue
 
         logger.error(
             f"{self.name} failed after {self.max_retries} attempts for {dataset_id}. Last error: {last_error}"
@@ -219,7 +219,7 @@ class BaseAgent(ABC):
         prompt = self.build_prompt(dataset_id, context or {})
 
         try:
-            result = await self._invoke_with_retry(agent, prompt, dataset_id)
+            result = await self._invoke_with_validation(agent, prompt, dataset_id)
 
             if "error" in result:
                 return result
@@ -421,7 +421,7 @@ class RecordingAgent(BaseAgent):
 
         agent = self.create_agent()
         prompt = self.build_prompt(dataset_id, batch_context)
-        result = await self._invoke_with_retry(
+        result = await self._invoke_with_validation(
             agent, prompt, f"{dataset_id}_batch{batch_num}"
         )
 
