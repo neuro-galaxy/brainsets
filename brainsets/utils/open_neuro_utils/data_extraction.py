@@ -1,6 +1,7 @@
 import mne
 import numpy as np
 import datetime
+from typing import Union
 
 from temporaldata import (
     RegularTimeSeries,
@@ -8,7 +9,7 @@ from temporaldata import (
     Interval,
 )
 
-from brainsets.taxonomy import Species
+from brainsets.taxonomy import Species, Sex
 from brainsets.descriptions import (
     BrainsetDescription,
     SessionDescription,
@@ -54,6 +55,8 @@ def extract_brainset_description(
 
 def extract_subject_description(
     subject_id: str,
+    age: float,
+    sex: Union[str, int, Sex],
 ) -> SubjectDescription:
     """
     Create a SubjectDescription object for a human subject.
@@ -61,14 +64,25 @@ def extract_subject_description(
     Args:
         subject_id : str
             Unique identifier for the subject.
-
+        age : float
+            Age of the subject in days.
+        sex : str, int, or Sex
+            Sex of the subject. Can be a string (e.g., "M", "Male", "F", "Female"),
+            an integer (0=UNKNOWN, 1=MALE, 2=FEMALE, 3=OTHER), or a Sex enum.
     Returns:
         SubjectDescription
             An object describing the subject, with species set to Homo sapiens.
     """
+    if isinstance(sex, str):
+        sex = Sex.from_string(sex)
+    elif isinstance(sex, int):
+        sex = Sex(sex)
+
     return SubjectDescription(
         id=subject_id,
         species=Species.HOMO_SAPIENS,
+        age=age,
+        sex=sex,
     )
 
 

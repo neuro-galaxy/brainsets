@@ -277,6 +277,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             s3_url = construct_s3_url(dataset_id, recording_id)
 
             subject_id = rec.get("subject_id")
+            subject_info = rec.get("participant_info", {})
             fpath = raw_dir / subject_id / recording_id if subject_id else None
             # FIXME fpath = raw_dir / subject_id / eeg /recording_id
 
@@ -285,21 +286,31 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             if channel_map_id and channel_map_id in channel_maps:
                 channel_map = channel_maps[channel_map_id].get("channels", {})
                 channel_mapping = {}
+                device_info = {}
                 for old_name, channel_info in channel_map.items():
                     if isinstance(channel_info, dict) and "new_name" in channel_info:
                         new_name = channel_info["new_name"]
                         modality = channel_info.get("modality", "UNKNOWN")
                         channel_mapping[old_name] = (new_name, modality)
 
+                device_info["device_name"] = channel_maps[channel_map_id].get(
+                    "device_name", None
+                )
+                device_info["device_manufacturer"] = channel_maps[channel_map_id].get(
+                    "device_manufacturer", None
+                )
+
             manifest_list.append(
                 {
                     "recording_id": recording_id,
+                    "dataset_id": dataset_id,
+                    "version_tag": version_tag,
                     "subject_id": subject_id,
+                    "subject_info": subject_info,
                     "task_id": rec.get("task_id"),
                     "channel_map_id": channel_map_id,
                     "channel_mapping": channel_mapping,
-                    "dataset_id": dataset_id,
-                    "version_tag": version_tag,
+                    "device_info": device_info,
                     "s3_url": s3_url,
                     "fpath": fpath,
                 }
@@ -345,6 +356,8 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         target_dir.mkdir(exist_ok=True, parents=True)
 
         subject_dir = target_dir / subject_id
+        subject_info = getattr(manifest_item, "subject_info", {})
+        device_info = getattr(manifest_item, "device_info", {})
         channel_map_id = getattr(manifest_item, "channel_map_id", None)
         channel_mapping = getattr(manifest_item, "channel_mapping", None)
 
@@ -355,6 +368,8 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 return {
                     "recording_id": recording_id,
                     "subject_id": subject_id,
+                    "subject_info": subject_info,
+                    "device_info": device_info,
                     "fpath": fpath,
                     "channel_map_id": channel_map_id,
                     "channel_mapping": channel_mapping,
@@ -374,6 +389,8 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         return {
             "recording_id": recording_id,
             "subject_id": subject_id,
+            "subject_info": subject_info,
+            "device_info": device_info,
             "fpath": fpath,
             "channel_map_id": channel_map_id,
             "channel_mapping": channel_mapping,
@@ -403,6 +420,8 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
         recording_id = download_output.get("recording_id")
         subject_id = download_output["subject_id"]
+        subject_info = download_output.get("subject_info", {})
+        device_info = download_output.get("device_info", {})
         data_dir = Path(download_output["fpath"])
 
         self.update_status("Extracting Metadata")
@@ -505,7 +524,11 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         except Exception as e:
             raise RuntimeError(f"Failed to load EEG file {eeg_file}: {str(e)}")
 
-        subject_description = extract_subject_description(subject_id)
+        subject_description = extract_subject_description(
+            subject_id=subject_id,
+            age=subject_info.get("age", 0.0),
+            sex=subject_info.get("sex", "UNKNOWN"),
+        )
 
         meas_date = extract_meas_date(raw)
         if meas_date is None:
@@ -515,7 +538,10 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             session_id=full_session_id, recording_date=meas_date
         )
 
-        device_id = f"{subject_id}_{session_id}"
+        device_name = device_info.get("device_name", None)
+        device_name = device_name.replace(" ", "_") if device_name else None
+        device_manufacturer = device_info.get("device_manufacturer", None)
+        device_id = f"{device_manufacturer}_{device_name}"
         device_description = extract_device_description(device_id=device_id)
 
         channel_mapping = download_output.get("channel_mapping")
