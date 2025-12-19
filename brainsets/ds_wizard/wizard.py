@@ -10,11 +10,8 @@ from typing import Dict, Any, Optional
 from dotenv import load_dotenv
 from pathlib import Path
 
-from brainsets.ds_wizard.agents import (
-    PROVIDER_MODELS,
-    SupervisorAgent,
-    LLMProvider,
-)
+from brainsets.ds_wizard.config import PROVIDER_MODELS, LLMProvider
+from brainsets.ds_wizard.orchestrator import Orchestrator
 from brainsets.ds_wizard.dataset_struct import Dataset
 
 logger = logging.getLogger(__name__)
@@ -74,8 +71,7 @@ class DatasetWizard:
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
 
-        # Initialize supervisor agent
-        self.supervisor = SupervisorAgent(
+        self.orchestrator = Orchestrator(
             model_name=model_name,
             temperature=temperature,
             provider=provider,
@@ -104,8 +100,7 @@ class DatasetWizard:
         logger.info(f"Starting dataset population for {dataset_id}")
 
         try:
-            # Run the supervisor agent workflow
-            results = await self.supervisor.process(dataset_id, context or {})
+            results = await self.orchestrator.run(dataset_id, context or {})
 
             # Save results if path provided
             if save_path and results:
