@@ -23,7 +23,10 @@ class PeiPandarinathNLB2021(SpikingDatasetMixin, Dataset):
             **kwargs,
         )
 
-    def get_sampling_intervals(self, split: Literal["train", "valid", "test"]):
+    def get_sampling_intervals(
+        self,
+        split: Optional[Literal["train", "valid", "test"]] = None,
+    ):
         domain_key = "domain" if split is None else f"{split}_domain"
         return {
             rid: getattr(self.get_recording(rid), domain_key)

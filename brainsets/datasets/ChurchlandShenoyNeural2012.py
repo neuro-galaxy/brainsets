@@ -26,7 +26,10 @@ class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
 
         self.split_type = split_type
 
-    def get_sampling_intervals(self, split: Literal["train", "valid", "test"]):
+    def get_sampling_intervals(
+        self,
+        split: Optional[Literal["train", "valid", "test"]] = None,
+    ):
         domain_key = "domain" if split is None else f"{split}_domain"
         ans = {}
         for rid in self.recording_ids:
