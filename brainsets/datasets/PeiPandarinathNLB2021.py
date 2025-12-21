@@ -1,7 +1,5 @@
 from typing import Callable, Optional, Literal
 from pathlib import Path
-from torch_brain.utils import np_string_prefix
-from temporaldata import Data
 
 from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
@@ -22,6 +20,8 @@ class PeiPandarinathNLB2021(SpikingDatasetMixin, Dataset):
             namespace_attributes=["session.id", "units.id"],
             **kwargs,
         )
+
+        self.spiking_dataset_mixin_uniquify_unit_ids = True
 
     def get_sampling_intervals(
         self,

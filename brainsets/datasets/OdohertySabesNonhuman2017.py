@@ -1,7 +1,5 @@
 from typing import Callable, Optional, Literal
 from pathlib import Path
-from torch_brain.utils import np_string_prefix
-from temporaldata import Data
 
 from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
