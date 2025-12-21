@@ -29,13 +29,3 @@ class PerichMillerPopulation2018(SpikingDatasetMixin, Dataset):
             rid: getattr(self.get_recording(rid), domain_key)
             for rid in self.recording_ids
         }
-
-    def get_recording_hook(self, data: Data):
-        # This dataset does not have unique unit ids across sessions
-        # so we prefix the unit ids with the session id to ensure uniqueness
-        data.units.id = np_string_prefix(
-            f"{data.session.id}/",
-            data.units.id.astype(str),
-        )
-
-        super().get_recording_hook(data)

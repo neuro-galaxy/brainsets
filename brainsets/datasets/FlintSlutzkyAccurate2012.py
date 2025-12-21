@@ -37,13 +37,3 @@ class FlintSlutzkyAccurate2012(SpikingDatasetMixin, Dataset):
                 ans[rid] = ans[rid] & data.hand.domain & data.spikes.domain
 
         return ans
-
-    def get_recording_hook(self, data: Data):
-        # This dataset does not have unique unit ids across sessions
-        # so we prefix the unit ids with the session id to ensure uniqueness
-        data.units.id = np_string_prefix(
-            f"{data.session.id}/",
-            data.units.id.astype(str),
-        )
-
-        super().get_recording_hook(data)
