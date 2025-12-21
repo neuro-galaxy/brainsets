@@ -24,7 +24,7 @@ class AllenVisualCodingOphys2016(CalciumImagingDatasetMixin, Dataset):
 
         self.split_type = split_type
 
-        # ROI IDs are unique across sesssions in this dataset
+        # ROI IDs are unique across sessions in this dataset
         self.calcium_imaging_dataset_mixin_uniquify_roi_ids = False
 
     def get_sampling_intervals(
