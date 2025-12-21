@@ -24,6 +24,7 @@ class FlintSlutzkyAccurate2012(SpikingDatasetMixin, Dataset):
             **kwargs,
         )
 
+        self.spiking_dataset_mixin_uniquify_unit_ids = True
         self.split_type = split_type
 
     def get_sampling_intervals(

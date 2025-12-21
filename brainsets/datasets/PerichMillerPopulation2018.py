@@ -23,6 +23,8 @@ class PerichMillerPopulation2018(SpikingDatasetMixin, Dataset):
             **kwargs,
         )
 
+        self.spiking_dataset_mixin_uniquify_unit_ids = True
+
     def get_sampling_intervals(
         self,
         split: Optional[Literal["train", "valid", "test"]] = None,
