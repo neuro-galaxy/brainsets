@@ -1,14 +1,20 @@
 import os
+import re
 import logging
 import requests
 import numpy as np
-import pandas as pd
 import xml.etree.ElementTree as ET
+from pathlib import Path
+from typing import Dict, Tuple, Union
+from urllib.parse import urlparse
 import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
 
-from typing import Union
+try:
+    import mne
+except ImportError:
+    mne = None
 
 OPENNEURO_GRAPHQL_URL = "https://openneuro.org/crn/graphql"
 OPENNEURO_S3_BUCKET = "openneuro.org"
@@ -320,6 +326,127 @@ def fetch_participants(dataset_id: str, tag: str = None) -> list[str]:
     return subjects
 
 
+def construct_s3_url(dataset_id: str, recording_id: str) -> str:
+    """Construct the S3 URL for a recording matching the given pattern.
+
+    Parameters
+    ----------
+    dataset_id : str
+        OpenNeuro dataset identifier.
+    recording_id : str
+        Recording identifier to be used as a prefix pattern to match files.
+
+    Returns
+    -------
+    str
+        S3 URL for the recording files matching this prefix.
+
+    Raises
+    ------
+    ValueError
+        If subject_id cannot be parsed from recording_id.
+    RuntimeError
+        If no files matching the recording_id pattern are found.
+    """
+    dataset_id = validate_dataset_id(dataset_id)
+
+    # Get Subject_id and Session_id (if exists)
+    parts = recording_id.split("_")
+    subject_id = None
+    session_id = None
+
+    for part in parts:
+        if "sub-" in part:
+            match = re.search(r"sub-([^_]+)", part)
+            if match:
+                subject_id = f"sub-{match.group(1)}"
+        if "ses-" in part:
+            match = re.search(r"ses-([^_]+)", part)
+            if match:
+                session_id = f"ses-{match.group(1)}"
+
+    if not subject_id:
+        raise ValueError(
+            f"Could not parse subject_id from recording_id: {recording_id}"
+        )
+
+    # Find the modality
+    s3_client = boto3.client("s3", config=Config(signature_version=UNSIGNED))
+
+    datatypes = [
+        "eeg",
+        "ieeg",
+        "anat",
+        "func",
+        "meg",
+        "fmap",
+        "dwi",
+        "beh",
+        "perf",
+        "pet",
+        "micr",
+        "nirs",
+        "motion",
+        "mrs",
+    ]
+
+    subject_prefix = f"{dataset_id}/{subject_id}/"
+
+    if session_id:
+        try:
+            session_prefix = f"{subject_prefix}{session_id}/"
+            modality = None
+            for datatype in datatypes:
+                search_prefix = f"{session_prefix}{datatype}/{recording_id}"
+                try:
+                    paginator = s3_client.get_paginator("list_objects_v2")
+                    for page in paginator.paginate(
+                        Bucket=OPENNEURO_S3_BUCKET, Prefix=search_prefix, MaxKeys=1
+                    ):
+                        if "Contents" in page and len(page["Contents"]) > 0:
+                            modality = datatype
+                            break
+                except Exception:
+                    continue
+
+            if modality:
+                base_path = f"s3://openneuro.org/{dataset_id}"
+                s3_path = (
+                    f"{base_path}/{subject_id}/{session_id}/{modality}/{recording_id}"
+                )
+                return s3_path
+
+        except Exception:
+            # Fallback to non-session directory if session search fails
+            pass
+
+    modality = None
+    for datatype in datatypes:
+        search_prefix = f"{subject_prefix}{datatype}/{recording_id}"
+        try:
+            paginator = s3_client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(
+                Bucket=OPENNEURO_S3_BUCKET, Prefix=search_prefix, MaxKeys=1
+            ):
+                if "Contents" in page and len(page["Contents"]) > 0:
+                    modality = datatype
+                    break
+        except Exception:
+            continue
+
+    if modality:
+        base_path = f"s3://openneuro.org/{dataset_id}"
+        s3_path = f"{base_path}/{subject_id}/{modality}/{recording_id}"
+        return s3_path
+
+    # If no modality found after all searches, raise error
+    session_info = f" and session {session_id}" if session_id else ""
+    raise RuntimeError(
+        f"No files found matching recording_id pattern '{recording_id}' "
+        f"for subject {subject_id}{session_info} in dataset {dataset_id}"
+    )
+
+
 def get_s3_file_size(dataset_id: str, file_path: str) -> int:
     """Get the size of a file in an OpenNeuro dataset using S3 HEAD request.
 
@@ -345,6 +472,42 @@ def get_s3_file_size(dataset_id: str, file_path: str) -> int:
         raise RuntimeError(
             f"Error getting file size for {file_path} in dataset {dataset_id}: {str(e)}"
         )
+
+
+def check_recording_files_exist(recording_id: str, subject_dir: Path) -> bool:
+    """Check if BIDS-compliant EEG files matching the recording_id pattern exist in the subject directory.
+
+    Parameters
+    ----------
+    recording_id : str
+        Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband').
+    subject_dir : Path
+        Subject directory to search in.
+
+    Returns
+    -------
+    bool
+        True if at least one recording file is found, False otherwise.
+    """
+    if not subject_dir.exists():
+        return False
+
+    # FIXME: more eeg patterns could be found
+    eeg_patterns = [
+        f"**/{recording_id}_eeg.edf",
+        f"**/{recording_id}_eeg.fif",
+        f"**/{recording_id}_eeg.set",
+        f"**/{recording_id}_eeg.bdf",
+        f"**/{recording_id}_eeg.vhdr",
+        f"**/{recording_id}_eeg.eeg",
+    ]
+
+    for pattern in eeg_patterns:
+        matches = list(subject_dir.glob(pattern))
+        if matches:
+            return True
+
+    return False
 
 
 def download_file_from_s3(
@@ -382,6 +545,86 @@ def download_file_from_s3(
         raise RuntimeError(
             f"Error downloading {file_path} from dataset {dataset_id}: {str(e)}"
         )
+
+
+def download_prefix_from_s3(s3_url: str, target_dir: Path) -> None:
+    """
+    Downloads all files matching an S3 prefix pattern using boto3.
+
+    The s3_url should be a prefix pattern like:
+    's3://openneuro.org/ds005555/sub-1/eeg/sub-1_task-Sleep_acq-headband'
+
+    This will download all files matching that prefix, such as:
+    - ds005555/sub-1/eeg/sub-1_task-Sleep_acq-headband_eeg.edf
+    - ds005555/sub-1/eeg/sub-1_task-Sleep_acq-headband_eeg.json
+    - ds005555/sub-1/eeg/sub-1_task-Sleep_acq-headband_channels.tsv
+
+    Parameters
+    ----------
+    s3_url : str
+        S3 URL prefix pattern to match files
+    target_dir : Path
+        Local directory to download files to.
+
+    Raises
+    ------
+    RuntimeError
+        If download fails.
+    """
+    # TODO: return fpath instead of None
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    parsed = urlparse(s3_url)
+    if parsed.scheme != "s3":
+        raise ValueError(f"Invalid S3 URL: {s3_url}")
+
+    bucket = parsed.netloc
+    prefix = parsed.path.lstrip("/")
+
+    s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
+
+    downloaded_files = []
+    try:
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            if "Contents" not in page:
+                continue
+
+            for obj in page["Contents"]:
+                obj_key = obj["Key"]
+                # Skip directory markers
+                if obj_key.endswith("/"):
+                    continue
+
+                dataset_id = prefix.split("/")[0]
+                if obj_key.startswith(f"{dataset_id}/"):
+                    rel_path = obj_key[len(f"{dataset_id}/") :]
+                else:
+                    continue
+
+                local_path = target_dir / rel_path
+                local_path.parent.mkdir(parents=True, exist_ok=True)
+
+                for attempt in range(3):
+                    try:
+                        s3.download_file(bucket, obj_key, str(local_path))
+                        downloaded_files.append(local_path)
+                        break
+                    except Exception as e:
+                        if attempt == 2:
+                            raise RuntimeError(
+                                f"Failed to download {obj_key} after 3 attempts: {str(e)}"
+                            )
+
+        if not downloaded_files:
+            raise RuntimeError(
+                f"No files found matching prefix pattern '{prefix}' in bucket '{bucket}'"
+            )
+
+    except RuntimeError:
+        raise
+    except Exception as e:
+        raise RuntimeError(f"Failed to download from {s3_url}: {e}")
 
 
 def download_subject_eeg_data(
@@ -512,3 +755,108 @@ def download_openneuro_data(
     }
 
     return result
+
+
+def _modality_to_mne_type(modality: str) -> str:
+    """Map modality string to MNE channel type."""
+    modality_upper = modality.upper() if modality else ""
+
+    # Direct mappings
+    modality_map = {
+        "EEG": "eeg",
+        "SCALP": "eeg",
+        "SCALP_EEG": "eeg",
+        "EOG": "eog",
+        "HEOG": "eog",
+        "VEOG": "eog",
+        "EMG": "emg",
+        "MUSCLE": "emg",
+        "ECG": "ecg",
+        "EKG": "ecg",
+        "CARDIAC": "ecg",
+        "ECOG": "ecog",
+        "SEEG": "seeg",
+        "STEREO_EEG": "seeg",
+        "RESP": "resp",
+        "RESPIRATORY": "resp",
+        "RESPIRATION": "resp",
+        "BREATHING": "resp",
+        "TMP": "temperature",
+        "TEMP": "temperature",
+        "THERM": "temperature",
+        "TEMPERATURE": "temperature",
+        "MEG": "meg",
+        "MAG": "meg",
+        "REF_MEG": "ref_meg",
+        "MEG_REF": "ref_meg",
+        "STIM": "stim",
+        "STI": "stim",
+        "EVENTS": "stim",
+        "TRIGGER": "stim",
+        "GSR": "gsr",
+        "SKIN": "gsr",
+        "GALVANIC": "gsr",
+        "GALVANIC_SKIN_RESPONSE": "gsr",
+        "BIO": "bio",
+        "CHPI": "chpi",
+        "DBS": "dbs",
+        "DIPOLE": "dipole",
+        "EXCI": "exci",
+        "EYETRACK": "eyetrack",
+        "FNIRS": "fnirs",
+        "GOF": "gof",
+        "GoodnessOfFit": "gof",
+        "IAS": "ias",
+        "SYST": "syst",
+        "SYSTEM": "syst",
+        "MISC": "misc",
+    }
+    # TODO: verif other possible modalities
+    # THER, CAN, PULSE, BEAT, SPO2
+
+    return modality_map.get(modality_upper, "misc")
+
+
+def apply_channel_mapping(
+    raw: "mne.io.Raw",
+    channel_mapping: Dict[str, Tuple[str, str]],
+) -> None:
+    """Apply channel name mapping and type updates to an MNE Raw object.
+
+    Parameters
+    ----------
+    raw : mne.io.Raw
+        The MNE Raw object to modify.
+    channel_mapping : dict
+        Dictionary mapping old channel names to tuples of (new_name, modality).
+        Format: {old_name: (new_name, modality)}
+    Returns:
+        None. the raw object is modified in place.
+
+    """
+    if not channel_mapping:
+        return
+
+    current_ch_names = raw.ch_names
+    rename_dict = {}
+    type_dict = {}
+
+    for old_name, mapping_info in channel_mapping.items():
+        if old_name in current_ch_names:
+            if isinstance(mapping_info, tuple) and len(mapping_info) >= 2:
+                new_name = mapping_info[0]
+                modality = mapping_info[1]
+                rename_dict[old_name] = new_name
+                mne_channel_type = _modality_to_mne_type(modality)
+                type_dict[new_name] = mne_channel_type
+            elif isinstance(mapping_info, tuple) and len(mapping_info) >= 1:
+                new_name = mapping_info[0]
+                rename_dict[old_name] = new_name
+            elif isinstance(mapping_info, str):
+                rename_dict[old_name] = mapping_info
+
+    if rename_dict:
+        raw.rename_channels(rename_dict, allow_duplicates=False)
+
+    if type_dict:
+        raw.set_channel_types(type_dict)

@@ -1,0 +1,2311 @@
+{
+  "dataset": {
+    "metadata": {
+      "name": "EEG recordings during sham neurofeedback in virtual reality",
+      "brainset_name": "gonzales_neurofeedback_ds006839_2025",
+      "version": "1.0.0",
+      "dataset_id": "ds006839",
+      "dataset_summary": "This dataset contains EEG recordings from a sham neurofeedback experiment conducted in a virtual reality (VR) environment. The study investigated how feedback valence (positive, negative, or control) modulates alpha-band activity during an attentional task. EEG signals were recorded using a 32-channel SynAmps RT amplifier. Each participant completed four conditions: positive feedback, negative feedback, control, and resting-state (eyes open/closed). The original data was in .cnt format and converted to BIDS format. This dataset is publicly available on OpenNeuro.",
+      "task_description": "Participants engaged in a sham neurofeedback experiment within a virtual reality environment. They completed four conditions: positive sham feedback (reinforcement), negative sham feedback (punishment), a control condition (observing VR without feedback), and a resting-state condition (alternating eyes open and closed). Each feedback condition involved four 2-minute blocks. Specific events were marked for block beginnings, increases/decreases in VR object brightness/volume, and eyes open/closed transitions during resting state.",
+      "task_category": "Neurofeedback & Brain Stimulation",
+      "task_subcategory": "EEG-based neurofeedback",
+      "authors": [
+        "Carmen Brigitte Aguilar Gonzales",
+        "Collaborators from the Experimental and Computational Neuroscience Group"
+      ],
+      "date": "24-10-2025"
+    },
+    "channel_maps": {
+      "channel_maps": {
+        "neuroscan_synamps_32": {
+          "map_name": "neuroscan_synamps_32",
+          "channels": {
+            "FP1": {
+              "new_name": "Fp1",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0294367,
+              "y": 0.08391710000000001,
+              "z": -0.0069900000000000006,
+              "confidence": 0.95
+            },
+            "FP2": {
+              "new_name": "Fp2",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.029872299999999997,
+              "y": 0.0848959,
+              "z": -0.00708,
+              "confidence": 0.95
+            },
+            "F8": {
+              "new_name": "F8",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0730431,
+              "y": 0.0444217,
+              "z": -0.012,
+              "confidence": 0.95
+            },
+            "F4": {
+              "new_name": "F4",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0518362,
+              "y": 0.0543048,
+              "z": 0.040814,
+              "confidence": 0.95
+            },
+            "FZ": {
+              "new_name": "Fz",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0003122,
+              "y": 0.058512,
+              "z": 0.06646200000000001,
+              "confidence": 0.95
+            },
+            "F3": {
+              "new_name": "F3",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0502438,
+              "y": 0.0531112,
+              "z": 0.042192,
+              "confidence": 0.95
+            },
+            "F7": {
+              "new_name": "F7",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0702629,
+              "y": 0.0424743,
+              "z": -0.01142,
+              "confidence": 0.95
+            },
+            "FC6": {
+              "new_name": "FC6",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0795341,
+              "y": 0.0199357,
+              "z": 0.024437999999999998,
+              "confidence": 0.95
+            },
+            "FC2": {
+              "new_name": "FC2",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.034784100000000005,
+              "y": 0.0264379,
+              "z": 0.078808,
+              "confidence": 0.95
+            },
+            "FC1": {
+              "new_name": "FC1",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0340619,
+              "y": 0.0260111,
+              "z": 0.07998699999999999,
+              "confidence": 0.95
+            },
+            "FC5": {
+              "new_name": "FC5",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0772149,
+              "y": 0.0186433,
+              "z": 0.024460000000000003,
+              "confidence": 0.95
+            },
+            "T8": {
+              "new_name": "T8",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0850799,
+              "y": -0.0150203,
+              "z": -0.00949,
+              "confidence": 0.95
+            },
+            "C4": {
+              "new_name": "C4",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.06711790000000001,
+              "y": -0.0109003,
+              "z": 0.06358,
+              "confidence": 0.95
+            },
+            "CZ": {
+              "new_name": "Cz",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0004009,
+              "y": -0.009167,
+              "z": 0.100244,
+              "confidence": 0.95
+            },
+            "C3": {
+              "new_name": "C3",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.06535809999999999,
+              "y": -0.0116317,
+              "z": 0.064358,
+              "confidence": 0.95
+            },
+            "T7": {
+              "new_name": "T7",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0841611,
+              "y": -0.0160187,
+              "z": -0.009346,
+              "confidence": 0.95
+            },
+            "CP6": {
+              "new_name": "CP6",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0833218,
+              "y": -0.046101300000000005,
+              "z": 0.031206,
+              "confidence": 0.95
+            },
+            "CP2": {
+              "new_name": "CP2",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0383838,
+              "y": -0.0470731,
+              "z": 0.090695,
+              "confidence": 0.95
+            },
+            "CP1": {
+              "new_name": "CP1",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0355131,
+              "y": -0.0472919,
+              "z": 0.091315,
+              "confidence": 0.95
+            },
+            "CP5": {
+              "new_name": "CP5",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0795922,
+              "y": -0.0465507,
+              "z": 0.030949,
+              "confidence": 0.95
+            },
+            "TP10": {
+              "new_name": "TP10",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0861618,
+              "y": -0.0470353,
+              "z": -0.045869,
+              "confidence": 0.95
+            },
+            "P8": {
+              "new_name": "P8",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0730557,
+              "y": -0.07306829999999999,
+              "z": -0.00254,
+              "confidence": 0.95
+            },
+            "P4": {
+              "new_name": "P4",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0556667,
+              "y": -0.0785602,
+              "z": 0.056561,
+              "confidence": 0.95
+            },
+            "PZ": {
+              "new_name": "Pz",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0003247,
+              "y": -0.08111499999999999,
+              "z": 0.082615,
+              "confidence": 0.95
+            },
+            "P3": {
+              "new_name": "P3",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0530073,
+              "y": -0.0787878,
+              "z": 0.05594,
+              "confidence": 0.95
+            },
+            "P7": {
+              "new_name": "P7",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0724343,
+              "y": -0.0734527,
+              "z": -0.002487,
+              "confidence": 0.95
+            },
+            "TP9": {
+              "new_name": "TP9",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0856192,
+              "y": -0.0465147,
+              "z": -0.045707,
+              "confidence": 0.95
+            },
+            "O2": {
+              "new_name": "O2",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0298426,
+              "y": -0.112156,
+              "z": 0.0088,
+              "confidence": 0.95
+            },
+            "O1": {
+              "new_name": "O1",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0294134,
+              "y": -0.112449,
+              "z": 0.008839,
+              "confidence": 0.95
+            }
+          },
+          "device_name": "SynAmps RT amplifier",
+          "device_manufacturer": "Compumedics NeuroScan Inc."
+        }
+      }
+    },
+    "recording_info": {
+      "recording_info": [
+        {
+          "recording_id": "sub-01_task-control",
+          "subject_id": "sub-01",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-01_task-negative",
+          "subject_id": "sub-01",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-01_task-positive",
+          "subject_id": "sub-01",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-01_task-resting",
+          "subject_id": "sub-01",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-02_task-control",
+          "subject_id": "sub-02",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-02_task-negative",
+          "subject_id": "sub-02",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-02_task-positive",
+          "subject_id": "sub-02",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-02_task-resting",
+          "subject_id": "sub-02",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-03_task-control",
+          "subject_id": "sub-03",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-03_task-negative",
+          "subject_id": "sub-03",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-03_task-positive",
+          "subject_id": "sub-03",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-03_task-resting",
+          "subject_id": "sub-03",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-04_task-control",
+          "subject_id": "sub-04",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-04_task-negative",
+          "subject_id": "sub-04",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-04_task-positive",
+          "subject_id": "sub-04",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-04_task-resting",
+          "subject_id": "sub-04",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-05_task-control",
+          "subject_id": "sub-05",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-05_task-negative",
+          "subject_id": "sub-05",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-05_task-positive",
+          "subject_id": "sub-05",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-05_task-resting",
+          "subject_id": "sub-05",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-06_task-control",
+          "subject_id": "sub-06",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-06_task-negative",
+          "subject_id": "sub-06",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-06_task-positive",
+          "subject_id": "sub-06",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-06_task-resting",
+          "subject_id": "sub-06",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-07_task-control",
+          "subject_id": "sub-07",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-07_task-negative",
+          "subject_id": "sub-07",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-07_task-positive",
+          "subject_id": "sub-07",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-07_task-resting",
+          "subject_id": "sub-07",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-08_task-control",
+          "subject_id": "sub-08",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-08_task-negative",
+          "subject_id": "sub-08",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-08_task-positive",
+          "subject_id": "sub-08",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-08_task-resting",
+          "subject_id": "sub-08",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-09_task-control",
+          "subject_id": "sub-09",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-09_task-negative",
+          "subject_id": "sub-09",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-09_task-positive",
+          "subject_id": "sub-09",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-09_task-resting",
+          "subject_id": "sub-09",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-10_task-control",
+          "subject_id": "sub-10",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-10_task-negative",
+          "subject_id": "sub-10",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-10_task-positive",
+          "subject_id": "sub-10",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-10_task-resting",
+          "subject_id": "sub-10",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-11_task-control",
+          "subject_id": "sub-11",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-11_task-negative",
+          "subject_id": "sub-11",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-11_task-positive",
+          "subject_id": "sub-11",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-11_task-resting",
+          "subject_id": "sub-11",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-12_task-control",
+          "subject_id": "sub-12",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-12_task-negative",
+          "subject_id": "sub-12",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-12_task-positive",
+          "subject_id": "sub-12",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-12_task-resting",
+          "subject_id": "sub-12",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-13_task-control",
+          "subject_id": "sub-13",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-13_task-negative",
+          "subject_id": "sub-13",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-13_task-positive",
+          "subject_id": "sub-13",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-13_task-resting",
+          "subject_id": "sub-13",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-14_task-control",
+          "subject_id": "sub-14",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-14_task-negative",
+          "subject_id": "sub-14",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-14_task-positive",
+          "subject_id": "sub-14",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-14_task-resting",
+          "subject_id": "sub-14",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-15_task-control",
+          "subject_id": "sub-15",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-15_task-negative",
+          "subject_id": "sub-15",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-15_task-positive",
+          "subject_id": "sub-15",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-15_task-resting",
+          "subject_id": "sub-15",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-16_task-control",
+          "subject_id": "sub-16",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-16_task-negative",
+          "subject_id": "sub-16",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-16_task-positive",
+          "subject_id": "sub-16",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-16_task-resting",
+          "subject_id": "sub-16",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-17_task-control",
+          "subject_id": "sub-17",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-17_task-negative",
+          "subject_id": "sub-17",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-17_task-positive",
+          "subject_id": "sub-17",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-17_task-resting",
+          "subject_id": "sub-17",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-18_task-control",
+          "subject_id": "sub-18",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-18_task-negative",
+          "subject_id": "sub-18",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-18_task-positive",
+          "subject_id": "sub-18",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-18_task-resting",
+          "subject_id": "sub-18",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-19_task-control",
+          "subject_id": "sub-19",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-19_task-negative",
+          "subject_id": "sub-19",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-19_task-positive",
+          "subject_id": "sub-19",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-19_task-resting",
+          "subject_id": "sub-19",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-20_task-control",
+          "subject_id": "sub-20",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-20_task-negative",
+          "subject_id": "sub-20",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-20_task-positive",
+          "subject_id": "sub-20",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-20_task-resting",
+          "subject_id": "sub-20",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-21_task-control",
+          "subject_id": "sub-21",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-21_task-negative",
+          "subject_id": "sub-21",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-21_task-positive",
+          "subject_id": "sub-21",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-21_task-resting",
+          "subject_id": "sub-21",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-22_task-control",
+          "subject_id": "sub-22",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-22_task-negative",
+          "subject_id": "sub-22",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-22_task-positive",
+          "subject_id": "sub-22",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-22_task-resting",
+          "subject_id": "sub-22",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-23_task-control",
+          "subject_id": "sub-23",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-23_task-negative",
+          "subject_id": "sub-23",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-23_task-positive",
+          "subject_id": "sub-23",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-23_task-resting",
+          "subject_id": "sub-23",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-24_task-control",
+          "subject_id": "sub-24",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-24_task-negative",
+          "subject_id": "sub-24",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-24_task-positive",
+          "subject_id": "sub-24",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-24_task-resting",
+          "subject_id": "sub-24",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-25_task-control",
+          "subject_id": "sub-25",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-25_task-negative",
+          "subject_id": "sub-25",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-25_task-positive",
+          "subject_id": "sub-25",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-25_task-resting",
+          "subject_id": "sub-25",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-26_task-control",
+          "subject_id": "sub-26",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-26_task-negative",
+          "subject_id": "sub-26",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-26_task-positive",
+          "subject_id": "sub-26",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-26_task-resting",
+          "subject_id": "sub-26",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-27_task-control",
+          "subject_id": "sub-27",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-27_task-negative",
+          "subject_id": "sub-27",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-27_task-positive",
+          "subject_id": "sub-27",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-27_task-resting",
+          "subject_id": "sub-27",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-28_task-control",
+          "subject_id": "sub-28",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-28_task-negative",
+          "subject_id": "sub-28",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-28_task-positive",
+          "subject_id": "sub-28",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-28_task-resting",
+          "subject_id": "sub-28",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-29_task-control",
+          "subject_id": "sub-29",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-29_task-negative",
+          "subject_id": "sub-29",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-29_task-positive",
+          "subject_id": "sub-29",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-29_task-resting",
+          "subject_id": "sub-29",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-30_task-control",
+          "subject_id": "sub-30",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-30_task-negative",
+          "subject_id": "sub-30",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-30_task-positive",
+          "subject_id": "sub-30",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-30_task-resting",
+          "subject_id": "sub-30",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-31_task-control",
+          "subject_id": "sub-31",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-31_task-negative",
+          "subject_id": "sub-31",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-31_task-positive",
+          "subject_id": "sub-31",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-31_task-resting",
+          "subject_id": "sub-31",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-32_task-control",
+          "subject_id": "sub-32",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-32_task-negative",
+          "subject_id": "sub-32",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-32_task-positive",
+          "subject_id": "sub-32",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-32_task-resting",
+          "subject_id": "sub-32",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-33_task-control",
+          "subject_id": "sub-33",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-33_task-negative",
+          "subject_id": "sub-33",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-33_task-positive",
+          "subject_id": "sub-33",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-33_task-resting",
+          "subject_id": "sub-33",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-34_task-control",
+          "subject_id": "sub-34",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-34_task-negative",
+          "subject_id": "sub-34",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-34_task-positive",
+          "subject_id": "sub-34",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-34_task-resting",
+          "subject_id": "sub-34",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-35_task-control",
+          "subject_id": "sub-35",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-35_task-negative",
+          "subject_id": "sub-35",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-35_task-positive",
+          "subject_id": "sub-35",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-35_task-resting",
+          "subject_id": "sub-35",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-36_task-control",
+          "subject_id": "sub-36",
+          "task_id": "control",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-36_task-negative",
+          "subject_id": "sub-36",
+          "task_id": "negative",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-36_task-positive",
+          "subject_id": "sub-36",
+          "task_id": "positive",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-36_task-resting",
+          "subject_id": "sub-36",
+          "task_id": "resting",
+          "channel_map_id": "neuroscan_synamps_32",
+          "duration_seconds": 0.0,
+          "num_channels": 29,
+          "participant_info": {
+            "age": "n/a",
+            "sex": "n/a",
+            "handedness": "n/a"
+          },
+          "channels_to_remove": []
+        }
+      ]
+    }
+  }
+}
