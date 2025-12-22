@@ -55,8 +55,8 @@ def extract_brainset_description(
 
 def extract_subject_description(
     subject_id: str,
-    age: float,
-    sex: Union[str, int, Sex],
+    age: Union[float, int, str, None],
+    sex: Union[str, int, Sex, None],
 ) -> SubjectDescription:
     """
     Create a SubjectDescription object for a human subject.
@@ -64,25 +64,44 @@ def extract_subject_description(
     Args:
         subject_id : str
             Unique identifier for the subject.
-        age : float
-            Age of the subject in days.
-        sex : str, int, or Sex
-            Sex of the subject. Can be a string (e.g., "M", "Male", "F", "Female"),
-            an integer (0=UNKNOWN, 1=MALE, 2=FEMALE, 3=OTHER), or a Sex enum.
+        age : float, int, str, or None
+            Age of the subject.
+        sex : str, int, Sex, or None
+            Sex of the subject. (0=U=UNKNOWN, 1=M=MALE, 2=F=FEMALE, 3=O=OTHER).
     Returns:
         SubjectDescription
             An object describing the subject, with species set to Homo sapiens.
     """
-    if isinstance(sex, str):
-        sex = Sex.from_string(sex)
+    if age is None:
+        age_normalized = 0.0
+    elif isinstance(age, (int, float)):
+        age_normalized = float(age)
+    elif isinstance(age, str):
+        try:
+            age_normalized = float(age)
+        except (ValueError, TypeError):
+            age_normalized = 0.0
+
+    if sex is None:
+        sex_normalized = Sex.UNKNOWN
+    elif isinstance(sex, Sex):
+        sex_normalized = sex
+    elif isinstance(sex, str):
+        try:
+            sex_normalized = Sex.from_string(sex)
+        except ValueError:
+            sex_normalized = Sex.UNKNOWN
     elif isinstance(sex, int):
-        sex = Sex(sex)
+        try:
+            sex_normalized = Sex(sex)  # (0=UNKNOWN, 1=MALE, 2=FEMALE, 3=OTHER)
+        except ValueError:
+            sex_normalized = Sex.UNKNOWN
 
     return SubjectDescription(
         id=subject_id,
         species=Species.HOMO_SAPIENS,
-        age=age,
-        sex=sex,
+        age=age_normalized,
+        sex=sex_normalized,
     )
 
 

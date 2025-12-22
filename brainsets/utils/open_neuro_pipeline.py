@@ -522,8 +522,8 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
         subject_description = extract_subject_description(
             subject_id=subject_id,
-            age=subject_info.get("age", 0.0),
-            sex=subject_info.get("sex", "UNKNOWN"),
+            age=subject_info.get("age"),
+            sex=subject_info.get("sex"),
         )
 
         meas_date = extract_meas_date(raw)
