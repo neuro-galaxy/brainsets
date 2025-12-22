@@ -20,9 +20,6 @@ from brainsets.utils.open_neuro import (
     construct_s3_url,
     download_prefix_from_s3,
     check_recording_files_exist,
-    fetch_latest_version_tag,
-    fetch_metadata,
-    apply_channel_mapping,
 )
 from brainsets.utils.open_neuro_utils.data_extraction import (
     extract_brainset_description,
@@ -331,7 +328,8 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         ----------
         manifest_item : pandas.Series
             A single row of the manifest returned by :meth:`get_manifest()`.
-            Should contain 'recording_id', 'subject_id', 'dataset_id', 'version_tag', 's3_url' and 'fpath' fields.
+            Should contain 'recording_id', 'subject_id', 'dataset_id', 'version_tag',
+            's3_url', 'fpath', 'subject_info', 'device_info', and 'channel_mapping' fields.
 
         Returns
         -------
@@ -342,7 +340,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 - 'subject_info': Subject information (e.g., {'age': '25', 'sex': 'F'})
                 - 'device_info': Device information
                 - 'channel_mapping': Dictionary mapping old channel names to standard names
-                - 'fpath': Local file path where the manifest item was downloaded
+                - 'fpath': Local file path (Path object) where the manifest item was downloaded
         """
         self.update_status("DOWNLOADING")
         self.raw_dir.mkdir(exist_ok=True, parents=True)
@@ -380,7 +378,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             download_prefix_from_s3(s3_url, target_dir)
             fpath = subject_dir
         except Exception as e:
-            fpath = None
             raise RuntimeError(
                 f"Failed to download data for {subject_id} from {dataset_id}: {str(e)}"
             )
@@ -407,7 +404,8 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         Parameters
         ----------
         download_output : dict
-            Dictionary returned by :meth:`download()`
+            Dictionary returned by :meth:`download()`. Must contain 'recording_id',
+            'subject_id', 'subject_info', 'device_info', 'channel_mapping', and 'fpath' keys.
 
         Returns
         -------
@@ -474,7 +472,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         # TODO: reverif ses- patterns in BIDS ?
         parts = eeg_file.parts
         session_id = None
-        for i, part in enumerate(parts):
+        for part in parts:
             if part.startswith("ses-"):
                 session_id = part.replace("ses-", "")
                 break
@@ -565,7 +563,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
         return data, store_path
 
-    def process(self, download_output: dict):
+    def process(self, download_output: dict) -> None:
         """Process and save the dataset according to two options:
 
         **Option 1: Use the default implementation**
