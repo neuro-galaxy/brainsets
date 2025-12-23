@@ -1,4 +1,4 @@
-name: Publish to PyPI and TestPyPI
+name: Publish to PyPI
 
 on:
   push:
@@ -6,8 +6,49 @@ on:
       - "v*"
 
 jobs:
+  validate-tag:
+    name: Validate tag follows PEP 440
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Validate tag is PEP 440 compliant
+        run: |
+          TAG="${{ github.ref_name }}"
+          
+          # Validate against PEP 440 canonical format using the exact regex from PEP 440
+          python << EOF
+          import re
+          import sys
+          from packaging.version import Version, InvalidVersion
+          
+          tag = '$TAG'
+          version = tag.removeprefix("v")
+          
+          # Exact regex from PEP 440 for canonical version format
+          # Pattern from: https://peps.python.org/pep-0440/#appendix-b-parsing-version-strings-with-regular-expressions
+          def is_canonical(version):
+              return re.match(r'^([1-9][0-9]*!)?(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))*((a|b|rc)(0|[1-9][0-9]*))?(\.post(0|[1-9][0-9]*))?(\.dev(0|[1-9][0-9]*))?$', version) is not None
+          
+          if not is_canonical(version):
+              print(f'✗ Tag {tag} (version {version}) is not in PEP 440 canonical format')
+              sys.exit(1)
+          
+          # Also validate with packaging to ensure it's a valid PEP 440 version
+          try:
+              v = Version(version)
+              print(f'✓ Tag {tag} is valid PEP 440 canonical version: {v}')
+          except InvalidVersion as e:
+              print(f'✗ Tag {tag} (version {version}) is not a valid PEP 440 version: {e}')
+              sys.exit(1)
+          EOF
+
   build:
     name: Build distribution 📦
+    needs: validate-tag
     runs-on: ubuntu-latest
 
     steps:
@@ -35,40 +76,10 @@ jobs:
         name: python-package-distributions
         path: dist/
 
-  publish-to-testpypi:
-    name: Publish Python 🐍 distribution 📦 to TestPyPI
-    needs: build
-    runs-on: ubuntu-latest
-    # LOGIC: Only run this if the tag contains "rc", "a", or "b" (e.g., v0.1.2rc1)
-    if: contains(github.ref, 'rc') || contains(github.ref, 'a') || contains(github.ref, 'b')
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/p/brainsets
-    permissions:
-      id-token: write # IMPORTANT: mandatory for trusted publishing
-
-    steps:
-      - name: Download all the dists
-        uses: actions/download-artifact@v4
-        with:
-          name: python-package-distributions
-          path: dist/
-
-      - name: Publish distribution 📦 to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-
   publish-to-pypi:
     name: Publish Python 🐍 distribution 📦 to PyPI
     needs: build
     runs-on: ubuntu-latest
-    # LOGIC: Only run this if the tag DOES NOT contain pre-release strings
-    if: >-
-      !contains(github.ref, 'rc') && 
-      !contains(github.ref, 'a') && 
-      !contains(github.ref, 'b') &&
-      !contains(github.ref, 'dev')
     environment:
       name: pypi
       url: https://pypi.org/p/brainsets
