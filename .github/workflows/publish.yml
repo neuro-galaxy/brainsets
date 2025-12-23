@@ -25,12 +25,14 @@ jobs:
           tag = '$TAG'
           
           # Check for valid patterns: vX.Y.Z, vX.Y.ZrcN, vX.Y.ZaN, vX.Y.ZbN
+          # With optional .postN suffix: vX.Y.Z.postN, vX.Y.ZrcN.postN, etc.
           # Where X, Y, Z, N are numbers
-          pattern = r'^v\d+\.\d+\.\d+(rc\d+|a\d+|b\d+)?$'
+          pattern = r'^v\d+\.\d+\.\d+(rc\d+|a\d+|b\d+)?(\.post\d+)?$'
           
           if not re.match(pattern, tag):
               print(f'✗ Tag {tag} does not match required format (per RELEASE.md)')
               print('  Valid formats: vX.Y.Z, vX.Y.ZrcN, vX.Y.ZaN, vX.Y.ZbN')
+              print('  With optional .postN: vX.Y.Z.postN, vX.Y.ZrcN.postN, etc.')
               print('  Where X, Y, Z, N are numbers')
               exit(1)
           

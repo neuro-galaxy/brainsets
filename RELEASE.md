@@ -21,6 +21,12 @@ $ git push origin vX.Y.Z
 
 - For version number, we follow [SemVer](https://semver.org/) (major.minor.patch).
 - For pre-release tags, we follow the [PEP440](https://peps.python.org/pep-0440/) syntax:
-  - `v0.1.3rc1`: First release candidate for v0.1.3
-  - `v0.1.3a3`: 3rd alpha release of v0.1.3
-  - `v0.1.3b4`: 4th beta release of v0.1.3
+```
+vX.Y.ZaN   # Alpha release
+vX.Y.ZbN   # Beta release
+vX.Y.ZrcN  # Release candidate
+vX.Y.Z     # Final release
+```
+- For post-release tags, we also follow the [PEP440](https://peps.python.org/pep-0440/) syntax:
+  - `vY.Y.Z.postN`, `vX.Y.Z.aN.postM`, ...
+  - Post releases are only meant for metadata/distribution related corrections, and not code edits
