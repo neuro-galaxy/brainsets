@@ -9,7 +9,7 @@ $ git tag vX.Y.Z
 $ git push origin vX.Y.Z
 ```
 5. Monitor the GitHub Actions workflow to ensure the build and publish succeed
-6. Add a Github Release with a small description of changes from the last release.
+6. Add a GitHub Release with a small description of changes from the last release.
 
 ## Pre-release versions go to TestPyPI
 
