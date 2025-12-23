@@ -6,6 +6,8 @@
 4. Create and push the release tag ([see here](#valid-version-numbers-and-their-meaning) for version syntax)
 
 ```bash
+$ git checkout main
+$ git pull origin main
 $ git tag vX.Y.Z
 $ git push origin vX.Y.Z
 ```
