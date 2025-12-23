@@ -1,4 +1,4 @@
-# Workflow for Releasing to PyPI and TestPyPI
+# Workflow for Releasing to PyPI
 
 1. Ensure `main` is ready to release
 2. Make sure `CHANGELOG.md` is up to date (review commit history to verify, open a Release PR if changes are needed)
@@ -10,6 +10,11 @@ $ git push origin vX.Y.Z
 ```
 5. Monitor the GitHub Actions workflow to ensure the build and publish succeed
 6. Add a GitHub Release with a small description of changes from the last release.
+
+## Valid version numbers and their meaning
+
+- Tags must start with "v" for the publishing Github Action to begin.
+- We follow [PEP440](https://peps.python.org/pep-0440/) canonical public version identifiers.
 
 ## Pre-release versions go to TestPyPI
 
