@@ -18,5 +18,5 @@ $ git push origin vX.Y.Z
 - For version number we follow [SemVer](https://semver.org/) (major.minor.patch).
 - For pre-release tags, we follow the [PEP440](https://peps.python.org/pep-0440/) syntax: 
     - v0.1.3rc1: First release candidate for v0.1.3
-    - v0.1.3a3: 3rd alpha version of v0.1.3
-    - v0.1.3b4: 4th Beta version of v0.1.3
+    - v0.1.3a3: 3rd alpha release of v0.1.3
+    - v0.1.3b4: 4th beta release of v0.1.3

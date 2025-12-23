@@ -6,8 +6,40 @@ on:
       - "v*"
 
 jobs:
+  validate-tag:
+    name: Validate tag follows RELEASE.md
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Validate tag format
+        run: |
+          TAG="${{ github.ref_name }}"
+          
+          python << EOF
+          import re
+          
+          tag = '$TAG'
+          
+          # Check for valid patterns: vX.Y.Z, vX.Y.ZrcN, vX.Y.ZaN, vX.Y.ZbN
+          # Where X, Y, Z, N are numbers
+          pattern = r'^v\d+\.\d+\.\d+(rc\d+|a\d+|b\d+)?$'
+          
+          if not re.match(pattern, tag):
+              print(f'✗ Tag {tag} does not match required format (per RELEASE.md)')
+              print('  Valid formats: vX.Y.Z, vX.Y.ZrcN, vX.Y.ZaN, vX.Y.ZbN')
+              print('  Where X, Y, Z, N are numbers')
+              exit(1)
+          
+          print(f'✓ Tag {tag} is valid')
+          EOF
+
   build:
     name: Build distribution 📦
+    needs: validate-tag
     runs-on: ubuntu-latest
 
     steps:
