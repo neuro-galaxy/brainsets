@@ -1,4 +1,4 @@
-# Workflow for Releasing to PyPI
+# Releasing to PyPI
 
 1. Ensure `main` is ready to release
 2. Make sure `CHANGELOG.md` is up to date (review commit history to verify, open a Release PR if changes are needed)
