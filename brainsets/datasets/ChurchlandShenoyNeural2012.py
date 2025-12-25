@@ -8,10 +8,10 @@ class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
     def __init__(
         self,
         root: str,
-        dirname: str = "churchland_shenoy_neural_2012",
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
         split_type: Optional[Literal["cursor_velocity"]] = "cursor_velocity",
+        dirname: str = "churchland_shenoy_neural_2012",
         **kwargs,
     ):
         super().__init__(

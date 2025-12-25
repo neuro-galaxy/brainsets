@@ -8,10 +8,10 @@ class AllenVisualCodingOphys2016(CalciumImagingDatasetMixin, Dataset):
     def __init__(
         self,
         root: str,
-        dirname: str = "allen_visual_coding_ophys_2016",
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
         split_type: Optional[Literal["poyo_plus"]] = "poyo_plus",
+        dirname: str = "allen_visual_coding_ophys_2016",
         **kwargs,
     ):
 

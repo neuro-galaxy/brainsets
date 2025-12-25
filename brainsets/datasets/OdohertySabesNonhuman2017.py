@@ -8,10 +8,10 @@ class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
     def __init__(
         self,
         root: str,
-        dirname: str = "odoherty_sabes_nonhuman_2017",
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
         split_type: Optional[Literal["cursor_velocity"]] = "cursor_velocity",
+        dirname: str = "odoherty_sabes_nonhuman_2017",
         **kwargs,
     ):
         super().__init__(

@@ -8,9 +8,9 @@ class PerichMillerPopulation2018(SpikingDatasetMixin, Dataset):
     def __init__(
         self,
         root: str,
-        dirname: str = "perich_miller_population_2018",
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
+        dirname: str = "perich_miller_population_2018",
         **kwargs,
     ):
         super().__init__(

@@ -8,10 +8,10 @@ class FlintSlutzkyAccurate2012(SpikingDatasetMixin, Dataset):
     def __init__(
         self,
         root: str,
-        dirname: str = "flint_slutzky_accurate_2012",
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
         split_type: Optional[Literal["hand_velocity"]] = "hand_velocity",
+        dirname: str = "flint_slutzky_accurate_2012",
         **kwargs,
     ):
         super().__init__(

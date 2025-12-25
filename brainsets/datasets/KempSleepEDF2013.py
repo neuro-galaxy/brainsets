@@ -11,11 +11,11 @@ class KempSleepEDF2013(Dataset):
     def __init__(
         self,
         root: str,
-        dirname: str = "perich_miller_population_2018",
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
         uniquify_channel_ids: bool = True,
         split_type: Optional[Literal["fold_0", "fold_1", "fold_2"]] = "fold_0",
+        dirname: str = "perich_miller_population_2018",
         **kwargs,
     ):
         super().__init__(

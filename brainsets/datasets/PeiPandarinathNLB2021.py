@@ -8,9 +8,9 @@ class PeiPandarinathNLB2021(SpikingDatasetMixin, Dataset):
     def __init__(
         self,
         root: str,
-        dirname: str = "pei_pandarinath_nlb_2021",
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
+        dirname: str = "pei_pandarinath_nlb_2021",
         **kwargs,
     ):
         super().__init__(
