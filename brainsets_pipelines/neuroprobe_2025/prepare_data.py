@@ -62,7 +62,13 @@ def extract_channel_data(subject: BrainTreebankSubject) -> ArrayDict:
     return channels
 
 
-def extract_splits(subject_id: int, trial_id: int) -> Tuple[Dict, ArrayDict]:
+def extract_splits(
+    subject_id: int,
+    trial_id: int,
+    *,
+    lite: bool,
+    nano: bool,
+) -> Tuple[Dict, ArrayDict]:
     split_indices = {}
     subject = BrainTreebankSubject(
         subject_id=subject_id,
@@ -79,11 +85,9 @@ def extract_splits(subject_id: int, trial_id: int) -> Tuple[Dict, ArrayDict]:
     for eval_name in neuroprobe_config.NEUROPROBE_TASKS_MAPPING:
         split_indices[eval_name] = {}
 
-        # TODO make this configurable at brainsets CLI level
+        # Allow selecting lite/full/nano from CLI.
         dtype = torch.float32
         binary_tasks = True
-        lite = True
-        nano = False
         max_samples = None
         start_neural_data_before_word_onset = 0
         end_neural_data_after_word_onset = neuroprobe_config.SAMPLING_RATE * 1
@@ -177,6 +181,23 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_file", type=str)
     parser.add_argument("--output_dir", type=str, default="./processed")
+    parser.add_argument(
+        "--lite",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Use Neuroprobe-Lite trial/electrode subsets (default: true).",
+    )
+    parser.add_argument(
+        "--nano",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Use Neuroprobe-Nano trial/electrode subsets (default: false).",
+    )
+    parser.add_argument(
+        "--no_splits",
+        action="store_true",
+        help="Skip trialization/split extraction; write only processed data.",
+    )
 
     args = parser.parse_args()
 
@@ -232,8 +253,25 @@ def main():
 
     # extract all data
     subject = get_subject_metadata(subject_id)
-    split_indices, channels = extract_splits(subject_id, trial_id)
-    logging.info(f"Extracted {len(split_indices)} splits")
+    if args.no_splits:
+        subject_obj = BrainTreebankSubject(
+            subject_id=subject_id,
+            allow_corrupted=False,
+            cache=False,
+            dtype=torch.float32,
+            coordinates_type="lpi",
+        )
+        channels = extract_channel_data(subject_obj)
+        split_indices = {}
+        logging.info("Skipping split extraction (--no_splits)")
+    else:
+        split_indices, channels = extract_splits(
+            subject_id,
+            trial_id,
+            lite=args.lite,
+            nano=args.nano,
+        )
+        logging.info(f"Extracted {len(split_indices)} splits")
     seeg_data = extract_neural_data(args.input_file, channels)
 
     logging.info(

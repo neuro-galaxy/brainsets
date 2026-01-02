@@ -2,11 +2,14 @@
 # Neuroprobe Benchmark (Zahorodnii et al., 2025)
 ######################################################
 
+import os
+
 DATASET = "neuroprobe_2025"
 
 RAW_DIR = config["RAW_DIR"]
 PROCESSED_DIR = config["PROCESSED_DIR"]
 PIPELINE_DIR = Path(workflow.basedir)
+PREPARE_ARGS = config.get("PREPARE_ARGS", os.environ.get("PREPARE_ARGS", ""))
 
 
 checkpoint download_data:
@@ -21,7 +24,7 @@ checkpoint download_data:
             [ -z "$href" ] && continue
             fname=$(basename "$href")
             wget -nc -O {RAW_DIR}/{DATASET}/"$fname" "$BASE_URL/$href"
-        done < {PIPELINE_DIR}/download_hrefs_lite.txt
+        done < {PIPELINE_DIR}/download_hrefs.txt
 
         for f in {RAW_DIR}/{DATASET}/*; do
             [ -e "$f" ] || continue
@@ -49,7 +52,7 @@ rule prepare_data:
     shell:
         f"""
         mkdir -p {PROCESSED_DIR}/{DATASET}/tmp
-        ROOT_DIR_BRAINTREEBANK={RAW_DIR}/{DATASET} python -m brainsets_pipelines.{DATASET}.prepare_data --input_file {{input.h5_file}} --output_dir {PROCESSED_DIR}/{DATASET} 2>&1 | tee {{log}}
+        ROOT_DIR_BRAINTREEBANK={RAW_DIR}/{DATASET} python -m brainsets_pipelines.{DATASET}.prepare_data --input_file {{input.h5_file}} --output_dir {PROCESSED_DIR}/{DATASET} {PREPARE_ARGS} 2>&1 | tee {{log}}
         find {PROCESSED_DIR}/{DATASET}/ -type f -name "*.h5" | sed "s|^{PROCESSED_DIR}/{DATASET}//||" > {{output}}
         """
 
