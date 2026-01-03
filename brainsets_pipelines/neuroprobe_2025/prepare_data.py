@@ -17,10 +17,19 @@ from brainsets.descriptions import (
 )
 from brainsets.taxonomy import RecordingTech, Species, Sex
 from brainsets import serialize_fn_map
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 logging.basicConfig(level=logging.INFO)
 
+
+def _get_electrode_labels(dataset) -> np.ndarray:
+    if hasattr(dataset, "electrode_labels"):
+        return dataset.electrode_labels
+    if hasattr(dataset, "dataset"):
+        return _get_electrode_labels(dataset.dataset)
+    raise AttributeError(
+        f"{type(dataset).__name__} has no electrode_labels and no nested dataset"
+    )
 
 def get_subject_metadata(subject_id: int) -> SubjectDescription:
     return SubjectDescription(
@@ -113,14 +122,14 @@ def extract_splits(
                 channels,
                 f"included_{eval_name}_fold{fold_idx}_train",
                 np.isin(
-                    channels.name, fold["train_dataset"].dataset.electrode_labels
+                    channels.name, _get_electrode_labels(fold["train_dataset"])
                 ).astype(bool),
             )
             setattr(
                 channels,
                 f"included_{eval_name}_fold{fold_idx}_test",
                 np.isin(
-                    channels.name, fold["test_dataset"].dataset.electrode_labels
+                    channels.name, _get_electrode_labels(fold["test_dataset"])
                 ).astype(bool),
             )
 
@@ -177,36 +186,17 @@ def extract_neural_data(input_file: str, channels: ArrayDict) -> IrregularTimeSe
     return seeg_data
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input_file", type=str)
-    parser.add_argument("--output_dir", type=str, default="./processed")
-    parser.add_argument(
-        "--lite",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Use Neuroprobe-Lite trial/electrode subsets (default: true).",
-    )
-    parser.add_argument(
-        "--nano",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Use Neuroprobe-Nano trial/electrode subsets (default: false).",
-    )
-    parser.add_argument(
-        "--no_splits",
-        action="store_true",
-        help="Skip trialization/split extraction; write only processed data.",
-    )
-
-    args = parser.parse_args()
-
-    if args.input_file is None:
-        logging.error("Input file is required (--input_file)")
-        return
-    if args.output_dir is None:
-        logging.error("Output directory is required (--output_dir)")
-        return
+def process_file(
+    input_file: str,
+    output_dir: str,
+    *,
+    lite: bool = True,
+    nano: bool = False,
+    no_splits: bool = False,
+    root_dir: Optional[str] = None,
+) -> str:
+    if root_dir is not None:
+        os.environ["ROOT_DIR_BRAINTREEBANK"] = root_dir
 
     brainset_description = BrainsetDescription(
         id="neuroprobe_2025",
@@ -238,7 +228,7 @@ def main():
     )
 
     # extract subject_id and trial_id from input_file path
-    input_file_basename = os.path.basename(args.input_file)
+    input_file_basename = os.path.basename(input_file)
     match = re.match(r"sub_(\d+)_trial(\d{3})", input_file_basename)
     if not match:
         raise ValueError(
@@ -248,12 +238,12 @@ def main():
     trial_id = int(match.group(2))
 
     logging.info(
-        f"Processing file: {args.input_file} (subject_id: {subject_id}, trial_id: {trial_id})"
+        f"Processing file: {input_file} (subject_id: {subject_id}, trial_id: {trial_id})"
     )
 
     # extract all data
     subject = get_subject_metadata(subject_id)
-    if args.no_splits:
+    if no_splits:
         subject_obj = BrainTreebankSubject(
             subject_id=subject_id,
             allow_corrupted=False,
@@ -268,11 +258,11 @@ def main():
         split_indices, channels = extract_splits(
             subject_id,
             trial_id,
-            lite=args.lite,
-            nano=args.nano,
+            lite=lite,
+            nano=nano,
         )
         logging.info(f"Extracted {len(split_indices)} splits")
-    seeg_data = extract_neural_data(args.input_file, channels)
+    seeg_data = extract_neural_data(input_file, channels)
 
     logging.info(
         f"Loaded and registered {len(seeg_data)} samples of neural data with {len(channels)} channels"
@@ -304,10 +294,51 @@ def main():
             )
 
     # save data to disk
-    path = os.path.join(args.output_dir, input_file_basename)
+    path = os.path.join(output_dir, input_file_basename)
     with h5py.File(path, "w") as file:
         data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
     logging.info(f"Saved data to {path}")
+    return path
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input_file", type=str)
+    parser.add_argument("--output_dir", type=str, default="./processed")
+    parser.add_argument(
+        "--lite",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Use Neuroprobe-Lite trial/electrode subsets (default: true).",
+    )
+    parser.add_argument(
+        "--nano",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Use Neuroprobe-Nano trial/electrode subsets (default: false).",
+    )
+    parser.add_argument(
+        "--no_splits",
+        action="store_true",
+        help="Skip trialization/split extraction; write only processed data.",
+    )
+
+    args = parser.parse_args()
+
+    if args.input_file is None:
+        logging.error("Input file is required (--input_file)")
+        return
+    if args.output_dir is None:
+        logging.error("Output directory is required (--output_dir)")
+        return
+    
+    process_file(
+        args.input_file,
+        args.output_dir,
+        lite=args.lite,
+        nano=args.nano,
+        no_splits=args.no_splits,
+    )
 
 
 if __name__ == "__main__":

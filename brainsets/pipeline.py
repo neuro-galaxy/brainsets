@@ -176,6 +176,9 @@ class BrainsetPipeline(ABC):
         log_out_path = log_dir / f"{self._asset_id}.out"
         log_err_path = log_dir / f"{self._asset_id}.err"
 
+        ## self._asset_id may be nested folder path, ensure parent dirs exist
+        log_out_path.parent.mkdir(parents=True, exist_ok=True)
+
         with _redirect_stdio(log_out_path, log_err_path):
             try:
                 self._run_item(manifest_item)
