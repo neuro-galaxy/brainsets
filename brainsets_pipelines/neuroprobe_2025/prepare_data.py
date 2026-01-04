@@ -31,6 +31,12 @@ def _get_electrode_labels(dataset) -> np.ndarray:
         f"{type(dataset).__name__} has no electrode_labels and no nested dataset"
     )
 
+
+def _unpack_dataset_item(item) -> Tuple[np.ndarray, np.ndarray]:
+    if isinstance(item, dict):
+        return item["data"], item["label"]
+    return item[0], item[1]
+
 def get_subject_metadata(subject_id: int) -> SubjectDescription:
     return SubjectDescription(
         id=str(subject_id),
@@ -127,16 +133,35 @@ def extract_splits(
             )
             setattr(
                 channels,
+                f"included_{eval_name}_fold{fold_idx}_val",
+                np.isin(
+                    channels.name, _get_electrode_labels(fold["val_dataset"])
+                ).astype(bool),
+            )
+            setattr(
+                channels,
                 f"included_{eval_name}_fold{fold_idx}_test",
                 np.isin(
                     channels.name, _get_electrode_labels(fold["test_dataset"])
                 ).astype(bool),
             )
 
-            X_train = np.array([item[0] for item in fold["train_dataset"]])
-            y_train = np.array([item[1] for item in fold["train_dataset"]])
-            X_test = np.array([item[0] for item in fold["test_dataset"]])
-            y_test = np.array([item[1] for item in fold["test_dataset"]])
+            train_items = [
+                _unpack_dataset_item(item) for item in fold["train_dataset"]
+            ]
+            train_windows, train_labels = zip(*train_items)
+            X_train = np.array(train_windows)
+            y_train = np.array(train_labels)
+
+            val_items = [_unpack_dataset_item(item) for item in fold["val_dataset"]]
+            val_windows, val_labels = zip(*val_items)
+            X_val = np.array(val_windows)
+            y_val = np.array(val_labels)
+
+            test_items = [_unpack_dataset_item(item) for item in fold["test_dataset"]]
+            test_windows, test_labels = zip(*test_items)
+            X_test = np.array(test_windows)
+            y_test = np.array(test_labels)
 
             # derive train and test intervals from the extracted index windows
             train_intervals = Interval(
@@ -144,6 +169,12 @@ def extract_splits(
                 / neuroprobe_config.SAMPLING_RATE,
                 end=X_train[:, 1].astype(np.float64) / neuroprobe_config.SAMPLING_RATE,
                 label=y_train,
+            )
+            val_intervals = Interval(
+                start=X_val[:, 0].astype(np.float64)
+                / neuroprobe_config.SAMPLING_RATE,
+                end=X_val[:, 1].astype(np.float64) / neuroprobe_config.SAMPLING_RATE,
+                label=y_val,
             )
             test_intervals = Interval(
                 start=X_test[:, 0].astype(np.float64) / neuroprobe_config.SAMPLING_RATE,
@@ -153,6 +184,7 @@ def extract_splits(
 
             split_indices[eval_name][fold_idx] = {
                 "train_intervals": train_intervals,
+                "val_intervals": val_intervals,
                 "test_intervals": test_intervals,
             }
 
@@ -286,6 +318,11 @@ def process_file(
                 data,
                 f"{split_name}_fold{fold_idx}_train",
                 fold_indices["train_intervals"],
+            )
+            setattr(
+                data,
+                f"{split_name}_fold{fold_idx}_val",
+                fold_indices["val_intervals"],
             )
             setattr(
                 data,
