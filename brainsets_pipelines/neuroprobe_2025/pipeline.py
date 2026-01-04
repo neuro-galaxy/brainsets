@@ -1,7 +1,7 @@
 # /// brainset-pipeline
 # python-version = "3.11"
 # dependencies = [
-#   "neuroprobe==0.1.5",
+#   "neuroprobe==0.1.7",
 #   "requests==2.32.5",
 #   "bs4==0.0.2",
 # ]
