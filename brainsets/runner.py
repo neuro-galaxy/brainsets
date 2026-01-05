@@ -159,7 +159,12 @@ def run():
 
         # 1. Start ray
         os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"  # to avoid a warning
-        ray.init("local", num_cpus=args.cores, log_to_driver=False)
+        ray.init(
+            "local",
+            num_cpus=args.cores,
+            log_to_driver=False,
+            logging_level="warning",
+        )
 
         # 2. Start tracker and actors
         tracker = StatusTracker.remote()
