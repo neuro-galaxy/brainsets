@@ -6,6 +6,7 @@ import time
 from collections import defaultdict
 from typing import Dict, Any, List
 from pathlib import Path
+import logging
 import ray
 from ray.util.actor_pool import ActorPool
 
@@ -163,7 +164,8 @@ def run():
             "local",
             num_cpus=args.cores,
             log_to_driver=False,
-            logging_level="warning",
+            configure_logging=True,
+            logging_level=logging.WARNING,
         )
 
         # 2. Start tracker and actors
