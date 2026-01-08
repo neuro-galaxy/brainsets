@@ -1,6 +1,7 @@
 import mne
 import numpy as np
 import datetime
+from typing import Union
 
 from temporaldata import (
     RegularTimeSeries,
@@ -8,7 +9,7 @@ from temporaldata import (
     Interval,
 )
 
-from brainsets.taxonomy import Species
+from brainsets.taxonomy import Species, Sex, Task
 from brainsets.descriptions import (
     BrainsetDescription,
     SessionDescription,
@@ -54,6 +55,8 @@ def extract_brainset_description(
 
 def extract_subject_description(
     subject_id: str,
+    age: Union[float, int, str, None],
+    sex: Union[str, int, Sex, None],
 ) -> SubjectDescription:
     """
     Create a SubjectDescription object for a human subject.
@@ -61,14 +64,44 @@ def extract_subject_description(
     Args:
         subject_id : str
             Unique identifier for the subject.
-
+        age : float, int, str, or None
+            Age of the subject.
+        sex : str, int, Sex, or None
+            Sex of the subject. (0=U=UNKNOWN, 1=M=MALE, 2=F=FEMALE, 3=O=OTHER).
     Returns:
         SubjectDescription
             An object describing the subject, with species set to Homo sapiens.
     """
+    if age is None:
+        age_normalized = 0.0
+    elif isinstance(age, (int, float)):
+        age_normalized = float(age)
+    elif isinstance(age, str):
+        try:
+            age_normalized = float(age)
+        except (ValueError, TypeError):
+            age_normalized = 0.0
+
+    if sex is None:
+        sex_normalized = Sex.UNKNOWN
+    elif isinstance(sex, Sex):
+        sex_normalized = sex
+    elif isinstance(sex, str):
+        try:
+            sex_normalized = Sex.from_string(sex)
+        except ValueError:
+            sex_normalized = Sex.UNKNOWN
+    elif isinstance(sex, int):
+        try:
+            sex_normalized = Sex(sex)  # (0=UNKNOWN, 1=MALE, 2=FEMALE, 3=OTHER)
+        except ValueError:
+            sex_normalized = Sex.UNKNOWN
+
     return SubjectDescription(
         id=subject_id,
         species=Species.HOMO_SAPIENS,
+        age=age_normalized,
+        sex=sex_normalized,
     )
 
 
@@ -91,7 +124,8 @@ def extract_session_description(
     """
     return SessionDescription(
         id=session_id,
-        recording_date=recording_date.strftime("%Y%m%d"),
+        recording_date=recording_date,
+        # task=task, # TODO: add task to the taxonomy
     )
 
 
@@ -186,6 +220,32 @@ def extract_channels(
     )
 
     return channels
+
+
+def channels_from_channel_map(channel_map: dict[str, tuple[str, str]]) -> ArrayDict:
+    """
+    Create an ArrayDict from a channel map.
+
+    Args:
+        channel_map : dict
+            The channel map where values are tuples of (channel_id, channel_type).
+
+    Returns:
+        ArrayDict with fields
+            - id: array of channel IDs
+            - types: array of channel types
+    """
+    channel_names = []
+    channel_types = []
+
+    for ch_name, ch_type in channel_map.values():
+        channel_names.append(ch_name)
+        channel_types.append(ch_type)
+
+    return ArrayDict(
+        id=np.array(channel_names, dtype="U"),
+        types=np.array(channel_types, dtype="U"),
+    )
 
 
 def generate_train_valid_splits_one_epoch(

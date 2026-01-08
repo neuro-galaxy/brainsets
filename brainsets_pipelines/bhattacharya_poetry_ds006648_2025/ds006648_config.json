@@ -1,0 +1,1030 @@
+{
+  "dataset": {
+    "metadata": {
+      "name": "Poetry Assessment EEG Dataset 1",
+      "brainset_name": "bhattacharya_poetry_ds006648_2025",
+      "version": "1.0.0",
+      "dataset_id": "ds006648",
+      "dataset_summary": "This EEG study collected 64-channel EEG recordings and behavioral ratings from 47 participants (from a total of 51) who read and evaluated 210 short English texts, including Haiku, Senryu, and non-poetic control texts. Participants rated each text on five subjective dimensions: Aesthetic Appeal, Vivid Imagery, Being Moved, Originality, and Creativity. The dataset aims to investigate how the brain engages with poetic language and contribute to empirical research on aesthetic and creative cognition. In addition to continuous EEG during the task, resting-state data, individual behavioral ratings, and psychometric questionnaire responses are included.",
+      "task_description": "Participants in this experiment were asked to read and evaluate 210 short English-language texts, consisting of 70 Haiku, 70 Senryu, and 70 non-poetic control texts. Following the presentation of each text, participants provided subjective ratings on a 7-point scale for five dimensions: Aesthetic Appeal, Vivid Imagery, Being Moved, Originality, and Creativity. Continuous 64-channel EEG data were recorded throughout these evaluations, with additional resting-state EEG segments acquired before and after the main task. The objective was to assess brain responses during aesthetic and creative judgments of poetry.",
+      "task_category": "Emotion & Social Cognition",
+      "task_subcategory": "Social cognition & judgment",
+      "authors": [
+        "Soma Chaudhuri",
+        "Joydeep Bhattacharya"
+      ],
+      "date": "10-09-2025"
+    },
+    "channel_maps": {
+      "channel_maps": {
+        "biosemi_64": {
+          "map_name": "biosemi_64",
+          "channels": {
+            "Fp1": {
+              "new_name": "Fp1",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.029338731209276728,
+              "y": 0.0902953300444008,
+              "z": -0.0033154521867375907,
+              "confidence": 1.0
+            },
+            "AF7": {
+              "new_name": "AF7",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.05580558299282924,
+              "y": 0.07680979549268378,
+              "z": -0.0033154521867375907,
+              "confidence": 1.0
+            },
+            "AF3": {
+              "new_name": "AF3",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.038593440966460064,
+              "y": 0.08276390123885072,
+              "z": 0.026185548802614922,
+              "confidence": 1.0
+            },
+            "F1": {
+              "new_name": "F1",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.02726170342798902,
+              "y": 0.0674750837563496,
+              "z": 0.06106482292022124,
+              "confidence": 1.0
+            },
+            "F3": {
+              "new_name": "F3",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.05177570734802805,
+              "y": 0.0639376737816708,
+              "z": 0.047500000000000014,
+              "confidence": 1.0
+            },
+            "F5": {
+              "new_name": "F5",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.06925438011407091,
+              "y": 0.06020191416884566,
+              "z": 0.02458780928473947,
+              "confidence": 1.0
+            },
+            "F7": {
+              "new_name": "F7",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.07680979549268378,
+              "y": 0.05580558299282924,
+              "z": -0.0033154521867375907,
+              "confidence": 1.0
+            },
+            "FT7": {
+              "new_name": "FT7",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0902953300444008,
+              "y": 0.029338731209276724,
+              "z": -0.0033154521867375907,
+              "confidence": 1.0
+            },
+            "FC5": {
+              "new_name": "FC5",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.08434933607004837,
+              "y": 0.03237867649640711,
+              "z": 0.029356614465620007,
+              "confidence": 1.0
+            },
+            "FC3": {
+              "new_name": "FC3",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0642558242221116,
+              "y": 0.034165427778078836,
+              "z": 0.06106482292022124,
+              "confidence": 1.0
+            },
+            "FC1": {
+              "new_name": "FC1",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.03559740299596508,
+              "y": 0.035597402995965075,
+              "z": 0.08056456913486047,
+              "confidence": 1.0
+            },
+            "C1": {
+              "new_name": "C1",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.03711945720648101,
+              "y": 0.0,
+              "z": 0.08744796107798183,
+              "confidence": 1.0
+            },
+            "C3": {
+              "new_name": "C3",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.06833728103217185,
+              "y": 0.0,
+              "z": 0.06599254519360474,
+              "confidence": 1.0
+            },
+            "C5": {
+              "new_name": "C5",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.08869014051723417,
+              "y": 0.0,
+              "z": 0.034044955206803534,
+              "confidence": 1.0
+            },
+            "T7": {
+              "new_name": "T7",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0949421285668141,
+              "y": 0.0,
+              "z": -0.0033154521867375907,
+              "confidence": 1.0
+            },
+            "TP7": {
+              "new_name": "TP7",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0902953300444008,
+              "y": -0.029338731209276724,
+              "z": -0.0033154521867375907,
+              "confidence": 1.0
+            },
+            "CP5": {
+              "new_name": "CP5",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.08434933607004837,
+              "y": -0.03237867649640711,
+              "z": 0.029356614465620007,
+              "confidence": 1.0
+            },
+            "CP3": {
+              "new_name": "CP3",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0642558242221116,
+              "y": -0.034165427778078836,
+              "z": 0.06106482292022124,
+              "confidence": 1.0
+            },
+            "CP1": {
+              "new_name": "CP1",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.03559740299596508,
+              "y": -0.035597402995965075,
+              "z": 0.08056456913486047,
+              "confidence": 1.0
+            },
+            "P1": {
+              "new_name": "P1",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.02726170342798902,
+              "y": -0.0674750837563496,
+              "z": 0.06106482292022124,
+              "confidence": 1.0
+            },
+            "P3": {
+              "new_name": "P3",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.05177570734802805,
+              "y": -0.0639376737816708,
+              "z": 0.047500000000000014,
+              "confidence": 1.0
+            },
+            "P5": {
+              "new_name": "P5",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.06925438011407091,
+              "y": -0.06020191416884566,
+              "z": 0.02458780928473947,
+              "confidence": 1.0
+            },
+            "P7": {
+              "new_name": "P7",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.07680979549268378,
+              "y": -0.05580558299282924,
+              "z": -0.0033154521867375907,
+              "confidence": 1.0
+            },
+            "P9": {
+              "new_name": "P9",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.06965574817546506,
+              "y": -0.050607863369507185,
+              "z": -0.04014873486536644,
+              "confidence": 1.0
+            },
+            "PO7": {
+              "new_name": "PO7",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.05580558299282924,
+              "y": -0.07680979549268378,
+              "z": -0.0033154521867375907,
+              "confidence": 1.0
+            },
+            "PO3": {
+              "new_name": "PO3",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.038593440966460064,
+              "y": -0.08276390123885072,
+              "z": 0.026185548802614922,
+              "confidence": 1.0
+            },
+            "O1": {
+              "new_name": "O1",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.029338731209276728,
+              "y": -0.0902953300444008,
+              "z": -0.0033154521867375907,
+              "confidence": 1.0
+            },
+            "Iz": {
+              "new_name": "Iz",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 5.272057919574584e-18,
+              "y": -0.08609923976848176,
+              "z": -0.04014873486536644,
+              "confidence": 1.0
+            },
+            "Oz": {
+              "new_name": "Oz",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 5.813528692679268e-18,
+              "y": -0.0949421285668141,
+              "z": -0.0033154521867375907,
+              "confidence": 1.0
+            },
+            "POz": {
+              "new_name": "POz",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 5.4307048350179906e-18,
+              "y": -0.08869014051723417,
+              "z": 0.034044955206803534,
+              "confidence": 1.0
+            },
+            "Pz": {
+              "new_name": "Pz",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 4.1844516239241196e-18,
+              "y": -0.06833728103217185,
+              "z": 0.06599254519360474,
+              "confidence": 1.0
+            },
+            "CPz": {
+              "new_name": "CPz",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 2.272911222700206e-18,
+              "y": -0.03711945720648101,
+              "z": 0.08744796107798183,
+              "confidence": 1.0
+            },
+            "Fpz": {
+              "new_name": "Fpz",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 5.813528692679268e-18,
+              "y": 0.0949421285668141,
+              "z": -0.0033154521867375907,
+              "confidence": 1.0
+            },
+            "Fp2": {
+              "new_name": "Fp2",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.029338731209276728,
+              "y": 0.0902953300444008,
+              "z": -0.0033154521867375907,
+              "confidence": 1.0
+            },
+            "AF8": {
+              "new_name": "AF8",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.05580558299282924,
+              "y": 0.07680979549268378,
+              "z": -0.0033154521867375907,
+              "confidence": 1.0
+            },
+            "AF4": {
+              "new_name": "AF4",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.038593440966460064,
+              "y": 0.08276390123885072,
+              "z": 0.026185548802614922,
+              "confidence": 1.0
+            },
+            "AFz": {
+              "new_name": "AFz",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 5.4307048350179906e-18,
+              "y": 0.08869014051723417,
+              "z": 0.034044955206803534,
+              "confidence": 1.0
+            },
+            "Fz": {
+              "new_name": "Fz",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 4.1844516239241196e-18,
+              "y": 0.06833728103217185,
+              "z": 0.06599254519360474,
+              "confidence": 1.0
+            },
+            "F2": {
+              "new_name": "F2",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.02726170342798902,
+              "y": 0.0674750837563496,
+              "z": 0.06106482292022124,
+              "confidence": 1.0
+            },
+            "F4": {
+              "new_name": "F4",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.05177570734802805,
+              "y": 0.0639376737816708,
+              "z": 0.047500000000000014,
+              "confidence": 1.0
+            },
+            "F6": {
+              "new_name": "F6",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.06925438011407091,
+              "y": 0.06020191416884566,
+              "z": 0.02458780928473947,
+              "confidence": 1.0
+            },
+            "F8": {
+              "new_name": "F8",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.07680979549268378,
+              "y": 0.05580558299282924,
+              "z": -0.0033154521867375907,
+              "confidence": 1.0
+            },
+            "FT8": {
+              "new_name": "FT8",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0902953300444008,
+              "y": 0.029338731209276724,
+              "z": -0.0033154521867375907,
+              "confidence": 1.0
+            },
+            "FC6": {
+              "new_name": "FC6",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.08434933607004837,
+              "y": 0.03237867649640711,
+              "z": 0.029356614465620007,
+              "confidence": 1.0
+            },
+            "FC4": {
+              "new_name": "FC4",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0642558242221116,
+              "y": 0.034165427778078836,
+              "z": 0.06106482292022124,
+              "confidence": 1.0
+            },
+            "FC2": {
+              "new_name": "FC2",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.03559740299596508,
+              "y": 0.035597402995965075,
+              "z": 0.08056456913486047,
+              "confidence": 1.0
+            },
+            "HEOG": {
+              "new_name": "HEOG",
+              "modality": "EOG",
+              "unit": "uV",
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            },
+            "VEOG": {
+              "new_name": "VEOG",
+              "modality": "EOG",
+              "unit": "uV",
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            }
+          },
+          "device_name": "ActiveTwo",
+          "device_manufacturer": "BioSemi"
+        }
+      }
+    },
+    "recording_info": {
+      "recording_info": [
+        {
+          "recording_id": "sub-001_task-readpoetry",
+          "subject_id": "sub-001",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6422.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P101"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-002_task-readpoetry",
+          "subject_id": "sub-002",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 5811.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P102"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-003_task-readpoetry",
+          "subject_id": "sub-003",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6962.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P103"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-004_task-readpoetry",
+          "subject_id": "sub-004",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7222.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P104"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-005_task-readpoetry",
+          "subject_id": "sub-005",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7505.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P106"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-006_task-readpoetry",
+          "subject_id": "sub-006",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 5421.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P107"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-007_task-readpoetry",
+          "subject_id": "sub-007",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6064.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P108"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-008_task-readpoetry",
+          "subject_id": "sub-008",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6172.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P109"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-009_task-readpoetry",
+          "subject_id": "sub-009",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6224.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P110"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-010_task-readpoetry",
+          "subject_id": "sub-010",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7566.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P111"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-011_task-readpoetry",
+          "subject_id": "sub-011",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7517.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P112"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-012_task-readpoetry",
+          "subject_id": "sub-012",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6602.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P113"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-013_task-readpoetry",
+          "subject_id": "sub-013",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 9298.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P114"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-014_task-readpoetry",
+          "subject_id": "sub-014",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7239.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P115"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-015_task-readpoetry",
+          "subject_id": "sub-015",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7560.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P116"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-016_task-readpoetry",
+          "subject_id": "sub-016",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 8790.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P117"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-017_task-readpoetry",
+          "subject_id": "sub-017",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6746.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P118"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-018_task-readpoetry",
+          "subject_id": "sub-018",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6423.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P119"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-019_task-readpoetry",
+          "subject_id": "sub-019",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6736.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P120"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-020_task-readpoetry",
+          "subject_id": "sub-020",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6239.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P121"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-021_task-readpoetry",
+          "subject_id": "sub-021",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7514.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P122"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-022_task-readpoetry",
+          "subject_id": "sub-022",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6172.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P123"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-023_task-readpoetry",
+          "subject_id": "sub-023",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6391.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P124"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-024_task-readpoetry",
+          "subject_id": "sub-024",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7995.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P125"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-025_task-readpoetry",
+          "subject_id": "sub-025",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 8463.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P126"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-026_task-readpoetry",
+          "subject_id": "sub-026",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7283.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P127"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-027_task-readpoetry",
+          "subject_id": "sub-027",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6448.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P128"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-028_task-readpoetry",
+          "subject_id": "sub-028",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6990.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P129"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-029_task-readpoetry",
+          "subject_id": "sub-029",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7313.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P130"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-030_task-readpoetry",
+          "subject_id": "sub-030",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 5520.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P131"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-031_task-readpoetry",
+          "subject_id": "sub-031",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6866.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P132"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-032_task-readpoetry",
+          "subject_id": "sub-032",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6122.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P133"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-033_task-readpoetry",
+          "subject_id": "sub-033",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 8879.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P134"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-034_task-readpoetry",
+          "subject_id": "sub-034",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 8032.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P135"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-035_task-readpoetry",
+          "subject_id": "sub-035",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7280.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P136"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-036_task-readpoetry",
+          "subject_id": "sub-036",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 5891.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P137"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-037_task-readpoetry",
+          "subject_id": "sub-037",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7719.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P138"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-038_task-readpoetry",
+          "subject_id": "sub-038",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7928.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P139"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-039_task-readpoetry",
+          "subject_id": "sub-039",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6794.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P140"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-040_task-readpoetry",
+          "subject_id": "sub-040",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7767.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P143"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-041_task-readpoetry",
+          "subject_id": "sub-041",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7139.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P144"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-042_task-readpoetry",
+          "subject_id": "sub-042",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6632.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P145"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-043_task-readpoetry",
+          "subject_id": "sub-043",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7688.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P147"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-044_task-readpoetry",
+          "subject_id": "sub-044",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6974.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P148"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-045_task-readpoetry",
+          "subject_id": "sub-045",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 7502.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P149"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-046_task-readpoetry",
+          "subject_id": "sub-046",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 6767.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P150"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-047_task-readpoetry",
+          "subject_id": "sub-047",
+          "task_id": "readpoetry",
+          "channel_map_id": "biosemi_64",
+          "duration_seconds": 5904.0,
+          "num_channels": 70,
+          "participant_info": {
+            "participant_original_id": "P151"
+          },
+          "channels_to_remove": []
+        }
+      ]
+    }
+  }
+}

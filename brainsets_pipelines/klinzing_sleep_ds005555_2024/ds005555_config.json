@@ -1,0 +1,3859 @@
+{
+  "dataset": {
+    "metadata": {
+      "name": "The Bitbrain Open Access Sleep (BOAS) dataset",
+      "brainset_name": "klinzing_sleep_ds005555_2024",
+      "version": "1.0.0",
+      "dataset_id": "ds005555",
+      "dataset_summary": "This dataset bridges clinical sleep monitoring and wearable EEG technologies, containing data from 128 nights where participants were simultaneously monitored with a Brain Quick Plus Evolution PSG system and a Bitbrain wearable EEG headband. The dual-recording approach allows for direct comparison and validation of the wearable EEG device against the established PSG standard, providing a rich resource for evaluating wearable EEG technology in sleep studies.",
+      "task_description": "Participants underwent simultaneous monitoring with a Brain Quick Plus Evolution PSG system and a wearable EEG headband for 128 nights. Three expert sleep scorers independently annotated the PSG recordings following AASM criteria, and a consensus label was derived. This consensus was used to train a deep learning model for automatic sleep scoring, validated separately on PSG and wearable EEG data. The task involved natural sleep, with data collected to compare and validate wearable EEG against clinical PSG for sleep staging.",
+      "task_category": "Resting & Baseline States",
+      "task_subcategory": "Sleep stage monitoring",
+      "authors": [
+        "Eduardo L\u00f3pez-Larraz",
+        "Jens G. Klinzing"
+      ],
+      "date": "03-10-2024"
+    },
+    "channel_maps": {
+      "channel_maps": {
+        "psg_micromed": {
+          "map_name": "psg_micromed",
+          "channels": {
+            "PSG_F3": {
+              "new_name": "F3",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0502438,
+              "y": 0.0531112,
+              "z": 0.042192,
+              "confidence": 1.0
+            },
+            "PSG_F4": {
+              "new_name": "F4",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0518362,
+              "y": 0.0543048,
+              "z": 0.040814,
+              "confidence": 1.0
+            },
+            "PSG_C3": {
+              "new_name": "C3",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.06535809999999999,
+              "y": -0.0116317,
+              "z": 0.064358,
+              "confidence": 1.0
+            },
+            "PSG_C4": {
+              "new_name": "C4",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.06711790000000001,
+              "y": -0.0109003,
+              "z": 0.06358,
+              "confidence": 1.0
+            },
+            "PSG_O1": {
+              "new_name": "O1",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0294134,
+              "y": -0.112449,
+              "z": 0.008839,
+              "confidence": 1.0
+            },
+            "PSG_O2": {
+              "new_name": "O2",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.0298426,
+              "y": -0.112156,
+              "z": 0.0088,
+              "confidence": 1.0
+            },
+            "PSG_EOG": {
+              "new_name": "EOG",
+              "modality": "EOG",
+              "unit": "uV",
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.95
+            },
+            "PSG_EOGR": {
+              "new_name": "EOG_R",
+              "modality": "EOG",
+              "unit": "uV",
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.95
+            },
+            "PSG_EOGL": {
+              "new_name": "EOG_L",
+              "modality": "EOG",
+              "unit": "uV",
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.95
+            },
+            "PSG_EMG": {
+              "new_name": "EMG",
+              "modality": "EMG",
+              "unit": "uV",
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.95
+            },
+            "PSG_ABD": {
+              "new_name": "ABD",
+              "modality": "RESPIRATORY",
+              "unit": null,
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            },
+            "PSG_THOR": {
+              "new_name": "THOR",
+              "modality": "RESPIRATORY",
+              "unit": null,
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            },
+            "PSG_THER": {
+              "new_name": "THER",
+              "modality": "RESPIRATORY",
+              "unit": null,
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            },
+            "PSG_CAN": {
+              "new_name": "CAN",
+              "modality": "RESPIRATORY",
+              "unit": null,
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            },
+            "PSG_PULSE": {
+              "new_name": "PULSE",
+              "modality": "PPG",
+              "unit": null,
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            },
+            "PSG_BEAT": {
+              "new_name": "ECG",
+              "modality": "ECG",
+              "unit": null,
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            },
+            "PSG_SPO2": {
+              "new_name": "SPO2",
+              "modality": "PPG",
+              "unit": null,
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            }
+          },
+          "device_name": "Brain Quick Plus Evolution PSG system",
+          "device_manufacturer": "Micromed"
+        },
+        "headband_bitbrain": {
+          "map_name": "headband_bitbrain",
+          "channels": {
+            "HB_1": {
+              "new_name": "AF7",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": -0.0548397,
+              "y": 0.0685722,
+              "z": -0.01059,
+              "confidence": 0.9
+            },
+            "HB_2": {
+              "new_name": "AF8",
+              "modality": "EEG",
+              "unit": "uV",
+              "x": 0.055743299999999996,
+              "y": 0.0696568,
+              "z": -0.010755,
+              "confidence": 0.9
+            },
+            "HB_IMU_1": {
+              "new_name": "ACCEL_X",
+              "modality": "MOTION",
+              "unit": null,
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            },
+            "HB_IMU_2": {
+              "new_name": "ACCEL_Y",
+              "modality": "MOTION",
+              "unit": null,
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            },
+            "HB_IMU_3": {
+              "new_name": "ACCEL_Z",
+              "modality": "MOTION",
+              "unit": null,
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            },
+            "HB_IMU_4": {
+              "new_name": "GYRO_X",
+              "modality": "MOTION",
+              "unit": null,
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            },
+            "HB_IMU_5": {
+              "new_name": "GYRO_Y",
+              "modality": "MOTION",
+              "unit": null,
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            },
+            "HB_IMU_6": {
+              "new_name": "GYRO_Z",
+              "modality": "MOTION",
+              "unit": null,
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            },
+            "HB_PULSE": {
+              "new_name": "PPG",
+              "modality": "PPG",
+              "unit": null,
+              "x": null,
+              "y": null,
+              "z": null,
+              "confidence": 0.9
+            }
+          },
+          "device_name": "Wearable EEG headband",
+          "device_manufacturer": "Bitbrain"
+        }
+      }
+    },
+    "recording_info": {
+      "recording_info": [
+        {
+          "recording_id": "sub-1_task-Sleep_acq-headband",
+          "subject_id": "sub-1",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 27459.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "27",
+            "bmi": "19.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-1_task-Sleep_acq-psg",
+          "subject_id": "sub-1",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 27459.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "27",
+            "bmi": "19.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-10_task-Sleep_acq-headband",
+          "subject_id": "sub-10",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29811.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "41",
+            "bmi": "26",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-10_task-Sleep_acq-psg",
+          "subject_id": "sub-10",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29811.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "41",
+            "bmi": "26",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-100_task-Sleep_acq-headband",
+          "subject_id": "sub-100",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29898.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "42",
+            "bmi": "22",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-100_task-Sleep_acq-psg",
+          "subject_id": "sub-100",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29898.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "42",
+            "bmi": "22",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-101_task-Sleep_acq-headband",
+          "subject_id": "sub-101",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28071.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "33",
+            "bmi": "31.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-101_task-Sleep_acq-psg",
+          "subject_id": "sub-101",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28071.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "33",
+            "bmi": "31.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-102_task-Sleep_acq-headband",
+          "subject_id": "sub-102",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28910.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "23",
+            "bmi": "23.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-102_task-Sleep_acq-psg",
+          "subject_id": "sub-102",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28910.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "23",
+            "bmi": "23.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-103_task-Sleep_acq-headband",
+          "subject_id": "sub-103",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 25743.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "25",
+            "bmi": "21.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-103_task-Sleep_acq-psg",
+          "subject_id": "sub-103",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 25743.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "25",
+            "bmi": "21.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-104_task-Sleep_acq-headband",
+          "subject_id": "sub-104",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 25170.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "28",
+            "bmi": "23.4",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-104_task-Sleep_acq-psg",
+          "subject_id": "sub-104",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 25170.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "28",
+            "bmi": "23.4",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-105_task-Sleep_acq-headband",
+          "subject_id": "sub-105",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29196.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "22",
+            "bmi": "22.5",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-105_task-Sleep_acq-psg",
+          "subject_id": "sub-105",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29196.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "22",
+            "bmi": "22.5",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-106_task-Sleep_acq-headband",
+          "subject_id": "sub-106",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26359.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "22",
+            "bmi": "23",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-106_task-Sleep_acq-psg",
+          "subject_id": "sub-106",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26359.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "22",
+            "bmi": "23",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-107_task-Sleep_acq-headband",
+          "subject_id": "sub-107",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28577.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "26",
+            "bmi": "23.4",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-107_task-Sleep_acq-psg",
+          "subject_id": "sub-107",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28577.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "26",
+            "bmi": "23.4",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-108_task-Sleep_acq-headband",
+          "subject_id": "sub-108",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 30033.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "21",
+            "bmi": "27.7",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-108_task-Sleep_acq-psg",
+          "subject_id": "sub-108",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 30033.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "21",
+            "bmi": "27.7",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-109_task-Sleep_acq-headband",
+          "subject_id": "sub-109",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 25309.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "70",
+            "bmi": "25.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-109_task-Sleep_acq-psg",
+          "subject_id": "sub-109",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 25309.0,
+          "num_channels": 15,
+          "participant_info": {
+            "age": "70",
+            "bmi": "25.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-11_task-Sleep_acq-headband",
+          "subject_id": "sub-11",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29563.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "28",
+            "bmi": "23.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-11_task-Sleep_acq-psg",
+          "subject_id": "sub-11",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29563.0,
+          "num_channels": 8,
+          "participant_info": {
+            "age": "28",
+            "bmi": "23.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-110_task-Sleep_acq-headband",
+          "subject_id": "sub-110",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28609.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "70",
+            "bmi": "25.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-110_task-Sleep_acq-psg",
+          "subject_id": "sub-110",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28609.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "70",
+            "bmi": "25.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-111_task-Sleep_acq-headband",
+          "subject_id": "sub-111",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28848.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "70",
+            "bmi": "25.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-111_task-Sleep_acq-psg",
+          "subject_id": "sub-111",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28848.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "70",
+            "bmi": "25.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-112_task-Sleep_acq-headband",
+          "subject_id": "sub-112",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 27584.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "73",
+            "bmi": "21.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-112_task-Sleep_acq-psg",
+          "subject_id": "sub-112",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 27584.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "73",
+            "bmi": "21.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-113_task-Sleep_acq-headband",
+          "subject_id": "sub-113",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28117.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "73",
+            "bmi": "21.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-113_task-Sleep_acq-psg",
+          "subject_id": "sub-113",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28117.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "73",
+            "bmi": "21.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-114_task-Sleep_acq-headband",
+          "subject_id": "sub-114",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28013.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "73",
+            "bmi": "21.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-114_task-Sleep_acq-psg",
+          "subject_id": "sub-114",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28013.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "73",
+            "bmi": "21.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-115_task-Sleep_acq-headband",
+          "subject_id": "sub-115",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 25748.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "65",
+            "bmi": "25.1",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-115_task-Sleep_acq-psg",
+          "subject_id": "sub-115",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 25748.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "65",
+            "bmi": "25.1",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-116_task-Sleep_acq-headband",
+          "subject_id": "sub-116",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26204.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "65",
+            "bmi": "25.1",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-116_task-Sleep_acq-psg",
+          "subject_id": "sub-116",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26204.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "65",
+            "bmi": "25.1",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-117_task-Sleep_acq-headband",
+          "subject_id": "sub-117",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 23799.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "65",
+            "bmi": "25.1",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-117_task-Sleep_acq-psg",
+          "subject_id": "sub-117",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 23799.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "65",
+            "bmi": "25.1",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-118_task-Sleep_acq-headband",
+          "subject_id": "sub-118",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26825.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "62",
+            "bmi": "26.4",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-118_task-Sleep_acq-psg",
+          "subject_id": "sub-118",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26825.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "62",
+            "bmi": "26.4",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-119_task-Sleep_acq-headband",
+          "subject_id": "sub-119",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26961.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "62",
+            "bmi": "26.4",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-119_task-Sleep_acq-psg",
+          "subject_id": "sub-119",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26961.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "62",
+            "bmi": "26.4",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-12_task-Sleep_acq-headband",
+          "subject_id": "sub-12",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 30404.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "71",
+            "bmi": "24.2",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-12_task-Sleep_acq-psg",
+          "subject_id": "sub-12",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 30404.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "71",
+            "bmi": "24.2",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-120_task-Sleep_acq-headband",
+          "subject_id": "sub-120",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 23671.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "62",
+            "bmi": "26.4",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-120_task-Sleep_acq-psg",
+          "subject_id": "sub-120",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 23671.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "62",
+            "bmi": "26.4",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-121_task-Sleep_acq-headband",
+          "subject_id": "sub-121",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26801.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "67",
+            "bmi": "26",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-121_task-Sleep_acq-psg",
+          "subject_id": "sub-121",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26801.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "67",
+            "bmi": "26",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-122_task-Sleep_acq-headband",
+          "subject_id": "sub-122",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26282.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "27",
+            "bmi": "21.3",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-122_task-Sleep_acq-psg",
+          "subject_id": "sub-122",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26282.0,
+          "num_channels": 15,
+          "participant_info": {
+            "age": "27",
+            "bmi": "21.3",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-123_task-Sleep_acq-headband",
+          "subject_id": "sub-123",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26389.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "30",
+            "bmi": "20.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-123_task-Sleep_acq-psg",
+          "subject_id": "sub-123",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26389.0,
+          "num_channels": 15,
+          "participant_info": {
+            "age": "30",
+            "bmi": "20.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-124_task-Sleep_acq-headband",
+          "subject_id": "sub-124",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26672.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "35",
+            "bmi": "27.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-124_task-Sleep_acq-psg",
+          "subject_id": "sub-124",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26672.0,
+          "num_channels": 15,
+          "participant_info": {
+            "age": "35",
+            "bmi": "27.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-125_task-Sleep_acq-headband",
+          "subject_id": "sub-125",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29331.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "32",
+            "bmi": "21.7",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-125_task-Sleep_acq-psg",
+          "subject_id": "sub-125",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29331.0,
+          "num_channels": 16,
+          "participant_info": {
+            "age": "32",
+            "bmi": "21.7",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-126_task-Sleep_acq-headband",
+          "subject_id": "sub-126",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26130.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "24",
+            "bmi": "20.5",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-126_task-Sleep_acq-psg",
+          "subject_id": "sub-126",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26130.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "24",
+            "bmi": "20.5",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-127_task-Sleep_acq-headband",
+          "subject_id": "sub-127",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 24966.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "22",
+            "bmi": "22.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-127_task-Sleep_acq-psg",
+          "subject_id": "sub-127",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 24966.0,
+          "num_channels": 15,
+          "participant_info": {
+            "age": "22",
+            "bmi": "22.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-128_task-Sleep_acq-headband",
+          "subject_id": "sub-128",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 24648.0,
+          "num_channels": 3,
+          "participant_info": {
+            "age": "23",
+            "bmi": "27.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-128_task-Sleep_acq-psg",
+          "subject_id": "sub-128",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 24648.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "23",
+            "bmi": "27.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-13_task-Sleep_acq-headband",
+          "subject_id": "sub-13",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29935.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "41",
+            "bmi": "26",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-13_task-Sleep_acq-psg",
+          "subject_id": "sub-13",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29935.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "41",
+            "bmi": "26",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-14_task-Sleep_acq-headband",
+          "subject_id": "sub-14",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 32113.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "24",
+            "bmi": "19",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-14_task-Sleep_acq-psg",
+          "subject_id": "sub-14",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 32113.0,
+          "num_channels": 8,
+          "participant_info": {
+            "age": "24",
+            "bmi": "19",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-15_task-Sleep_acq-headband",
+          "subject_id": "sub-15",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 32827.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "31",
+            "bmi": "21.7",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-15_task-Sleep_acq-psg",
+          "subject_id": "sub-15",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 32827.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "31",
+            "bmi": "21.7",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-16_task-Sleep_acq-headband",
+          "subject_id": "sub-16",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 30855.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "n/a",
+            "bmi": "26.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-16_task-Sleep_acq-psg",
+          "subject_id": "sub-16",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 30855.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "n/a",
+            "bmi": "26.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-17_task-Sleep_acq-headband",
+          "subject_id": "sub-17",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29628.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "71",
+            "bmi": "24.2",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-17_task-Sleep_acq-psg",
+          "subject_id": "sub-17",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29628.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "71",
+            "bmi": "24.2",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-18_task-Sleep_acq-headband",
+          "subject_id": "sub-18",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 31421.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "40",
+            "bmi": "24.7",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-18_task-Sleep_acq-psg",
+          "subject_id": "sub-18",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 31421.0,
+          "num_channels": 8,
+          "participant_info": {
+            "age": "40",
+            "bmi": "24.7",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-19_task-Sleep_acq-headband",
+          "subject_id": "sub-19",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 30377.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "67",
+            "bmi": "27.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-19_task-Sleep_acq-psg",
+          "subject_id": "sub-19",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 30377.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "67",
+            "bmi": "27.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-2_task-Sleep_acq-headband",
+          "subject_id": "sub-2",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 27400.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "27",
+            "bmi": "19.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-2_task-Sleep_acq-psg",
+          "subject_id": "sub-2",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 27400.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "27",
+            "bmi": "19.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-20_task-Sleep_acq-headband",
+          "subject_id": "sub-20",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 31455.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "31",
+            "bmi": "19.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-20_task-Sleep_acq-psg",
+          "subject_id": "sub-20",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 31455.0,
+          "num_channels": 8,
+          "participant_info": {
+            "age": "31",
+            "bmi": "19.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-21_task-Sleep_acq-headband",
+          "subject_id": "sub-21",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 31299.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "67",
+            "bmi": "27.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-21_task-Sleep_acq-psg",
+          "subject_id": "sub-21",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 31299.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "67",
+            "bmi": "27.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-22_task-Sleep_acq-headband",
+          "subject_id": "sub-22",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 31037.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "34",
+            "bmi": "19.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-22_task-Sleep_acq-psg",
+          "subject_id": "sub-22",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 31037.0,
+          "num_channels": 8,
+          "participant_info": {
+            "age": "34",
+            "bmi": "19.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-23_task-Sleep_acq-headband",
+          "subject_id": "sub-23",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 33598.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "34",
+            "bmi": "28.1",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-23_task-Sleep_acq-psg",
+          "subject_id": "sub-23",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 33598.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "34",
+            "bmi": "28.1",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-24_task-Sleep_acq-headband",
+          "subject_id": "sub-24",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28002.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "31",
+            "bmi": "20.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-24_task-Sleep_acq-psg",
+          "subject_id": "sub-24",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28002.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "31",
+            "bmi": "20.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-25_task-Sleep_acq-headband",
+          "subject_id": "sub-25",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 32506.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "28",
+            "bmi": "33.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-25_task-Sleep_acq-psg",
+          "subject_id": "sub-25",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 32506.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "28",
+            "bmi": "33.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-26_task-Sleep_acq-headband",
+          "subject_id": "sub-26",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29183.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "25",
+            "bmi": "27.5",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-26_task-Sleep_acq-psg",
+          "subject_id": "sub-26",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29183.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "25",
+            "bmi": "27.5",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-27_task-Sleep_acq-headband",
+          "subject_id": "sub-27",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28561.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "74",
+            "bmi": "31.6",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-27_task-Sleep_acq-psg",
+          "subject_id": "sub-27",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28561.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "74",
+            "bmi": "31.6",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-28_task-Sleep_acq-headband",
+          "subject_id": "sub-28",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 25774.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "22",
+            "bmi": "24.7",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-28_task-Sleep_acq-psg",
+          "subject_id": "sub-28",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 25774.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "22",
+            "bmi": "24.7",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-29_task-Sleep_acq-headband",
+          "subject_id": "sub-29",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 33244.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "23",
+            "bmi": "n/a",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-29_task-Sleep_acq-psg",
+          "subject_id": "sub-29",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 33244.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "23",
+            "bmi": "n/a",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-3_task-Sleep_acq-headband",
+          "subject_id": "sub-3",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29921.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "27",
+            "bmi": "25.1",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-3_task-Sleep_acq-psg",
+          "subject_id": "sub-3",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29921.0,
+          "num_channels": 8,
+          "participant_info": {
+            "age": "27",
+            "bmi": "25.1",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-30_task-Sleep_acq-headband",
+          "subject_id": "sub-30",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 25032.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "31",
+            "bmi": "21",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-30_task-Sleep_acq-psg",
+          "subject_id": "sub-30",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 25032.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "31",
+            "bmi": "21",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-31_task-Sleep_acq-headband",
+          "subject_id": "sub-31",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 25523.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "36",
+            "bmi": "21.3",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-31_task-Sleep_acq-psg",
+          "subject_id": "sub-31",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 25523.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "36",
+            "bmi": "21.3",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-32_task-Sleep_acq-headband",
+          "subject_id": "sub-32",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 24978.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "66",
+            "bmi": "23.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-32_task-Sleep_acq-psg",
+          "subject_id": "sub-32",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 24978.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "66",
+            "bmi": "23.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-33_task-Sleep_acq-headband",
+          "subject_id": "sub-33",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26301.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "69",
+            "bmi": "26",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-33_task-Sleep_acq-psg",
+          "subject_id": "sub-33",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26301.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "69",
+            "bmi": "26",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-34_task-Sleep_acq-headband",
+          "subject_id": "sub-34",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28183.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "81",
+            "bmi": "20.6",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-34_task-Sleep_acq-psg",
+          "subject_id": "sub-34",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28183.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "81",
+            "bmi": "20.6",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-35_task-Sleep_acq-headband",
+          "subject_id": "sub-35",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26281.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "66",
+            "bmi": "23.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-35_task-Sleep_acq-psg",
+          "subject_id": "sub-35",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26281.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "66",
+            "bmi": "23.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-36_task-Sleep_acq-headband",
+          "subject_id": "sub-36",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26850.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "69",
+            "bmi": "26",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-36_task-Sleep_acq-psg",
+          "subject_id": "sub-36",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26850.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "69",
+            "bmi": "26",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-37_task-Sleep_acq-headband",
+          "subject_id": "sub-37",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 25714.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "67",
+            "bmi": "23.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-37_task-Sleep_acq-psg",
+          "subject_id": "sub-37",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 25714.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "67",
+            "bmi": "23.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-38_task-Sleep_acq-headband",
+          "subject_id": "sub-38",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 25550.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "82",
+            "bmi": "27.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-38_task-Sleep_acq-psg",
+          "subject_id": "sub-38",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 25550.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "82",
+            "bmi": "27.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-39_task-Sleep_acq-headband",
+          "subject_id": "sub-39",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 27213.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "64",
+            "bmi": "21.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-39_task-Sleep_acq-psg",
+          "subject_id": "sub-39",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 27213.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "64",
+            "bmi": "21.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-4_task-Sleep_acq-headband",
+          "subject_id": "sub-4",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 32108.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "26",
+            "bmi": "22",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-4_task-Sleep_acq-psg",
+          "subject_id": "sub-4",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 32108.0,
+          "num_channels": 8,
+          "participant_info": {
+            "age": "26",
+            "bmi": "22",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-40_task-Sleep_acq-headband",
+          "subject_id": "sub-40",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 25007.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "67",
+            "bmi": "23.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-40_task-Sleep_acq-psg",
+          "subject_id": "sub-40",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 25007.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "67",
+            "bmi": "23.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-41_task-Sleep_acq-headband",
+          "subject_id": "sub-41",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 27502.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "66",
+            "bmi": "23.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-41_task-Sleep_acq-psg",
+          "subject_id": "sub-41",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 27502.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "66",
+            "bmi": "23.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-42_task-Sleep_acq-headband",
+          "subject_id": "sub-42",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26840.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "69",
+            "bmi": "26",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-42_task-Sleep_acq-psg",
+          "subject_id": "sub-42",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26840.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "69",
+            "bmi": "26",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-43_task-Sleep_acq-headband",
+          "subject_id": "sub-43",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 25205.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "82",
+            "bmi": "27.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-43_task-Sleep_acq-psg",
+          "subject_id": "sub-43",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 25205.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "82",
+            "bmi": "27.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-44_task-Sleep_acq-headband",
+          "subject_id": "sub-44",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 25525.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "25",
+            "bmi": "19.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-44_task-Sleep_acq-psg",
+          "subject_id": "sub-44",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 25525.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "25",
+            "bmi": "19.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-45_task-Sleep_acq-headband",
+          "subject_id": "sub-45",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 24642.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "26",
+            "bmi": "22.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-45_task-Sleep_acq-psg",
+          "subject_id": "sub-45",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 24642.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "26",
+            "bmi": "22.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-46_task-Sleep_acq-headband",
+          "subject_id": "sub-46",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29043.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "24",
+            "bmi": "19.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-46_task-Sleep_acq-psg",
+          "subject_id": "sub-46",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29043.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "24",
+            "bmi": "19.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-47_task-Sleep_acq-headband",
+          "subject_id": "sub-47",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 24362.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "82",
+            "bmi": "27.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-47_task-Sleep_acq-psg",
+          "subject_id": "sub-47",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 24362.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "82",
+            "bmi": "27.8",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-48_task-Sleep_acq-headband",
+          "subject_id": "sub-48",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 31467.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "21",
+            "bmi": "22.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-48_task-Sleep_acq-psg",
+          "subject_id": "sub-48",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 31467.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "21",
+            "bmi": "22.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-49_task-Sleep_acq-headband",
+          "subject_id": "sub-49",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 27085.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "26",
+            "bmi": "24.1",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-49_task-Sleep_acq-psg",
+          "subject_id": "sub-49",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 27085.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "26",
+            "bmi": "24.1",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-5_task-Sleep_acq-headband",
+          "subject_id": "sub-5",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 30178.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "27",
+            "bmi": "20.7",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-5_task-Sleep_acq-psg",
+          "subject_id": "sub-5",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 30178.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "27",
+            "bmi": "20.7",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-50_task-Sleep_acq-headband",
+          "subject_id": "sub-50",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26860.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "64",
+            "bmi": "24.9",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-50_task-Sleep_acq-psg",
+          "subject_id": "sub-50",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26860.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "64",
+            "bmi": "24.9",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-51_task-Sleep_acq-headband",
+          "subject_id": "sub-51",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26860.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "33",
+            "bmi": "24",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-51_task-Sleep_acq-psg",
+          "subject_id": "sub-51",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26860.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "33",
+            "bmi": "24",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-52_task-Sleep_acq-headband",
+          "subject_id": "sub-52",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 27712.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "33",
+            "bmi": "23.9",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-52_task-Sleep_acq-psg",
+          "subject_id": "sub-52",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 27712.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "33",
+            "bmi": "23.9",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-53_task-Sleep_acq-headband",
+          "subject_id": "sub-53",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 20008.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "64",
+            "bmi": "24.9",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-53_task-Sleep_acq-psg",
+          "subject_id": "sub-53",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 20008.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "64",
+            "bmi": "24.9",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-54_task-Sleep_acq-headband",
+          "subject_id": "sub-54",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 23723.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "64",
+            "bmi": "24.9",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-54_task-Sleep_acq-psg",
+          "subject_id": "sub-54",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 23723.0,
+          "num_channels": 14,
+          "participant_info": {
+            "age": "64",
+            "bmi": "24.9",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-55_task-Sleep_acq-headband",
+          "subject_id": "sub-55",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 32199.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "26",
+            "bmi": "20.9",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-55_task-Sleep_acq-psg",
+          "subject_id": "sub-55",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 32199.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "26",
+            "bmi": "20.9",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-56_task-Sleep_acq-headband",
+          "subject_id": "sub-56",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28747.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "27",
+            "bmi": "19.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-56_task-Sleep_acq-psg",
+          "subject_id": "sub-56",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28747.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "27",
+            "bmi": "19.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-57_task-Sleep_acq-headband",
+          "subject_id": "sub-57",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 30960.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "26",
+            "bmi": "20.9",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-57_task-Sleep_acq-psg",
+          "subject_id": "sub-57",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 30960.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "26",
+            "bmi": "20.9",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-58_task-Sleep_acq-headband",
+          "subject_id": "sub-58",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 30162.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "27",
+            "bmi": "19.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-58_task-Sleep_acq-psg",
+          "subject_id": "sub-58",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 30162.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "27",
+            "bmi": "19.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-59_task-Sleep_acq-headband",
+          "subject_id": "sub-59",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 31730.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "29",
+            "bmi": "20.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-59_task-Sleep_acq-psg",
+          "subject_id": "sub-59",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 31730.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "29",
+            "bmi": "20.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-6_task-Sleep_acq-headband",
+          "subject_id": "sub-6",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29961.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "26",
+            "bmi": "19",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-6_task-Sleep_acq-psg",
+          "subject_id": "sub-6",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29961.0,
+          "num_channels": 8,
+          "participant_info": {
+            "age": "26",
+            "bmi": "19",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-60_task-Sleep_acq-headband",
+          "subject_id": "sub-60",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 27685.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "29",
+            "bmi": "24.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-60_task-Sleep_acq-psg",
+          "subject_id": "sub-60",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 27685.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "29",
+            "bmi": "24.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-61_task-Sleep_acq-headband",
+          "subject_id": "sub-61",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28467.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "29",
+            "bmi": "20.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-61_task-Sleep_acq-psg",
+          "subject_id": "sub-61",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28467.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "29",
+            "bmi": "20.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-62_task-Sleep_acq-headband",
+          "subject_id": "sub-62",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29494.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "29",
+            "bmi": "24.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-62_task-Sleep_acq-psg",
+          "subject_id": "sub-62",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29494.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "29",
+            "bmi": "24.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-63_task-Sleep_acq-headband",
+          "subject_id": "sub-63",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26661.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "29",
+            "bmi": "27.8",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-63_task-Sleep_acq-psg",
+          "subject_id": "sub-63",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26661.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "29",
+            "bmi": "27.8",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-64_task-Sleep_acq-headband",
+          "subject_id": "sub-64",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26582.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "29",
+            "bmi": "24.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-64_task-Sleep_acq-psg",
+          "subject_id": "sub-64",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26582.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "29",
+            "bmi": "24.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-65_task-Sleep_acq-headband",
+          "subject_id": "sub-65",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26930.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "29",
+            "bmi": "27.8",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-65_task-Sleep_acq-psg",
+          "subject_id": "sub-65",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26930.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "29",
+            "bmi": "27.8",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-66_task-Sleep_acq-headband",
+          "subject_id": "sub-66",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 32446.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "29",
+            "bmi": "24.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-66_task-Sleep_acq-psg",
+          "subject_id": "sub-66",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 32446.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "29",
+            "bmi": "24.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-67_task-Sleep_acq-headband",
+          "subject_id": "sub-67",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 27737.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "57",
+            "bmi": "28.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-67_task-Sleep_acq-psg",
+          "subject_id": "sub-67",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 27737.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "57",
+            "bmi": "28.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-68_task-Sleep_acq-headband",
+          "subject_id": "sub-68",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26122.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "28",
+            "bmi": "27.7",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-68_task-Sleep_acq-psg",
+          "subject_id": "sub-68",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26122.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "28",
+            "bmi": "27.7",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-69_task-Sleep_acq-headband",
+          "subject_id": "sub-69",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 30116.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "26",
+            "bmi": "19.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-69_task-Sleep_acq-psg",
+          "subject_id": "sub-69",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 30116.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "26",
+            "bmi": "19.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-7_task-Sleep_acq-headband",
+          "subject_id": "sub-7",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28078.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "33",
+            "bmi": "22",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-7_task-Sleep_acq-psg",
+          "subject_id": "sub-7",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28078.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "33",
+            "bmi": "22",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-70_task-Sleep_acq-headband",
+          "subject_id": "sub-70",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26692.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "57",
+            "bmi": "25.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-70_task-Sleep_acq-psg",
+          "subject_id": "sub-70",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26692.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "57",
+            "bmi": "25.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-71_task-Sleep_acq-headband",
+          "subject_id": "sub-71",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 33425.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "47",
+            "bmi": "19.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-71_task-Sleep_acq-psg",
+          "subject_id": "sub-71",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 33425.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "47",
+            "bmi": "19.1",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-72_task-Sleep_acq-headband",
+          "subject_id": "sub-72",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28985.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "60",
+            "bmi": "26.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-72_task-Sleep_acq-psg",
+          "subject_id": "sub-72",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28985.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "60",
+            "bmi": "26.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-73_task-Sleep_acq-headband",
+          "subject_id": "sub-73",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 25956.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "38",
+            "bmi": "26.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-73_task-Sleep_acq-psg",
+          "subject_id": "sub-73",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 25956.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "38",
+            "bmi": "26.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-74_task-Sleep_acq-headband",
+          "subject_id": "sub-74",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29075.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "34",
+            "bmi": "31.4",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-74_task-Sleep_acq-psg",
+          "subject_id": "sub-74",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29075.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "34",
+            "bmi": "31.4",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-75_task-Sleep_acq-headband",
+          "subject_id": "sub-75",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 25914.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "63",
+            "bmi": "26.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-75_task-Sleep_acq-psg",
+          "subject_id": "sub-75",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 25914.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "63",
+            "bmi": "26.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-76_task-Sleep_acq-headband",
+          "subject_id": "sub-76",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 31445.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "51",
+            "bmi": "24",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-76_task-Sleep_acq-psg",
+          "subject_id": "sub-76",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 31445.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "51",
+            "bmi": "24",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-77_task-Sleep_acq-headband",
+          "subject_id": "sub-77",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 32351.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "50",
+            "bmi": "19.9",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-77_task-Sleep_acq-psg",
+          "subject_id": "sub-77",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 32351.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "50",
+            "bmi": "19.9",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-78_task-Sleep_acq-headband",
+          "subject_id": "sub-78",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26427.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "29",
+            "bmi": "27.7",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-78_task-Sleep_acq-psg",
+          "subject_id": "sub-78",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26427.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "29",
+            "bmi": "27.7",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-79_task-Sleep_acq-headband",
+          "subject_id": "sub-79",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 31022.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "59",
+            "bmi": "21.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-79_task-Sleep_acq-psg",
+          "subject_id": "sub-79",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 31022.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "59",
+            "bmi": "21.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-8_task-Sleep_acq-headband",
+          "subject_id": "sub-8",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 12290.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "38",
+            "bmi": "23.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-8_task-Sleep_acq-psg",
+          "subject_id": "sub-8",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 12290.0,
+          "num_channels": 8,
+          "participant_info": {
+            "age": "38",
+            "bmi": "23.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-80_task-Sleep_acq-headband",
+          "subject_id": "sub-80",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 24626.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "26",
+            "bmi": "20.7",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-80_task-Sleep_acq-psg",
+          "subject_id": "sub-80",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 24626.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "26",
+            "bmi": "20.7",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-81_task-Sleep_acq-headband",
+          "subject_id": "sub-81",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 27171.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "27",
+            "bmi": "23.5",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-81_task-Sleep_acq-psg",
+          "subject_id": "sub-81",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 27171.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "27",
+            "bmi": "23.5",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-82_task-Sleep_acq-headband",
+          "subject_id": "sub-82",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26663.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "29",
+            "bmi": "30",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-82_task-Sleep_acq-psg",
+          "subject_id": "sub-82",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26663.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "29",
+            "bmi": "30",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-83_task-Sleep_acq-headband",
+          "subject_id": "sub-83",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 27339.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "31",
+            "bmi": "23.5",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-83_task-Sleep_acq-psg",
+          "subject_id": "sub-83",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 27339.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "31",
+            "bmi": "23.5",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-84_task-Sleep_acq-headband",
+          "subject_id": "sub-84",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 30533.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "34",
+            "bmi": "20.6",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-84_task-Sleep_acq-psg",
+          "subject_id": "sub-84",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 30533.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "34",
+            "bmi": "20.6",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-85_task-Sleep_acq-headband",
+          "subject_id": "sub-85",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 32444.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "18",
+            "bmi": "19.4",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-85_task-Sleep_acq-psg",
+          "subject_id": "sub-85",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 32444.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "18",
+            "bmi": "19.4",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-86_task-Sleep_acq-headband",
+          "subject_id": "sub-86",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28337.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "18",
+            "bmi": "25.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-86_task-Sleep_acq-psg",
+          "subject_id": "sub-86",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28337.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "18",
+            "bmi": "25.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-87_task-Sleep_acq-headband",
+          "subject_id": "sub-87",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 28739.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "22",
+            "bmi": "21.8",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-87_task-Sleep_acq-psg",
+          "subject_id": "sub-87",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 28739.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "22",
+            "bmi": "21.8",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-88_task-Sleep_acq-headband",
+          "subject_id": "sub-88",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26915.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "44",
+            "bmi": "21.4",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-88_task-Sleep_acq-psg",
+          "subject_id": "sub-88",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26915.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "44",
+            "bmi": "21.4",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-89_task-Sleep_acq-headband",
+          "subject_id": "sub-89",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29241.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "25",
+            "bmi": "21.4",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-89_task-Sleep_acq-psg",
+          "subject_id": "sub-89",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29241.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "25",
+            "bmi": "21.4",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-9_task-Sleep_acq-headband",
+          "subject_id": "sub-9",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 31671.0,
+          "num_channels": 2,
+          "participant_info": {
+            "age": "32",
+            "bmi": "26.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-9_task-Sleep_acq-psg",
+          "subject_id": "sub-9",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 31671.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "32",
+            "bmi": "26.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-90_task-Sleep_acq-headband",
+          "subject_id": "sub-90",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 31203.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "60",
+            "bmi": "24.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-90_task-Sleep_acq-psg",
+          "subject_id": "sub-90",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 31203.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "60",
+            "bmi": "24.6",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-91_task-Sleep_acq-headband",
+          "subject_id": "sub-91",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 30654.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "60",
+            "bmi": "18.3",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-91_task-Sleep_acq-psg",
+          "subject_id": "sub-91",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 30654.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "60",
+            "bmi": "18.3",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-92_task-Sleep_acq-headband",
+          "subject_id": "sub-92",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29660.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "24",
+            "bmi": "19.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-92_task-Sleep_acq-psg",
+          "subject_id": "sub-92",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29660.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "24",
+            "bmi": "19.5",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-93_task-Sleep_acq-headband",
+          "subject_id": "sub-93",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 26369.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "26",
+            "bmi": "22.1",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-93_task-Sleep_acq-psg",
+          "subject_id": "sub-93",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 26369.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "26",
+            "bmi": "22.1",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-94_task-Sleep_acq-headband",
+          "subject_id": "sub-94",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 30159.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "37",
+            "bmi": "31.6",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-94_task-Sleep_acq-psg",
+          "subject_id": "sub-94",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 30159.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "37",
+            "bmi": "31.6",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-95_task-Sleep_acq-headband",
+          "subject_id": "sub-95",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29502.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "31",
+            "bmi": "23.3",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-95_task-Sleep_acq-psg",
+          "subject_id": "sub-95",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29502.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "31",
+            "bmi": "23.3",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-96_task-Sleep_acq-headband",
+          "subject_id": "sub-96",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 29141.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "24",
+            "bmi": "23.3",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-96_task-Sleep_acq-psg",
+          "subject_id": "sub-96",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 29141.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "24",
+            "bmi": "23.3",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-97_task-Sleep_acq-headband",
+          "subject_id": "sub-97",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 32554.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "45",
+            "bmi": "32.4",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-97_task-Sleep_acq-psg",
+          "subject_id": "sub-97",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 32554.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "45",
+            "bmi": "32.4",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-98_task-Sleep_acq-headband",
+          "subject_id": "sub-98",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 27032.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "29",
+            "bmi": "21.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-98_task-Sleep_acq-psg",
+          "subject_id": "sub-98",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 27032.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "29",
+            "bmi": "21.3",
+            "sex": "M"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-99_task-Sleep_acq-headband",
+          "subject_id": "sub-99",
+          "task_id": "Sleep",
+          "channel_map_id": "headband_bitbrain",
+          "duration_seconds": 32064.0,
+          "num_channels": 9,
+          "participant_info": {
+            "age": "57",
+            "bmi": "24.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        },
+        {
+          "recording_id": "sub-99_task-Sleep_acq-psg",
+          "subject_id": "sub-99",
+          "task_id": "Sleep",
+          "channel_map_id": "psg_micromed",
+          "duration_seconds": 32064.0,
+          "num_channels": 11,
+          "participant_info": {
+            "age": "57",
+            "bmi": "24.2",
+            "sex": "F"
+          },
+          "channels_to_remove": []
+        }
+      ]
+    }
+  }
+}
