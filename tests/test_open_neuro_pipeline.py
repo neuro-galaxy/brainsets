@@ -248,26 +248,32 @@ class TestDownload:
         item = pd.Series(
             {
                 "dataset_id": "ds006695",
-                "s3_url": "s3://openneuro.org/ds006695/sub-1_task-Sleep_acq-headband",
+                "version_tag": "1.0.0",
                 "subject_id": "sub-1",
                 "subject_info": {"age": "25", "sex": "F"},
+                "task_id": "Sleep",
+                "channel_mapping": {"Fp1": ("Fp1", "EEG")},
                 "device_info": {
                     "device_name": "Test Device",
                     "device_manufacturer": "Test Manufacturer",
                 },
-                "channel_mapping": {"Fp1": ("Fp1", "EEG")},
+                "s3_url": "s3://openneuro.org/ds006695/sub-1_task-Sleep_acq-headband",
+                "fpath": Path("/tmp/raw/sub-1"),
             },
             name="sub-1_task-Sleep_acq-headband",
         )
 
         mock_item = MagicMock()
         mock_item.dataset_id = item["dataset_id"]
+        mock_item.version_tag = item["version_tag"]
         mock_item.s3_url = item["s3_url"]
         mock_item.Index = item.name
         mock_item.subject_id = item["subject_id"]
         mock_item.subject_info = item["subject_info"]
+        mock_item.task_id = item["task_id"]
         mock_item.device_info = item["device_info"]
         mock_item.channel_mapping = item["channel_mapping"]
+        mock_item.fpath = item["fpath"]
         return mock_item
 
     @patch("brainsets.utils.open_neuro_pipeline.check_recording_files_exist")
