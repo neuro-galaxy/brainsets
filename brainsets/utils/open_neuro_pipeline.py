@@ -221,14 +221,14 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
         if cls.version_tag is None:
             try:
-                version_tag = (
-                    config.get("dataset", {}).get("metadata", {}).get("version", None)
-                )
+                version_tag = config["dataset"]["metadata"]["version"]
+                if version_tag is None:
+                    raise ValueError(
+                        "Version number not found in config file metadata."
+                    )
                 cls.version_tag = version_tag
-            except Exception as e:
-                raise ValueError(
-                    f"Version number not found in config file metadata. {e}"
-                )
+            except KeyError:
+                raise ValueError("Version number not found in config file metadata.")
         else:
             version_tag = cls.version_tag
 
