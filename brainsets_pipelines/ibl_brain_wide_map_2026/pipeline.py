@@ -6,7 +6,6 @@
 # ]
 # ///
 
-## TODO - add epochs
 ## TODO - add licking events
 ## TODO - filter spikes and behavior to active behavioral epoch ??
 
@@ -304,41 +303,47 @@ def extract_wheel_data(nwbfile: NWBFile, max_time: float):
 
 def extract_pose_estimation_data(nwbfile: NWBFile, max_time: float):
     """Extract pose estimation data from left, right and body cameras."""
+    # Left Camera
     pes_left = nwbfile.processing["pose_estimation"][
         "LeftCamera"
     ].pose_estimation_series
+    timestamps_left = list(pes_left.values())[0].timestamps[:]
+    valid_mask_left = timestamps_left < max_time
     pose_estimation_left_dict = dict()
     for k, v in pes_left.items():
-        pose_estimation_left_dict[k] = v.data[:]
-    timestamps = list(pes_left.values())[0].timestamps[:]
+        pose_estimation_left_dict[k] = v.data[valid_mask_left]
     pose_estimation_left_camera = IrregularTimeSeries(
-        timestamps=timestamps,
+        timestamps=timestamps_left[valid_mask_left],
         domain="auto",
         **pose_estimation_left_dict,
     )
 
+    # Right Camera
     pes_right = nwbfile.processing["pose_estimation"][
         "RightCamera"
     ].pose_estimation_series
+    timestamps_right = list(pes_right.values())[0].timestamps[:]
+    valid_mask_right = timestamps_right < max_time
     pose_estimation_right_dict = dict()
     for k, v in pes_right.items():
-        pose_estimation_right_dict[k] = v.data[:]
-    timestamps = list(pes_right.values())[0].timestamps[:]
+        pose_estimation_right_dict[k] = v.data[valid_mask_right]
     pose_estimation_right_camera = IrregularTimeSeries(
-        timestamps=timestamps,
+        timestamps=timestamps_right[valid_mask_right],
         domain="auto",
         **pose_estimation_right_dict,
     )
 
+    # Body Camera
     pes_body = nwbfile.processing["pose_estimation"][
         "BodyCamera"
     ].pose_estimation_series
+    timestamps_body = list(pes_body.values())[0].timestamps[:]
+    valid_mask_body = timestamps_body < max_time
     pose_estimation_body_dict = dict()
     for k, v in pes_body.items():
-        pose_estimation_body_dict[k] = v.data[:]
-    timestamps = list(pes_body.values())[0].timestamps[:]
+        pose_estimation_body_dict[k] = v.data[valid_mask_body]
     pose_estimation_body_camera = IrregularTimeSeries(
-        timestamps=timestamps,
+        timestamps=timestamps_body[valid_mask_body],
         domain="auto",
         **pose_estimation_body_dict,
     )
