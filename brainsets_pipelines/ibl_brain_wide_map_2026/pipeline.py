@@ -1,0 +1,333 @@
+# /// brainset-pipeline
+# python-version = "3.12"
+# dependencies = [
+#   "dandi==0.61.2",
+#   "pynwb==2.8.2",
+# ]
+# ///
+
+## TODO - add epochs
+## TODO - add licking events
+## TODO - filter spikes and behavior to active behavioral epoch ??
+
+from argparse import ArgumentParser
+from pathlib import Path
+import h5py
+import numpy as np
+import pandas as pd
+from pynwb import NWBHDF5IO, NWBFile
+from temporaldata import Data, IrregularTimeSeries, RegularTimeSeries, Interval, ArrayDict
+from brainsets.descriptions import (
+    BrainsetDescription,
+    SessionDescription,
+    DeviceDescription,
+)
+from brainsets.utils.dandi_utils import extract_subject_from_nwb
+from brainsets.taxonomy import RecordingTech
+from brainsets import serialize_fn_map
+from brainsets.pipeline import BrainsetPipeline
+
+
+parser = ArgumentParser()
+parser.add_argument("--redownload", action="store_true")
+parser.add_argument("--reprocess", action="store_true")
+
+
+class Pipeline(BrainsetPipeline):
+    brainset_id = "ibl_brain_wide_map_2026"
+    dandiset_id = "DANDI:000409/draft"
+    parser = parser
+
+    @classmethod
+    def get_manifest(cls, raw_dir, args) -> pd.DataFrame:
+        # TODO: Implement manifest generation from DANDI
+        # For now, we keep just a simple manifest for local testing
+        manifest_list = [
+            {
+                "session_id": "sub-NYU-39_ses-6ed57216-498d-48a6-b48b-a243a34710ea",
+                "filename": "sub-NYU-39_ses-6ed57216-498d-48a6-b48b-a243a34710ea_desc-processed_behavior+ecephys.nwb",
+            },
+        ]
+        manifest = pd.DataFrame(manifest_list).set_index("session_id")
+        return manifest
+
+    def download(self, manifest_item):
+        # Placeholder for download functionality
+        # For local testing, assume the file is already in raw_dir
+        self.update_status("DOWNLOADING")
+        fpath = self.raw_dir / manifest_item.filename
+        
+        if not fpath.exists():
+            print(f"Warning: File not found at {fpath}")
+            print("For local testing, please place the NWB file in the raw directory")
+        
+        return fpath
+
+    def process(self, fpath):
+        self.update_status("Loading NWB")
+        
+        # Check if already processed
+        session_id = fpath.stem
+        store_path = self.processed_dir / f"{session_id}.h5"
+        
+        if store_path.exists() and not self.args.reprocess:
+            self.update_status("Skipped Processing")
+            return
+        
+        # Open NWB file
+        io = NWBHDF5IO(str(fpath), "r")
+        nwbfile = io.read()
+        
+        self.processed_dir.mkdir(exist_ok=True, parents=True)
+        
+        # Extract metadata
+        self.update_status("Extracting Metadata")
+        brainset_description = BrainsetDescription(
+            id="ibl_brain_wide_map_2026",
+            origin_version="draft",
+            derived_version="1.0.0",
+            source="https://dandiarchive.org/dandiset/000409/draft",
+            description="International Brain Laboratory Brain Wide Map dataset containing "
+            "Neuropixels recordings across multiple brain regions in mice performing "
+            "a visual discrimination task.",
+        )
+        
+        session_description = SessionDescription(
+            id=session_id,
+            recording_date=nwbfile.session_start_time,
+        )
+        
+        subject = extract_subject_from_nwb(nwbfile)
+        
+        # Device description
+        device_description = DeviceDescription(
+            id=session_id,
+            recording_tech=RecordingTech.NEUROPIXELS_SPIKES,
+        )
+
+        # Get last timestamp from valid epoch
+        # Only "task" epoch contains valid behavioral data
+        epoch_df = nwbfile.epochs.to_dataframe()
+        max_time = epoch_df[epoch_df["protocol_type"]=="task"]["stop_time"].item()
+        
+        # Extract neural data
+        self.update_status("Extracting Neural Data")
+        units, spikes = extract_units_and_spikes(nwbfile=nwbfile, max_time=max_time)
+        
+        # Extract behavioral data
+        self.update_status("Extracting Behavioral Data")
+        wheel_data = extract_wheel_data(nwbfile=nwbfile, max_time=max_time)
+        pose_estimation_data = extract_pose_estimation_data(nwbfile=nwbfile, max_time=max_time)
+        
+        # Extract trials
+        self.update_status("Extracting Trials")
+        trials = extract_trials(nwbfile=nwbfile, max_time=max_time)
+        
+        # Close NWB file
+        io.close()
+        
+        # Create Data object
+        data = Data(
+            # Metadata
+            brainset=brainset_description,
+            subject=subject,
+            session=session_description,
+            device=device_description,
+            # Neural activity
+            units=units,
+            spikes=spikes,
+            domain=spikes.domain,
+            # Trials
+            trials=trials,
+            # Behavior
+            **wheel_data,
+            **pose_estimation_data,
+        )
+        
+        # Create train/validation/test splits
+        self.update_status("Creating Splits")
+        train_trials, valid_trials, test_trials = trials.split(
+            [0.7, 0.1, 0.2],    # proportions for train/valid/test
+            shuffle=True,       # randomly shuffle trials
+            random_seed=42      # for reproducibility
+        )
+        
+        data.set_train_domain(train_trials)
+        data.set_valid_domain(valid_trials)
+        data.set_test_domain(test_trials)
+        
+        # Save to HDF5
+        self.update_status("Storing")
+        with h5py.File(store_path, "w") as file:
+            data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
+
+
+def extract_units_and_spikes(nwbfile: NWBFile, max_time: float):
+    """Extract unit information and spike times from NWB file."""
+    units_df = nwbfile.units.to_dataframe(
+        exclude=set([
+            "spike_times",
+            "waveform_mean",
+            "spike_amplitudes_uV",
+            "spike_distances_from_probe_tip_um",
+        ])
+    )
+    
+    # Extract unit metadata
+    spike_train_list = nwbfile.units.spike_times_index[:]
+    unit_ids = []
+    for i in range(len(spike_train_list)):
+        unit_ids.append(f"unit_{i}")
+    
+    units = ArrayDict(
+        id=np.array(unit_ids),
+        unit_name=units_df.unit_name.values,
+        presence_ratio_std=units_df.presence_ratio_std.values,
+        sliding_rp_violation=units_df.sliding_rp_violation.values,
+        peak_to_trough_duration_ms=units_df.peak_to_trough_duration_ms.values,
+        missed_spikes_estimate=units_df.missed_spikes_estimate.values,
+        spike_count=units_df.spike_count.values,
+        presence_ratio=units_df.presence_ratio.values,
+        ibl_quality_score=units_df.ibl_quality_score.values,
+        max_spike_amplitude_uV=units_df.max_spike_amplitude_uV.values,
+        min_spike_amplitude_uV=units_df.min_spike_amplitude_uV.values,
+        noise_cutoff=units_df.noise_cutoff.values,
+        isi_violations_ratio=units_df.isi_violations_ratio.values,
+        median_spike_amplitude_uV=units_df.median_spike_amplitude_uV.values,
+        firing_rate=units_df.firing_rate.values,
+        cumulative_drift_um_per_hour=units_df.cumulative_drift_um_per_hour.values,
+        spike_amplitude_std_dB=units_df.spike_amplitude_std_dB.values,
+        kilosort2_label=units_df.kilosort2_label.values,
+        distance_from_probe_tip_um=units_df.distance_from_probe_tip_um.values,
+        rp_violation=units_df.rp_violation.values,
+    )
+    
+    # Extract spike times
+    spike_timestamps = np.array([])
+    spike_unit_index = np.array([], dtype=np.int64)
+    
+    for i in range(len(spike_train_list)):
+        spike_train = spike_train_list[i] 
+        valid_mask = spike_train < max_time
+        filtered_spike_train = spike_train[valid_mask]
+        spike_timestamps = np.concatenate([spike_timestamps, filtered_spike_train])
+        spike_unit_index = np.concatenate([
+            spike_unit_index,
+            np.full_like(filtered_spike_train, fill_value=i, dtype=np.int64)
+        ])
+    
+    spikes = IrregularTimeSeries(
+        timestamps=spike_timestamps,
+        unit_index=spike_unit_index,
+        domain="auto",
+    )
+    spikes.sort()
+    
+    return units, spikes
+
+
+def extract_wheel_data(nwbfile: NWBFile, max_time: float):
+    """Extract wheel velocity and acceleration data."""
+    wheel_rate = float(nwbfile.processing["wheel"]["TimeSeriesWheelAcceleration"].rate)
+    wheel_start = float(nwbfile.processing["wheel"]["TimeSeriesWheelAcceleration"].starting_time)
+    
+    wheel_acc = RegularTimeSeries(
+        values=nwbfile.processing["wheel"]["TimeSeriesWheelAcceleration"].data[:],
+        sampling_rate=wheel_rate,
+        domain_start=wheel_start,
+        domain="auto",
+    )
+
+    wheel_vel = RegularTimeSeries(
+        values=nwbfile.processing["wheel"]["TimeSeriesWheelVelocity"].data[:],
+        sampling_rate=wheel_rate,
+        domain_start=wheel_start,
+        domain="auto",
+    )
+
+    wheel_pos = IrregularTimeSeries(
+        values=nwbfile.processing["wheel"]["SpatialSeriesWheelPosition"].data[:],
+        timestamps=nwbfile.processing["wheel"]["SpatialSeriesWheelPosition"].timestamps[:],
+        domain="auto",
+    )
+
+    wheel_movement_intervals_df = nwbfile.processing["wheel"]["TimeIntervalsWheelMovement"].to_dataframe()
+    wheel_movement_intervals = Interval(
+        start=wheel_movement_intervals_df["start_time"].values,
+        end=wheel_movement_intervals_df["stop_time"].values,
+        peak_amplitude=wheel_movement_intervals_df["peak_amplitude"].values,
+        timekeys=["start", "end"],
+    )
+
+    wheel_data = {
+        "wheel_acceleration": wheel_acc,
+        "wheel_velocity": wheel_vel,
+        "wheel_position": wheel_pos,
+        "wheel_movement_intervals": wheel_movement_intervals,
+    }
+    
+    return wheel_data
+
+
+def extract_pose_estimation_data(nwbfile: NWBFile, max_time: float):
+    """Extract pose estimation data from left, right and body cameras."""
+    pes_left = nwbfile.processing["pose_estimation"]["LeftCamera"].pose_estimation_series
+    pose_estimation_left_dict = dict()
+    for k, v in pes_left.items():
+        pose_estimation_left_dict[k] = v.data[:]
+    timestamps = list(pes_left.values())[0].timestamps[:]
+    pose_estimation_left_camera = IrregularTimeSeries(
+        timestamps=timestamps,
+        domain="auto",
+        **pose_estimation_left_dict,
+    )
+
+    pes_right = nwbfile.processing["pose_estimation"]["RightCamera"].pose_estimation_series
+    pose_estimation_right_dict = dict()
+    for k, v in pes_right.items():
+        pose_estimation_right_dict[k] = v.data[:]
+    timestamps = list(pes_right.values())[0].timestamps[:]
+    pose_estimation_right_camera = IrregularTimeSeries(
+        timestamps=timestamps,
+        domain="auto",
+        **pose_estimation_right_dict,
+    )
+
+    pes_body = nwbfile.processing["pose_estimation"]["BodyCamera"].pose_estimation_series
+    pose_estimation_body_dict = dict()
+    for k, v in pes_body.items():
+        pose_estimation_body_dict[k] = v.data[:]
+    timestamps = list(pes_body.values())[0].timestamps[:]
+    pose_estimation_body_camera = IrregularTimeSeries(
+        timestamps=timestamps,
+        domain="auto",
+        **pose_estimation_body_dict,
+    )
+
+    pose_estimation = {
+        "pose_estimation_left_camera": pose_estimation_left_camera,
+        "pose_estimation_right_camera": pose_estimation_right_camera,
+        "pose_estimation_body_camera": pose_estimation_body_camera,
+    }
+    
+    return pose_estimation
+
+
+def extract_trials(nwbfile: NWBFile, max_time: float):
+    """Extract trial information."""
+    df = nwbfile.trials.to_dataframe()
+    df.rename(columns={"start_time": "start", "stop_time": "end"}, inplace=True)
+    trials = Interval.from_dataframe(
+        df,
+        timekeys=[
+            "start",
+            "end",
+            "gabor_stimulus_onset_time",
+            "auditory_cue_time",
+            "wheel_movement_onset_time",
+            "choice_registration_time",
+            "feedback_time",
+            "gabor_stimulus_offset_time",
+        ],
+    )
+    return trials
