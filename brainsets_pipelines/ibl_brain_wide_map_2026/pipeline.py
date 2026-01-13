@@ -244,36 +244,51 @@ def extract_wheel_data(nwbfile: NWBFile, max_time: float):
     wheel_start = float(
         nwbfile.processing["wheel"]["TimeSeriesWheelAcceleration"].starting_time
     )
+    num_samples = int((max_time - wheel_start) * wheel_rate)
 
     wheel_acc = RegularTimeSeries(
-        values=nwbfile.processing["wheel"]["TimeSeriesWheelAcceleration"].data[:],
+        values=nwbfile.processing["wheel"]["TimeSeriesWheelAcceleration"].data[
+            :num_samples
+        ],
         sampling_rate=wheel_rate,
         domain_start=wheel_start,
         domain="auto",
     )
 
     wheel_vel = RegularTimeSeries(
-        values=nwbfile.processing["wheel"]["TimeSeriesWheelVelocity"].data[:],
+        values=nwbfile.processing["wheel"]["TimeSeriesWheelVelocity"].data[
+            :num_samples
+        ],
         sampling_rate=wheel_rate,
         domain_start=wheel_start,
         domain="auto",
     )
 
+    # Filter IrregularTimeSeries by timestamp
+    wheel_pos_timestamps = nwbfile.processing["wheel"][
+        "SpatialSeriesWheelPosition"
+    ].timestamps[:]
+    wheel_pos_values = nwbfile.processing["wheel"]["SpatialSeriesWheelPosition"].data[:]
+    valid_pos_mask = wheel_pos_timestamps < max_time
+
     wheel_pos = IrregularTimeSeries(
-        values=nwbfile.processing["wheel"]["SpatialSeriesWheelPosition"].data[:],
-        timestamps=nwbfile.processing["wheel"]["SpatialSeriesWheelPosition"].timestamps[
-            :
-        ],
+        values=wheel_pos_values[valid_pos_mask],
+        timestamps=wheel_pos_timestamps[valid_pos_mask],
         domain="auto",
     )
 
+    # Filter intervals - keep only complete intervals within valid epoch
     wheel_movement_intervals_df = nwbfile.processing["wheel"][
         "TimeIntervalsWheelMovement"
     ].to_dataframe()
+    valid_intervals = wheel_movement_intervals_df[
+        wheel_movement_intervals_df["stop_time"] < max_time
+    ]
+
     wheel_movement_intervals = Interval(
-        start=wheel_movement_intervals_df["start_time"].values,
-        end=wheel_movement_intervals_df["stop_time"].values,
-        peak_amplitude=wheel_movement_intervals_df["peak_amplitude"].values,
+        start=valid_intervals["start_time"].values,
+        end=valid_intervals["stop_time"].values,
+        peak_amplitude=valid_intervals["peak_amplitude"].values,
         timekeys=["start", "end"],
     )
 
