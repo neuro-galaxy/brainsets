@@ -166,6 +166,10 @@ def run():
             log_to_driver=False,
             configure_logging=True,
             logging_level=logging.WARNING,
+            # --- ADDED LINES START ---
+            include_dashboard=False,
+            _internal_config='{"enable_metrics_collection": false}',
+            # --- ADDED LINES END ---
         )
 
         # 2. Start tracker and actors
