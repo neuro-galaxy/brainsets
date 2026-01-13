@@ -168,7 +168,6 @@ def run():
             logging_level=logging.WARNING,
             # --- ADDED LINES START ---
             include_dashboard=False,
-            _internal_config='{"enable_metrics_collection": false}',
             # --- ADDED LINES END ---
         )
 
