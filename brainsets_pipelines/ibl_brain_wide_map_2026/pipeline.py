@@ -7,7 +7,8 @@
 # ///
 
 ## TODO - add licking events
-## TODO - filter spikes and behavior to active behavioral epoch ??
+## TODO - add all relevant sessions to manifest
+## TODO - implement download from DANDI
 
 from argparse import ArgumentParser
 from pathlib import Path
@@ -143,7 +144,7 @@ class Pipeline(BrainsetPipeline):
             # Neural activity
             units=units,
             spikes=spikes,
-            domain=spikes.domain,
+            domain=Interval(start=0, end=max_time),
             # Trials
             trials=trials,
             # Behavior
@@ -361,6 +362,7 @@ def extract_trials(nwbfile: NWBFile, max_time: float):
     """Extract trial information."""
     df = nwbfile.trials.to_dataframe()
     df.rename(columns={"start_time": "start", "stop_time": "end"}, inplace=True)
+    df = df[df["end"] < max_time]
     trials = Interval.from_dataframe(
         df,
         timekeys=[
