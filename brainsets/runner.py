@@ -159,7 +159,13 @@ def run():
         # Parallel run
 
         # 1. Start ray
-        os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"  # to avoid a warning
+        # --- FIX: Set environment variables BEFORE calling ray.init ---
+        # This disables the metrics collection that causes the hang
+        os.environ["RAY_ENABLE_METRICS_COLLECTION"] = "0"
+        # This disables the dashboard that causes port errors
+        os.environ["RAY_DISABLE_DASHBOARD"] = "1"
+        os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"
+
         ray.init(
             "local",
             num_cpus=args.cores,
