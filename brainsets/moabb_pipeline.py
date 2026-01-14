@@ -6,15 +6,28 @@ classes, and implement paradigm-specific processing logic.
 """
 
 from abc import abstractmethod
-from typing import Dict, Any, Optional, Type
+from typing import Dict, Any, Type
 from pathlib import Path
 import pandas as pd
 import numpy as np
+import datetime
+import logging
+import h5py
 
 from moabb.datasets.base import BaseDataset
 from moabb.paradigms.base import BaseParadigm
 from moabb.utils import set_download_dir
+from temporaldata import Data, RegularTimeSeries, Interval, ArrayDict
 from brainsets.pipeline import BrainsetPipeline
+from brainsets import serialize_fn_map
+from brainsets.descriptions import (
+    BrainsetDescription,
+    SessionDescription,
+    SubjectDescription,
+    DeviceDescription,
+)
+from brainsets.taxonomy import Species, Task
+from brainsets.utils.split import generate_stratified_folds
 
 
 class MOABBPipeline(BrainsetPipeline):
@@ -26,21 +39,35 @@ class MOABBPipeline(BrainsetPipeline):
         - paradigm_class: Type[BaseParadigm]
         - dataset_kwargs: Dict[str, Any] (optional, defaults to {})
         - paradigm_kwargs: Dict[str, Any] (optional, defaults to {})
+        - task: Task (e.g., Task.MOTOR_IMAGERY, Task.P300)
+        - trial_key: str (e.g., "motor_imagery_trials", "p300_trials")
+        - label_field: str (e.g., "movements", "targets")
+        - id_field: str (e.g., "movement_ids", "target_ids")
+        - stratify_field: str (e.g., "movements", "targets")
+        - label_map: Dict[str, int] (mapping from label strings to integer IDs)
 
     Subclasses must implement:
-        - process(): Transform MOABB data to brainsets format
+        - get_brainset_description(): Return dataset-specific BrainsetDescription
 
     The base class handles:
         - Manifest generation from dataset metadata
         - Data download via MOABB paradigm.get_data()
         - Session filtering
         - MNE download directory setup
+        - Default process() workflow (EEG extraction, trial extraction, splits, storage)
     """
 
     dataset_class: Type[BaseDataset]
     paradigm_class: Type[BaseParadigm]
     dataset_kwargs: Dict[str, Any] = {}
     paradigm_kwargs: Dict[str, Any] = {}
+
+    task: Task
+    trial_key: str
+    label_field: str
+    id_field: str
+    stratify_field: str
+    label_map: Dict[str, int]
 
     @classmethod
     def get_dataset(cls) -> BaseDataset:
@@ -176,18 +203,308 @@ class MOABBPipeline(BrainsetPipeline):
             "epochs": epochs_filtered,
         }
 
+    def _extract_eeg_data(self, X, info, epochs):
+        """Extract EEG data from epoched arrays.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Array of shape (n_epochs, n_channels, n_samples)
+        info : mne.Info
+            MNE Info object with channel and sampling rate information
+        epochs : mne.Epochs
+            MNE Epochs object (used to get channel types)
+
+        Returns
+        -------
+        eeg : RegularTimeSeries
+            Concatenated EEG signals
+        units : ArrayDict
+            Channel IDs and types
+        epoch_intervals : Interval
+            Time intervals for each epoch
+        """
+        sfreq = info["sfreq"]
+        n_epochs, n_channels, n_samples = X.shape
+
+        eeg_signals = np.concatenate([X[i].T for i in range(n_epochs)], axis=0)
+
+        epoch_starts = []
+        epoch_ends = []
+        current_time = 0.0
+
+        for i in range(n_epochs):
+            epoch_duration = n_samples / sfreq
+            epoch_starts.append(current_time)
+            epoch_ends.append(current_time + epoch_duration)
+            current_time += epoch_duration
+
+        eeg = RegularTimeSeries(
+            signal=eeg_signals,
+            sampling_rate=sfreq,
+            domain=Interval(
+                start=np.array([0.0]),
+                end=np.array([(len(eeg_signals) - 1) / sfreq]),
+            ),
+        )
+
+        ch_names = info["ch_names"]
+        if len(epochs) > 0:
+            ch_types = epochs[0].get_channel_types()
+        else:
+            ch_types = []
+            for ch_name in ch_names:
+                ch_idx = info["ch_names"].index(ch_name)
+                ch_kind = info["chs"][ch_idx]["kind"]
+                ch_type_map = {
+                    2: "EEG",
+                    3: "EOG",
+                    4: "EMG",
+                    5: "ECG",
+                    301: "MISC",
+                }
+                ch_types.append(ch_type_map.get(ch_kind, "MISC"))
+
+        units = ArrayDict(
+            id=np.array(ch_names, dtype="U"),
+            types=np.array(ch_types, dtype="U"),
+        )
+
+        epoch_intervals = Interval(
+            start=np.array(epoch_starts),
+            end=np.array(epoch_ends),
+        )
+
+        return eeg, units, epoch_intervals
+
     @abstractmethod
+    def get_brainset_description(self) -> BrainsetDescription:
+        """Return dataset-specific BrainsetDescription.
+
+        Returns
+        -------
+        BrainsetDescription
+            Description object with dataset metadata
+        """
+        ...
+
+    def _get_subject_description(self, subject_id: str) -> SubjectDescription:
+        """Create subject description from subject ID.
+
+        Parameters
+        ----------
+        subject_id : str
+            Subject identifier
+
+        Returns
+        -------
+        SubjectDescription
+            Subject description object
+        """
+        return SubjectDescription(
+            id=subject_id,
+            species=Species.HOMO_SAPIENS,
+        )
+
+    def _get_session_description(
+        self, session_id: str, info: Any
+    ) -> SessionDescription:
+        """Create session description from session ID and MNE info.
+
+        Parameters
+        ----------
+        session_id : str
+            Session identifier
+        info : mne.Info
+            MNE Info object with recording date
+
+        Returns
+        -------
+        SessionDescription
+            Session description object
+        """
+        if info is None:
+            raise ValueError("No MNE Info object available from epochs")
+
+        recording_date = info.get("meas_date")
+        if recording_date is None:
+            recording_date = datetime.datetime.now()
+
+        return SessionDescription(
+            id=session_id,
+            recording_date=recording_date,
+            task=self.task,
+        )
+
+    def _get_device_description(self, subject_id: str, info: Any) -> DeviceDescription:
+        """Create device description from subject ID and MNE info.
+
+        Parameters
+        ----------
+        subject_id : str
+            Subject identifier
+        info : mne.Info
+            MNE Info object with recording date
+
+        Returns
+        -------
+        DeviceDescription
+            Device description object
+        """
+        if info is None:
+            raise ValueError("No MNE Info object available from epochs")
+
+        recording_date = info.get("meas_date")
+        if recording_date is None:
+            recording_date = datetime.datetime.now()
+
+        return DeviceDescription(
+            id=f"{subject_id}_{recording_date.strftime('%Y%m%d')}",
+        )
+
+    def _extract_trials(self, X, labels, info):
+        """Extract trial intervals with labels using configured field names.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Array of shape (n_epochs, n_channels, n_samples)
+        labels : np.ndarray
+            Array of shape (n_epochs,) with event labels
+        info : mne.Info
+            MNE Info object with sampling rate information
+
+        Returns
+        -------
+        trials : Interval
+            Interval object with start/end times and configured label fields
+        """
+        sfreq = info["sfreq"]
+        n_epochs, _, n_samples = X.shape
+
+        start_times = []
+        end_times = []
+        label_values = []
+        id_values = []
+
+        current_time = 0.0
+
+        for i in range(n_epochs):
+            epoch_duration = n_samples / sfreq
+
+            start_times.append(current_time)
+            end_times.append(current_time + epoch_duration)
+
+            label = labels[i]
+            label_values.append(label)
+            id_values.append(self.label_map.get(label, -1))
+
+            current_time += epoch_duration
+
+        trial_kwargs = {
+            "start": np.array(start_times),
+            "end": np.array(end_times),
+            "timestamps": (np.array(start_times) + np.array(end_times)) / 2,
+            self.label_field: np.array(label_values),
+            self.id_field: np.array(id_values),
+            "timekeys": ["start", "end", "timestamps"],
+        }
+
+        trials = Interval(**trial_kwargs)
+
+        if not trials.is_disjoint():
+            raise ValueError("Found overlapping trials")
+
+        return trials
+
+    def _generate_splits(self, trials):
+        """Generate stratified folds for trials.
+
+        Parameters
+        ----------
+        trials : Interval
+            Trial intervals with label fields
+
+        Returns
+        -------
+        splits : Data
+            Data object containing fold splits
+        """
+        folds = generate_stratified_folds(
+            trials,
+            stratify_by=self.stratify_field,
+            n_folds=5,
+            val_ratio=0.2,
+            seed=42,
+        )
+
+        folds_dict = {f"fold_{i}": fold for i, fold in enumerate(folds)}
+        return Data(**folds_dict, domain=trials)
+
     def process(self, download_output: Dict[str, Any]) -> None:
         """Transform MOABB data to brainsets format.
 
-        Subclasses implement paradigm-specific processing:
-        - Motor Imagery: extract trials with movement labels
-        - P300: extract target/non-target epochs
-        - SSVEP: extract frequency-tagged responses
+        This default implementation handles the common workflow:
+        1. Extract EEG data and channel information
+        2. Extract trial intervals with labels
+        3. Generate stratified splits
+        4. Create and store Data object
+
+        Subclasses can override for custom processing, but typically only
+        need to implement get_brainset_description().
 
         Parameters
         ----------
         download_output : dict
-            Dictionary returned by download() containing X, labels, meta, info
+            Dictionary returned by download() containing X, labels, meta, info, epochs
         """
-        ...
+        X = download_output["X"]
+        labels = download_output["labels"]
+        meta = download_output["meta"]
+        info = download_output["info"]
+        epochs = download_output["epochs"]
+
+        self.update_status("PROCESSING")
+        self.processed_dir.mkdir(exist_ok=True, parents=True)
+
+        subject_id = f"S{meta.iloc[0]['subject']:03d}"
+        session_id = f"{subject_id}_sess-{meta.iloc[0]['session']}"
+
+        store_path = self.processed_dir / f"{session_id}.h5"
+        if store_path.exists() and not self.args.reprocess:
+            self.update_status("Skipped Processing")
+            return
+
+        self.update_status("Creating Descriptions")
+        brainset_description = self.get_brainset_description()
+        subject_description = self._get_subject_description(subject_id)
+        session_description = self._get_session_description(session_id, info)
+        device_description = self._get_device_description(subject_id, info)
+
+        self.update_status("Extracting EEG")
+        eeg, units, _ = self._extract_eeg_data(X, info, epochs)
+
+        self.update_status("Extracting Trials")
+        trials = self._extract_trials(X, labels, info)
+
+        self.update_status("Generating Splits")
+        splits = self._generate_splits(trials)
+
+        self.update_status("Creating Data Object")
+        data = Data(
+            brainset=brainset_description,
+            subject=subject_description,
+            session=session_description,
+            device=device_description,
+            eeg=eeg,
+            units=units,
+            **{self.trial_key: trials},
+            splits=splits,
+            domain=eeg.domain,
+        )
+
+        self.update_status("Storing")
+        with h5py.File(store_path, "w") as file:
+            data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
+
+        logging.info(f"Saved processed data to: {store_path}")
