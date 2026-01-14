@@ -23,6 +23,9 @@ class Task(StringIntEnum):
     # Full sentence speaking
     CONTINUOUS_SPEAKING_SENTENCE = 7
 
+    # Motor imagery tasks
+    MOTOR_IMAGERY = 8
+
 
 class Stimulus(StringIntEnum):
     """Stimuli can variously act like inputs (for conditioning) or like outputs."""
