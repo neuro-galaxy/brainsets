@@ -126,9 +126,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         recordings = fetch_eeg_recordings(dataset_id)
 
         if cls.subject_ids is not None:
-            recordings = [
-                r for r in recordings if r["subject_id"] in cls.subject_ids
-            ]
+            recordings = [r for r in recordings if r["subject_id"] in cls.subject_ids]
             if not recordings:
                 raise ValueError(
                     f"None of the requested subjects {cls.subject_ids} "
@@ -158,9 +156,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             )
 
         if not manifest_list:
-            raise ValueError(
-                f"No EEG recordings found in dataset {dataset_id}"
-            )
+            raise ValueError(f"No EEG recordings found in dataset {dataset_id}")
 
         manifest = pd.DataFrame(manifest_list)
         return manifest.set_index("recording_id")
