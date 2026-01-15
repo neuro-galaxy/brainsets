@@ -8,6 +8,7 @@ classes, and implement paradigm-specific processing logic.
 from abc import abstractmethod
 from typing import Dict, Any, Type, Optional
 from pathlib import Path
+import os
 import pandas as pd
 import numpy as np
 import datetime
@@ -16,7 +17,6 @@ import h5py
 
 from moabb.datasets.base import BaseDataset
 from moabb.paradigms.base import BaseParadigm
-from moabb.utils import set_download_dir
 from temporaldata import Data, RegularTimeSeries, Interval, ArrayDict
 from brainsets.pipeline import BrainsetPipeline
 from brainsets import serialize_fn_map
@@ -140,7 +140,8 @@ class MOABBPipeline(BrainsetPipeline):
         """
         self.update_status("DOWNLOADING")
 
-        set_download_dir(str(self.raw_dir))
+        self.raw_dir.mkdir(exist_ok=True, parents=True)
+        os.environ["MNE_DATA"] = str(self.raw_dir.resolve())
 
         dataset = self.get_dataset()
         paradigm = self.get_paradigm()
@@ -185,7 +186,7 @@ class MOABBPipeline(BrainsetPipeline):
         labels_filtered = labels[session_mask]
         meta_filtered = meta[session_mask].reset_index(drop=True)
 
-        X_filtered = np.concatenate([ep.get_data() for ep in epochs_filtered], axis=0)
+        X_filtered = np.concatenate(epochs_filtered, axis=0)
         info = epochs_filtered[0].info if len(epochs_filtered) > 0 else None
 
         return {
