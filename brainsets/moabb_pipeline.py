@@ -104,6 +104,7 @@ class MOABBPipeline(BrainsetPipeline):
 
         for subject in dataset.subject_list:
             for session in range(dataset.n_sessions):
+                # Make sure session is an integer
                 session_id = f"subj-{subject:03d}_sess-{session}"
                 manifest_list.append(
                     {
@@ -143,41 +144,41 @@ class MOABBPipeline(BrainsetPipeline):
 
         dataset = self.get_dataset()
         paradigm = self.get_paradigm()
+        subject = int(manifest_item.subject)
+        session = int(manifest_item.session)
 
         X, labels, meta = paradigm.get_data(
             dataset=dataset,
-            subjects=[manifest_item.subject.item()],
+            subjects=[subject],
             return_epochs=False,
         )
 
         if len(X) == 0:
             raise ValueError(
-                f"No epochs found for subject {manifest_item.subject}, "
-                f"session {manifest_item.session}"
+                f"No epochs found for subject {subject}, " f"session {session}"
             )
 
         session_values = sorted(meta["session"].unique())
-        if isinstance(manifest_item.session, int):
-            if manifest_item.session < len(session_values):
-                session_key = session_values[manifest_item.session]
+        if isinstance(session, int):
+            if session < len(session_values):
+                session_key = session_values[session]
             else:
                 raise ValueError(
-                    f"Session index {manifest_item.session} out of range for subject {manifest_item.subject}. "
+                    f"Session index {session} out of range for subject {subject}. "
                     f"Available {len(session_values)} sessions: {list(session_values)}"
                 )
         else:
-            session_key = str(manifest_item.session.item())
+            session_key = str(session)
             if session_key not in session_values:
                 raise ValueError(
-                    f"Session {session_key} not found for subject {manifest_item.subject}. "
+                    f"Session {session_key} not found for subject {subject}. "
                     f"Available sessions: {list(session_values)}"
                 )
 
         session_mask = meta["session"] == session_key
         if not session_mask.any():
             raise ValueError(
-                f"No epochs found for subject {manifest_item.subject}, "
-                f"session {session_key}"
+                f"No epochs found for subject {subject}, " f"session {session_key}"
             )
 
         X_filtered = X[session_mask]
@@ -186,7 +187,7 @@ class MOABBPipeline(BrainsetPipeline):
 
         epochs, labels_epochs, meta_epochs = paradigm.get_data(
             dataset=dataset,
-            subjects=[manifest_item.subject.item()],
+            subjects=[subject],
             return_epochs=True,
         )
 
