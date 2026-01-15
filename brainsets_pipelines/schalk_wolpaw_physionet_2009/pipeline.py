@@ -21,9 +21,14 @@ import logging
 from moabb.datasets import PhysionetMI
 from moabb.paradigms import MotorImagery
 
+from temporaldata import Data
 from brainsets.descriptions import BrainsetDescription
 from brainsets.taxonomy import Task
 from brainsets.moabb_pipeline import MOABBPipeline
+from brainsets.utils.split import (
+    generate_task_kfold_splits,
+    compute_subject_kfold_assignments,
+)
 
 
 logging.basicConfig(level=logging.INFO)
@@ -53,6 +58,49 @@ class Pipeline(MOABBPipeline):
         "feet": 3,
         "rest": 4,
     }
+
+    TASK_CONFIGS = {
+        "MotorImagery": ["left_hand", "right_hand", "hands", "feet", "rest"],
+        "LeftRightImagery": ["left_hand", "right_hand"],
+        "RightHandFeetImagery": ["right_hand", "feet"],
+    }
+
+    def _generate_splits(self, trials, subject_id: str = None):
+        """Generate task-specific and subject-level k-fold splits.
+
+        Generates:
+        1. Task-specific within-session stratified k-fold splits for MotorImagery,
+           LeftRightImagery, and RightHandFeetImagery tasks
+        2. Subject-level k-fold assignments (train/valid/test per fold)
+
+        Parameters
+        ----------
+        trials : Interval
+            Trial intervals with label fields
+        subject_id : str
+            Subject identifier for subject-level splits
+
+        Returns
+        -------
+        splits : Data
+            Data object containing all split masks
+        """
+        task_splits = generate_task_kfold_splits(
+            trials,
+            task_configs=self.TASK_CONFIGS,
+            label_field=self.label_field,
+            n_folds=5,
+            val_ratio=0.2,
+            seed=42,
+        )
+
+        if subject_id is not None:
+            subject_assignments = compute_subject_kfold_assignments(
+                subject_id, n_folds=5, val_ratio=0.2, seed=42
+            )
+            return Data(**task_splits, **subject_assignments, domain=trials)
+        else:
+            return Data(**task_splits, domain=trials)
 
     def get_brainset_description(self):
         return BrainsetDescription(

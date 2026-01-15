@@ -252,7 +252,7 @@ class MOABBPipeline(BrainsetPipeline):
         -------
         eeg : RegularTimeSeries
             Concatenated EEG signals
-        units : ArrayDict
+        channels : ArrayDict
             Channel IDs and types
         trials : Interval
             Trial intervals with start/end times and label fields
@@ -271,7 +271,7 @@ class MOABBPipeline(BrainsetPipeline):
             ),
         )
 
-        units = ArrayDict(
+        channels = ArrayDict(
             id=np.array(info["ch_names"], dtype="U"),
             types=np.array(ch_types, dtype="U"),
         )
@@ -296,7 +296,7 @@ class MOABBPipeline(BrainsetPipeline):
         if not trials.is_disjoint():
             raise ValueError("Found overlapping trials")
 
-        return eeg, units, trials
+        return eeg, channels, trials
 
     @abstractmethod
     def get_brainset_description(self) -> BrainsetDescription:
@@ -383,13 +383,15 @@ class MOABBPipeline(BrainsetPipeline):
             id=f"{subject_id}_{recording_date.strftime('%Y%m%d')}",
         )
 
-    def _generate_splits(self, trials):
+    def _generate_splits(self, trials, subject_id: str = None):
         """Generate stratified folds for trials.
 
         Parameters
         ----------
         trials : Interval
             Trial intervals with label fields
+        subject_id : str, optional
+            Subject identifier for subject-level splits. Default is None.
 
         Returns
         -------
@@ -449,10 +451,10 @@ class MOABBPipeline(BrainsetPipeline):
 
         self.update_status("Extracting EEG and Trials")
         ch_types = self._get_channel_types(info, epochs)
-        eeg, units, trials = self._extract_eeg_data(X, info, ch_types, labels)
+        eeg, channels, trials = self._extract_eeg_data(X, info, ch_types, labels)
 
         self.update_status("Generating Splits")
-        splits = self._generate_splits(trials)
+        splits = self._generate_splits(trials, subject_id=subject_id)
 
         self.update_status("Creating Data Object")
         data = Data(
@@ -461,7 +463,7 @@ class MOABBPipeline(BrainsetPipeline):
             session=session_description,
             device=device_description,
             eeg=eeg,
-            units=units,
+            channels=channels,
             **{self.trial_key: trials},
             splits=splits,
             domain=eeg.domain,

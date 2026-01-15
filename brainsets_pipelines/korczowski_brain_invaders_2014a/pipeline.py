@@ -21,9 +21,11 @@ import logging
 from moabb.datasets import BI2014a
 from moabb.paradigms import P300
 
+from temporaldata import Data
 from brainsets.descriptions import BrainsetDescription
 from brainsets.taxonomy import Task
 from brainsets.moabb_pipeline import MOABBPipeline
+from brainsets.utils.split import compute_subject_kfold_assignments
 
 
 logging.basicConfig(level=logging.INFO)
@@ -50,6 +52,36 @@ class Pipeline(MOABBPipeline):
         "Target": 1,
         "NonTarget": 0,
     }
+
+    def _generate_splits(self, trials, subject_id: str = None):
+        """Generate stratified folds and subject-level k-fold assignments.
+
+        Generates:
+        1. Standard stratified k-fold splits (from parent class)
+        2. Subject-level k-fold assignments (train/valid/test per fold)
+
+        Parameters
+        ----------
+        trials : Interval
+            Trial intervals with label fields
+        subject_id : str
+            Subject identifier for subject-level splits
+
+        Returns
+        -------
+        splits : Data
+            Data object containing all split masks
+        """
+        splits = super()._generate_splits(trials, subject_id=subject_id)
+
+        if subject_id is not None:
+            subject_assignments = compute_subject_kfold_assignments(
+                subject_id, n_folds=5, val_ratio=0.2, seed=42
+            )
+            for key, value in subject_assignments.items():
+                setattr(splits, key, value)
+
+        return splits
 
     def get_brainset_description(self):
         return BrainsetDescription(

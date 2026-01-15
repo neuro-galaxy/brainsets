@@ -1,6 +1,8 @@
 import logging
+import hashlib
 import numpy as np
-from typing import List
+from typing import List, Dict
+from collections import Counter
 from temporaldata import Interval, Data
 
 
@@ -325,3 +327,139 @@ def generate_stratified_folds(
             folds.append(fold_data)
 
     return folds
+
+
+def generate_task_kfold_splits(
+    trials: Interval,
+    task_configs: Dict[str, List[str]],
+    label_field: str,
+    n_folds: int = 5,
+    val_ratio: float = 0.2,
+    seed: int = 42,
+) -> Dict[str, Interval]:
+    """
+    Generate k-fold cross-validation train/valid/test splits for multiple tasks.
+
+    For each task, creates n_folds stratified train/valid/test splits using the
+    provided trials Interval object. The splits are returned as Interval objects
+    with names formatted as "{task_name}_fold{k}_train", "{task_name}_fold{k}_valid",
+    and "{task_name}_fold{k}_test" for each fold.
+
+    Args
+    ----
+    trials : Interval
+        An Interval object containing trial information, including labels.
+    task_configs : Dict[str, List[str]]
+        Dictionary mapping task names to lists of labels to include for that task.
+        Example: {"MotorImagery": ["left_hand", "right_hand", "feet"], ...}
+    label_field : str
+        The attribute name in trials that contains the labels.
+    n_folds : int
+        Number of folds for cross-validation. Default is 5.
+    val_ratio : float
+        Ratio of validation set relative to train+valid combined. Default is 0.2.
+    seed : int
+        Random seed for reproducibility. Default is 42.
+
+    Returns
+    -------
+    Dict[str, Interval]
+        Dictionary mapping split names to Interval objects.
+    """
+    if not hasattr(trials, label_field):
+        raise ValueError(
+            f"Trials must have a '{label_field}' attribute for task filtering."
+        )
+
+    all_labels = getattr(trials, label_field)
+    splits_dict = {}
+
+    for task_name, include_labels in task_configs.items():
+        logging.info(f"\nGenerating {task_name} k-fold train/valid/test splits")
+
+        task_mask = np.isin(all_labels, include_labels)
+        task_trials = trials.select_by_mask(task_mask)
+
+        if len(task_trials) < n_folds:
+            logging.warning(
+                f"Task {task_name} has only {len(task_trials)} trials, "
+                f"skipping (need at least {n_folds})"
+            )
+            continue
+
+        folds = generate_stratified_folds(
+            task_trials,
+            stratify_by=label_field,
+            n_folds=n_folds,
+            val_ratio=val_ratio,
+            seed=seed,
+        )
+
+        for k, fold_data in enumerate(folds):
+            task_labels_train = getattr(fold_data.train, label_field)
+            task_labels_valid = getattr(fold_data.valid, label_field)
+            task_labels_test = getattr(fold_data.test, label_field)
+
+            logging.info(f"Fold {k}:")
+            logging.info(f"  Train label counts: {dict(Counter(task_labels_train))}")
+            logging.info(f"  Valid label counts: {dict(Counter(task_labels_valid))}")
+            logging.info(f"  Test label counts: {dict(Counter(task_labels_test))}")
+
+            splits_dict[f"{task_name}_fold{k}_train"] = fold_data.train
+            splits_dict[f"{task_name}_fold{k}_valid"] = fold_data.valid
+            splits_dict[f"{task_name}_fold{k}_test"] = fold_data.test
+
+    return splits_dict
+
+
+def compute_subject_kfold_assignments(
+    subject_id: str, n_folds: int = 5, val_ratio: float = 0.2, seed: int = 42
+) -> Dict[str, str]:
+    """
+    Compute deterministic subject-level k-fold train/valid/test assignments.
+
+    Uses hash-based assignment to deterministically assign subjects to folds.
+    For each fold k:
+    - Subjects in bucket k are assigned to test
+    - Remaining subjects are split into train/valid based on val_ratio
+
+    Args
+    ----
+    subject_id : str
+        Subject identifier (e.g., "S001", "subj-001")
+    n_folds : int
+        Number of folds for cross-validation. Default is 5.
+    val_ratio : float
+        Ratio of validation set relative to train+valid combined. Default is 0.2.
+    seed : int
+        Random seed for reproducibility. Default is 42.
+
+    Returns
+    -------
+    Dict[str, str]
+        Dictionary mapping "SubjectSplit_fold{k}" to "train", "valid", or "test"
+        for each fold k in range(n_folds).
+    """
+    subject_str = f"{subject_id}_{seed}"
+    subject_bytes = subject_str.encode("utf-8")
+    hash_obj = hashlib.md5(subject_bytes)
+    hash_int = int(hash_obj.hexdigest(), 16)
+    bucket = hash_int % n_folds
+
+    assignments = {}
+
+    for k in range(n_folds):
+        if bucket == k:
+            assignments[f"SubjectSplit_fold{k}"] = "test"
+        else:
+            fold_str = f"{subject_id}_{seed}_{k}"
+            fold_bytes = fold_str.encode("utf-8")
+            fold_hash_obj = hashlib.md5(fold_bytes)
+            fold_hash_int = int(fold_hash_obj.hexdigest(), 16)
+            normalized_hash = (fold_hash_int % 10000) / 10000.0
+            if normalized_hash < val_ratio:
+                assignments[f"SubjectSplit_fold{k}"] = "valid"
+            else:
+                assignments[f"SubjectSplit_fold{k}"] = "train"
+
+    return assignments
