@@ -1,3 +1,12 @@
+# /// brainset-pipeline
+# python-version = "3.11"
+# dependencies = [
+#   "mne~=1.0.0",
+#   "boto3~=1.26.0",
+#   "requests~=2.28.0",
+# ]
+# ///
+
 """Klinzing Sleep dataset pipeline (OpenNeuro ds005555).
 
 This pipeline processes EEG sleep recordings from the Klinzing et al. dataset.
