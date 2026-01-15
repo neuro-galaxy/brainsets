@@ -50,8 +50,32 @@ class Pipeline(BrainsetPipeline):
         # For now, we keep just a simple manifest for local testing
         manifest_list = [
             {
+                "session_id": "sub-NYU-11_ses-6713a4a7-faed-4df2-acab-ee4e63326f8d",
+                "filename": "sub-NYU-11_ses-6713a4a7-faed-4df2-acab-ee4e63326f8d_desc-processed_behavior+ecephys.nwb",
+            },
+            {
+                "session_id": "sub-NYU-11_ses-56956777-dca5-468c-87cb-78150432cc57",
+                "filename": "sub-NYU-11_ses-56956777-dca5-468c-87cb-78150432cc57_desc-processed_behavior+ecephys.nwb",
+            },
+            {
+                "session_id": "sub-NYU-12_ses-4364a246-f8d7-4ce7-ba23-a098104b96e4",
+                "filename": "sub-NYU-12_ses-4364a246-f8d7-4ce7-ba23-a098104b96e4_desc-processed_behavior+ecephys.nwb",
+            },
+            {
+                "session_id": "sub-NYU-12_ses-b182b754-3c3e-4942-8144-6ee790926b58",
+                "filename": "sub-NYU-12_ses-b182b754-3c3e-4942-8144-6ee790926b58_desc-processed_behavior+ecephys.nwb",
+            },
+            {
                 "session_id": "sub-NYU-39_ses-6ed57216-498d-48a6-b48b-a243a34710ea",
                 "filename": "sub-NYU-39_ses-6ed57216-498d-48a6-b48b-a243a34710ea_desc-processed_behavior+ecephys.nwb",
+            },
+            {
+                "session_id": "sub-NYU-39_ses-35ed605c-1a1a-47b1-86ff-2b56144f55af",
+                "filename": "sub-NYU-39_ses-35ed605c-1a1a-47b1-86ff-2b56144f55af_desc-processed_behavior+ecephys.nwb",
+            },
+            {
+                "session_id": "sub-NYU-46_ses-64e3fb86-928c-4079-865c-b364205b502e",
+                "filename": "sub-NYU-46_ses-64e3fb86-928c-4079-865c-b364205b502e_desc-processed_behavior+ecephys.nwb",
             },
         ]
         manifest = pd.DataFrame(manifest_list).set_index("session_id")
@@ -113,19 +137,33 @@ class Pipeline(BrainsetPipeline):
 
         # Get last timestamp from valid epoch
         # Only "task" epoch contains valid behavioral data
-        epoch_df = nwbfile.epochs.to_dataframe()
-        max_time = epoch_df[epoch_df["protocol_type"] == "task"]["stop_time"].item()
+        if nwbfile.epochs is not None:
+            epoch_df = nwbfile.epochs.to_dataframe()
+            max_time = epoch_df[epoch_df["protocol_type"] == "task"]["stop_time"].item()
+        else:
+            max_time = np.inf
 
         # Extract neural data
         self.update_status("Extracting Neural Data")
         units, spikes = extract_units_and_spikes(nwbfile=nwbfile, max_time=max_time)
 
-        # Extract behavioral data
-        self.update_status("Extracting Behavioral Data")
-        wheel_data = extract_wheel_data(nwbfile=nwbfile, max_time=max_time)
-        pose_estimation_data = extract_pose_estimation_data(
-            nwbfile=nwbfile, max_time=max_time
-        )
+        # Extract behavioral data - wheel
+        if "wheel" in nwbfile.processing:
+            self.update_status("Extracting Behavioral Data - wheel")
+            wheel_data = extract_wheel_data(nwbfile=nwbfile, max_time=max_time)
+        else:
+            self.update_status(f"No wheel data found for session {session_id}")
+            wheel_data = dict()
+
+        # Extract pose estimation data
+        if "pose_estimation" in nwbfile.processing:
+            self.update_status("Extracting Behavioral Data - pose estimation")
+            pose_estimation_data = extract_pose_estimation_data(
+                nwbfile=nwbfile, max_time=max_time
+            )
+        else:
+            self.update_status(f"No pose estimation data found for session {session_id}")
+            pose_estimation_data = dict()
 
         # Extract trials
         self.update_status("Extracting Trials")
@@ -144,7 +182,7 @@ class Pipeline(BrainsetPipeline):
             # Neural activity
             units=units,
             spikes=spikes,
-            domain=Interval(start=0, end=max_time),
+            domain="auto",
             # Trials
             trials=trials,
             # Behavior
@@ -189,27 +227,16 @@ def extract_units_and_spikes(nwbfile: NWBFile, max_time: float):
     for i in range(len(spike_train_list)):
         unit_ids.append(f"unit_{i}")
 
+    # Collect all extra metadata, floats, strings, etc. except object types
+    extra_metadata = {
+        col: units_df[col].values 
+        for col in units_df.select_dtypes(exclude="object").columns
+    }
+
     units = ArrayDict(
         id=np.array(unit_ids),
         unit_name=units_df.unit_name.values,
-        presence_ratio_std=units_df.presence_ratio_std.values,
-        sliding_rp_violation=units_df.sliding_rp_violation.values,
-        peak_to_trough_duration_ms=units_df.peak_to_trough_duration_ms.values,
-        missed_spikes_estimate=units_df.missed_spikes_estimate.values,
-        spike_count=units_df.spike_count.values,
-        presence_ratio=units_df.presence_ratio.values,
-        ibl_quality_score=units_df.ibl_quality_score.values,
-        max_spike_amplitude_uV=units_df.max_spike_amplitude_uV.values,
-        min_spike_amplitude_uV=units_df.min_spike_amplitude_uV.values,
-        noise_cutoff=units_df.noise_cutoff.values,
-        isi_violations_ratio=units_df.isi_violations_ratio.values,
-        median_spike_amplitude_uV=units_df.median_spike_amplitude_uV.values,
-        firing_rate=units_df.firing_rate.values,
-        cumulative_drift_um_per_hour=units_df.cumulative_drift_um_per_hour.values,
-        spike_amplitude_std_dB=units_df.spike_amplitude_std_dB.values,
-        kilosort2_label=units_df.kilosort2_label.values,
-        distance_from_probe_tip_um=units_df.distance_from_probe_tip_um.values,
-        rp_violation=units_df.rp_violation.values,
+        **extra_metadata,
     )
 
     # Extract spike times
@@ -244,7 +271,11 @@ def extract_wheel_data(nwbfile: NWBFile, max_time: float):
     wheel_start = float(
         nwbfile.processing["wheel"]["TimeSeriesWheelAcceleration"].starting_time
     )
-    num_samples = int((max_time - wheel_start) * wheel_rate)
+
+    if np.isinf(max_time):
+        num_samples = None
+    else: 
+        num_samples = int((max_time - wheel_start) * wheel_rate)
 
     wheel_acc = RegularTimeSeries(
         values=nwbfile.processing["wheel"]["TimeSeriesWheelAcceleration"].data[
@@ -304,56 +335,58 @@ def extract_wheel_data(nwbfile: NWBFile, max_time: float):
 
 def extract_pose_estimation_data(nwbfile: NWBFile, max_time: float):
     """Extract pose estimation data from left, right and body cameras."""
+    pose_estimation = {}
+    
     # Left Camera
-    pes_left = nwbfile.processing["pose_estimation"][
-        "LeftCamera"
-    ].pose_estimation_series
-    timestamps_left = list(pes_left.values())[0].timestamps[:]
-    valid_mask_left = timestamps_left < max_time
-    pose_estimation_left_dict = dict()
-    for k, v in pes_left.items():
-        pose_estimation_left_dict[k] = v.data[valid_mask_left]
-    pose_estimation_left_camera = IrregularTimeSeries(
-        timestamps=timestamps_left[valid_mask_left],
-        domain="auto",
-        **pose_estimation_left_dict,
-    )
+    if "LeftCamera" in nwbfile.processing["pose_estimation"].data_interfaces:
+        pes_left = nwbfile.processing["pose_estimation"][
+            "LeftCamera"
+        ].pose_estimation_series
+        timestamps_left = list(pes_left.values())[0].timestamps[:]
+        valid_mask_left = timestamps_left < max_time
+        pose_estimation_left_dict = dict()
+        for k, v in pes_left.items():
+            pose_estimation_left_dict[k] = v.data[valid_mask_left]
+        pose_estimation_left_camera = IrregularTimeSeries(
+            timestamps=timestamps_left[valid_mask_left],
+            domain="auto",
+            **pose_estimation_left_dict,
+        )
+        pose_estimation["pose_estimation_left_camera"] = pose_estimation_left_camera
 
     # Right Camera
-    pes_right = nwbfile.processing["pose_estimation"][
-        "RightCamera"
-    ].pose_estimation_series
-    timestamps_right = list(pes_right.values())[0].timestamps[:]
-    valid_mask_right = timestamps_right < max_time
-    pose_estimation_right_dict = dict()
-    for k, v in pes_right.items():
-        pose_estimation_right_dict[k] = v.data[valid_mask_right]
-    pose_estimation_right_camera = IrregularTimeSeries(
-        timestamps=timestamps_right[valid_mask_right],
-        domain="auto",
-        **pose_estimation_right_dict,
-    )
+    if "RightCamera" in nwbfile.processing["pose_estimation"].data_interfaces:
+        pes_right = nwbfile.processing["pose_estimation"][
+            "RightCamera"
+        ].pose_estimation_series
+        timestamps_right = list(pes_right.values())[0].timestamps[:]
+        valid_mask_right = timestamps_right < max_time
+        pose_estimation_right_dict = dict()
+        for k, v in pes_right.items():
+            pose_estimation_right_dict[k] = v.data[valid_mask_right]
+        pose_estimation_right_camera = IrregularTimeSeries(
+            timestamps=timestamps_right[valid_mask_right],
+            domain="auto",
+            **pose_estimation_right_dict,
+        )
+        pose_estimation["pose_estimation_right_camera"] = pose_estimation_right_camera
 
     # Body Camera
-    pes_body = nwbfile.processing["pose_estimation"][
-        "BodyCamera"
-    ].pose_estimation_series
-    timestamps_body = list(pes_body.values())[0].timestamps[:]
-    valid_mask_body = timestamps_body < max_time
-    pose_estimation_body_dict = dict()
-    for k, v in pes_body.items():
-        pose_estimation_body_dict[k] = v.data[valid_mask_body]
-    pose_estimation_body_camera = IrregularTimeSeries(
-        timestamps=timestamps_body[valid_mask_body],
-        domain="auto",
-        **pose_estimation_body_dict,
-    )
-
-    pose_estimation = {
-        "pose_estimation_left_camera": pose_estimation_left_camera,
-        "pose_estimation_right_camera": pose_estimation_right_camera,
-        "pose_estimation_body_camera": pose_estimation_body_camera,
-    }
+    if "BodyCamera" in nwbfile.processing["pose_estimation"].data_interfaces:
+        pes_body = nwbfile.processing["pose_estimation"][
+            "BodyCamera"
+        ].pose_estimation_series
+        timestamps_body = list(pes_body.values())[0].timestamps[:]
+        valid_mask_body = timestamps_body < max_time
+        pose_estimation_body_dict = dict()
+        for k, v in pes_body.items():
+            pose_estimation_body_dict[k] = v.data[valid_mask_body]
+        pose_estimation_body_camera = IrregularTimeSeries(
+            timestamps=timestamps_body[valid_mask_body],
+            domain="auto",
+            **pose_estimation_body_dict,
+        )
+        pose_estimation["pose_estimation_body_camera"] = pose_estimation_body_camera
 
     return pose_estimation
 
@@ -363,17 +396,9 @@ def extract_trials(nwbfile: NWBFile, max_time: float):
     df = nwbfile.trials.to_dataframe()
     df.rename(columns={"start_time": "start", "stop_time": "end"}, inplace=True)
     df = df[df["end"] < max_time]
+    time_columns = ["start", "end"] + [c for c in df.columns if "_time" in c]
     trials = Interval.from_dataframe(
         df,
-        timekeys=[
-            "start",
-            "end",
-            "gabor_stimulus_onset_time",
-            "auditory_cue_time",
-            "wheel_movement_onset_time",
-            "choice_registration_time",
-            "feedback_time",
-            "gabor_stimulus_offset_time",
-        ],
+        timekeys=time_columns,
     )
     return trials
