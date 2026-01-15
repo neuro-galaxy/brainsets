@@ -185,7 +185,7 @@ class MOABBPipeline(BrainsetPipeline):
         labels_filtered = labels[session_mask]
         meta_filtered = meta[session_mask].reset_index(drop=True)
 
-        epochs, labels_epochs, meta_epochs = paradigm.get_data(
+        epochs, _, meta_epochs = paradigm.get_data(
             dataset=dataset,
             subjects=[subject],
             return_epochs=True,
@@ -204,8 +204,38 @@ class MOABBPipeline(BrainsetPipeline):
             "epochs": epochs_filtered,
         }
 
-    def _extract_eeg_data(self, X, info, epochs):
-        """Extract EEG data from epoched arrays.
+    def _get_channel_types(self, info, epochs):
+        """Extract channel types from MNE info and epochs objects.
+
+        Parameters
+        ----------
+        info : mne.Info
+            MNE Info object with channel information
+        epochs : mne.Epochs
+            MNE Epochs object
+
+        Returns
+        -------
+        list[str]
+            List of channel type strings (e.g., "EEG", "EOG", "EMG")
+        """
+        if len(epochs) > 0:
+            return epochs[0].get_channel_types()
+
+        ch_type_map = {
+            2: "EEG",
+            3: "EOG",
+            4: "EMG",
+            5: "ECG",
+            301: "MISC",
+        }
+        return [
+            ch_type_map.get(info["chs"][info["ch_names"].index(ch)]["kind"], "MISC")
+            for ch in info["ch_names"]
+        ]
+
+    def _extract_eeg_data(self, X, info, ch_types, labels):
+        """Extract EEG data and trial intervals from epoched arrays.
 
         Parameters
         ----------
@@ -213,8 +243,10 @@ class MOABBPipeline(BrainsetPipeline):
             Array of shape (n_epochs, n_channels, n_samples)
         info : mne.Info
             MNE Info object with channel and sampling rate information
-        epochs : mne.Epochs
-            MNE Epochs object (used to get channel types)
+        ch_types : list[str]
+            List of channel type strings for each channel
+        labels : np.ndarray
+            Array of shape (n_epochs,) with event labels
 
         Returns
         -------
@@ -222,23 +254,13 @@ class MOABBPipeline(BrainsetPipeline):
             Concatenated EEG signals
         units : ArrayDict
             Channel IDs and types
-        epoch_intervals : Interval
-            Time intervals for each epoch
+        trials : Interval
+            Trial intervals with start/end times and label fields
         """
         sfreq = info["sfreq"]
         n_epochs, n_channels, n_samples = X.shape
 
-        eeg_signals = np.concatenate([X[i].T for i in range(n_epochs)], axis=0)
-
-        epoch_starts = []
-        epoch_ends = []
-        current_time = 0.0
-
-        for i in range(n_epochs):
-            epoch_duration = n_samples / sfreq
-            epoch_starts.append(current_time)
-            epoch_ends.append(current_time + epoch_duration)
-            current_time += epoch_duration
+        eeg_signals = X.transpose(0, 2, 1).reshape(-1, n_channels)
 
         eeg = RegularTimeSeries(
             signal=eeg_signals,
@@ -249,34 +271,32 @@ class MOABBPipeline(BrainsetPipeline):
             ),
         )
 
-        ch_names = info["ch_names"]
-        if len(epochs) > 0:
-            ch_types = epochs[0].get_channel_types()
-        else:
-            ch_types = []
-            for ch_name in ch_names:
-                ch_idx = info["ch_names"].index(ch_name)
-                ch_kind = info["chs"][ch_idx]["kind"]
-                ch_type_map = {
-                    2: "EEG",
-                    3: "EOG",
-                    4: "EMG",
-                    5: "ECG",
-                    301: "MISC",
-                }
-                ch_types.append(ch_type_map.get(ch_kind, "MISC"))
-
         units = ArrayDict(
-            id=np.array(ch_names, dtype="U"),
+            id=np.array(info["ch_names"], dtype="U"),
             types=np.array(ch_types, dtype="U"),
         )
 
-        epoch_intervals = Interval(
-            start=np.array(epoch_starts),
-            end=np.array(epoch_ends),
+        sample_boundaries = np.arange(n_epochs + 1) * n_samples
+        time_boundaries = sample_boundaries / sfreq
+        start_times = time_boundaries[:-1]
+        end_times = time_boundaries[1:]
+        id_values = np.array([self.label_map.get(label, -1) for label in labels])
+
+        trials = Interval(
+            start=start_times,
+            end=end_times,
+            timestamps=(start_times + end_times) / 2,
+            timekeys=["start", "end", "timestamps"],
+            **{
+                self.label_field: np.asarray(labels),
+                self.id_field: id_values,
+            },
         )
 
-        return eeg, units, epoch_intervals
+        if not trials.is_disjoint():
+            raise ValueError("Found overlapping trials")
+
+        return eeg, units, trials
 
     @abstractmethod
     def get_brainset_description(self) -> BrainsetDescription:
@@ -363,61 +383,6 @@ class MOABBPipeline(BrainsetPipeline):
             id=f"{subject_id}_{recording_date.strftime('%Y%m%d')}",
         )
 
-    def _extract_trials(self, X, labels, info):
-        """Extract trial intervals with labels using configured field names.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Array of shape (n_epochs, n_channels, n_samples)
-        labels : np.ndarray
-            Array of shape (n_epochs,) with event labels
-        info : mne.Info
-            MNE Info object with sampling rate information
-
-        Returns
-        -------
-        trials : Interval
-            Interval object with start/end times and configured label fields
-        """
-        sfreq = info["sfreq"]
-        n_epochs, _, n_samples = X.shape
-
-        start_times = []
-        end_times = []
-        label_values = []
-        id_values = []
-
-        current_time = 0.0
-
-        for i in range(n_epochs):
-            epoch_duration = n_samples / sfreq
-
-            start_times.append(current_time)
-            end_times.append(current_time + epoch_duration)
-
-            label = labels[i]
-            label_values.append(label)
-            id_values.append(self.label_map.get(label, -1))
-
-            current_time += epoch_duration
-
-        trial_kwargs = {
-            "start": np.array(start_times),
-            "end": np.array(end_times),
-            "timestamps": (np.array(start_times) + np.array(end_times)) / 2,
-            self.label_field: np.array(label_values),
-            self.id_field: np.array(id_values),
-            "timekeys": ["start", "end", "timestamps"],
-        }
-
-        trials = Interval(**trial_kwargs)
-
-        if not trials.is_disjoint():
-            raise ValueError("Found overlapping trials")
-
-        return trials
-
     def _generate_splits(self, trials):
         """Generate stratified folds for trials.
 
@@ -482,11 +447,9 @@ class MOABBPipeline(BrainsetPipeline):
         session_description = self._get_session_description(session_id, info)
         device_description = self._get_device_description(subject_id, info)
 
-        self.update_status("Extracting EEG")
-        eeg, units, _ = self._extract_eeg_data(X, info, epochs)
-
-        self.update_status("Extracting Trials")
-        trials = self._extract_trials(X, labels, info)
+        self.update_status("Extracting EEG and Trials")
+        ch_types = self._get_channel_types(info, epochs)
+        eeg, units, trials = self._extract_eeg_data(X, info, ch_types, labels)
 
         self.update_status("Generating Splits")
         splits = self._generate_splits(trials)
