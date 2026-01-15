@@ -6,7 +6,7 @@ classes, and implement paradigm-specific processing logic.
 """
 
 from abc import abstractmethod
-from typing import Dict, Any, Type
+from typing import Dict, Any, Type, Optional
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -147,13 +147,13 @@ class MOABBPipeline(BrainsetPipeline):
         subject = int(manifest_item.subject)
         session = int(manifest_item.session)
 
-        X, labels, meta = paradigm.get_data(
+        epochs, labels, meta = paradigm.get_data(
             dataset=dataset,
             subjects=[subject],
-            return_epochs=False,
+            return_epochs=True,
         )
 
-        if len(X) == 0:
+        if len(epochs) == 0:
             raise ValueError(
                 f"No epochs found for subject {subject}, " f"session {session}"
             )
@@ -181,19 +181,11 @@ class MOABBPipeline(BrainsetPipeline):
                 f"No epochs found for subject {subject}, " f"session {session_key}"
             )
 
-        X_filtered = X[session_mask]
+        epochs_filtered = epochs[session_mask]
         labels_filtered = labels[session_mask]
         meta_filtered = meta[session_mask].reset_index(drop=True)
 
-        epochs, _, meta_epochs = paradigm.get_data(
-            dataset=dataset,
-            subjects=[subject],
-            return_epochs=True,
-        )
-
-        session_mask_epochs = meta_epochs["session"] == session_key
-        epochs_filtered = epochs[session_mask_epochs]
-
+        X_filtered = np.concatenate([ep.get_data() for ep in epochs_filtered], axis=0)
         info = epochs_filtered[0].info if len(epochs_filtered) > 0 else None
 
         return {
@@ -222,12 +214,13 @@ class MOABBPipeline(BrainsetPipeline):
         if len(epochs) > 0:
             return epochs[0].get_channel_types()
 
+        # MNE channel kind constants (mne.io.constants.FIFF)
         ch_type_map = {
-            2: "EEG",
-            3: "EOG",
-            4: "EMG",
-            5: "ECG",
-            301: "MISC",
+            2: "EEG",  # FIFFV_EEG_CH
+            3: "EOG",  # FIFFV_EOG_CH
+            4: "EMG",  # FIFFV_EMG_CH
+            5: "ECG",  # FIFFV_ECG_CH
+            301: "MISC",  # FIFFV_MISC_CH
         }
         return [
             ch_type_map.get(info["chs"][info["ch_names"].index(ch)]["kind"], "MISC")
@@ -349,7 +342,13 @@ class MOABBPipeline(BrainsetPipeline):
 
         recording_date = info.get("meas_date")
         if recording_date is None:
-            recording_date = datetime.datetime.now()
+            recording_date = datetime.datetime(
+                2026, 1, 15, tzinfo=datetime.timezone.utc
+            )
+            logging.warning(
+                f"Missing meas_date for session '{session_id}' (task={self.task}); "
+                "using sentinel date 2026-01-15"
+            )
 
         return SessionDescription(
             id=session_id,
@@ -377,13 +376,15 @@ class MOABBPipeline(BrainsetPipeline):
 
         recording_date = info.get("meas_date")
         if recording_date is None:
-            recording_date = datetime.datetime.now()
+            recording_date = datetime.datetime(
+                2026, 1, 15, tzinfo=datetime.timezone.utc
+            )
 
         return DeviceDescription(
             id=f"{subject_id}_{recording_date.strftime('%Y%m%d')}",
         )
 
-    def _generate_splits(self, trials, subject_id: str = None):
+    def _generate_splits(self, trials, subject_id: Optional[str] = None):
         """Generate stratified folds for trials.
 
         Parameters
@@ -439,7 +440,8 @@ class MOABBPipeline(BrainsetPipeline):
         session_id = f"{subject_id}_sess-{meta.iloc[0]['session']}"
 
         store_path = self.processed_dir / f"{session_id}.h5"
-        if store_path.exists() and not self.args.reprocess:
+        safe_reprocess = getattr(getattr(self, "args", None), "reprocess", False)
+        if store_path.exists() and not safe_reprocess:
             self.update_status("Skipped Processing")
             return
 
