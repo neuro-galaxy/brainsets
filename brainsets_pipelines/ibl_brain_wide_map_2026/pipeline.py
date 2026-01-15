@@ -6,8 +6,8 @@
 # ]
 # ///
 
+## TODO - add brain region information to units
 ## TODO - add licking events
-## TODO - add all relevant sessions to manifest
 ## TODO - implement download from DANDI
 
 from argparse import ArgumentParser
@@ -162,7 +162,9 @@ class Pipeline(BrainsetPipeline):
                 nwbfile=nwbfile, max_time=max_time
             )
         else:
-            self.update_status(f"No pose estimation data found for session {session_id}")
+            self.update_status(
+                f"No pose estimation data found for session {session_id}"
+            )
             pose_estimation_data = dict()
 
         # Extract trials
@@ -229,7 +231,7 @@ def extract_units_and_spikes(nwbfile: NWBFile, max_time: float):
 
     # Collect all extra metadata, floats, strings, etc. except object types
     extra_metadata = {
-        col: units_df[col].values 
+        col: units_df[col].values
         for col in units_df.select_dtypes(exclude="object").columns
     }
 
@@ -274,7 +276,7 @@ def extract_wheel_data(nwbfile: NWBFile, max_time: float):
 
     if np.isinf(max_time):
         num_samples = None
-    else: 
+    else:
         num_samples = int((max_time - wheel_start) * wheel_rate)
 
     wheel_acc = RegularTimeSeries(
@@ -336,7 +338,7 @@ def extract_wheel_data(nwbfile: NWBFile, max_time: float):
 def extract_pose_estimation_data(nwbfile: NWBFile, max_time: float):
     """Extract pose estimation data from left, right and body cameras."""
     pose_estimation = {}
-    
+
     # Left Camera
     if "LeftCamera" in nwbfile.processing["pose_estimation"].data_interfaces:
         pes_left = nwbfile.processing["pose_estimation"][
