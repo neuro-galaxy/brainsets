@@ -13,7 +13,7 @@ This pipeline processes EEG sleep recordings from the Klinzing et al. dataset.
 Dataset URL: https://openneuro.org/datasets/ds005555
 """
 
-from brainsets.utils.open_neuro_pipeline import OpenNeuroEEGPipeline
+from brainsets.utils.openneuro import OpenNeuroEEGPipeline
 
 ELECTRODE_RENAME = {
     "PSG_F3": "F3",
@@ -48,7 +48,3 @@ class Pipeline(OpenNeuroEEGPipeline):
 
     ELECTRODE_RENAME = ELECTRODE_RENAME
     MODALITY_CHANNELS = MODALITY_CHANNELS
-
-    def process(self, download_output):
-        """Process the downloaded EEG data using default pipeline."""
-        super().process(download_output)

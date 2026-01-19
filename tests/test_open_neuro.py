@@ -1,25 +1,15 @@
-"""Tests for brainsets.utils.open_neuro module."""
+"""Tests for brainsets.utils.openneuro and related modules."""
 
-import json
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brainsets.utils.open_neuro import (
-    download_file_from_s3,
+from brainsets.utils.bids_utils import parse_bids_eeg_filename
+from brainsets.utils.mne_utils import rename_electrodes, set_channel_modalities
+from brainsets.utils.openneuro import (
     fetch_all_filenames,
-    fetch_all_version_tags,
     fetch_eeg_recordings,
-    fetch_latest_version_tag,
-    fetch_metadata,
-    fetch_participants,
-    fetch_readme,
-    get_s3_file_size,
-    parse_bids_eeg_filename,
-    rename_electrodes,
-    set_channel_modalities,
     validate_dataset_id,
 )
 
@@ -142,60 +132,6 @@ class TestSetChannelModalities:
         mock_raw.set_channel_types.assert_not_called()
 
 
-@pytest.mark.integration
-@pytest.mark.parametrize("dataset_id,error", [("ds006695", False), ("ds00555", True)])
-def test_fetch_metadata(dataset_id, error):
-    if error:
-        with pytest.raises(RuntimeError):
-            fetch_metadata(dataset_id)
-    else:
-        metadata = fetch_metadata(dataset_id)
-        assert metadata is not None
-        assert metadata["datasetId"] == dataset_id
-        assert metadata["created"] is not None
-        assert metadata["datasetName"] is not None
-
-
-@pytest.mark.parametrize("dataset_id,error", [("ds006695", False), ("ds00555", True)])
-def test_fetch_readme(dataset_id, error):
-    if error:
-        with pytest.raises(RuntimeError):
-            fetch_readme(dataset_id)
-    else:
-        readme = fetch_readme(dataset_id)
-        assert readme is not None
-        assert isinstance(readme, str)
-
-
-@pytest.mark.integration
-@pytest.mark.parametrize("dataset_id,error", [("ds006695", False), ("ds00555", True)])
-def test_fetch_latest_version_tag(dataset_id, error):
-    if error:
-        with pytest.raises(RuntimeError):
-            fetch_latest_version_tag(dataset_id)
-    else:
-        version_tag = fetch_latest_version_tag(dataset_id)
-        assert version_tag is not None
-        assert isinstance(version_tag, str)
-        assert len(version_tag.split(".")) >= 2
-
-
-@pytest.mark.integration
-@pytest.mark.parametrize("dataset_id,error", [("ds006695", False), ("ds00555", True)])
-def test_fetch_all_version_tags(dataset_id, error):
-    if error:
-        with pytest.raises(RuntimeError):
-            fetch_all_version_tags(dataset_id)
-    else:
-        version_tags = fetch_all_version_tags(dataset_id)
-        assert version_tags is not None
-        assert isinstance(version_tags, list)
-        assert len(version_tags) > 0
-        for tag in version_tags:
-            assert isinstance(tag, str)
-            assert len(tag.split(".")) >= 2
-
-
 @pytest.mark.parametrize("dataset_id,error", [("ds006695", False), ("ds00555", True)])
 def test_fetch_all_filenames(dataset_id, error):
     if error:
@@ -219,86 +155,8 @@ def test_fetch_all_filenames(dataset_id, error):
         assert has_nested_files
 
 
-@pytest.mark.integration
-@pytest.mark.parametrize("dataset_id,error", [("ds006695", False), ("ds00555", True)])
-def test_fetch_participants(dataset_id, error):
-    if error:
-        with pytest.raises(RuntimeError):
-            fetch_participants(dataset_id)
-    else:
-        participants = fetch_participants(dataset_id)
-        assert participants is not None
-        assert isinstance(participants, list)
-        assert len(participants) > 0
-        for participant in participants:
-            assert isinstance(participant, str)
-            assert participant.startswith("sub-")
-            assert len(participant) > 4
-
-
-def test_get_s3_file_size():
-    dataset_id = "ds006695"
-    file_path = "dataset_description.json"
-
-    file_size = get_s3_file_size(dataset_id, file_path)
-
-    assert file_size > 0
-    assert isinstance(file_size, int)
-
-
-@pytest.mark.integration
-def test_get_s3_file_size_invalid():
-    dataset_id = "ds006695"
-    file_path = "non_existent_file.json"
-
-    with pytest.raises(RuntimeError):
-        get_s3_file_size(dataset_id, file_path)
-
-
-def test_download_file_from_s3():
-    with tempfile.TemporaryDirectory() as temp_dir:
-        dataset_id = "ds006695"
-        file_path = "dataset_description.json"
-
-        local_path = download_file_from_s3(dataset_id, file_path, temp_dir)
-
-        assert Path(local_path).exists()
-        assert Path(local_path).is_file()
-
-        with open(local_path, "r") as f:
-            data = json.load(f)
-
-        assert isinstance(data, dict)
-        assert len(data) > 0
-
-
-def test_download_file_from_s3_caching():
-    with tempfile.TemporaryDirectory() as temp_dir:
-        dataset_id = "ds006695"
-        file_path = "dataset_description.json"
-
-        local_path1 = download_file_from_s3(dataset_id, file_path, temp_dir)
-        mtime1 = Path(local_path1).stat().st_mtime
-
-        local_path2 = download_file_from_s3(dataset_id, file_path, temp_dir)
-        mtime2 = Path(local_path2).stat().st_mtime
-
-        assert local_path1 == local_path2
-        assert mtime1 == mtime2
-
-
-@pytest.mark.integration
-def test_download_file_from_s3_invalid():
-    with tempfile.TemporaryDirectory() as temp_dir:
-        dataset_id = "ds006695"
-        file_path = "non_existent_file.json"
-
-        with pytest.raises(RuntimeError):
-            download_file_from_s3(dataset_id, file_path, temp_dir)
-
-
 class TestFetchEegRecordings:
-    @patch("brainsets.utils.open_neuro.fetch_all_filenames")
+    @patch("brainsets.utils.openneuro.dataset.fetch_all_filenames")
     def test_fetch_eeg_recordings(self, mock_fetch_filenames):
         mock_fetch_filenames.return_value = [
             "sub-01/eeg/sub-01_task-Sleep_eeg.edf",
@@ -324,7 +182,7 @@ class TestFetchEegRecordings:
         assert rec2["acq_id"] == "headband"
         assert rec2["run_id"] == "01"
 
-    @patch("brainsets.utils.open_neuro.fetch_all_filenames")
+    @patch("brainsets.utils.openneuro.dataset.fetch_all_filenames")
     def test_no_eeg_files(self, mock_fetch_filenames):
         mock_fetch_filenames.return_value = [
             "participants.tsv",

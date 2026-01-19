@@ -1,13 +1,14 @@
-"""Tests for brainsets.utils.open_neuro_pipeline module."""
+"""Tests for brainsets.utils.openneuro.pipeline module."""
 
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pandas as pd
+import numpy as np
 import pytest
+from temporaldata import ArrayDict
 
-from brainsets.utils.open_neuro_pipeline import OpenNeuroEEGPipeline
+from brainsets.utils.openneuro import OpenNeuroEEGPipeline
 
 
 class MockPipeline(OpenNeuroEEGPipeline):
@@ -31,8 +32,8 @@ class MockPipeline(OpenNeuroEEGPipeline):
 
 
 class TestGetManifest:
-    @patch("brainsets.utils.open_neuro_pipeline.fetch_eeg_recordings")
-    @patch("brainsets.utils.open_neuro_pipeline.construct_s3_url")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
+    @patch("brainsets.utils.openneuro.pipeline.construct_s3_url_from_path")
     def test_get_manifest_dynamic(self, mock_construct_url, mock_fetch_recordings):
         mock_fetch_recordings.return_value = [
             {
@@ -67,8 +68,8 @@ class TestGetManifest:
         assert "sub-02_task-Sleep" in manifest.index
         assert manifest.loc["sub-01_task-Sleep", "subject_id"] == "sub-01"
 
-    @patch("brainsets.utils.open_neuro_pipeline.fetch_eeg_recordings")
-    @patch("brainsets.utils.open_neuro_pipeline.construct_s3_url")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
+    @patch("brainsets.utils.openneuro.pipeline.construct_s3_url_from_path")
     def test_get_manifest_with_subject_filter(
         self, mock_construct_url, mock_fetch_recordings
     ):
@@ -105,7 +106,7 @@ class TestGetManifest:
         assert len(manifest) == 1
         assert "sub-01_task-Sleep" in manifest.index
 
-    @patch("brainsets.utils.open_neuro_pipeline.fetch_eeg_recordings")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
     def test_get_manifest_no_recordings(self, mock_fetch_recordings):
         mock_fetch_recordings.return_value = []
 
@@ -114,26 +115,23 @@ class TestGetManifest:
                 MockPipeline.get_manifest(Path(temp_dir), None)
 
 
-class TestApplyCommonMapping:
+class TestApplyChannelMapping:
     def test_apply_mapping_with_both(self):
         pipeline = MockPipeline.__new__(MockPipeline)
         pipeline.ELECTRODE_RENAME = {"PSG_F3": "F3"}
         pipeline.MODALITY_CHANNELS = {"EEG": ["F3"]}
         pipeline.update_status = MagicMock()
 
-        mock_raw = MagicMock()
-        mock_raw.ch_names = ["PSG_F3", "C3"]
+        channels = ArrayDict(
+            id=np.array(["PSG_F3", "C3"]),
+            types=np.array(["misc", "misc"]),
+        )
 
-        with patch(
-            "brainsets.utils.open_neuro_pipeline.rename_electrodes"
-        ) as mock_rename:
-            with patch(
-                "brainsets.utils.open_neuro_pipeline.set_channel_modalities"
-            ) as mock_modality:
-                pipeline._apply_common_mapping(mock_raw)
+        result = pipeline._apply_channel_mapping(channels)
 
-        mock_rename.assert_called_once_with(mock_raw, {"PSG_F3": "F3"})
-        mock_modality.assert_called_once_with(mock_raw, {"EEG": ["F3"]})
+        assert result.id[0] == "F3"
+        assert result.id[1] == "C3"
+        assert result.types[0] == "eeg"
 
     def test_apply_mapping_without_mappings(self):
         pipeline = MockPipeline.__new__(MockPipeline)
@@ -141,23 +139,20 @@ class TestApplyCommonMapping:
         pipeline.MODALITY_CHANNELS = None
         pipeline.update_status = MagicMock()
 
-        mock_raw = MagicMock()
+        channels = ArrayDict(
+            id=np.array(["F3", "C3"]),
+            types=np.array(["misc", "misc"]),
+        )
 
-        with patch(
-            "brainsets.utils.open_neuro_pipeline.rename_electrodes"
-        ) as mock_rename:
-            with patch(
-                "brainsets.utils.open_neuro_pipeline.set_channel_modalities"
-            ) as mock_modality:
-                pipeline._apply_common_mapping(mock_raw)
+        result = pipeline._apply_channel_mapping(channels)
 
-        mock_rename.assert_not_called()
-        mock_modality.assert_not_called()
+        assert list(result.id) == ["F3", "C3"]
+        assert list(result.types) == ["misc", "misc"]
 
 
 class TestDownload:
-    @patch("brainsets.utils.open_neuro_pipeline.check_recording_files_exist")
-    @patch("brainsets.utils.open_neuro_pipeline.download_prefix_from_s3")
+    @patch("brainsets.utils.openneuro.pipeline.check_recording_files_exist")
+    @patch("brainsets.utils.openneuro.pipeline.download_recording")
     def test_download_new_file(self, mock_download, mock_check_exists):
         mock_check_exists.return_value = False
 
@@ -176,7 +171,9 @@ class TestDownload:
             manifest_item.Index = "sub-01_task-Sleep"
             manifest_item.subject_id = "sub-01"
             manifest_item.session_id = None
-            manifest_item.s3_url = "s3://openneuro.org/ds005555/sub-01/eeg/sub-01_task-Sleep"
+            manifest_item.s3_url = (
+                "s3://openneuro.org/ds005555/sub-01/eeg/sub-01_task-Sleep"
+            )
 
             result = pipeline.download(manifest_item)
 
@@ -184,7 +181,7 @@ class TestDownload:
             assert result["recording_id"] == "sub-01_task-Sleep"
             assert result["subject_id"] == "sub-01"
 
-    @patch("brainsets.utils.open_neuro_pipeline.check_recording_files_exist")
+    @patch("brainsets.utils.openneuro.pipeline.check_recording_files_exist")
     def test_download_file_exists(self, mock_check_exists):
         mock_check_exists.return_value = True
 
@@ -203,15 +200,17 @@ class TestDownload:
             manifest_item.Index = "sub-01_task-Sleep"
             manifest_item.subject_id = "sub-01"
             manifest_item.session_id = None
-            manifest_item.s3_url = "s3://openneuro.org/ds005555/sub-01/eeg/sub-01_task-Sleep"
+            manifest_item.s3_url = (
+                "s3://openneuro.org/ds005555/sub-01/eeg/sub-01_task-Sleep"
+            )
 
             result = pipeline.download(manifest_item)
 
             assert result["recording_id"] == "sub-01_task-Sleep"
             pipeline.update_status.assert_any_call("Already Downloaded")
 
-    @patch("brainsets.utils.open_neuro_pipeline.check_recording_files_exist")
-    @patch("brainsets.utils.open_neuro_pipeline.download_prefix_from_s3")
+    @patch("brainsets.utils.openneuro.pipeline.check_recording_files_exist")
+    @patch("brainsets.utils.openneuro.pipeline.download_recording")
     def test_download_with_redownload_flag(self, mock_download, mock_check_exists):
         mock_check_exists.return_value = True
 
@@ -233,15 +232,17 @@ class TestDownload:
             manifest_item.Index = "sub-01_task-Sleep"
             manifest_item.subject_id = "sub-01"
             manifest_item.session_id = None
-            manifest_item.s3_url = "s3://openneuro.org/ds005555/sub-01/eeg/sub-01_task-Sleep"
+            manifest_item.s3_url = (
+                "s3://openneuro.org/ds005555/sub-01/eeg/sub-01_task-Sleep"
+            )
 
             result = pipeline.download(manifest_item)
 
             mock_download.assert_called_once()
             assert result["recording_id"] == "sub-01_task-Sleep"
 
-    @patch("brainsets.utils.open_neuro_pipeline.check_recording_files_exist")
-    @patch("brainsets.utils.open_neuro_pipeline.download_prefix_from_s3")
+    @patch("brainsets.utils.openneuro.pipeline.check_recording_files_exist")
+    @patch("brainsets.utils.openneuro.pipeline.download_recording")
     def test_download_error_handling(self, mock_download, mock_check_exists):
         mock_check_exists.return_value = False
         mock_download.side_effect = RuntimeError("Download failed")
@@ -261,7 +262,9 @@ class TestDownload:
             manifest_item.Index = "sub-01_task-Sleep"
             manifest_item.subject_id = "sub-01"
             manifest_item.session_id = None
-            manifest_item.s3_url = "s3://openneuro.org/ds005555/sub-01/eeg/sub-01_task-Sleep"
+            manifest_item.s3_url = (
+                "s3://openneuro.org/ds005555/sub-01/eeg/sub-01_task-Sleep"
+            )
 
             with pytest.raises(RuntimeError, match="Failed to download"):
                 pipeline.download(manifest_item)

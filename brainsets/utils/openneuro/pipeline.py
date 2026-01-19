@@ -22,14 +22,8 @@ from temporaldata import ArrayDict, Data
 
 from brainsets import serialize_fn_map
 from brainsets.pipeline import BrainsetPipeline
-from brainsets.utils.open_neuro import (
-    check_recording_files_exist,
-    construct_s3_url_from_path,
-    download_prefix_from_s3,
-    fetch_eeg_recordings,
-    validate_dataset_id,
-)
-from brainsets.utils.open_neuro_utils.data_extraction import (
+from brainsets.utils.mne_utils import modality_to_mne_type
+from brainsets.utils.openneuro.data_extraction import (
     extract_brainset_description,
     extract_channels,
     extract_device_description,
@@ -37,6 +31,13 @@ from brainsets.utils.open_neuro_utils.data_extraction import (
     extract_session_description,
     extract_signal,
     extract_subject_description,
+)
+from brainsets.utils.openneuro.dataset import (
+    check_recording_files_exist,
+    construct_s3_url_from_path,
+    download_recording,
+    fetch_eeg_recordings,
+    validate_dataset_id,
 )
 
 _openneuro_parser = ArgumentParser()
@@ -200,7 +201,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
         try:
             self.update_status(f"Downloading from {s3_url}")
-            download_prefix_from_s3(s3_url, target_dir)
+            download_recording(s3_url, target_dir)
         except Exception as e:
             raise RuntimeError(
                 f"Failed to download data for {subject_id} from {self.dataset_id}: {str(e)}"
@@ -242,7 +243,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 for ch_name in channel_names:
                     if ch_name in channel_id_set:
                         idx = np.where(channel_ids == ch_name)[0]
-                        channel_types[idx] = modality.lower()
+                        channel_types[idx] = modality_to_mne_type(modality)
 
         return ArrayDict(id=channel_ids, types=channel_types)
 
@@ -290,7 +291,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             RuntimeError: If the file cannot be loaded
             ValueError: If BrainVision .eeg file is missing its .vhdr header
         """
-        # BrainVision .eeg files need the .vhdr header file
         if eeg_file.suffix.lower() == ".eeg":
             vhdr_file = eeg_file.with_suffix(".vhdr")
             if not vhdr_file.exists():

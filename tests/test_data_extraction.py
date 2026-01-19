@@ -1,4 +1,4 @@
-"""Tests for brainsets.utils.open_neuro_utils.data_extraction module."""
+"""Tests for brainsets.utils.openneuro.data_extraction module."""
 
 import datetime
 from unittest.mock import MagicMock
@@ -14,7 +14,7 @@ from brainsets.descriptions import (
     SubjectDescription,
 )
 from brainsets.taxonomy import Sex, Species
-from brainsets.utils.open_neuro_utils.data_extraction import (
+from brainsets.utils.openneuro.data_extraction import (
     extract_brainset_description,
     extract_channels,
     extract_device_description,
