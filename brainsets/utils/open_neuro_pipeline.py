@@ -8,26 +8,25 @@ functionality for processing EEG datasets from OpenNeuro, including:
 """
 
 import datetime
-import glob
+import logging
 from abc import ABC
-from argparse import Namespace
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from typing import Optional
 
 import h5py
 import mne
+import numpy as np
 import pandas as pd
-from temporaldata import Data
+from temporaldata import ArrayDict, Data
 
 from brainsets import serialize_fn_map
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.utils.open_neuro import (
     check_recording_files_exist,
-    construct_s3_url,
+    construct_s3_url_from_path,
     download_prefix_from_s3,
     fetch_eeg_recordings,
-    rename_electrodes,
-    set_channel_modalities,
     validate_dataset_id,
 )
 from brainsets.utils.open_neuro_utils.data_extraction import (
@@ -39,6 +38,10 @@ from brainsets.utils.open_neuro_utils.data_extraction import (
     extract_signal,
     extract_subject_description,
 )
+
+_openneuro_parser = ArgumentParser()
+_openneuro_parser.add_argument("--redownload", action="store_true")
+_openneuro_parser.add_argument("--reprocess", action="store_true")
 
 
 class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
@@ -79,6 +82,9 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 super().process(download_output)
     """
 
+    parser = _openneuro_parser
+    """ArgumentParser with common OpenNeuro pipeline arguments (--redownload, --reprocess)."""
+
     dataset_id: str
     """OpenNeuro dataset identifier (e.g., "ds005555")."""
 
@@ -92,6 +98,8 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
     """Optional dict mapping modality types to lists of channel names."""
 
     subject_ids: Optional[list[str]] = None
+
+    EEG_FILE_EXTENSIONS = {".fif", ".set", ".edf", ".bdf", ".vhdr", ".eeg"}
     """Optional list of subject IDs to process. If None, processes all subjects."""
 
     derived_version: str = "1.0.0"
@@ -135,23 +143,17 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
         manifest_list = []
         for rec in recordings:
-            recording_id = rec["recording_id"]
-            subject_id = rec["subject_id"]
-
-            try:
-                s3_url = construct_s3_url(dataset_id, recording_id)
-            except RuntimeError:
-                continue
+            s3_url = construct_s3_url_from_path(dataset_id, rec["eeg_file"])
 
             manifest_list.append(
                 {
-                    "recording_id": recording_id,
-                    "subject_id": subject_id,
+                    "recording_id": rec["recording_id"],
+                    "subject_id": rec["subject_id"],
                     "session_id": rec["session_id"],
                     "task_id": rec["task_id"],
                     "eeg_file": rec["eeg_file"],
                     "s3_url": s3_url,
-                    "fpath": raw_dir / subject_id,
+                    "fpath": raw_dir / rec["subject_id"],
                 }
             )
 
@@ -183,12 +185,11 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         session_id = getattr(manifest_item, "session_id", None)
 
         target_dir = self.raw_dir
-        target_dir.mkdir(exist_ok=True, parents=True)
 
         subject_dir = target_dir / subject_id
 
-        if check_recording_files_exist(recording_id, subject_dir):
-            if not (self.args and getattr(self.args, "redownload", False)):
+        if not getattr(self.args, "redownload", False):
+            if check_recording_files_exist(recording_id, subject_dir):
                 self.update_status("Already Downloaded")
                 return {
                     "recording_id": recording_id,
@@ -212,32 +213,103 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             "fpath": subject_dir,
         }
 
-    def _apply_common_mapping(self, raw: mne.io.Raw) -> None:
-        """Apply electrode renaming and modality mapping to an MNE Raw object.
+    def _apply_channel_mapping(self, channels: ArrayDict) -> ArrayDict:
+        """Apply electrode renaming and modality mapping to a channels ArrayDict.
 
         This method applies:
         1. Electrode renaming using ELECTRODE_RENAME (if defined)
         2. Channel type setting using MODALITY_CHANNELS (if defined)
 
         Args:
-            raw: The MNE Raw object to modify (modified in place)
+            channels: ArrayDict with 'id' and 'types' fields
+
+        Returns:
+            Modified ArrayDict with renamed channels and updated types
         """
+        channel_ids = channels.id.copy()
+        channel_types = channels.types.copy()
+
         if self.ELECTRODE_RENAME:
             self.update_status("Renaming electrodes")
-            rename_electrodes(raw, self.ELECTRODE_RENAME)
+            for i, ch_name in enumerate(channel_ids):
+                if ch_name in self.ELECTRODE_RENAME:
+                    channel_ids[i] = self.ELECTRODE_RENAME[ch_name]
 
         if self.MODALITY_CHANNELS:
             self.update_status("Setting channel modalities")
-            set_channel_modalities(raw, self.MODALITY_CHANNELS)
+            channel_id_set = set(channel_ids)
+            for modality, channel_names in self.MODALITY_CHANNELS.items():
+                for ch_name in channel_names:
+                    if ch_name in channel_id_set:
+                        idx = np.where(channel_ids == ch_name)[0]
+                        channel_types[idx] = modality.lower()
+
+        return ArrayDict(id=channel_ids, types=channel_types)
+
+    def _find_eeg_file(self, data_dir: Path, recording_id: str) -> Path:
+        """Find the EEG file for a recording in the data directory.
+
+        Returns:
+            Path to the EEG file
+
+        Raises:
+            RuntimeError: If no file or multiple ambiguous files found
+        """
+        candidates = [
+            p
+            for p in data_dir.rglob(f"{recording_id}*")
+            if p.suffix.lower() in self.EEG_FILE_EXTENSIONS
+        ]
+
+        if not candidates:
+            raise RuntimeError(
+                f"No EEG files found in {data_dir} for recording {recording_id}."
+            )
+
+        if len(candidates) > 1:
+            bids_files = [f for f in candidates if "_eeg." in f.name]
+            if len(bids_files) == 1:
+                return bids_files[0]
+            raise RuntimeError(
+                f"Multiple EEG files found in {data_dir} for recording {recording_id}: "
+                f"{candidates}"
+            )
+
+        return candidates[0]
+
+    def _load_eeg_file(self, eeg_file: Path) -> mne.io.Raw:
+        """Load an EEG file using MNE's auto-detecting reader.
+
+        Uses mne.io.read_raw() which automatically selects the appropriate
+        reader based on file extension (.fif, .set, .edf, .bdf, .vhdr, etc.).
+
+        Returns:
+            MNE Raw object
+
+        Raises:
+            RuntimeError: If the file cannot be loaded
+            ValueError: If BrainVision .eeg file is missing its .vhdr header
+        """
+        # BrainVision .eeg files need the .vhdr header file
+        if eeg_file.suffix.lower() == ".eeg":
+            vhdr_file = eeg_file.with_suffix(".vhdr")
+            if not vhdr_file.exists():
+                raise ValueError(f"Could not find .vhdr header file for {eeg_file}")
+            eeg_file = vhdr_file
+
+        try:
+            return mne.io.read_raw(eeg_file, preload=True, verbose=False)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load EEG file {eeg_file}: {e}") from e
 
     def _process_common(self, download_output: dict) -> tuple[Data, Path]:
         """Process EEG files and create a Data object.
 
         This method handles common OpenNeuro EEG processing tasks:
         1. Loads EEG files using MNE
-        2. Applies electrode mapping via _apply_common_mapping (if defined)
-        3. Extracts metadata (subject, session, device, brainset descriptions)
-        4. Extracts EEG signal and channel information
+        2. Extracts metadata (subject, session, device, brainset descriptions)
+        3. Extracts EEG signal and channel information
+        4. Applies channel mapping via _apply_channel_mapping (if defined)
         5. Creates a Data object
 
         Args:
@@ -251,6 +323,21 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         recording_id = download_output.get("recording_id")
         subject_id = download_output["subject_id"]
         data_dir = Path(download_output["fpath"])
+
+        eeg_file = self._find_eeg_file(data_dir, recording_id)
+        self.update_status(f"Processing {eeg_file.name}")
+
+        store_path = self.processed_dir / f"{recording_id}.h5"
+
+        if not getattr(self.args, "reprocess", False):
+            if store_path.exists():
+                raise RuntimeError(
+                    f"Processed file already exists at {store_path}. "
+                    f"Use --reprocess flag to reprocess."
+                )
+
+        self.update_status("Loading EEG file")
+        raw = self._load_eeg_file(eeg_file)
 
         self.update_status("Extracting Metadata")
         source = f"https://openneuro.org/datasets/{self.dataset_id}"
@@ -268,101 +355,26 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             description=dataset_description,
         )
 
-        eeg_patterns = [
-            f"**/{recording_id}*.fif",
-            f"**/{recording_id}*.set",
-            f"**/{recording_id}*.edf",
-            f"**/{recording_id}*.bdf",
-            f"**/{recording_id}*.vhdr",
-            f"**/{recording_id}*.eeg",
-        ]
-
-        eeg_files = []
-        for pattern in eeg_patterns:
-            eeg_files.extend(glob.glob(str(data_dir / pattern), recursive=True))
-            if eeg_files:
-                break
-
-        if not eeg_files:
-            raise RuntimeError(
-                f"No EEG files found in {data_dir} for recording {recording_id}."
-            )
-
-        if len(eeg_files) > 1:
-            eeg_files = [f for f in eeg_files if "_eeg." in f]
-            if len(eeg_files) != 1:
-                raise RuntimeError(
-                    f"Multiple EEG files found in {data_dir} for recording {recording_id}."
-                )
-
-        eeg_file_path = eeg_files[0]
-        eeg_file = Path(eeg_file_path)
-        self.update_status(f"Processing {eeg_file.name}")
-
-        parts = eeg_file.parts
-        session_id = None
-        for part in parts:
-            if part.startswith("ses-"):
-                session_id = part.replace("ses-", "")
-                break
-
-        if session_id is None:
-            session_id = "1"
-
-        full_session_id = f"{subject_id}_ses-{session_id}"
-
-        store_name = f"{recording_id}.h5" if recording_id else f"{full_session_id}.h5"
-        store_path = self.processed_dir / store_name
-
-        if store_path.exists() and not (
-            self.args and getattr(self.args, "reprocess", False)
-        ):
-            raise RuntimeError(
-                f"Processed file already exists at {store_path}. "
-                f"Use --reprocess flag to reprocess."
-            )
-
-        self.update_status("Loading EEG file")
-        try:
-            if eeg_file.suffix == ".fif":
-                raw = mne.io.read_raw_fif(eeg_file, preload=True, verbose=False)
-            elif eeg_file.suffix == ".set":
-                raw = mne.io.read_raw_eeglab(eeg_file, preload=True, verbose=False)
-            elif eeg_file.suffix in [".edf", ".bdf"]:
-                raw = mne.io.read_raw_edf(eeg_file, preload=True, verbose=False)
-            elif eeg_file.suffix == ".vhdr":
-                raw = mne.io.read_raw_brainvision(eeg_file, preload=True, verbose=False)
-            elif eeg_file.suffix == ".eeg":
-                vhdr_file = eeg_file.with_suffix(".vhdr")
-                if vhdr_file.exists():
-                    raw = mne.io.read_raw_brainvision(
-                        vhdr_file, preload=True, verbose=False
-                    )
-                else:
-                    raise ValueError(f"Could not find .vhdr file for {eeg_file}")
-            else:
-                raise ValueError(f"Unsupported EEG file format: {eeg_file.suffix}")
-        except Exception as e:
-            raise RuntimeError(f"Failed to load EEG file {eeg_file}: {str(e)}")
-
-        self._apply_common_mapping(raw)
-
         subject_description = extract_subject_description(subject_id=subject_id)
 
         meas_date = extract_meas_date(raw)
         if meas_date is None:
-            meas_date = datetime.datetime.now()
+            logging.warning(
+                f"No measurement date found for {recording_id}, using Unix epoch as placeholder"
+            )
+            meas_date = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 
         session_description = extract_session_description(
-            session_id=full_session_id, recording_date=meas_date
+            session_id=recording_id, recording_date=meas_date
         )
 
-        device_id = f"{subject_id}_{session_id}"
-        device_description = extract_device_description(device_id=device_id)
+        device_description = extract_device_description(device_id=recording_id)
 
         self.update_status("Extracting EEG Signal")
         eeg_signal = extract_signal(raw)
         channels = extract_channels(raw)
+
+        channels = self._apply_channel_mapping(channels)
 
         self.update_status("Creating Data Object")
         data = Data(

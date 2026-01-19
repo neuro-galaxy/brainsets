@@ -65,3 +65,8 @@ packages = [
     "brainsets_pipelines",
 ]
 include-package-data = true
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as integration tests (require network access, run with: pytest -m integration)",
+]

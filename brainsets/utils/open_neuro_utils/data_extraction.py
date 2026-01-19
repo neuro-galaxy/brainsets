@@ -192,29 +192,6 @@ def extract_channels(
     )
 
 
-def channels_from_modality_map(modality_map: dict[str, list[str]]) -> ArrayDict:
-    """Create an ArrayDict from a modality mapping.
-
-    Args:
-        modality_map: Dictionary mapping modality types to lists of channel names
-
-    Returns:
-        ArrayDict with fields 'id' (channel names) and 'types' (channel types)
-    """
-    channel_names = []
-    channel_types = []
-
-    for modality, channels in modality_map.items():
-        for ch_name in channels:
-            channel_names.append(ch_name)
-            channel_types.append(modality.lower())
-
-    return ArrayDict(
-        id=np.array(channel_names, dtype="U"),
-        types=np.array(channel_types, dtype="U"),
-    )
-
-
 def generate_train_valid_splits_one_epoch(
     epoch: Interval, split_ratios: list[float] = None
 ) -> tuple[Interval, Interval]:
@@ -238,7 +215,7 @@ def generate_train_valid_splits_one_epoch(
     if len(epoch) != 1:
         raise ValueError("Epoch must contain a single interval")
 
-    if split_ratios[0] + split_ratios[1] != 1:
+    if not np.isclose(sum(split_ratios), 1.0):
         raise ValueError("Split ratios must sum to 1")
 
     epoch_start = epoch.start[0]

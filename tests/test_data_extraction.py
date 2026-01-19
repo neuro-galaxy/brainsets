@@ -15,7 +15,6 @@ from brainsets.descriptions import (
 )
 from brainsets.taxonomy import Sex, Species
 from brainsets.utils.open_neuro_utils.data_extraction import (
-    channels_from_modality_map,
     extract_brainset_description,
     extract_channels,
     extract_device_description,
@@ -170,27 +169,6 @@ class TestExtractChannels:
         assert len(result.id) == 4
         assert list(result.id) == ["F3", "F4", "C3", "C4"]
         assert list(result.types) == ["eeg", "eeg", "eeg", "eeg"]
-
-
-class TestChannelsFromModalityMap:
-    def test_creates_channels(self):
-        modality_map = {
-            "EEG": ["F3", "F4"],
-            "EOG": ["EOG_L"],
-        }
-
-        result = channels_from_modality_map(modality_map)
-
-        assert len(result.id) == 3
-        assert "F3" in result.id
-        assert "F4" in result.id
-        assert "EOG_L" in result.id
-
-    def test_empty_map(self):
-        result = channels_from_modality_map({})
-
-        assert len(result.id) == 0
-        assert len(result.types) == 0
 
 
 class TestGenerateTrainValidSplits:

@@ -64,9 +64,7 @@ class TestParseBidsEegFilename:
         assert result["run_id"] == "02"
 
     def test_with_path(self):
-        result = parse_bids_eeg_filename(
-            "sub-01/eeg/sub-01_task-Sleep_eeg.edf"
-        )
+        result = parse_bids_eeg_filename("sub-01/eeg/sub-01_task-Sleep_eeg.edf")
         assert result is not None
         assert result["subject_id"] == "sub-01"
         assert result["task_id"] == "Sleep"
@@ -144,6 +142,7 @@ class TestSetChannelModalities:
         mock_raw.set_channel_types.assert_not_called()
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("dataset_id,error", [("ds006695", False), ("ds00555", True)])
 def test_fetch_metadata(dataset_id, error):
     if error:
@@ -168,6 +167,7 @@ def test_fetch_readme(dataset_id, error):
         assert isinstance(readme, str)
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("dataset_id,error", [("ds006695", False), ("ds00555", True)])
 def test_fetch_latest_version_tag(dataset_id, error):
     if error:
@@ -180,6 +180,7 @@ def test_fetch_latest_version_tag(dataset_id, error):
         assert len(version_tag.split(".")) >= 2
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("dataset_id,error", [("ds006695", False), ("ds00555", True)])
 def test_fetch_all_version_tags(dataset_id, error):
     if error:
@@ -218,6 +219,7 @@ def test_fetch_all_filenames(dataset_id, error):
         assert has_nested_files
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("dataset_id,error", [("ds006695", False), ("ds00555", True)])
 def test_fetch_participants(dataset_id, error):
     if error:
@@ -244,6 +246,7 @@ def test_get_s3_file_size():
     assert isinstance(file_size, int)
 
 
+@pytest.mark.integration
 def test_get_s3_file_size_invalid():
     dataset_id = "ds006695"
     file_path = "non_existent_file.json"
@@ -284,6 +287,7 @@ def test_download_file_from_s3_caching():
         assert mtime1 == mtime2
 
 
+@pytest.mark.integration
 def test_download_file_from_s3_invalid():
     with tempfile.TemporaryDirectory() as temp_dir:
         dataset_id = "ds006695"

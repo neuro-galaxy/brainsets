@@ -9,6 +9,7 @@ This module provides functions to interact with OpenNeuro datasets:
 
 import re
 import xml.etree.ElementTree as ET
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
@@ -17,16 +18,86 @@ import boto3
 import requests
 from botocore import UNSIGNED
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
-try:
-    import mne
-except ImportError:
-    mne = None
+import mne
 
 OPENNEURO_GRAPHQL_URL = "https://openneuro.org/crn/graphql"
 OPENNEURO_S3_BUCKET = "openneuro.org"
 
 EEG_EXTENSIONS = {".edf", ".vhdr", ".set", ".bdf"}
+
+MODALITY_TO_MNE_TYPE = {
+    "EEG": "eeg",
+    "SCALP": "eeg",
+    "SCALP_EEG": "eeg",
+    "EOG": "eog",
+    "HEOG": "eog",
+    "VEOG": "eog",
+    "EMG": "emg",
+    "MUSCLE": "emg",
+    "ECG": "ecg",
+    "EKG": "ecg",
+    "CARDIAC": "ecg",
+    "ECOG": "ecog",
+    "SEEG": "seeg",
+    "STEREO_EEG": "seeg",
+    "RESP": "resp",
+    "RESPIRATORY": "resp",
+    "RESPIRATION": "resp",
+    "BREATHING": "resp",
+    "TMP": "temperature",
+    "TEMP": "temperature",
+    "THERM": "temperature",
+    "TEMPERATURE": "temperature",
+    "MEG": "meg",
+    "MAG": "meg",
+    "REF_MEG": "ref_meg",
+    "MEG_REF": "ref_meg",
+    "STIM": "stim",
+    "STI": "stim",
+    "EVENTS": "stim",
+    "TRIGGER": "stim",
+    "GSR": "gsr",
+    "SKIN": "gsr",
+    "GALVANIC": "gsr",
+    "GALVANIC_SKIN_RESPONSE": "gsr",
+    "BIO": "bio",
+    "CHPI": "chpi",
+    "DBS": "dbs",
+    "DIPOLE": "dipole",
+    "EXCI": "exci",
+    "EYETRACK": "eyetrack",
+    "FNIRS": "fnirs",
+    "GOF": "gof",
+    "GOODNESS_OF_FIT": "gof",
+    "IAS": "ias",
+    "SYST": "syst",
+    "SYSTEM": "syst",
+    "MISC": "misc",
+}
+
+
+@lru_cache(maxsize=1)
+def _get_s3_client():
+    """Get a cached S3 client with retry configuration for unsigned OpenNeuro access.
+
+    Uses boto3's standard retry mode which includes:
+    - Exponential backoff (base 2) with random jitter
+    - Max backoff capped at ~20 seconds
+    - Automatic retries on transient errors, throttling (429), and 5xx status codes
+    """
+    return boto3.client(
+        "s3",
+        config=Config(
+            signature_version=UNSIGNED,
+            retries={
+                "mode": "standard",
+                "total_max_attempts": 3,
+            },
+        ),
+    )
+
 
 BIDS_EEG_PATTERN = re.compile(
     r"^(?P<subject>sub-[^_]+)"
@@ -94,14 +165,20 @@ PARTICIPANTS_QUERY = """
 def validate_dataset_id(dataset_id: str) -> str:
     """Validate and normalize an OpenNeuro dataset ID.
 
+    OpenNeuro dataset IDs follow the format 'ds' followed by exactly 6 digits,
+    where the numeric portion ranges from 000001 to 009999.
+
     Args:
-        dataset_id: The dataset identifier (e.g., "5085", "ds5085", "ds005085")
+        dataset_id: The dataset identifier in various accepted formats:
+            - Numeric only: "5085" -> "ds005085"
+            - With prefix: "ds5085" -> "ds005085"
+            - Already normalized: "ds005085" -> "ds005085"
 
     Returns:
-        Normalized dataset ID in format "ds006695"
+        Normalized dataset ID in format "dsXXXXXX" (6 digits, zero-padded)
 
     Raises:
-        ValueError: If the dataset ID format is invalid
+        ValueError: If the dataset ID format is invalid or numeric part exceeds 9999
     """
     dataset_id = dataset_id.strip()
 
@@ -239,7 +316,7 @@ def fetch_all_filenames(dataset_id: str, tag: Optional[str] = None) -> list[str]
         List of relative filenames in the dataset (excluding directories)
     """
     dataset_id = validate_dataset_id(dataset_id)
-    s3_client = boto3.client("s3", config=Config(signature_version=UNSIGNED))
+    s3_client = _get_s3_client()
 
     prefix = f"{dataset_id}/"
     filenames = []
@@ -380,6 +457,24 @@ def fetch_eeg_recordings(dataset_id: str) -> list[dict]:
     return recordings
 
 
+def construct_s3_url_from_path(dataset_id: str, eeg_file_path: str) -> str:
+    """Construct S3 URL directly from a known file path.
+
+    This avoids S3 API calls by using the path that was already discovered.
+
+    Args:
+        dataset_id: OpenNeuro dataset identifier
+        eeg_file_path: Relative path to the EEG file within the dataset
+
+    Returns:
+        S3 URL prefix for downloading the recording files
+    """
+    dataset_id = validate_dataset_id(dataset_id)
+    parent_dir = str(Path(eeg_file_path).parent)
+    recording_id = Path(eeg_file_path).stem.replace("_eeg", "")
+    return f"s3://openneuro.org/{dataset_id}/{parent_dir}/{recording_id}"
+
+
 def construct_s3_url(dataset_id: str, recording_id: str) -> str:
     """Construct the S3 URL for a recording matching the given pattern.
 
@@ -488,7 +583,7 @@ def get_s3_file_size(dataset_id: str, file_path: str) -> int:
         RuntimeError: If the file doesn't exist or cannot be accessed
     """
     dataset_id = validate_dataset_id(dataset_id)
-    s3_client = boto3.client("s3", config=Config(signature_version=UNSIGNED))
+    s3_client = _get_s3_client()
     s3_key = f"{dataset_id}/{file_path}"
 
     try:
@@ -592,7 +687,7 @@ def download_prefix_from_s3(s3_url: str, target_dir: Path) -> None:
     bucket = parsed.netloc
     prefix = parsed.path.lstrip("/")
 
-    s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
+    s3 = _get_s3_client()
 
     downloaded_files = []
     try:
@@ -615,16 +710,11 @@ def download_prefix_from_s3(s3_url: str, target_dir: Path) -> None:
                 local_path = target_dir / rel_path
                 local_path.parent.mkdir(parents=True, exist_ok=True)
 
-                for attempt in range(3):
-                    try:
-                        s3.download_file(bucket, obj_key, str(local_path))
-                        downloaded_files.append(local_path)
-                        break
-                    except Exception as e:
-                        if attempt == 2:
-                            raise RuntimeError(
-                                f"Failed to download {obj_key} after 3 attempts: {str(e)}"
-                            )
+                try:
+                    s3.download_file(bucket, obj_key, str(local_path))
+                    downloaded_files.append(local_path)
+                except ClientError as e:
+                    raise RuntimeError(f"Failed to download {obj_key}: {e}") from e
 
         if not downloaded_files:
             raise RuntimeError(
@@ -639,59 +729,7 @@ def download_prefix_from_s3(s3_url: str, target_dir: Path) -> None:
 
 def _modality_to_mne_type(modality: str) -> str:
     """Map modality string to MNE channel type."""
-    modality_upper = modality.upper() if modality else ""
-
-    modality_map = {
-        "EEG": "eeg",
-        "SCALP": "eeg",
-        "SCALP_EEG": "eeg",
-        "EOG": "eog",
-        "HEOG": "eog",
-        "VEOG": "eog",
-        "EMG": "emg",
-        "MUSCLE": "emg",
-        "ECG": "ecg",
-        "EKG": "ecg",
-        "CARDIAC": "ecg",
-        "ECOG": "ecog",
-        "SEEG": "seeg",
-        "STEREO_EEG": "seeg",
-        "RESP": "resp",
-        "RESPIRATORY": "resp",
-        "RESPIRATION": "resp",
-        "BREATHING": "resp",
-        "TMP": "temperature",
-        "TEMP": "temperature",
-        "THERM": "temperature",
-        "TEMPERATURE": "temperature",
-        "MEG": "meg",
-        "MAG": "meg",
-        "REF_MEG": "ref_meg",
-        "MEG_REF": "ref_meg",
-        "STIM": "stim",
-        "STI": "stim",
-        "EVENTS": "stim",
-        "TRIGGER": "stim",
-        "GSR": "gsr",
-        "SKIN": "gsr",
-        "GALVANIC": "gsr",
-        "GALVANIC_SKIN_RESPONSE": "gsr",
-        "BIO": "bio",
-        "CHPI": "chpi",
-        "DBS": "dbs",
-        "DIPOLE": "dipole",
-        "EXCI": "exci",
-        "EYETRACK": "eyetrack",
-        "FNIRS": "fnirs",
-        "GOF": "gof",
-        "GOODNESS_OF_FIT": "gof",
-        "IAS": "ias",
-        "SYST": "syst",
-        "SYSTEM": "syst",
-        "MISC": "misc",
-    }
-
-    return modality_map.get(modality_upper, "misc")
+    return MODALITY_TO_MNE_TYPE.get((modality or "").upper(), "misc")
 
 
 def rename_electrodes(raw: "mne.io.Raw", rename_map: dict[str, str]) -> None:

@@ -16,21 +16,26 @@ Dataset URL: https://openneuro.org/datasets/ds005555
 from brainsets.utils.open_neuro_pipeline import OpenNeuroEEGPipeline
 
 ELECTRODE_RENAME = {
-    "PSG F3": "F3",
-    "PSG F4": "F4",
-    "PSG C3": "C3",
-    "PSG C4": "C4",
-    "PSG O1": "O1",
-    "PSG O2": "O2",
-    "PSG EOG1": "EOG_L",
-    "PSG EOG2": "EOG_R",
-    "PSG EMG1": "EMG_Chin",
+    "PSG_F3": "F3",
+    "PSG_F4": "F4",
+    "PSG_C3": "C3",
+    "PSG_C4": "C4",
+    "PSG_O1": "O1",
+    "PSG_O2": "O2",
+    "PSG_EOG": "EOG",
+    "PSG_EMG": "EMG",
+    "PSG_PULSE": "PULSE",
+    "PSG_BEAT": "BEAT",
+    "PSG_SPO2": "SPO2",
 }
 
 MODALITY_CHANNELS = {
     "EEG": ["F3", "F4", "C3", "C4", "O1", "O2"],
-    "EOG": ["EOG_L", "EOG_R"],
-    "EMG": ["EMG_Chin"],
+    "EOG": ["EOG"],
+    "EMG": ["EMG"],
+    "PULSE": ["PULSE"],
+    "BEAT": ["BEAT"],
+    "SPO2": ["SPO2"],
 }
 
 
