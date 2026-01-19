@@ -22,7 +22,6 @@ from temporaldata import ArrayDict, Data
 
 from brainsets import serialize_fn_map
 from brainsets.pipeline import BrainsetPipeline
-from brainsets.utils.mne_utils import modality_to_mne_type
 from brainsets.utils.openneuro.data_extraction import (
     extract_brainset_description,
     extract_channels,
@@ -243,7 +242,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 for ch_name in channel_names:
                     if ch_name in channel_id_set:
                         idx = np.where(channel_ids == ch_name)[0]
-                        channel_types[idx] = modality_to_mne_type(modality)
+                        channel_types[idx] = modality
 
         return ArrayDict(id=channel_ids, types=channel_types)
 

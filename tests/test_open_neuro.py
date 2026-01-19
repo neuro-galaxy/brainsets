@@ -1,12 +1,10 @@
 """Tests for brainsets.utils.openneuro and related modules."""
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from brainsets.utils.bids_utils import parse_bids_eeg_filename
-from brainsets.utils.mne_utils import rename_electrodes, set_channel_modalities
 from brainsets.utils.openneuro import (
     fetch_all_filenames,
     fetch_eeg_recordings,
@@ -66,70 +64,6 @@ class TestParseBidsEegFilename:
     def test_invalid_pattern(self):
         result = parse_bids_eeg_filename("invalid_filename.edf")
         assert result is None
-
-
-class TestRenameElectrodes:
-    def test_rename_channels(self):
-        mock_raw = MagicMock()
-        mock_raw.ch_names = ["PSG_F3", "PSG_F4", "C3"]
-
-        rename_map = {"PSG_F3": "F3", "PSG_F4": "F4"}
-        rename_electrodes(mock_raw, rename_map)
-
-        mock_raw.rename_channels.assert_called_once_with(
-            {"PSG_F3": "F3", "PSG_F4": "F4"}, allow_duplicates=False
-        )
-
-    def test_empty_rename_map(self):
-        mock_raw = MagicMock()
-        rename_electrodes(mock_raw, {})
-        mock_raw.rename_channels.assert_not_called()
-
-    def test_none_rename_map(self):
-        mock_raw = MagicMock()
-        rename_electrodes(mock_raw, None)
-        mock_raw.rename_channels.assert_not_called()
-
-    def test_partial_match(self):
-        mock_raw = MagicMock()
-        mock_raw.ch_names = ["F3", "F4"]
-
-        rename_map = {"PSG_F3": "F3_new", "F4": "F4_new"}
-        rename_electrodes(mock_raw, rename_map)
-
-        mock_raw.rename_channels.assert_called_once_with(
-            {"F4": "F4_new"}, allow_duplicates=False
-        )
-
-
-class TestSetChannelModalities:
-    def test_set_modalities(self):
-        mock_raw = MagicMock()
-        mock_raw.ch_names = ["F3", "F4", "EOG_L", "EMG"]
-
-        modality_map = {
-            "EEG": ["F3", "F4"],
-            "EOG": ["EOG_L"],
-            "EMG": ["EMG"],
-        }
-        set_channel_modalities(mock_raw, modality_map)
-
-        mock_raw.set_channel_types.assert_called_once()
-        call_args = mock_raw.set_channel_types.call_args[0][0]
-        assert call_args["F3"] == "eeg"
-        assert call_args["F4"] == "eeg"
-        assert call_args["EOG_L"] == "eog"
-        assert call_args["EMG"] == "emg"
-
-    def test_empty_modality_map(self):
-        mock_raw = MagicMock()
-        set_channel_modalities(mock_raw, {})
-        mock_raw.set_channel_types.assert_not_called()
-
-    def test_none_modality_map(self):
-        mock_raw = MagicMock()
-        set_channel_modalities(mock_raw, None)
-        mock_raw.set_channel_types.assert_not_called()
 
 
 @pytest.mark.parametrize("dataset_id,error", [("ds006695", False), ("ds00555", True)])
