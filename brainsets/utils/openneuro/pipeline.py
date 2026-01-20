@@ -62,24 +62,32 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         - derived_version: Version of the processed data (defaults to "1.0.0")
         - description: Description of the dataset
 
-    **Example usage:**
+    **Channel configuration:**
+
+    For simple datasets with uniform channels, use class attributes:
+
+        class Pipeline(OpenNeuroEEGPipeline):
+            brainset_id = "my_dataset_2024"
+            dataset_id = "ds005555"
+            ELECTRODE_RENAME = {"PSG_F3": "F3", "PSG_F4": "F4"}
+            MODALITY_CHANNELS = {"EEG": ["F3", "F4"], "EOG": ["EOG"]}
+
+    For datasets with multiple channel configurations (e.g., different
+    acquisition types), override the methods instead:
 
         class Pipeline(OpenNeuroEEGPipeline):
             brainset_id = "my_dataset_2024"
             dataset_id = "ds005555"
 
-            ELECTRODE_RENAME = {
-                "PSG_F3": "F3",
-                "PSG_F4": "F4",
-            }
+            def get_electrode_rename(self, recording_id):
+                if "acq-headband" in recording_id:
+                    return {"HB_1": "AF7", "HB_2": "AF8"}
+                return {"PSG_F3": "F3", "PSG_F4": "F4"}
 
-            MODALITY_CHANNELS = {
-                "EEG": ["F3", "F4", "C3", "C4"],
-                "EOG": ["EOG_L", "EOG_R"],
-            }
-
-            def process(self, download_output):
-                super().process(download_output)
+            def get_modality_channels(self, recording_id):
+                if "acq-headband" in recording_id:
+                    return {"EEG": ["AF7", "AF8"]}
+                return {"EEG": ["F3", "F4"], "EOG": ["EOG"]}
     """
 
     parser = _openneuro_parser
@@ -92,10 +100,18 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
     """Unique identifier for the brainset."""
 
     ELECTRODE_RENAME: Optional[dict[str, str]] = None
-    """Optional dict mapping old electrode names to new standardized names."""
+    """Optional dict mapping old electrode names to new standardized names.
+    
+    For more complex configurations (e.g., per-recording mappings), override
+    get_electrode_rename() instead.
+    """
 
     MODALITY_CHANNELS: Optional[dict[str, list[str]]] = None
-    """Optional dict mapping modality types to lists of channel names."""
+    """Optional dict mapping modality types to lists of channel names.
+    
+    For more complex configurations (e.g., per-recording mappings), override
+    get_modality_channels() instead.
+    """
 
     subject_ids: Optional[list[str]] = None
 
@@ -107,6 +123,36 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
     description: Optional[str] = None
     """Optional description of the dataset."""
+
+    def get_electrode_rename(self, recording_id: str) -> Optional[dict[str, str]]:
+        """Return electrode rename mapping for a given recording.
+
+        Override this method to provide per-recording electrode rename mappings.
+        The default implementation returns the class-level ELECTRODE_RENAME attribute.
+
+        Args:
+            recording_id: The recording identifier
+
+        Returns:
+            Dict mapping original electrode names to standardized names, or None
+        """
+        return self.ELECTRODE_RENAME
+
+    def get_modality_channels(
+        self, recording_id: str
+    ) -> Optional[dict[str, list[str]]]:
+        """Return modality-to-channels mapping for a given recording.
+
+        Override this method to provide per-recording modality mappings.
+        The default implementation returns the class-level MODALITY_CHANNELS attribute.
+
+        Args:
+            recording_id: The recording identifier
+
+        Returns:
+            Dict mapping modality names to lists of channel names, or None
+        """
+        return self.MODALITY_CHANNELS
 
     @classmethod
     def get_manifest(cls, raw_dir: Path, args: Optional[Namespace]) -> pd.DataFrame:
@@ -199,7 +245,6 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
                 }
 
         try:
-            self.update_status(f"Downloading from {s3_url}")
             download_recording(s3_url, target_dir)
         except Exception as e:
             raise RuntimeError(
@@ -213,15 +258,18 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             "fpath": subject_dir,
         }
 
-    def _apply_channel_mapping(self, channels: ArrayDict) -> ArrayDict:
+    def _apply_channel_mapping(
+        self, channels: ArrayDict, recording_id: str
+    ) -> ArrayDict:
         """Apply electrode renaming and modality mapping to a channels ArrayDict.
 
         This method applies:
-        1. Electrode renaming using ELECTRODE_RENAME (if defined)
-        2. Channel type setting using MODALITY_CHANNELS (if defined)
+        1. Electrode renaming using get_electrode_rename()
+        2. Channel type setting using get_modality_channels()
 
         Args:
             channels: ArrayDict with 'id' and 'types' fields
+            recording_id: The recording identifier, used to get per-recording config
 
         Returns:
             Modified ArrayDict with renamed channels and updated types
@@ -229,16 +277,18 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         channel_ids = channels.id.copy()
         channel_types = channels.types.copy()
 
-        if self.ELECTRODE_RENAME:
+        electrode_rename = self.get_electrode_rename(recording_id)
+        if electrode_rename:
             self.update_status("Renaming electrodes")
             for i, ch_name in enumerate(channel_ids):
-                if ch_name in self.ELECTRODE_RENAME:
-                    channel_ids[i] = self.ELECTRODE_RENAME[ch_name]
+                if ch_name in electrode_rename:
+                    channel_ids[i] = electrode_rename[ch_name]
 
-        if self.MODALITY_CHANNELS:
+        modality_channels = self.get_modality_channels(recording_id)
+        if modality_channels:
             self.update_status("Setting channel modalities")
             channel_id_set = set(channel_ids)
-            for modality, channel_names in self.MODALITY_CHANNELS.items():
+            for modality, channel_names in modality_channels.items():
                 for ch_name in channel_names:
                     if ch_name in channel_id_set:
                         idx = np.where(channel_ids == ch_name)[0]
@@ -373,7 +423,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         eeg_signal = extract_signal(raw)
         channels = extract_channels(raw)
 
-        channels = self._apply_channel_mapping(channels)
+        channels = self._apply_channel_mapping(channels, recording_id)
 
         self.update_status("Creating Data Object")
         data = Data(
