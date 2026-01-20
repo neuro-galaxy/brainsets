@@ -12,8 +12,9 @@ from botocore.exceptions import ClientError
 
 @lru_cache(maxsize=1)
 def get_cached_s3_client(
-    retry_mode: str = "standard",
-    max_attempts: int = 3,
+    retry_mode: str = "adaptive",
+    max_attempts: int = 5,
+    max_pool_connections: int = 30,
 ) -> boto3.client:
     """Get a cached S3 client configured for anonymous access to public buckets.
 
@@ -36,6 +37,7 @@ def get_cached_s3_client(
                 "mode": retry_mode,
                 "total_max_attempts": max_attempts,
             },
+            max_pool_connections=max_pool_connections,
         ),
     )
 
