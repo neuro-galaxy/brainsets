@@ -11,10 +11,12 @@
 ## TODO - implement download from DANDI
 
 from argparse import ArgumentParser
+import json
 from pathlib import Path
 import h5py
 import numpy as np
 import pandas as pd
+import pynwb
 from pynwb import NWBHDF5IO, NWBFile
 from temporaldata import (
     Data,
@@ -37,6 +39,24 @@ from brainsets.pipeline import BrainsetPipeline
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
 parser.add_argument("--reprocess", action="store_true")
+parser.add_argument("--split_ref_time", type=str, default="start_time")
+parser.add_argument("--split_max_duration", type=float, default=None)
+
+
+key_name_mapping = {
+    # wheel_position
+    "SpatialSeriesWheelPosition": "wheel_position",
+    "WheelPositionSmoothed": "wheel_position",
+    # wheel_velocity
+    "TimeSeriesWheelVelocity": "wheel_velocity",
+    "WheelSmoothedVelocity": "wheel_velocity",
+    # wheel_acceleration
+    "TimeSeriesWheelAcceleration": "wheel_acceleration",
+    "WheelSmoothedAcceleration": "wheel_acceleration",
+    # wheel_movement_intervals
+    "TimeIntervalsWheelMovement": "wheel_movement_intervals",
+    "WheelMovement": "wheel_movement_intervals",
+}
 
 
 class Pipeline(BrainsetPipeline):
@@ -50,33 +70,37 @@ class Pipeline(BrainsetPipeline):
         # For now, we keep just a simple manifest for local testing
         manifest_list = [
             {
-                "session_id": "sub-NYU-11_ses-6713a4a7-faed-4df2-acab-ee4e63326f8d",
-                "filename": "sub-NYU-11_ses-6713a4a7-faed-4df2-acab-ee4e63326f8d_desc-processed_behavior+ecephys.nwb",
+                "session_id": "sub-NYU-21_ses-8c33abef-3d3e-4d42-9f27-445e9def08f9",
+                "filename": "sub-NYU-21_ses-8c33abef-3d3e-4d42-9f27-445e9def08f9_desc-processed_behavior+ecephys.nwb",
             },
-            {
-                "session_id": "sub-NYU-11_ses-56956777-dca5-468c-87cb-78150432cc57",
-                "filename": "sub-NYU-11_ses-56956777-dca5-468c-87cb-78150432cc57_desc-processed_behavior+ecephys.nwb",
-            },
-            {
-                "session_id": "sub-NYU-12_ses-4364a246-f8d7-4ce7-ba23-a098104b96e4",
-                "filename": "sub-NYU-12_ses-4364a246-f8d7-4ce7-ba23-a098104b96e4_desc-processed_behavior+ecephys.nwb",
-            },
-            {
-                "session_id": "sub-NYU-12_ses-b182b754-3c3e-4942-8144-6ee790926b58",
-                "filename": "sub-NYU-12_ses-b182b754-3c3e-4942-8144-6ee790926b58_desc-processed_behavior+ecephys.nwb",
-            },
-            {
-                "session_id": "sub-NYU-39_ses-6ed57216-498d-48a6-b48b-a243a34710ea",
-                "filename": "sub-NYU-39_ses-6ed57216-498d-48a6-b48b-a243a34710ea_desc-processed_behavior+ecephys.nwb",
-            },
-            {
-                "session_id": "sub-NYU-39_ses-35ed605c-1a1a-47b1-86ff-2b56144f55af",
-                "filename": "sub-NYU-39_ses-35ed605c-1a1a-47b1-86ff-2b56144f55af_desc-processed_behavior+ecephys.nwb",
-            },
-            {
-                "session_id": "sub-NYU-46_ses-64e3fb86-928c-4079-865c-b364205b502e",
-                "filename": "sub-NYU-46_ses-64e3fb86-928c-4079-865c-b364205b502e_desc-processed_behavior+ecephys.nwb",
-            },
+            # {
+            #     "session_id": "sub-NYU-11_ses-6713a4a7-faed-4df2-acab-ee4e63326f8d",
+            #     "filename": "sub-NYU-11_ses-6713a4a7-faed-4df2-acab-ee4e63326f8d_desc-processed_behavior+ecephys.nwb",
+            # },
+            # {
+            #     "session_id": "sub-NYU-11_ses-56956777-dca5-468c-87cb-78150432cc57",
+            #     "filename": "sub-NYU-11_ses-56956777-dca5-468c-87cb-78150432cc57_desc-processed_behavior+ecephys.nwb",
+            # },
+            # {
+            #     "session_id": "sub-NYU-12_ses-4364a246-f8d7-4ce7-ba23-a098104b96e4",
+            #     "filename": "sub-NYU-12_ses-4364a246-f8d7-4ce7-ba23-a098104b96e4_desc-processed_behavior+ecephys.nwb",
+            # },
+            # {
+            #     "session_id": "sub-NYU-12_ses-b182b754-3c3e-4942-8144-6ee790926b58",
+            #     "filename": "sub-NYU-12_ses-b182b754-3c3e-4942-8144-6ee790926b58_desc-processed_behavior+ecephys.nwb",
+            # },
+            # {
+            #     "session_id": "sub-NYU-39_ses-6ed57216-498d-48a6-b48b-a243a34710ea",
+            #     "filename": "sub-NYU-39_ses-6ed57216-498d-48a6-b48b-a243a34710ea_desc-processed_behavior+ecephys.nwb",
+            # },
+            # {
+            #     "session_id": "sub-NYU-39_ses-35ed605c-1a1a-47b1-86ff-2b56144f55af",
+            #     "filename": "sub-NYU-39_ses-35ed605c-1a1a-47b1-86ff-2b56144f55af_desc-processed_behavior+ecephys.nwb",
+            # },
+            # {
+            #     "session_id": "sub-NYU-46_ses-64e3fb86-928c-4079-865c-b364205b502e",
+            #     "filename": "sub-NYU-46_ses-64e3fb86-928c-4079-865c-b364205b502e_desc-processed_behavior+ecephys.nwb",
+            # },
         ]
         manifest = pd.DataFrame(manifest_list).set_index("session_id")
         return manifest
@@ -171,9 +195,6 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Extracting Trials")
         trials = extract_trials(nwbfile=nwbfile, max_time=max_time)
 
-        # Close NWB file
-        io.close()
-
         # Create Data object
         data = Data(
             # Metadata
@@ -194,12 +215,12 @@ class Pipeline(BrainsetPipeline):
 
         # Create train/validation/test splits
         self.update_status("Creating Splits")
-        train_trials, valid_trials, test_trials = trials.split(
-            [0.7, 0.1, 0.2],  # proportions for train/valid/test
-            shuffle=True,  # randomly shuffle trials
-            random_seed=42,  # for reproducibility
+        train_trials, valid_trials, test_trials = extract_splits(
+            nwbfile=nwbfile,
+            max_time=max_time,
+            split_ref_time=self.args.split_ref_time,
+            split_max_duration=self.args.split_max_duration,
         )
-
         data.set_train_domain(train_trials)
         data.set_valid_domain(valid_trials)
         data.set_test_domain(test_trials)
@@ -209,6 +230,9 @@ class Pipeline(BrainsetPipeline):
         with h5py.File(store_path, "w") as file:
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
 
+        # Close NWB file
+        io.close()
+
 
 def extract_units_and_spikes(nwbfile: NWBFile, max_time: float):
     """Extract unit information and spike times from NWB file."""
@@ -216,7 +240,7 @@ def extract_units_and_spikes(nwbfile: NWBFile, max_time: float):
         exclude=set(
             [
                 "spike_times",
-                "waveform_mean",
+                # "waveform_mean",
                 "spike_amplitudes_uV",
                 "spike_distances_from_probe_tip_um",
             ]
@@ -234,6 +258,18 @@ def extract_units_and_spikes(nwbfile: NWBFile, max_time: float):
         col: units_df[col].values
         for col in units_df.select_dtypes(exclude="object").columns
     }
+
+    # Extract location names based on peak waveform electrodes
+    location_names = list()
+    for i, r in units_df.iterrows():
+        # Get electrodes with peak waveform values
+        waveform_peaks = np.max(np.abs(r["waveform_mean"]), axis=0)
+        sorted_peaks = np.argsort(waveform_peaks)[::-1]
+        top_sorted_peaks = sorted_peaks[0:5]
+        # Get the most common locations for the peak signal electrodes
+        top_locations = list(np.unique(r["electrodes"]["location"].values[top_sorted_peaks]))
+        location_names.append(json.dumps(top_locations))
+    extra_metadata["location_names"] = np.array(location_names)
 
     units = ArrayDict(
         id=np.array(unit_ids),
@@ -268,71 +304,64 @@ def extract_units_and_spikes(nwbfile: NWBFile, max_time: float):
 
 
 def extract_wheel_data(nwbfile: NWBFile, max_time: float):
-    """Extract wheel velocity and acceleration data."""
-    wheel_rate = float(nwbfile.processing["wheel"]["TimeSeriesWheelAcceleration"].rate)
-    wheel_start = float(
-        nwbfile.processing["wheel"]["TimeSeriesWheelAcceleration"].starting_time
-    )
+    """Extract wheel data in all available forms: RegularTimeSeries, IrregularTimeSeries, and Intervals."""
+    wheel_data = dict()
+    for k, v in nwbfile.processing["wheel"].data_interfaces.items():
+        key_name = key_name_mapping.get(k, None)
+        if key_name is not None:
+            if hasattr(v, "rate") and v.rate is not None:
+                wheel_data[key_name] = extract_timeseries_with_rate(obj=v, max_time=max_time)
+            elif hasattr(v, "timestamps") and v.timestamps is not None:
+                wheel_data[key_name] = extract_timeseries_with_timestamps(obj=v, max_time=max_time)
+            elif isinstance(v, pynwb.epoch.TimeIntervals):
+                wheel_data[key_name] = extract_timeintervals_table(obj=v, max_time=max_time)
+        else:
+            print(f"Warning: Unrecognized wheel data interface '{k}' found. Skipping.")
 
+    return wheel_data
+
+
+def extract_timeseries_with_rate(obj, max_time: float):
+    """Extract RegularTimeSeries."""
+    sampling_rate = float(obj.rate)
+    starting_time = float(obj.starting_time)
     if np.isinf(max_time):
         num_samples = None
     else:
-        num_samples = int((max_time - wheel_start) * wheel_rate)
+        num_samples = int((max_time - starting_time) * sampling_rate)
 
-    wheel_acc = RegularTimeSeries(
-        values=nwbfile.processing["wheel"]["TimeSeriesWheelAcceleration"].data[
-            :num_samples
-        ],
-        sampling_rate=wheel_rate,
-        domain_start=wheel_start,
+    return RegularTimeSeries(
+        values=obj.data[:num_samples],
+        sampling_rate=sampling_rate,
+        domain_start=starting_time,
         domain="auto",
     )
 
-    wheel_vel = RegularTimeSeries(
-        values=nwbfile.processing["wheel"]["TimeSeriesWheelVelocity"].data[
-            :num_samples
-        ],
-        sampling_rate=wheel_rate,
-        domain_start=wheel_start,
+
+def extract_timeseries_with_timestamps(obj, max_time: float):
+    """Extract IrregularTimeSeries."""
+    timestamps = obj.timestamps[:]
+    data_values = obj.data[:]
+    valid_pos_mask = timestamps < max_time
+
+    return IrregularTimeSeries(
+        values=data_values[valid_pos_mask],
+        timestamps=timestamps[valid_pos_mask],
         domain="auto",
     )
 
-    # Filter IrregularTimeSeries by timestamp
-    wheel_pos_timestamps = nwbfile.processing["wheel"][
-        "SpatialSeriesWheelPosition"
-    ].timestamps[:]
-    wheel_pos_values = nwbfile.processing["wheel"]["SpatialSeriesWheelPosition"].data[:]
-    valid_pos_mask = wheel_pos_timestamps < max_time
 
-    wheel_pos = IrregularTimeSeries(
-        values=wheel_pos_values[valid_pos_mask],
-        timestamps=wheel_pos_timestamps[valid_pos_mask],
-        domain="auto",
-    )
+def extract_timeintervals_table(obj, max_time: float):
+    """Extract Intervals from TimeIntervals table."""
+    intervals_df = obj.to_dataframe()
+    valid_intervals = intervals_df[intervals_df["stop_time"] < max_time]
 
-    # Filter intervals - keep only complete intervals within valid epoch
-    wheel_movement_intervals_df = nwbfile.processing["wheel"][
-        "TimeIntervalsWheelMovement"
-    ].to_dataframe()
-    valid_intervals = wheel_movement_intervals_df[
-        wheel_movement_intervals_df["stop_time"] < max_time
-    ]
-
-    wheel_movement_intervals = Interval(
+    return Interval(
         start=valid_intervals["start_time"].values,
         end=valid_intervals["stop_time"].values,
         peak_amplitude=valid_intervals["peak_amplitude"].values,
         timekeys=["start", "end"],
     )
-
-    wheel_data = {
-        "wheel_acceleration": wheel_acc,
-        "wheel_velocity": wheel_vel,
-        "wheel_position": wheel_pos,
-        "wheel_movement_intervals": wheel_movement_intervals,
-    }
-
-    return wheel_data
 
 
 def extract_pose_estimation_data(nwbfile: NWBFile, max_time: float):
@@ -404,3 +433,31 @@ def extract_trials(nwbfile: NWBFile, max_time: float):
         timekeys=time_columns,
     )
     return trials
+
+
+def extract_splits(
+    nwbfile: NWBFile,
+    max_time: float,
+    split_ref_time: str = "start_time",
+    split_max_duration: float | None = None,
+):
+    """Extract splits for torch_brain."""
+    # Filter trials based on max_time, split_ref_time, and optional max_duration
+    df = nwbfile.trials.to_dataframe()    
+    df.rename(columns={split_ref_time: "start", "stop_time": "end"}, inplace=True)
+    df = df[df["end"] < max_time]
+    df = df[["start", "end"]]
+    if split_max_duration is not None:
+        df = df[(df["end"] - df["start"]) <= split_max_duration]
+
+    # Create intervals and split into train/valid/test
+    selected_intervals = Interval.from_dataframe(
+        df,
+        timekeys=["start", "end"],
+    )
+    train_trials, valid_trials, test_trials = selected_intervals.split(
+        [0.7, 0.1, 0.2],  # proportions for train/valid/test
+        shuffle=True,     # randomly shuffle trials
+        random_seed=42,   # for reproducibility
+    )
+    return train_trials, valid_trials, test_trials
