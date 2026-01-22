@@ -1,6 +1,6 @@
 # /// brainset-pipeline
 # python-version = "3.11"
-# dependencies = ["zenodo_get==2.0.0"]
+# dependencies = ["zenodo_get==2.0.0", "mne>=1.0.0"]
 # ///
 
 import os
@@ -24,13 +24,28 @@ from brainsets.descriptions import (
     SubjectDescription,
 )
 from brainsets.pipeline import BrainsetPipeline
+from brainsets.processing import extract_bands, extract_bands_fixed, downsample_wideband
 from brainsets.taxonomy import RecordingTech, Species, Task
+from temporaldata import RegularTimeSeries
 
 logging.basicConfig(level=logging.INFO)
 
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
 parser.add_argument("--reprocess", action="store_true")
+parser.add_argument(
+    "--signal-version",
+    type=str,
+    choices=["v1", "v2"],
+    default="v2",
+    help="Signal processing version: v1 (original extract_bands) or v2 (fixed version)",
+)
+parser.add_argument(
+    "--broadband-dir",
+    type=str,
+    default=None,
+    help="Directory containing broadband NWB files. If not specified, LFP extraction is skipped.",
+)
 
 
 class Pipeline(BrainsetPipeline):
@@ -183,6 +198,25 @@ class Pipeline(BrainsetPipeline):
         # close file
         h5file.close()
 
+        # Extract LFP bands from broadband data if available
+        lfp_bands = None
+        band_names = None
+        if self.args.broadband_dir:
+            broadband_dir = Path(self.args.broadband_dir)
+            nwb_path = broadband_dir / f"{session_id}.nwb"
+            if nwb_path.exists():
+                self.update_status("Extracting LFP bands")
+                try:
+                    lfp_bands, band_names = extract_lfp_from_broadband(
+                        nwb_path, signal_version=self.args.signal_version
+                    )
+                    logging.info(f"Extracted LFP bands: {band_names}")
+                except Exception as e:
+                    logging.warning(f"Failed to extract LFP from {nwb_path}: {e}")
+                    lfp_bands = None
+            else:
+                logging.warning(f"Broadband file not found: {nwb_path}")
+
         # register session
         data = Data(
             brainset=brainset_description,
@@ -198,6 +232,11 @@ class Pipeline(BrainsetPipeline):
             no_movement_segments=no_movement_segments,
             domain=cursor.domain,
         )
+
+        # Add LFP bands if extracted
+        if lfp_bands is not None:
+            data.lfp_bands = lfp_bands
+            data.lfp_band_names = np.array(band_names)
 
         self.update_status("Creating splits")
         train_sampling_intervals, valid_sampling_intervals, test_sampling_intervals = (
@@ -439,3 +478,55 @@ def split_intervals(data):
             test_sampling_intervals,
         ] = intervals.split([8, 1, 1], shuffle=True, random_seed=42)
     return train_sampling_intervals, valid_sampling_intervals, test_sampling_intervals
+
+
+def extract_lfp_from_broadband(nwb_path: Path, signal_version: str = "v2"):
+    """Extract LFP frequency bands from broadband NWB file.
+
+    Args:
+        nwb_path: Path to the broadband NWB file
+        signal_version: "v1" for original extract_bands, "v2" for fixed version
+
+    Returns:
+        lfp_bands: RegularTimeSeries with band power data
+        band_names: List of band names
+    """
+    logging.info(f"Loading broadband data from {nwb_path}")
+
+    with h5py.File(nwb_path, "r") as f:
+        # Load broadband data
+        broadband_data = f["acquisition/timeseries/broadband/data"][:]
+        timestamps = f["acquisition/timeseries/broadband/timestamps"][:]
+
+    # Estimate sampling rate from timestamps
+    dt = np.median(np.diff(timestamps[:1000]))
+    wideband_Fs = 1.0 / dt
+    logging.info(f"Estimated wideband sampling rate: {wideband_Fs:.1f} Hz")
+
+    # Downsample to LFP rate (1000 Hz)
+    logging.info("Downsampling wideband to LFP...")
+    lfp, lfp_ts = downsample_wideband(
+        broadband_data.astype(np.float32),
+        timestamps,
+        wideband_Fs=wideband_Fs,
+        lfp_Fs=1000,
+    )
+
+    # Extract frequency bands
+    logging.info(f"Extracting frequency bands using {signal_version}...")
+    if signal_version == "v1":
+        bands, bands_ts, band_names = extract_bands(lfp, lfp_ts, Fs=1000, normalize="zscore")
+    else:  # v2
+        bands, bands_ts, band_names = extract_bands_fixed(lfp, lfp_ts, Fs=1000, normalize="zscore")
+
+    # Create RegularTimeSeries for the band power data
+    # bands shape: (time, channels, bands)
+    # Output sampling rate is 50 Hz (target_Fs in extract_bands functions)
+    lfp_bands = RegularTimeSeries(
+        data=bands,  # shape: (time, channels, bands)
+        sampling_rate=50,
+        domain_start=bands_ts[0],
+        domain="auto",
+    )
+
+    return lfp_bands, band_names
