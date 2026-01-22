@@ -24,6 +24,7 @@ from .dataset import (
     download_recording,
     fetch_all_filenames,
     fetch_eeg_recordings,
+    fetch_participants_tsv,
     validate_dataset_id,
 )
 from .pipeline import OpenNeuroEEGPipeline
@@ -34,6 +35,7 @@ __all__ = [
     "validate_dataset_id",
     "fetch_all_filenames",
     "fetch_eeg_recordings",
+    "fetch_participants_tsv",
     "construct_s3_url_from_path",
     "download_recording",
     "check_recording_files_exist",

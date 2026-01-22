@@ -11,6 +11,7 @@ import datetime
 import logging
 from abc import ABC
 from argparse import ArgumentParser, Namespace
+from functools import cached_property
 from pathlib import Path
 from typing import Optional
 
@@ -36,6 +37,7 @@ from brainsets.utils.openneuro.dataset import (
     construct_s3_url_from_path,
     download_recording,
     fetch_eeg_recordings,
+    fetch_participants_tsv,
     validate_dataset_id,
 )
 
@@ -114,9 +116,17 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
     """
 
     subject_ids: Optional[list[str]] = None
+    """Optional list of subject IDs to process. If None, processes all subjects."""
 
     EEG_FILE_EXTENSIONS = {".fif", ".set", ".edf", ".bdf", ".vhdr", ".eeg"}
-    """Optional list of subject IDs to process. If None, processes all subjects."""
+    """Supported EEG file extensions for loading.
+    
+    BIDS-compliant extensions: .edf, .vhdr, .set, .bdf, .eeg
+    Non-BIDS extension: .fif (MNE FIFF format, included for processed data)
+    
+    Note: .vhdr is the BrainVision header file. When a .eeg file is found,
+    the code automatically looks for its .vhdr header (see _load_eeg_file).
+    """
 
     derived_version: str = "1.0.0"
     """Version of the processed data."""
@@ -153,6 +163,49 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             Dict mapping modality names to lists of channel names, or None
         """
         return self.MODALITY_CHANNELS
+
+    @cached_property
+    def _participants_data(self) -> Optional[pd.DataFrame]:
+        """Lazy-load participants.tsv data, cached for the pipeline run.
+
+        Returns:
+            DataFrame with participant information indexed by participant_id,
+            or None if participants.tsv doesn't exist.
+        """
+        return fetch_participants_tsv(self.dataset_id)
+
+    def get_subject_info(self, subject_id: str) -> dict:
+        """Return subject information dict with 'age' and 'sex' keys.
+
+        Override this method to provide subject information from alternative sources
+        (e.g., custom metadata files, databases, etc.).
+
+        The default implementation fetches data from the BIDS participants.tsv file.
+        If the file doesn't exist or the subject is not found, returns None values.
+
+        Args:
+            subject_id: Subject identifier (e.g., 'sub-01')
+
+        Returns:
+            Dictionary with keys 'age' and 'sex', values may be None if not available
+        """
+        if self._participants_data is None:
+            return {"age": None, "sex": None}
+
+        if subject_id not in self._participants_data.index:
+            return {"age": None, "sex": None}
+
+        row = self._participants_data.loc[subject_id]
+
+        age = row.get("age", None)
+        if pd.isna(age):
+            age = None
+
+        sex = row.get("sex", None)
+        if pd.isna(sex):
+            sex = None
+
+        return {"age": age, "sex": sex}
 
     @classmethod
     def get_manifest(cls, raw_dir: Path, args: Optional[Namespace]) -> pd.DataFrame:
@@ -317,6 +370,9 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             )
 
         if len(candidates) > 1:
+            # BIDS EEG files have "_eeg." before extension (e.g., sub-01_task-X_eeg.edf)
+            # Filter for this pattern to disambiguate from sidecar files
+            # (e.g., _channels.tsv, _events.tsv) or auxiliary files.
             bids_files = [f for f in candidates if "_eeg." in f.name]
             if len(bids_files) == 1:
                 return bids_files[0]
@@ -340,6 +396,11 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             RuntimeError: If the file cannot be loaded
             ValueError: If BrainVision .eeg file is missing its .vhdr header
         """
+        # BrainVision format consists of three files:
+        # - .vhdr: Header file (contains metadata, must be loaded)
+        # - .vmrk: Marker file (contains event markers)
+        # - .eeg: Binary data file
+        # MNE requires loading via the .vhdr header file.
         if eeg_file.suffix.lower() == ".eeg":
             vhdr_file = eeg_file.with_suffix(".vhdr")
             if not vhdr_file.exists():
@@ -404,7 +465,12 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             description=dataset_description,
         )
 
-        subject_description = extract_subject_description(subject_id=subject_id)
+        subject_info = self.get_subject_info(subject_id)
+        subject_description = extract_subject_description(
+            subject_id=subject_id,
+            age=subject_info.get("age"),
+            sex=subject_info.get("sex"),
+        )
 
         meas_date = extract_meas_date(raw)
         if meas_date is None:

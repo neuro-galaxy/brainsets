@@ -4,8 +4,12 @@ This module provides functions for dataset validation, file listing,
 and downloading from OpenNeuro's S3 bucket.
 """
 
+from io import BytesIO
 from pathlib import Path
 from typing import Optional
+
+import pandas as pd
+from botocore.exceptions import ClientError
 
 from brainsets.utils.bids_utils import EEG_EXTENSIONS, parse_bids_eeg_filename
 from brainsets.utils.s3_utils import (
@@ -151,6 +155,45 @@ def fetch_eeg_recordings(dataset_id: str) -> list[dict]:
     return recordings
 
 
+def fetch_participants_tsv(dataset_id: str) -> Optional[pd.DataFrame]:
+    """Fetch and parse participants.tsv from OpenNeuro S3.
+
+    Args:
+        dataset_id: The OpenNeuro dataset identifier
+
+    Returns:
+        DataFrame with participant information, or None if file doesn't exist.
+        The DataFrame has 'participant_id' as the index and columns like 'age', 'sex', etc.
+    """
+    dataset_id = validate_dataset_id(dataset_id)
+    s3_client = get_cached_s3_client()
+
+    key = f"{dataset_id}/participants.tsv"
+
+    try:
+        response = s3_client.get_object(Bucket=OPENNEURO_S3_BUCKET, Key=key)
+        content = response["Body"].read()
+
+        df = pd.read_csv(
+            BytesIO(content),
+            sep="\t",
+            na_values=["n/a", "N/A"],
+            keep_default_na=True,
+        )
+
+        if "participant_id" not in df.columns:
+            return None
+
+        df = df.set_index("participant_id")
+        return df
+
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+        if error_code in ("NoSuchKey", "404"):
+            return None
+        raise
+
+
 def construct_s3_url_from_path(dataset_id: str, eeg_file_path: str) -> str:
     """Construct S3 URL directly from a known file path.
 
@@ -198,6 +241,10 @@ def check_recording_files_exist(recording_id: str, subject_dir: Path) -> bool:
     if not subject_dir.exists():
         return False
 
+    # BIDS-compliant EEG extensions plus .fif for MNE-processed files.
+    # BIDS formats: .edf (European Data Format), .set (EEGLAB), .bdf (Biosemi),
+    #               .vhdr (BrainVision header), .eeg (BrainVision data)
+    # Non-BIDS: .fif (MNE FIFF format) included for locally processed files.
     eeg_patterns = [
         f"**/{recording_id}_eeg.edf",
         f"**/{recording_id}_eeg.fif",

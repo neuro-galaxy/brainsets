@@ -1,13 +1,17 @@
 """Tests for brainsets.utils.openneuro and related modules."""
 
-from unittest.mock import patch
+from io import BytesIO
+from unittest.mock import MagicMock, patch
 
+import pandas as pd
 import pytest
+from botocore.exceptions import ClientError
 
 from brainsets.utils.bids_utils import parse_bids_eeg_filename
 from brainsets.utils.openneuro import (
     fetch_all_filenames,
     fetch_eeg_recordings,
+    fetch_participants_tsv,
     validate_dataset_id,
 )
 
@@ -125,3 +129,76 @@ class TestFetchEegRecordings:
 
         recordings = fetch_eeg_recordings("ds005555")
         assert len(recordings) == 0
+
+
+class TestFetchParticipantsTsv:
+    @patch("brainsets.utils.openneuro.dataset.get_cached_s3_client")
+    def test_fetch_participants_tsv_success(self, mock_get_client):
+        tsv_content = "participant_id\tage\tsex\nsub-01\t25\tmale\nsub-02\t30\tfemale\n"
+        mock_response = {"Body": MagicMock(read=lambda: tsv_content.encode("utf-8"))}
+
+        mock_client = MagicMock()
+        mock_client.get_object.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        result = fetch_participants_tsv("ds005555")
+
+        assert result is not None
+        assert isinstance(result, pd.DataFrame)
+        assert "sub-01" in result.index
+        assert "sub-02" in result.index
+        assert result.loc["sub-01", "age"] == 25
+        assert result.loc["sub-01", "sex"] == "male"
+        assert result.loc["sub-02", "age"] == 30
+        assert result.loc["sub-02", "sex"] == "female"
+
+    @patch("brainsets.utils.openneuro.dataset.get_cached_s3_client")
+    def test_fetch_participants_tsv_with_na_values(self, mock_get_client):
+        tsv_content = "participant_id\tage\tsex\nsub-01\tn/a\tmale\nsub-02\t30\tn/a\n"
+        mock_response = {"Body": MagicMock(read=lambda: tsv_content.encode("utf-8"))}
+
+        mock_client = MagicMock()
+        mock_client.get_object.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        result = fetch_participants_tsv("ds005555")
+
+        assert result is not None
+        assert pd.isna(result.loc["sub-01", "age"])
+        assert result.loc["sub-01", "sex"] == "male"
+        assert result.loc["sub-02", "age"] == 30
+        assert pd.isna(result.loc["sub-02", "sex"])
+
+    @patch("brainsets.utils.openneuro.dataset.get_cached_s3_client")
+    def test_fetch_participants_tsv_file_not_found(self, mock_get_client):
+        mock_client = MagicMock()
+        error_response = {"Error": {"Code": "NoSuchKey"}}
+        mock_client.get_object.side_effect = ClientError(error_response, "GetObject")
+        mock_get_client.return_value = mock_client
+
+        result = fetch_participants_tsv("ds005555")
+
+        assert result is None
+
+    @patch("brainsets.utils.openneuro.dataset.get_cached_s3_client")
+    def test_fetch_participants_tsv_no_participant_id_column(self, mock_get_client):
+        tsv_content = "subject\tage\tsex\nsub-01\t25\tmale\n"
+        mock_response = {"Body": MagicMock(read=lambda: tsv_content.encode("utf-8"))}
+
+        mock_client = MagicMock()
+        mock_client.get_object.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        result = fetch_participants_tsv("ds005555")
+
+        assert result is None
+
+    @patch("brainsets.utils.openneuro.dataset.get_cached_s3_client")
+    def test_fetch_participants_tsv_other_error(self, mock_get_client):
+        mock_client = MagicMock()
+        error_response = {"Error": {"Code": "AccessDenied"}}
+        mock_client.get_object.side_effect = ClientError(error_response, "GetObject")
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(ClientError):
+            fetch_participants_tsv("ds005555")

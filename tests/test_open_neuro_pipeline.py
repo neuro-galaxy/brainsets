@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pandas as pd
 import pytest
 from temporaldata import ArrayDict
 
@@ -127,11 +128,11 @@ class TestApplyChannelMapping:
             types=np.array(["misc", "misc"]),
         )
 
-        result = pipeline._apply_channel_mapping(channels)
+        result = pipeline._apply_channel_mapping(channels, "test_recording")
 
         assert result.id[0] == "F3"
         assert result.id[1] == "C3"
-        assert result.types[0] == "eeg"
+        assert result.types[0] == "EEG"
 
     def test_apply_mapping_without_mappings(self):
         pipeline = MockPipeline.__new__(MockPipeline)
@@ -144,7 +145,7 @@ class TestApplyChannelMapping:
             types=np.array(["misc", "misc"]),
         )
 
-        result = pipeline._apply_channel_mapping(channels)
+        result = pipeline._apply_channel_mapping(channels, "test_recording")
 
         assert list(result.id) == ["F3", "C3"]
         assert list(result.types) == ["misc", "misc"]
@@ -268,3 +269,140 @@ class TestDownload:
 
             with pytest.raises(RuntimeError, match="Failed to download"):
                 pipeline.download(manifest_item)
+
+
+class TestGetSubjectInfo:
+    @patch("brainsets.utils.openneuro.pipeline.fetch_participants_tsv")
+    def test_get_subject_info_with_data(self, mock_fetch_participants):
+        participants_df = pd.DataFrame(
+            {"age": [25, 30], "sex": ["male", "female"]},
+            index=["sub-01", "sub-02"],
+        )
+        participants_df.index.name = "participant_id"
+        mock_fetch_participants.return_value = participants_df
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            raw_dir = Path(temp_dir) / "raw"
+            processed_dir = Path(temp_dir) / "processed"
+
+            pipeline = MockPipeline(
+                raw_dir=raw_dir,
+                processed_dir=processed_dir,
+                args=None,
+            )
+
+            result = pipeline.get_subject_info("sub-01")
+
+            assert result["age"] == 25
+            assert result["sex"] == "male"
+
+    @patch("brainsets.utils.openneuro.pipeline.fetch_participants_tsv")
+    def test_get_subject_info_subject_not_found(self, mock_fetch_participants):
+        participants_df = pd.DataFrame(
+            {"age": [25], "sex": ["male"]},
+            index=["sub-01"],
+        )
+        participants_df.index.name = "participant_id"
+        mock_fetch_participants.return_value = participants_df
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            raw_dir = Path(temp_dir) / "raw"
+            processed_dir = Path(temp_dir) / "processed"
+
+            pipeline = MockPipeline(
+                raw_dir=raw_dir,
+                processed_dir=processed_dir,
+                args=None,
+            )
+
+            result = pipeline.get_subject_info("sub-99")
+
+            assert result["age"] is None
+            assert result["sex"] is None
+
+    @patch("brainsets.utils.openneuro.pipeline.fetch_participants_tsv")
+    def test_get_subject_info_no_participants_file(self, mock_fetch_participants):
+        mock_fetch_participants.return_value = None
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            raw_dir = Path(temp_dir) / "raw"
+            processed_dir = Path(temp_dir) / "processed"
+
+            pipeline = MockPipeline(
+                raw_dir=raw_dir,
+                processed_dir=processed_dir,
+                args=None,
+            )
+
+            result = pipeline.get_subject_info("sub-01")
+
+            assert result["age"] is None
+            assert result["sex"] is None
+
+    @patch("brainsets.utils.openneuro.pipeline.fetch_participants_tsv")
+    def test_get_subject_info_with_na_values(self, mock_fetch_participants):
+        participants_df = pd.DataFrame(
+            {"age": [25, pd.NA], "sex": ["male", pd.NA]},
+            index=["sub-01", "sub-02"],
+        )
+        participants_df.index.name = "participant_id"
+        mock_fetch_participants.return_value = participants_df
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            raw_dir = Path(temp_dir) / "raw"
+            processed_dir = Path(temp_dir) / "processed"
+
+            pipeline = MockPipeline(
+                raw_dir=raw_dir,
+                processed_dir=processed_dir,
+                args=None,
+            )
+
+            result = pipeline.get_subject_info("sub-02")
+
+            assert result["age"] is None
+            assert result["sex"] is None
+
+    @patch("brainsets.utils.openneuro.pipeline.fetch_participants_tsv")
+    def test_get_subject_info_cached(self, mock_fetch_participants):
+        participants_df = pd.DataFrame(
+            {"age": [25], "sex": ["male"]},
+            index=["sub-01"],
+        )
+        participants_df.index.name = "participant_id"
+        mock_fetch_participants.return_value = participants_df
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            raw_dir = Path(temp_dir) / "raw"
+            processed_dir = Path(temp_dir) / "processed"
+
+            pipeline = MockPipeline(
+                raw_dir=raw_dir,
+                processed_dir=processed_dir,
+                args=None,
+            )
+
+            pipeline.get_subject_info("sub-01")
+            pipeline.get_subject_info("sub-01")
+
+            mock_fetch_participants.assert_called_once()
+
+    def test_get_subject_info_override(self):
+        class CustomPipeline(MockPipeline):
+            def get_subject_info(self, subject_id: str) -> dict:
+                return {"age": 99, "sex": "other"}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            raw_dir = Path(temp_dir) / "raw"
+            processed_dir = Path(temp_dir) / "processed"
+
+            pipeline = CustomPipeline(
+                raw_dir=raw_dir,
+                processed_dir=processed_dir,
+                args=None,
+            )
+
+            result = pipeline.get_subject_info("sub-01")
+
+            assert result["age"] == 99
+            assert result["sex"] == "other"
