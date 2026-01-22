@@ -24,10 +24,10 @@ from moabb.paradigms import MotorImagery
 from temporaldata import Data
 from brainsets.descriptions import BrainsetDescription
 from brainsets.taxonomy import Task
-from brainsets.moabb_pipeline import MOABBPipeline
+from brainsets.utils.moabb.pipeline import MOABBPipeline
 from brainsets.utils.split import (
-    generate_task_kfold_splits,
-    compute_subject_kfold_assignments,
+    generate_trial_folds_by_task,
+    generate_subject_kfold_assignment,
 )
 
 
@@ -60,7 +60,8 @@ class Pipeline(MOABBPipeline):
     }
 
     TASK_CONFIGS = {
-        "MotorImagery": ["left_hand", "right_hand", "hands", "feet", "rest"],
+        "MotorImagery_all": ["left_hand", "right_hand", "hands", "feet", "rest"],
+        "MotorImagery_norest": ["left_hand", "right_hand", "hands", "feet"],
         "LeftRightImagery": ["left_hand", "right_hand"],
         "RightHandFeetImagery": ["right_hand", "feet"],
     }
@@ -85,18 +86,18 @@ class Pipeline(MOABBPipeline):
         splits : Data
             Data object containing all split masks
         """
-        task_splits = generate_task_kfold_splits(
+        task_splits = generate_trial_folds_by_task(
             trials,
             task_configs=self.TASK_CONFIGS,
             label_field=self.label_field,
-            n_folds=5,
+            n_folds=3,
             val_ratio=0.2,
             seed=42,
         )
 
         if subject_id is not None:
-            subject_assignments = compute_subject_kfold_assignments(
-                subject_id, n_folds=5, val_ratio=0.2, seed=42
+            subject_assignments = generate_subject_kfold_assignment(
+                subject_id, n_folds=3, val_ratio=0.2, seed=42
             )
             return Data(**task_splits, **subject_assignments, domain=trials)
         else:

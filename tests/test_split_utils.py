@@ -3,9 +3,9 @@ import pytest
 from temporaldata import Data, Interval
 from brainsets.utils.split import (
     chop_intervals,
-    generate_stratified_folds,
-    generate_task_kfold_splits,
-    compute_subject_kfold_assignments,
+    generate_trial_folds,
+    generate_trial_folds_by_task,
+    generate_subject_kfold_assignment,
 )
 
 
@@ -86,7 +86,7 @@ def test_chop_intervals_overlapping_no_check():
     assert len(chopped) == 20
 
 
-def test_generate_stratified_folds():
+def test_generate_trial_folds():
     n_samples = 100
     start = np.arange(n_samples, dtype=float)
     end = start + 1.0
@@ -105,7 +105,7 @@ def test_generate_stratified_folds():
 
     n_folds = 5
     val_ratio = 0.25
-    folds = generate_stratified_folds(
+    folds = generate_trial_folds(
         intervals, stratify_by="id", n_folds=n_folds, val_ratio=val_ratio, seed=42
     )
 
@@ -164,7 +164,7 @@ def test_generate_stratified_folds():
     assert np.allclose(all_test_starts_sorted, original_starts_sorted)
 
 
-def test_generate_stratified_folds_custom_attribute():
+def test_generate_trial_folds_custom_attribute():
     n_samples = 50
     start = np.arange(n_samples, dtype=float)
     end = start + 1.0
@@ -179,7 +179,7 @@ def test_generate_stratified_folds_custom_attribute():
 
     intervals = Interval(start=start, end=end, label=labels)
 
-    folds = generate_stratified_folds(
+    folds = generate_trial_folds(
         intervals, stratify_by="label", n_folds=5, val_ratio=0.25, seed=42
     )
 
@@ -194,16 +194,16 @@ def test_generate_stratified_folds_custom_attribute():
         assert all(c == 5 for c in counts)
 
 
-def test_generate_stratified_folds_missing_attribute():
+def test_generate_trial_folds_missing_attribute():
     start = np.arange(10, dtype=float)
     end = start + 1.0
     intervals = Interval(start=start, end=end)
 
     with pytest.raises(ValueError, match="must have a 'label' attribute"):
-        generate_stratified_folds(intervals, stratify_by="label", n_folds=5)
+        generate_trial_folds(intervals, stratify_by="label", n_folds=5)
 
 
-class TestGenerateTaskKfoldSplits:
+class TestGenerateTrialFoldsByTask:
     def test_basic_functionality(self):
         n_samples = 100
         start = np.arange(n_samples, dtype=float)
@@ -225,7 +225,7 @@ class TestGenerateTaskKfoldSplits:
             "BinaryTask": ["left_hand", "rest"],
         }
 
-        splits_dict = generate_task_kfold_splits(
+        splits_dict = generate_trial_folds_by_task(
             trials,
             task_configs=task_configs,
             label_field="label",
@@ -255,7 +255,7 @@ class TestGenerateTaskKfoldSplits:
 
         task_configs = {"TaskAB": ["A", "B"]}
 
-        splits_dict = generate_task_kfold_splits(
+        splits_dict = generate_trial_folds_by_task(
             trials,
             task_configs=task_configs,
             label_field="label",
@@ -279,7 +279,7 @@ class TestGenerateTaskKfoldSplits:
         trials = Interval(start=start, end=end)
 
         with pytest.raises(ValueError, match="must have a 'label' attribute"):
-            generate_task_kfold_splits(
+            generate_trial_folds_by_task(
                 trials,
                 task_configs={"Task": ["A"]},
                 label_field="label",
@@ -299,7 +299,7 @@ class TestGenerateTaskKfoldSplits:
         import logging
 
         with caplog.at_level(logging.WARNING):
-            splits_dict = generate_task_kfold_splits(
+            splits_dict = generate_trial_folds_by_task(
                 trials,
                 task_configs=task_configs,
                 label_field="label",
@@ -312,9 +312,9 @@ class TestGenerateTaskKfoldSplits:
         assert "LargerTask_fold0_train" in splits_dict
 
 
-class TestComputeSubjectKfoldAssignments:
+class TestGenerateSubjectKfoldAssignment:
     def test_basic_output_structure(self):
-        assignments = compute_subject_kfold_assignments("S001", n_folds=5)
+        assignments = generate_subject_kfold_assignment("S001", n_folds=5)
 
         assert isinstance(assignments, dict)
         assert len(assignments) == 5
@@ -324,28 +324,28 @@ class TestComputeSubjectKfoldAssignments:
             assert assignments[f"SubjectSplit_fold{k}"] in ["train", "valid", "test"]
 
     def test_exactly_one_test_assignment(self):
-        assignments = compute_subject_kfold_assignments("S001", n_folds=5)
+        assignments = generate_subject_kfold_assignment("S001", n_folds=5)
 
         test_count = sum(1 for v in assignments.values() if v == "test")
         assert test_count == 1
 
     def test_deterministic_assignment(self):
-        assignments1 = compute_subject_kfold_assignments("S001", n_folds=5, seed=42)
-        assignments2 = compute_subject_kfold_assignments("S001", n_folds=5, seed=42)
+        assignments1 = generate_subject_kfold_assignment("S001", n_folds=5, seed=42)
+        assignments2 = generate_subject_kfold_assignment("S001", n_folds=5, seed=42)
 
         assert assignments1 == assignments2
 
     def test_different_subjects_different_assignments(self):
-        assignments_s1 = compute_subject_kfold_assignments("S001", n_folds=5, seed=42)
-        assignments_s2 = compute_subject_kfold_assignments("S002", n_folds=5, seed=42)
+        assignments_s1 = generate_subject_kfold_assignment("S001", n_folds=5, seed=42)
+        assignments_s2 = generate_subject_kfold_assignment("S002", n_folds=5, seed=42)
 
         assert assignments_s1 != assignments_s2
 
     def test_different_seeds_different_assignments(self):
-        assignments_seed1 = compute_subject_kfold_assignments(
+        assignments_seed1 = generate_subject_kfold_assignment(
             "S001", n_folds=5, seed=42
         )
-        assignments_seed2 = compute_subject_kfold_assignments(
+        assignments_seed2 = generate_subject_kfold_assignment(
             "S001", n_folds=5, seed=99
         )
 
@@ -359,10 +359,10 @@ class TestComputeSubjectKfoldAssignments:
         valid_counts_high = 0
 
         for i in range(n_subjects):
-            assignments_low = compute_subject_kfold_assignments(
+            assignments_low = generate_subject_kfold_assignment(
                 f"S{i:03d}", n_folds=n_folds, val_ratio=0.1, seed=42
             )
-            assignments_high = compute_subject_kfold_assignments(
+            assignments_high = generate_subject_kfold_assignment(
                 f"S{i:03d}", n_folds=n_folds, val_ratio=0.4, seed=42
             )
 
@@ -383,7 +383,7 @@ class TestComputeSubjectKfoldAssignments:
         train_count = 0
 
         for i in range(n_subjects):
-            assignments = compute_subject_kfold_assignments(
+            assignments = generate_subject_kfold_assignment(
                 f"subject_{i}", n_folds=n_folds, val_ratio=val_ratio, seed=42
             )
 

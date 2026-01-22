@@ -239,39 +239,74 @@ def _create_interval_split(intervals: Interval, indices: np.ndarray) -> Interval
     return split
 
 
-def generate_stratified_folds(
-    intervals: Interval,
+def generate_trial_folds(
+    trials: Interval,
     stratify_by: str,
     n_folds: int = 5,
     val_ratio: float = 0.2,
     seed: int = 42,
 ) -> List[Data]:
     """
-    Generates stratified train/valid/test splits using a two-stage splitting process.
+    Generate stratified k-fold train/valid/test splits at the trial level.
+
+    This function performs **intra-session splitting** at the trial level. Individual
+    trials are distributed across folds while maintaining the class distribution
+    (stratification). Use this when you want to evaluate generalization across trials
+    within the same session.
+
+    For **cross-subject splitting** (where entire subjects are held out), use
+    :func:`generate_subject_kfold_assignment` instead.
 
     The splitting is performed in two stages:
-        1. Outer split (StratifiedKFold): The intervals are divided into n_folds,
-           where each fold uses one partition as the test set and the remaining
-           partitions as train+valid. Stratification ensures each fold maintains
-           the class distribution of the original data.
-        2. Inner split (StratifiedShuffleSplit): The train+valid portion of each fold
-           is further split into train and valid sets using val_ratio, while preserving
-           the class distribution.
+        1. Outer split (StratifiedKFold): Trials are divided into n_folds, where each
+           fold uses one partition as test and the rest as train+valid. Stratification
+           ensures each fold maintains the class distribution.
+        2. Inner split (StratifiedShuffleSplit): The train+valid portion is further
+           split into train and valid sets using val_ratio, preserving class distribution.
 
-    Args:
-        intervals: The intervals to split.
-        n_folds: Number of folds for cross-validation.
-        val_ratio: Ratio of validation set relative to train+valid combined.
-        seed: Random seed.
-        stratify_by: The attribute name to use for stratification (e.g., "id", "label",
-            "class"). The intervals must have this attribute.
+    Args
+    ----
+    trials : Interval
+        The trials to split. Must have an attribute matching `stratify_by`.
+    stratify_by : str
+        The attribute name to use for stratification (e.g., "label", "class").
+    n_folds : int
+        Number of folds for cross-validation. Default is 5.
+    val_ratio : float
+        Ratio of validation set relative to train+valid combined. Default is 0.2.
+    seed : int
+        Random seed for reproducibility. Default is 42.
 
-    Returns:
-        List of Data objects, one for each fold.
+    Returns
+    -------
+    List[Data]
+        List of Data objects, one per fold. Each Data object contains:
+        - train: Interval with training trials
+        - valid: Interval with validation trials
+        - test: Interval with test trials
+        - domain: Combined interval of all trials in the fold
 
-    Raises:
-        ValueError: If the intervals don't have the specified stratify_by attribute.
-        ValueError: If there are fewer samples than n_folds.
+    Raises
+    ------
+    ValueError
+        If trials don't have the specified stratify_by attribute.
+    ValueError
+        If there are fewer trials than n_folds.
+
+    Examples
+    --------
+    >>> folds = generate_trial_folds(
+    ...     trials=session.trials,
+    ...     stratify_by="label",
+    ...     n_folds=5,
+    ... )
+    >>> for k, fold in enumerate(folds):
+    ...     print(f"Fold {k}: train={len(fold.train)}, valid={len(fold.valid)}, test={len(fold.test)}")
+
+    See Also
+    --------
+    generate_trial_folds_by_task : Higher-level function for multi-task trial splitting.
+    generate_subject_kfold_assignment : For cross-subject (leave-subject-out) splitting.
     """
     try:
         from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
@@ -281,25 +316,25 @@ def generate_stratified_folds(
             "`pip install scikit-learn`"
         )
 
-    if not hasattr(intervals, stratify_by):
+    if not hasattr(trials, stratify_by):
         raise ValueError(
-            f"Intervals must have a '{stratify_by}' attribute for stratification."
+            f"Trials must have a '{stratify_by}' attribute for stratification."
         )
 
-    class_labels = getattr(intervals, stratify_by)
+    class_labels = getattr(trials, stratify_by)
     if len(class_labels) < n_folds:
         raise ValueError(
-            f"Not enough samples ({len(class_labels)}) for {n_folds} folds."
+            f"Not enough trials ({len(class_labels)}) for {n_folds} folds."
         )
 
     outer_splitter = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
     folds = []
-    sample_indices = np.arange(len(intervals))
+    sample_indices = np.arange(len(trials))
 
     for fold_idx, (train_val_indices, test_indices) in enumerate(
         outer_splitter.split(sample_indices, class_labels)
     ):
-        test_split = _create_interval_split(intervals, test_indices)
+        test_split = _create_interval_split(trials, test_indices)
 
         train_val_labels = class_labels[train_val_indices]
         inner_splitter = StratifiedShuffleSplit(
@@ -312,8 +347,8 @@ def generate_stratified_folds(
             train_original_indices = train_val_indices[train_indices]
             val_original_indices = train_val_indices[val_indices]
 
-            train_split = _create_interval_split(intervals, train_original_indices)
-            val_split = _create_interval_split(intervals, val_original_indices)
+            train_split = _create_interval_split(trials, train_original_indices)
+            val_split = _create_interval_split(trials, val_original_indices)
 
             combined_domain = train_split | val_split | test_split
 
@@ -329,7 +364,7 @@ def generate_stratified_folds(
     return folds
 
 
-def generate_task_kfold_splits(
+def generate_trial_folds_by_task(
     trials: Interval,
     task_configs: Dict[str, List[str]],
     label_field: str,
@@ -338,22 +373,30 @@ def generate_task_kfold_splits(
     seed: int = 42,
 ) -> Dict[str, Interval]:
     """
-    Generate k-fold cross-validation train/valid/test splits for multiple tasks.
+    Generate trial-level k-fold cross-validation splits within a single session.
 
-    For each task, creates n_folds stratified train/valid/test splits using the
-    provided trials Interval object. The splits are returned as Interval objects
-    with names formatted as "{task_name}_fold{k}_train", "{task_name}_fold{k}_valid",
-    and "{task_name}_fold{k}_test" for each fold.
+    This function performs **intra-session splitting** at the trial level. It takes
+    trials from a single recording session and creates stratified k-fold splits,
+    ensuring trials from the same session can appear in different folds. Use this
+    when you want to evaluate generalization across trials within the same session.
+
+    For **cross-subject splitting** (where entire subjects are held out), use
+    :func:`generate_subject_kfold_assignment` instead.
+
+    For each task configuration, creates n_folds stratified train/valid/test splits.
+    The splits are returned as Interval objects with names formatted as
+    "{task_name}_fold{k}_train", "{task_name}_fold{k}_valid", and
+    "{task_name}_fold{k}_test".
 
     Args
     ----
     trials : Interval
-        An Interval object containing trial information, including labels.
+        An Interval object containing trial information from a single session,
+        including labels specified by `label_field`.
     task_configs : Dict[str, List[str]]
         Dictionary mapping task names to lists of labels to include for that task.
-        Example: {"MotorImagery": ["left_hand", "right_hand", "feet"], ...}
     label_field : str
-        The attribute name in trials that contains the labels.
+        The attribute name in trials that contains the labels for stratification.
     n_folds : int
         Number of folds for cross-validation. Default is 5.
     val_ratio : float
@@ -365,6 +408,26 @@ def generate_task_kfold_splits(
     -------
     Dict[str, Interval]
         Dictionary mapping split names to Interval objects.
+
+    Examples
+    --------
+    >>> task_configs = {
+    ...     "MotorImagery": ["left_hand", "right_hand", "feet"],
+    ...     "RestVsActive": ["rest", "left_hand", "right_hand"],
+    ... }
+    >>> splits = generate_trial_folds_by_task(
+    ...     trials=session.trials,
+    ...     task_configs=task_configs,
+    ...     label_field="label",
+    ...     n_folds=5,
+    ... )
+    >>> # Returns keys like: "MotorImagery_fold0_train", "MotorImagery_fold0_valid", ...
+    >>> train_trials = splits["MotorImagery_fold0_train"]
+
+    See Also
+    --------
+    generate_subject_kfold_assignment : For cross-subject (leave-subject-out) splitting.
+    generate_trial_folds : Lower-level function for stratified fold generation.
     """
     if not hasattr(trials, label_field):
         raise ValueError(
@@ -387,7 +450,7 @@ def generate_task_kfold_splits(
             )
             continue
 
-        folds = generate_stratified_folds(
+        folds = generate_trial_folds(
             task_trials,
             stratify_by=label_field,
             n_folds=n_folds,
@@ -412,21 +475,33 @@ def generate_task_kfold_splits(
     return splits_dict
 
 
-def compute_subject_kfold_assignments(
+def generate_subject_kfold_assignment(
     subject_id: str, n_folds: int = 5, val_ratio: float = 0.2, seed: int = 42
 ) -> Dict[str, str]:
     """
-    Compute deterministic subject-level k-fold train/valid/test assignments.
+    Generate cross-subject k-fold train/valid/test assignments for a single subject.
 
-    Uses hash-based assignment to deterministically assign subjects to folds.
+    This function performs **cross-subject splitting** (also known as leave-subject-out
+    or between-subject splitting). It deterministically assigns a subject to train,
+    valid, or test for each fold using hash-based assignment. Use this when you want
+    to evaluate generalization across different subjects, ensuring no data leakage
+    between subjects in different splits.
+
+    For **intra-session splitting** (trial-level splits within a session), use
+    :func:`generate_trial_folds_by_task` instead.
+
+    The assignment is deterministic: the same subject_id with the same seed will
+    always receive the same assignments. This allows processing subjects independently
+    (e.g., in parallel) while ensuring consistent fold assignments.
+
     For each fold k:
-    - Subjects in bucket k are assigned to test
-    - Remaining subjects are split into train/valid based on val_ratio
+    - Subjects hashed to bucket k are assigned to "test"
+    - Remaining subjects are assigned to "train" or "valid" based on val_ratio
 
     Args
     ----
     subject_id : str
-        Subject identifier (e.g., "S001", "subj-001")
+        Subject identifier (e.g., "S001", "sub-01").
     n_folds : int
         Number of folds for cross-validation. Default is 5.
     val_ratio : float
@@ -439,6 +514,25 @@ def compute_subject_kfold_assignments(
     Dict[str, str]
         Dictionary mapping "SubjectSplit_fold{k}" to "train", "valid", or "test"
         for each fold k in range(n_folds).
+
+    Examples
+    --------
+    >>> assignments = generate_subject_kfold_assignment("sub-01", n_folds=5)
+    >>> assignments
+    {'SubjectSplit_fold0': 'train', 'SubjectSplit_fold1': 'test',
+     'SubjectSplit_fold2': 'train', 'SubjectSplit_fold3': 'valid',
+     'SubjectSplit_fold4': 'train'}
+
+    >>> # Use in a pipeline to tag sessions with their fold assignments
+    >>> for subject_id in subject_ids:
+    ...     assignments = generate_subject_kfold_assignment(subject_id)
+    ...     session = load_session(subject_id)
+    ...     for key, value in assignments.items():
+    ...         setattr(session, key, value)
+
+    See Also
+    --------
+    generate_trial_folds_by_task : For intra-session (trial-level) splitting.
     """
     subject_str = f"{subject_id}_{seed}"
     subject_bytes = subject_str.encode("utf-8")

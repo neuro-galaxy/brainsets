@@ -24,8 +24,8 @@ from moabb.paradigms import P300
 from temporaldata import Data
 from brainsets.descriptions import BrainsetDescription
 from brainsets.taxonomy import Task
-from brainsets.moabb_pipeline import MOABBPipeline
-from brainsets.utils.split import compute_subject_kfold_assignments
+from brainsets.utils.moabb.pipeline import MOABBPipeline
+from brainsets.utils.split import generate_subject_kfold_assignment
 
 
 logging.basicConfig(level=logging.INFO)
@@ -75,8 +75,8 @@ class Pipeline(MOABBPipeline):
         splits = super()._generate_splits(trials, subject_id=subject_id)
 
         if subject_id is not None:
-            subject_assignments = compute_subject_kfold_assignments(
-                subject_id, n_folds=5, val_ratio=0.2, seed=42
+            subject_assignments = generate_subject_kfold_assignment(
+                subject_id, n_folds=3, val_ratio=0.2, seed=42
             )
             for key, value in subject_assignments.items():
                 setattr(splits, key, value)

@@ -27,7 +27,7 @@ from brainsets.descriptions import (
     DeviceDescription,
 )
 from brainsets.taxonomy import Species, Task
-from brainsets.utils.split import generate_stratified_folds
+from brainsets.utils.split import generate_trial_folds
 
 
 class MOABBPipeline(BrainsetPipeline):
@@ -218,10 +218,10 @@ class MOABBPipeline(BrainsetPipeline):
         # MNE channel kind constants (mne.io.constants.FIFF)
         ch_type_map = {
             2: "EEG",  # FIFFV_EEG_CH
-            3: "EOG",  # FIFFV_EOG_CH
-            4: "EMG",  # FIFFV_EMG_CH
-            5: "ECG",  # FIFFV_ECG_CH
-            301: "MISC",  # FIFFV_MISC_CH
+            202: "EOG",  # FIFFV_EOG_CH
+            302: "EMG",  # FIFFV_EMG_CH
+            402: "ECG",  # FIFFV_ECG_CH
+            502: "MISC",  # FIFFV_MISC_CH
         }
         return [
             ch_type_map.get(info["chs"][info["ch_names"].index(ch)]["kind"], "MISC")
@@ -400,7 +400,7 @@ class MOABBPipeline(BrainsetPipeline):
         splits : Data
             Data object containing fold splits
         """
-        folds = generate_stratified_folds(
+        folds = generate_trial_folds(
             trials,
             stratify_by=self.stratify_field,
             n_folds=5,
