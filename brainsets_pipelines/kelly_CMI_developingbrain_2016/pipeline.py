@@ -4,24 +4,31 @@
 #   "boto3~=1.41.0",
 #   "pandas~=2.0.0",
 #   "h5py~=3.10.0",
+#   "mne~=1.11.0",
 # ]
 # ///
 
 from argparse import ArgumentParser
 from pathlib import Path
 
+import mne
 import h5py
 import logging
+import datetime
 import pandas as pd
+import numpy as np
+from temporaldata import Data, RegularTimeSeries, Interval, ArrayDict
 
 from brainsets.descriptions import (
     BrainsetDescription,
+    SubjectDescription,
     SessionDescription,
     DeviceDescription,
 )
 
 from brainsets.taxonomy import RecordingTech, Species, Sex
 
+from brainsets import serialize_fn_map
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.utils.s3_utils import get_s3_client_for_download
 
@@ -101,22 +108,83 @@ class Pipeline(BrainsetPipeline):
 
         self.update_status("PROCESSING")
 
-        base_name = raw_path.stem
+        recording_id = raw_path.stem
 
-        output_path = self.processed_dir / "EEG" / f"{base_name}.h5"
+        output_path = self.processed_dir / "EEG" / f"{recording_id}.h5"
         if output_path.exists() and not self.args.reprocess:
             self.update_status("Skipped Processing")
-            logging.info(f"Skipping processing, file exists: {output_path}")
+            self.update_status(f"Skipping processing, file exists: {output_path}")
             return
 
-        logging.info(f"Processing file: {raw_path}")
+        brainset_description = BrainsetDescription(
+            id="kelly_CMI_developingbrain_2016",
+            origin_version="1.0.0",
+            derived_version="1.0.0",
+            source="https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/",
+            description="The Child Mind Institute - MIPDB provides EEG,"
+            "eye-tracking, and behavioral data across multiple paradigms from"
+            "126 psychiatric and healthy participants aged 6 - 44 years old.",
+        )
 
-        self.update_status("Reading raw file")
+        self.update_status("Loading EEG file")
+        raw = mne.io.read_raw_egi(str(download_output), preload=True, verbose=True)
 
+        # TODO: add the data_extraction utils back in once they are merged
+        # meas_date = extract_meas_date(raw)
+        meas_date = raw.info["meas_date"]
+        if meas_date is None:
+            logging.warning(f"No measurement date found for {download_output}")
+            meas_date = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+
+        # session_description = extract_session_description(
+        #     session_id=recording_id, recording_date=meas_date
+        # )
+        session_description = SessionDescription(
+            id=recording_id, recording_date=meas_date
+        )
+
+        # device_description = extract_device_description(device_id=recording_id)
+        device_description = DeviceDescription(id=recording_id)
+
+        # subject_description = extract_subject_description(subject_id=subject_id)
+        subject_description = SubjectDescription(
+            id=recording_id[:9],
+            species=Species.HOMO_SAPIENS,
+            age=0.0,
+            sex=Sex.UNKNOWN,
+        )
+
+        self.update_status("Extracting EEG signal")
+        # eeg_signal = extract_signal(raw)
+        sfreq = raw.info["sfreq"]
+        eeg_signal = raw.get_data().T
+        eeg_signal = RegularTimeSeries(
+            signal=eeg_signal,
+            sampling_rate=sfreq,
+            domain=Interval(
+                start=np.array([0.0]),
+                end=np.array([(len(eeg_signal) - 1) / sfreq]),
+            ),
+        )
+        # channels = extract_channels(raw)
+        channels = ArrayDict(
+            id=np.array(raw.ch_names, dtype="U"),
+            types=np.array(raw.get_channel_types(), dtype="U"),
+        )
+
+        self.update_status("Creating Data Object")
+        data = Data(
+            brainset=brainset_description,
+            subject=subject_description,
+            session=session_description,
+            device=device_description,
+            eeg=eeg_signal,
+            channels=channels,
+            domain=eeg_signal.domain,
+        )
+
+        self.update_status("Storing processed data to disk")
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         with h5py.File(output_path, "w") as file:
-            file.attrs["raw_file"] = str(raw_path)
-            file.attrs["brainset_id"] = self.brainset_id
-
-        logging.info(f"Saved processed data to: {output_path}")
+            data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
