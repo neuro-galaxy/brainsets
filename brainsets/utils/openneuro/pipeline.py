@@ -412,7 +412,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         except Exception as e:
             raise RuntimeError(f"Failed to load EEG file {eeg_file}: {e}") from e
 
-    def _process_common(self, download_output: dict) -> tuple[Data, Path]:
+    def _process_common(self, download_output: dict) -> Optional[tuple[Data, Path]]:
         """Process EEG files and create a Data object.
 
         This method handles common OpenNeuro EEG processing tasks:
@@ -426,7 +426,7 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
             download_output: Dictionary returned by download()
 
         Returns:
-            Tuple of (Data object, store_path)
+            Tuple of (Data object, store_path), or None if already processed and skipped
         """
         self.processed_dir.mkdir(exist_ok=True, parents=True)
 
@@ -441,10 +441,8 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
 
         if not getattr(self.args, "reprocess", False):
             if store_path.exists():
-                raise RuntimeError(
-                    f"Processed file already exists at {store_path}. "
-                    f"Use --reprocess flag to reprocess."
-                )
+                self.update_status("Already Processed")
+                return None
 
         self.update_status("Loading EEG file")
         raw = self._load_eeg_file(eeg_file)
@@ -513,7 +511,12 @@ class OpenNeuroEEGPipeline(BrainsetPipeline, ABC):
         Args:
             download_output: Dictionary returned by download()
         """
-        data, store_path = self._process_common(download_output)
+        result = self._process_common(download_output)
+
+        if result is None:
+            return
+
+        data, store_path = result
 
         self.update_status("Storing")
         with h5py.File(store_path, "w") as file:
