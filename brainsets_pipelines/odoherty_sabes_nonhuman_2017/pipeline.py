@@ -56,6 +56,24 @@ class Pipeline(BrainsetPipeline):
     def get_manifest(cls, raw_dir, args) -> pd.DataFrame:
         raw_dir.mkdir(exist_ok=True, parents=True)
 
+        # Try to use existing local files first
+        local_files = list(raw_dir.glob("*.mat"))
+        if local_files:
+            logging.info(f"Using {len(local_files)} existing local .mat files for manifest")
+            manifest_list = []
+            for fpath in local_files:
+                manifest_list.append(
+                    {
+                        "session_id": fpath.stem,
+                        "file": fpath.name,
+                        "url": None,  # Already downloaded
+                        "md5": None,  # Skip MD5 check for existing files
+                    }
+                )
+            manifest = pd.DataFrame(manifest_list).set_index("session_id")
+            return manifest
+
+        # Fallback to Zenodo if no local files
         # list files to download
         r_fd = os.popen(f"zenodo_get -w - 3854034")
         manifest_out = r_fd.read()
@@ -108,14 +126,12 @@ class Pipeline(BrainsetPipeline):
         self.raw_dir.mkdir(exist_ok=True, parents=True)
         fpath = self.raw_dir / Path(manifest_item.file)
 
-        if (
-            not self.args.redownload
-            and fpath.exists()
-            and hashlib.md5(fpath.read_bytes()).hexdigest() == manifest_item.md5
-        ):
-            logging.info(f"Skipping download for {fpath} because it already exists")
-            self.update_status("Skipped Download")
-            return fpath
+        # Check if file exists (skip MD5 check if md5 is None for local files)
+        if not self.args.redownload and fpath.exists():
+            if manifest_item.md5 is None or hashlib.md5(fpath.read_bytes()).hexdigest() == manifest_item.md5:
+                logging.info(f"Skipping download for {fpath} because it already exists")
+                self.update_status("Skipped Download")
+                return fpath
 
         # download file
         exit_code = os.system(f'wget -O "{fpath}" "{manifest_item.url}"')
@@ -236,7 +252,8 @@ class Pipeline(BrainsetPipeline):
         # Add LFP bands if extracted
         if lfp_bands is not None:
             data.lfp_bands = lfp_bands
-            data.lfp_band_names = np.array(band_names)
+            # Encode as bytes for HDF5 compatibility
+            data.lfp_band_names = np.array(band_names, dtype="S")
 
         self.update_status("Creating splits")
         train_sampling_intervals, valid_sampling_intervals, test_sampling_intervals = (
