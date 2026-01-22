@@ -46,6 +46,7 @@ dev = [
     "pytest-cov",
     "scikit-learn>=1.6.1",
 ]
+testing = ["boto3>=1.42.32", "mne>=1.8.0"]
 
 [project.urls]
 Homepage = "https://github.com/neuro-galaxy/brainsets"
