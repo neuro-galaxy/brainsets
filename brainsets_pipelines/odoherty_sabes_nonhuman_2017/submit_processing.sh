@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Submit SLURM jobs for processing O'Doherty-Sabes sessions with v1 and v2 signal processing
+# Submit SLURM jobs for processing O'Doherty-Sabes sessions
 
 SESSIONS=(
     "indy_20160916_01"
@@ -18,14 +18,13 @@ PYTHON="/home/mila/h/hee-woon.ryoo/.conda/envs/ng/bin/python"
 # Create log directory
 mkdir -p $SCRATCH/logs
 
-for version in v1 v2; do
-    PROCESSED_DIR="$SCRATCH/data/processed_${version}"
-    mkdir -p ${PROCESSED_DIR}
+PROCESSED_DIR="$SCRATCH/data/processed"
+mkdir -p ${PROCESSED_DIR}
 
-    for session in "${SESSIONS[@]}"; do
-        JOB_NAME="ods_${version}_${session}"
+for session in "${SESSIONS[@]}"; do
+    JOB_NAME="ods_${session}"
 
-        sbatch <<EOF
+    sbatch <<EOF
 #!/bin/bash
 #SBATCH --job-name=${JOB_NAME}
 #SBATCH --output=$SCRATCH/logs/${JOB_NAME}_%j.out
@@ -38,7 +37,7 @@ for version in v1 v2; do
 # Set PATH for conda env binaries
 export PATH="/home/mila/h/hee-woon.ryoo/.conda/envs/ng/bin:\$PATH"
 
-echo "Processing ${session} with ${version}"
+echo "Processing ${session}"
 echo "Start time: \$(date)"
 echo "Node: \$(hostname)"
 
@@ -47,7 +46,6 @@ ${PYTHON} -m brainsets.runner \\
     --raw-dir=${RAW_DIR} \\
     --processed-dir=${PROCESSED_DIR} \\
     --single=${session} \\
-    --signal-version=${version} \\
     --broadband-dir=${BROADBAND_DIR} \\
     --reprocess \\
     -c 4
@@ -56,8 +54,7 @@ echo "End time: \$(date)"
 echo "Exit code: \$?"
 EOF
 
-        echo "Submitted ${JOB_NAME}"
-    done
+    echo "Submitted ${JOB_NAME}"
 done
 
 echo "All jobs submitted!"
