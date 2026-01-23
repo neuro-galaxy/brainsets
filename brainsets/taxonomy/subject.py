@@ -19,3 +19,17 @@ class Sex(StringIntEnum):
     MALE = M = 1
     FEMALE = F = 2
     OTHER = O = 3
+
+
+class Condition(StringIntEnum):
+    UNKNOWN = 0
+    HEALTHY_CONTROL = 1
+    AUTISM = 2
+    EPILEPSY = 3
+    DEPRESSION = 4
+    ANXIETY = 5
+    ATTENTION_DEFICIT = 6
+    COGNITIVE_DEFICIT = 7
+    DEMENTIA = 8
+    ALZHEIMERS = 9
+    PARKINSONS = 10

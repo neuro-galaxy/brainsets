@@ -23,6 +23,12 @@ class Task(StringIntEnum):
     # Full sentence speaking
     CONTINUOUS_SPEAKING_SENTENCE = 7
 
+    CONTINUOUS_VISUAL_CODING = 8
+    CONTINUOUS_AUDITORY_CODING = 9
+    CONTINUOUS_AUDIO_VISUAL_CODING = 10
+
+    DISCRETE_BUTTON_PRESS = 11
+
 
 class Stimulus(StringIntEnum):
     """Stimuli can variously act like inputs (for conditioning) or like outputs."""
