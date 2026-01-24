@@ -47,15 +47,19 @@ key_name_mapping = {
     # wheel_position
     "SpatialSeriesWheelPosition": "wheel_position",
     "WheelPositionSmoothed": "wheel_position",
+    "WheelPosition": "wheel_position",
     # wheel_velocity
     "TimeSeriesWheelVelocity": "wheel_velocity",
     "WheelSmoothedVelocity": "wheel_velocity",
+    "WheelVelocitySmoothed": "wheel_velocity",
     # wheel_acceleration
     "TimeSeriesWheelAcceleration": "wheel_acceleration",
     "WheelSmoothedAcceleration": "wheel_acceleration",
+    "WheelAccelerationSmoothed": "wheel_acceleration",
     # wheel_movement_intervals
     "TimeIntervalsWheelMovement": "wheel_movement_intervals",
     "WheelMovement": "wheel_movement_intervals",
+    "WheelMovementIntervals": "wheel_movement_intervals",
 }
 
 
@@ -73,34 +77,14 @@ class Pipeline(BrainsetPipeline):
                 "session_id": "sub-NYU-21_ses-8c33abef-3d3e-4d42-9f27-445e9def08f9",
                 "filename": "sub-NYU-21_ses-8c33abef-3d3e-4d42-9f27-445e9def08f9_desc-processed_behavior+ecephys.nwb",
             },
-            # {
-            #     "session_id": "sub-NYU-11_ses-6713a4a7-faed-4df2-acab-ee4e63326f8d",
-            #     "filename": "sub-NYU-11_ses-6713a4a7-faed-4df2-acab-ee4e63326f8d_desc-processed_behavior+ecephys.nwb",
-            # },
-            # {
-            #     "session_id": "sub-NYU-11_ses-56956777-dca5-468c-87cb-78150432cc57",
-            #     "filename": "sub-NYU-11_ses-56956777-dca5-468c-87cb-78150432cc57_desc-processed_behavior+ecephys.nwb",
-            # },
-            # {
-            #     "session_id": "sub-NYU-12_ses-4364a246-f8d7-4ce7-ba23-a098104b96e4",
-            #     "filename": "sub-NYU-12_ses-4364a246-f8d7-4ce7-ba23-a098104b96e4_desc-processed_behavior+ecephys.nwb",
-            # },
-            # {
-            #     "session_id": "sub-NYU-12_ses-b182b754-3c3e-4942-8144-6ee790926b58",
-            #     "filename": "sub-NYU-12_ses-b182b754-3c3e-4942-8144-6ee790926b58_desc-processed_behavior+ecephys.nwb",
-            # },
-            # {
-            #     "session_id": "sub-NYU-39_ses-6ed57216-498d-48a6-b48b-a243a34710ea",
-            #     "filename": "sub-NYU-39_ses-6ed57216-498d-48a6-b48b-a243a34710ea_desc-processed_behavior+ecephys.nwb",
-            # },
-            # {
-            #     "session_id": "sub-NYU-39_ses-35ed605c-1a1a-47b1-86ff-2b56144f55af",
-            #     "filename": "sub-NYU-39_ses-35ed605c-1a1a-47b1-86ff-2b56144f55af_desc-processed_behavior+ecephys.nwb",
-            # },
-            # {
-            #     "session_id": "sub-NYU-46_ses-64e3fb86-928c-4079-865c-b364205b502e",
-            #     "filename": "sub-NYU-46_ses-64e3fb86-928c-4079-865c-b364205b502e_desc-processed_behavior+ecephys.nwb",
-            # },
+            {
+                "session_id": "sub-CSHL059_ses-d2f5a130-b981-4546-8858-c94ae1da75ff",
+                "filename": "sub-CSHL059_ses-d2f5a130-b981-4546-8858-c94ae1da75ff_desc-processed_behavior+ecephys.nwb",
+            },
+            {
+                "session_id": "sub-UCLA035_ses-6f36868f-5cc1-450c-82fa-6b9829ce0cfe",
+                "filename": "sub-UCLA035_ses-6f36868f-5cc1-450c-82fa-6b9829ce0cfe_desc-processed_behavior+ecephys.nwb",
+            },
         ]
         manifest = pd.DataFrame(manifest_list).set_index("session_id")
         return manifest
@@ -265,10 +249,10 @@ def extract_units_and_spikes(nwbfile: NWBFile, max_time: float):
         # Get electrodes with peak waveform values
         waveform_peaks = np.max(np.abs(r["waveform_mean"]), axis=0)
         sorted_peaks = np.argsort(waveform_peaks)[::-1]
-        top_sorted_peaks = sorted_peaks[0:5]
+        top_sorted_peak = sorted_peaks[0]
         # Get the most common locations for the peak signal electrodes
-        top_locations = list(np.unique(r["electrodes"]["location"].values[top_sorted_peaks]))
-        location_names.append(json.dumps(top_locations))
+        top_location = r["electrodes"]["location"].values[top_sorted_peak]
+        location_names.append(str(top_location))
     extra_metadata["location_names"] = np.array(location_names)
 
     units = ArrayDict(
