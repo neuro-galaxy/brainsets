@@ -21,7 +21,6 @@ import logging
 from moabb.datasets import BI2014a
 from moabb.paradigms import P300
 
-from temporaldata import Data
 from brainsets.descriptions import BrainsetDescription
 from brainsets.taxonomy import Task
 from brainsets.utils.moabb.pipeline import MOABBPipeline

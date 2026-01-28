@@ -156,7 +156,7 @@ class MOABBPipeline(BrainsetPipeline):
 
         if len(epochs) == 0:
             raise ValueError(
-                f"No epochs found for subject {subject}, " f"session {session}"
+                f"No epochs found for subject {subject}, session {session}"
             )
 
         session_values = sorted(meta["session"].unique())
@@ -179,7 +179,7 @@ class MOABBPipeline(BrainsetPipeline):
         session_mask = meta["session"] == session_key
         if not session_mask.any():
             raise ValueError(
-                f"No epochs found for subject {subject}, " f"session {session_key}"
+                f"No epochs found for subject {subject}, session {session_key}"
             )
 
         epochs_filtered = epochs[session_mask]
@@ -403,7 +403,7 @@ class MOABBPipeline(BrainsetPipeline):
         folds = generate_trial_folds(
             trials,
             stratify_by=self.stratify_field,
-            n_folds=5,
+            n_folds=3,
             val_ratio=0.2,
             seed=42,
         )
