@@ -1,4 +1,4 @@
-"""Data extraction utilities for OpenNeuro EEG pipelines.
+"""Data extraction utilities.
 
 This module provides functions to extract metadata and signal data from
 MNE Raw objects and convert them to brainsets data structures.
