@@ -12,9 +12,6 @@ import numpy as np
 from temporaldata import ArrayDict, Interval, RegularTimeSeries
 
 from brainsets.descriptions import (
-    BrainsetDescription,
-    DeviceDescription,
-    SessionDescription,
     SubjectDescription,
 )
 from brainsets.taxonomy import Sex, Species
@@ -74,18 +71,18 @@ def extract_subject_description(
 
 def extract_meas_date(
     recording_data: mne.io.Raw,
-) -> Union[datetime.datetime, None]:
+) -> datetime.datetime:
     """Extract the measurement date from MNE Raw recording data.
 
     Args:
         recording_data: The MNE Raw object containing EEG data and metadata
 
     Returns:
-        The measurement date if present, otherwise None
+        The measurement date if present, otherwise Unix epoch (1970-01-01 UTC)
     """
     if recording_data.info["meas_date"] is not None:
         return recording_data.info["meas_date"]
-    return None
+    return datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 
 
 def extract_signal(
