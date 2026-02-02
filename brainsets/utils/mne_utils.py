@@ -20,34 +20,6 @@ from brainsets.descriptions import (
 from brainsets.taxonomy import Sex, Species
 
 
-def extract_brainset_description(
-    dataset_id: str,
-    origin_version: str,
-    derived_version: str,
-    source: str,
-    description: str,
-) -> BrainsetDescription:
-    """Create a BrainsetDescription object from dataset metadata.
-
-    Args:
-        dataset_id: Unique identifier for the dataset
-        origin_version: Version of the original dataset
-        derived_version: Version of the derived dataset
-        source: Source or origin of the dataset
-        description: Textual description of the dataset
-
-    Returns:
-        BrainsetDescription object
-    """
-    return BrainsetDescription(
-        id=dataset_id,
-        origin_version=origin_version,
-        derived_version=derived_version,
-        source=source,
-        description=description,
-    )
-
-
 def extract_subject_description(
     subject_id: str,
     age: Union[float, int, str, None] = None,
@@ -97,41 +69,6 @@ def extract_subject_description(
         species=Species.HOMO_SAPIENS,
         age=age_normalized,
         sex=sex_normalized,
-    )
-
-
-def extract_session_description(
-    session_id: str,
-    recording_date: datetime.datetime,
-) -> SessionDescription:
-    """Create a SessionDescription object from session metadata.
-
-    Args:
-        session_id: Unique identifier for the session
-        recording_date: Date and time of the recording
-
-    Returns:
-        SessionDescription object
-    """
-    return SessionDescription(
-        id=session_id,
-        recording_date=recording_date,
-    )
-
-
-def extract_device_description(
-    device_id: str,
-) -> DeviceDescription:
-    """Create a DeviceDescription object from device metadata.
-
-    Args:
-        device_id: Unique identifier for the device
-
-    Returns:
-        DeviceDescription object
-    """
-    return DeviceDescription(
-        id=device_id,
     )
 
 
