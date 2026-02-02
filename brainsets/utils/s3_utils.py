@@ -25,6 +25,7 @@ def get_cached_s3_client(
     Args:
         retry_mode: Retry mode ("standard" or "adaptive")
         max_attempts: Maximum number of retry attempts
+        max_pool_connections: Maximum number of connections in the pool
 
     Returns:
         A configured boto3 S3 client for unsigned/anonymous access
