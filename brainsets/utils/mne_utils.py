@@ -98,6 +98,8 @@ def extract_signal(
     """
     sfreq = recording_data.info["sfreq"]
     eeg_signal = recording_data.get_data().T
+    if len(eeg_signal) == 0:
+        raise ValueError("Recording contains no samples")
 
     return RegularTimeSeries(
         signal=eeg_signal,
