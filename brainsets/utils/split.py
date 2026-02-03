@@ -1,4 +1,4 @@
-import logging
+import warnings
 import numpy as np
 from typing import List
 from temporaldata import Interval, Data
@@ -149,7 +149,7 @@ def generate_train_valid_test_splits(epoch_dict, grid):
 
     for name, epoch in epoch_dict.items():
         if name == "invalid_presentation_epochs":
-            logging.warn(f"Found invalid presentation epochs, which will be excluded.")
+            warnings.warn(f"Found invalid presentation epochs, which will be excluded.")
             continue
         if len(epoch) == 1:
             train, valid, test = split_one_epoch(epoch, grid)
