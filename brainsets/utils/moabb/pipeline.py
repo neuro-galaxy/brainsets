@@ -19,6 +19,11 @@ import mne
 
 from moabb.datasets.base import BaseDataset
 from moabb.paradigms.base import BaseParadigm
+from moabb.datasets.preprocessing import (
+    get_filter_pipeline,
+    get_resample_pipeline,
+    make_fixed_pipeline,
+)
 from temporaldata import Data, RegularTimeSeries, Interval, ArrayDict
 from brainsets.pipeline import BrainsetPipeline
 from brainsets import serialize_fn_map
@@ -168,8 +173,7 @@ class MOABBPipeline(BrainsetPipeline):
     def _validate_bandpass_params(self, dataset: BaseDataset, subject: int) -> None:
         """Validate bandpass parameters against Nyquist frequency.
 
-        Loads raw data briefly to check sampling rate and raises an error if
-        bandpass_high exceeds the Nyquist frequency.
+        Raises an error if bandpass_high exceeds the Nyquist frequency.
 
         Parameters
         ----------
@@ -213,8 +217,9 @@ class MOABBPipeline(BrainsetPipeline):
         This method:
         1. Sets up MNE download directory
         2. Validates bandpass parameters against Nyquist frequency
-        3. Calls paradigm.get_data(return_raws=True) to get filtered Raw objects
-        4. Filters results to the specific session from manifest_item
+        3. If no filtering requested: modifies paradigm to skip filtering step
+        4. Calls paradigm.get_data(return_raws=True) to get Raw objects
+        5. Filters results to the specific session from manifest_item
 
         Parameters
         ----------
@@ -225,7 +230,7 @@ class MOABBPipeline(BrainsetPipeline):
         -------
         dict
             Dictionary containing:
-            - raws: list of mne.io.Raw objects (filtered, continuous)
+            - raws: list of mne.io.Raw objects (filtered or unfiltered)
             - meta: pd.DataFrame with columns: subject, session, run
             - dataset: BaseDataset instance
         """
@@ -241,7 +246,35 @@ class MOABBPipeline(BrainsetPipeline):
         self._validate_bandpass_params(dataset, subject)
         paradigm = self.get_paradigm(self.args)
 
-        raws, labels, meta = paradigm.get_data(
+        no_filtering = (
+            self.args.bandpass_low is None and self.args.bandpass_high is None
+        )
+        needs_resample = self.args.resample is not None
+
+        if no_filtering:
+            if needs_resample:
+                resample_rate = self.args.resample
+                paradigm._get_raw_pipelines = lambda: [
+                    get_resample_pipeline(resample_rate)
+                ]
+            else:
+                paradigm._get_raw_pipelines = lambda: [None]
+        elif needs_resample:
+            resample_rate = self.args.resample
+
+            def make_filter_resample_pipelines():
+                pipelines = []
+                for fmin, fmax in paradigm.filters:
+                    combined = make_fixed_pipeline(
+                        get_filter_pipeline(fmin, fmax),
+                        get_resample_pipeline(resample_rate),
+                    )
+                    pipelines.append(combined)
+                return pipelines
+
+            paradigm._get_raw_pipelines = make_filter_resample_pipelines
+
+        raws, _, meta = paradigm.get_data(
             dataset=dataset,
             subjects=[subject],
             return_raws=True,
