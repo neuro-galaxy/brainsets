@@ -24,7 +24,7 @@ from brainsets.descriptions import (
     SubjectDescription,
 )
 from brainsets.pipeline import BrainsetPipeline
-from brainsets.processing import extract_bands, downsample_wideband
+from brainsets.processing import extract_bands, extract_bands_fixed, downsample_wideband
 from brainsets.taxonomy import RecordingTech, Species, Task
 from temporaldata import RegularTimeSeries
 
@@ -33,6 +33,13 @@ logging.basicConfig(level=logging.INFO)
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
 parser.add_argument("--reprocess", action="store_true")
+parser.add_argument(
+    "--signal-version",
+    type=str,
+    choices=["v1", "v2"],
+    default="v2",
+    help="Signal processing version: v1 (original extract_bands) or v2 (fixed version)",
+)
 parser.add_argument(
     "--broadband-dir",
     type=str,
@@ -216,7 +223,9 @@ class Pipeline(BrainsetPipeline):
             if nwb_path.exists():
                 self.update_status("Extracting LFP bands")
                 try:
-                    lfp_bands, band_names = extract_lfp_from_broadband(nwb_path)
+                    lfp_bands, band_names = extract_lfp_from_broadband(
+                        nwb_path, signal_version=self.args.signal_version
+                    )
                     logging.info(f"Extracted LFP bands: {band_names}")
                 except Exception as e:
                     logging.warning(f"Failed to extract LFP from {nwb_path}: {e}")
@@ -488,11 +497,12 @@ def split_intervals(data):
     return train_sampling_intervals, valid_sampling_intervals, test_sampling_intervals
 
 
-def extract_lfp_from_broadband(nwb_path: Path):
+def extract_lfp_from_broadband(nwb_path: Path, signal_version: str = "v2"):
     """Extract LFP frequency bands from broadband NWB file.
 
     Args:
         nwb_path: Path to the broadband NWB file
+        signal_version: "v1" for original extract_bands, "v2" for fixed version
 
     Returns:
         lfp_bands: RegularTimeSeries with band power data
@@ -520,8 +530,11 @@ def extract_lfp_from_broadband(nwb_path: Path):
     )
 
     # Extract frequency bands
-    logging.info("Extracting frequency bands...")
-    bands, bands_ts, band_names = extract_bands(lfp, lfp_ts, Fs=1000, normalize="zscore")
+    logging.info(f"Extracting frequency bands using {signal_version}...")
+    if signal_version == "v1":
+        bands, bands_ts, band_names = extract_bands(lfp, lfp_ts, Fs=1000, normalize="zscore")
+    else:  # v2
+        bands, bands_ts, band_names = extract_bands_fixed(lfp, lfp_ts, Fs=1000, normalize="zscore")
 
     # Create RegularTimeSeries for the band power data
     # bands shape: (time, channels, bands)
