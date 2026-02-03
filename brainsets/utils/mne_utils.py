@@ -68,7 +68,7 @@ def extract_channels(
         ArrayDict with fields 'id' (channel names) and 'types' (channel types)
     """
     return ArrayDict(
-        id=np.array(recording_data.ch_names, dtype="U"),
+        ids=np.array(recording_data.ch_names, dtype="U"),
         types=np.array(recording_data.get_channel_types(), dtype="U"),
     )
 
