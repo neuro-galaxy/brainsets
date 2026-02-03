@@ -94,6 +94,8 @@ def extract_subject_description(
             age_normalized = float(age)
         except (ValueError, TypeError):
             age_normalized = 0.0
+    else:
+        age_normalized = 0.0
 
     if sex is None:
         sex_normalized = Sex.UNKNOWN
@@ -115,9 +117,15 @@ def extract_subject_description(
     elif isinstance(species, Species):
         species_normalized = species
     elif isinstance(species, str):
-        species_normalized = Species.from_string(species)
+        try:
+            species_normalized = Species.from_string(species)
+        except ValueError:
+            species_normalized = Species.UNKNOWN
     elif isinstance(species, int):
-        species_normalized = Species(species)
+        try:
+            species_normalized = Species(species)
+        except ValueError:
+            species_normalized = Species.UNKNOWN
 
     return SubjectDescription(
         id=subject_id,
