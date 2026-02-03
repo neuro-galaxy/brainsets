@@ -205,7 +205,10 @@ def generate_train_valid_test_splits(
 
     for name, epoch in epoch_dict.items():
         if name == "invalid_presentation_epochs":
-            warnings.warn(f"Found invalid presentation epochs, which will be excluded.")
+            warnings.warn(
+                "Found invalid presentation epochs, which will be excluded.",
+                stacklevel=2,
+            )
             continue
         if len(epoch) == 1:
             train, valid, test = split_one_epoch(epoch, grid)
