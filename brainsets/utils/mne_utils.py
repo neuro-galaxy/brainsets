@@ -8,6 +8,8 @@ import mne
 import datetime
 import warnings
 import numpy as np
+import pandas as pd
+from typing import Tuple
 from temporaldata import ArrayDict, Interval, RegularTimeSeries
 
 
@@ -28,7 +30,7 @@ def extract_meas_date(
     return datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 
 
-def extract_signal(
+def extract_eeg_signal(
     recording_data: mne.io.Raw,
 ) -> RegularTimeSeries:
     """Extract the EEG signal as a RegularTimeSeries from MNE Raw data.
@@ -69,3 +71,59 @@ def extract_channels(
         id=np.array(recording_data.ch_names, dtype="U"),
         types=np.array(recording_data.get_channel_types(), dtype="U"),
     )
+
+
+def extract_psg_signal(raw_psg: mne.io.Raw) -> Tuple[RegularTimeSeries, ArrayDict]:
+    """Extract physiological signals from PSG EDF file as a RegularTimeSeries."""
+    data, times = raw_psg.get_data(return_times=True)
+    ch_names = raw_psg.ch_names
+
+    signal_list = []
+    unit_meta = []
+
+    for idx, ch_name in enumerate(ch_names):
+        ch_name_lower = ch_name.lower()
+        signal_data = data[idx, :]
+
+        modality = None
+        if (
+            "eeg" in ch_name_lower
+            or "fpz-cz" in ch_name_lower
+            or "pz-oz" in ch_name_lower
+        ):
+            modality = "EEG"
+        elif "eog" in ch_name_lower:
+            modality = "EOG"
+        elif "emg" in ch_name_lower:
+            modality = "EMG"
+        elif "resp" in ch_name_lower:
+            modality = "RESP"
+        elif "temp" in ch_name_lower:
+            modality = "TEMP"
+        else:
+            continue
+
+        signal_list.append(signal_data)
+
+        unit_meta.append(
+            {
+                "id": str(ch_name),
+                "modality": modality,
+            }
+        )
+
+    if not signal_list:
+        raise ValueError("No signals extracted from PSG file")
+
+    stacked_signals = np.stack(signal_list, axis=1)
+
+    signals = RegularTimeSeries(
+        signal=stacked_signals,
+        sampling_rate=raw_psg.info["sfreq"],
+        domain=Interval(start=times[0], end=times[-1]),
+    )
+
+    units_df = pd.DataFrame(unit_meta)
+    units = ArrayDict.from_dataframe(units_df)
+
+    return signals, units
