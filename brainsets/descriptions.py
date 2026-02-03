@@ -74,15 +74,16 @@ def extract_subject_description(
     sex: Union[str, int, Sex, None] = None,
     species: Union[str, int, Species, None] = None,
 ) -> SubjectDescription:
-    """Create a SubjectDescription object for a human subject.
+    """Create a SubjectDescription object.
 
     Args:
         subject_id: Unique identifier for the subject
         age: Age of the subject
         sex: Sex of the subject (0=U=UNKNOWN, 1=M=MALE, 2=F=FEMALE, 3=O=OTHER)
+        species: Species of the subject
 
     Returns:
-        SubjectDescription object with species set to Homo sapiens
+        SubjectDescription object
     """
     if age is None:
         age_normalized = 0.0
