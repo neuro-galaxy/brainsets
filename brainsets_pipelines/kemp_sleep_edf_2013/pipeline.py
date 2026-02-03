@@ -21,8 +21,8 @@ from brainsets import serialize_fn_map
 from brainsets.descriptions import (
     BrainsetDescription,
     SessionDescription,
-    SubjectDescription,
     DeviceDescription,
+    extract_subject_description,
 )
 from brainsets.taxonomy import RecordingTech, Species, Sex
 from brainsets.pipeline import BrainsetPipeline
@@ -30,8 +30,12 @@ from brainsets.utils.split import (
     chop_intervals,
     generate_stratified_folds,
 )
-from brainsets.utils.s3_utils import get_s3_client_for_download
-from temporaldata import Data, Interval, RegularTimeSeries, ArrayDict
+from brainsets.utils.s3_utils import get_cached_s3_client
+from brainsets.utils.mne_utils import (
+    extract_meas_date,
+    extract_psg_signal,
+)
+from temporaldata import Data, Interval
 
 
 logging.basicConfig(level=logging.INFO)
@@ -57,7 +61,7 @@ class Pipeline(BrainsetPipeline):
 
     @classmethod
     def get_manifest(cls, raw_dir: Path, args) -> pd.DataFrame:
-        s3 = get_s3_client_for_download()
+        s3 = get_cached_s3_client()
 
         prefixes = []
         if args.study_type in ["sc", "both"]:
@@ -121,7 +125,7 @@ class Pipeline(BrainsetPipeline):
 
     def download(self, manifest_item) -> Tuple[Path, Path]:
         self.update_status("DOWNLOADING")
-        s3 = get_s3_client_for_download()
+        s3 = get_cached_s3_client()
 
         psg_key = manifest_item.psg_s3_key
         hypnogram_key = manifest_item.hypnogram_s3_key
@@ -189,16 +193,14 @@ class Pipeline(BrainsetPipeline):
             subject_id = base_name
             study_type = "unknown"
 
-        subject = SubjectDescription(
-            id=f"{study_type}_{subject_id}",
-            species=Species.HOMO_SAPIENS,
+        subject = extract_subject_description(
+            subject_id=f"{study_type}_{subject_id}",
             age=age,
             sex=sex,
+            species=Species.HOMO_SAPIENS,
         )
 
-        recording_date = raw_psg.info.get("meas_date")
-        if recording_date is not None:
-            recording_date = recording_date.strftime("%Y-%m-%d")
+        recording_date = extract_meas_date(raw_psg)
 
         session_description = SessionDescription(
             id=base_name,
@@ -211,7 +213,7 @@ class Pipeline(BrainsetPipeline):
         )
 
         self.update_status("Extracting Signals")
-        signals, units = extract_signals(raw_psg)
+        signals, units = extract_psg_signal(raw_psg)
 
         self.update_status("Extracting Sleep Stages")
         stages = extract_sleep_stages(str(hypnogram_path))
@@ -254,70 +256,9 @@ def parse_subject_metadata(raw: mne.io.Raw) -> Tuple[Optional[int], Sex]:
         logging.warning(f"Could not parse age from last_name: {age_str}, setting to 0")
         age = 0
 
-    sex_str = subject_info.get("sex")
-
-    if sex_str is not None:
-        sex = Sex.MALE if sex_str == 1 else Sex.FEMALE if sex_str == 2 else Sex.UNKNOWN
-    else:
-        sex = Sex.UNKNOWN
+    sex = subject_info.get("sex")
 
     return age, sex
-
-
-def extract_signals(raw_psg: mne.io.Raw) -> Tuple[RegularTimeSeries, ArrayDict]:
-    """Extract physiological signals from PSG EDF file as a RegularTimeSeries."""
-    data, times = raw_psg.get_data(return_times=True)
-    ch_names = raw_psg.ch_names
-
-    signal_list = []
-    unit_meta = []
-
-    for idx, ch_name in enumerate(ch_names):
-        ch_name_lower = ch_name.lower()
-        signal_data = data[idx, :]
-
-        modality = None
-        if (
-            "eeg" in ch_name_lower
-            or "fpz-cz" in ch_name_lower
-            or "pz-oz" in ch_name_lower
-        ):
-            modality = "EEG"
-        elif "eog" in ch_name_lower:
-            modality = "EOG"
-        elif "emg" in ch_name_lower:
-            modality = "EMG"
-        elif "resp" in ch_name_lower:
-            modality = "RESP"
-        elif "temp" in ch_name_lower:
-            modality = "TEMP"
-        else:
-            continue
-
-        signal_list.append(signal_data)
-
-        unit_meta.append(
-            {
-                "id": str(ch_name),
-                "modality": modality,
-            }
-        )
-
-    if not signal_list:
-        raise ValueError("No signals extracted from PSG file")
-
-    stacked_signals = np.stack(signal_list, axis=1)
-
-    signals = RegularTimeSeries(
-        signal=stacked_signals,
-        sampling_rate=raw_psg.info["sfreq"],
-        domain=Interval(start=times[0], end=times[-1]),
-    )
-
-    units_df = pd.DataFrame(unit_meta)
-    units = ArrayDict.from_dataframe(units_df)
-
-    return signals, units
 
 
 def extract_sleep_stages(hypnogram_file: str) -> Interval:
