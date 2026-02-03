@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock
 
+pytest.importorskip("mne")
 from brainsets.utils.mne_utils import (
     extract_meas_date,
     extract_eeg_signal,

@@ -4,7 +4,6 @@ This module provides functions to extract metadata and signal data from
 MNE Raw objects and convert them to brainsets data structures.
 """
 
-import mne
 import datetime
 import warnings
 import numpy as np
@@ -12,9 +11,26 @@ import pandas as pd
 from typing import Tuple
 from temporaldata import ArrayDict, Interval, RegularTimeSeries
 
+try:
+    import mne
+
+    MNE_AVAILABLE = True
+except ImportError:
+    mne = None
+    MNE_AVAILABLE = False
+
+
+def _check_mne_available(func_name: str) -> None:
+    """Raise ImportError if MNE is not available."""
+    if not MNE_AVAILABLE:
+        raise ImportError(
+            f"{func_name} requires the MNE library which is not installed. "
+            "Install it with `pip install mne`"
+        )
+
 
 def extract_meas_date(
-    recording_data: mne.io.Raw,
+    recording_data: "mne.io.Raw",
 ) -> datetime.datetime:
     """Extract the measurement date from MNE Raw recording data.
 
@@ -23,7 +39,11 @@ def extract_meas_date(
 
     Returns:
         The measurement date if present, otherwise Unix epoch (1970-01-01 UTC)
+
+    Raises:
+        ImportError: If MNE is not installed.
     """
+    _check_mne_available("extract_meas_date")
     if recording_data.info["meas_date"] is not None:
         return recording_data.info["meas_date"]
     warnings.warn("No measurement date found, using Unix epoch as placeholder")
@@ -31,7 +51,7 @@ def extract_meas_date(
 
 
 def extract_eeg_signal(
-    recording_data: mne.io.Raw,
+    recording_data: "mne.io.Raw",
 ) -> RegularTimeSeries:
     """Extract the EEG signal as a RegularTimeSeries from MNE Raw data.
 
@@ -40,7 +60,11 @@ def extract_eeg_signal(
 
     Returns:
         RegularTimeSeries object with the EEG signal
+
+    Raises:
+        ImportError: If MNE is not installed.
     """
+    _check_mne_available("extract_eeg_signal")
     sfreq = recording_data.info["sfreq"]
     eeg_signal = recording_data.get_data().T
     if len(eeg_signal) == 0:
@@ -57,7 +81,7 @@ def extract_eeg_signal(
 
 
 def extract_channels(
-    recording_data: mne.io.Raw,
+    recording_data: "mne.io.Raw",
 ) -> ArrayDict:
     """Extract channel names and types from MNE Raw data.
 
@@ -66,15 +90,24 @@ def extract_channels(
 
     Returns:
         ArrayDict with fields 'id' (channel names) and 'types' (channel types)
+
+    Raises:
+        ImportError: If MNE is not installed.
     """
+    _check_mne_available("extract_channels")
     return ArrayDict(
         ids=np.array(recording_data.ch_names, dtype="U"),
         types=np.array(recording_data.get_channel_types(), dtype="U"),
     )
 
 
-def extract_psg_signal(raw_psg: mne.io.Raw) -> Tuple[RegularTimeSeries, ArrayDict]:
-    """Extract physiological signals from PSG EDF file as a RegularTimeSeries."""
+def extract_psg_signal(raw_psg: "mne.io.Raw") -> Tuple[RegularTimeSeries, ArrayDict]:
+    """Extract physiological signals from PSG EDF file as a RegularTimeSeries.
+
+    Raises:
+        ImportError: If MNE is not installed.
+    """
+    _check_mne_available("extract_psg_signal")
     data, times = raw_psg.get_data(return_times=True)
     ch_names = raw_psg.ch_names
 
