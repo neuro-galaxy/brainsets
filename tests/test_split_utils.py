@@ -4,6 +4,7 @@ from temporaldata import Data, Interval
 from brainsets.utils.split import (
     chop_intervals,
     generate_stratified_folds,
+    generate_train_valid_splits_one_epoch,
 )
 
 
@@ -199,3 +200,74 @@ def test_generate_stratified_folds_missing_attribute():
 
     with pytest.raises(ValueError, match="must have a 'label' attribute"):
         generate_stratified_folds(intervals, stratify_by="label", n_folds=5)
+
+
+def test_default_split_ratios():
+    epoch = Interval(start=np.array([0.0]), end=np.array([100.0]))
+    train, valid = generate_train_valid_splits_one_epoch(epoch)
+
+    assert len(train) == 1
+    assert len(valid) == 1
+    assert np.isclose(train.start[0], 0.0)
+    assert np.isclose(train.end[0], 90.0)
+    assert np.isclose(valid.start[0], 90.0)
+    assert np.isclose(valid.end[0], 100.0)
+
+
+def test_custom_split_ratios():
+    epoch = Interval(start=np.array([0.0]), end=np.array([100.0]))
+    train, valid = generate_train_valid_splits_one_epoch(epoch, split_ratios=[0.8, 0.2])
+
+    assert np.isclose(train.start[0], 0.0)
+    assert np.isclose(train.end[0], 80.0)
+    assert np.isclose(valid.start[0], 80.0)
+    assert np.isclose(valid.end[0], 100.0)
+
+
+def test_non_zero_start():
+    epoch = Interval(start=np.array([50.0]), end=np.array([150.0]))
+
+    train, valid = generate_train_valid_splits_one_epoch(epoch, split_ratios=[0.7, 0.3])
+
+    assert np.isclose(train.start[0], 50.0)
+    assert np.isclose(train.end[0], 120.0)
+    assert np.isclose(valid.start[0], 120.0)
+    assert np.isclose(valid.end[0], 150.0)
+
+
+def test_intervals_are_contiguous():
+    epoch = Interval(start=np.array([10.0]), end=np.array([110.0]))
+    train, valid = generate_train_valid_splits_one_epoch(epoch)
+    assert np.isclose(train.end[0], valid.start[0])
+
+
+def test_split_ratios_wrong_length():
+    epoch = Interval(start=np.array([0.0]), end=np.array([100.0]))
+    with pytest.raises(ValueError, match="sequence of two numbers"):
+        generate_train_valid_splits_one_epoch(epoch, split_ratios=[0.6, 0.2, 0.2])
+    with pytest.raises(ValueError, match="sequence of two numbers"):
+        generate_train_valid_splits_one_epoch(epoch, split_ratios=[1.0])
+
+
+def test_split_ratios_negative():
+    epoch = Interval(start=np.array([0.0]), end=np.array([100.0]))
+    with pytest.raises(ValueError, match="must be non-negative"):
+        generate_train_valid_splits_one_epoch(epoch, split_ratios=[1.1, -0.1])
+
+
+def test_split_ratios_not_sum_to_one():
+    epoch = Interval(start=np.array([0.0]), end=np.array([100.0]))
+    with pytest.raises(ValueError, match="must sum to 1"):
+        generate_train_valid_splits_one_epoch(epoch, split_ratios=[0.5, 0.3])
+
+
+def test_multiple_intervals_raises():
+    epoch = Interval(start=np.array([0.0, 100.0]), end=np.array([50.0, 150.0]))
+    with pytest.raises(ValueError, match="must contain a single interval"):
+        generate_train_valid_splits_one_epoch(epoch)
+
+
+def test_empty_epoch_raises():
+    epoch = Interval(start=np.array([]), end=np.array([]))
+    with pytest.raises(ValueError, match="must contain a single interval"):
+        generate_train_valid_splits_one_epoch(epoch)
