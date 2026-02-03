@@ -6,6 +6,7 @@ MNE Raw objects and convert them to brainsets data structures.
 
 import mne
 import datetime
+import warnings
 import numpy as np
 from temporaldata import ArrayDict, Interval, RegularTimeSeries
 
@@ -23,6 +24,7 @@ def extract_meas_date(
     """
     if recording_data.info["meas_date"] is not None:
         return recording_data.info["meas_date"]
+    warnings.warn("No measurement date found, using Unix epoch as placeholder")
     return datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 
 
