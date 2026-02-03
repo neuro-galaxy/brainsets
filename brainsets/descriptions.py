@@ -72,6 +72,7 @@ def extract_subject_description(
     subject_id: str,
     age: Union[float, int, str, None] = None,
     sex: Union[str, int, Sex, None] = None,
+    species: Union[str, int, Species, None] = None,
 ) -> SubjectDescription:
     """Create a SubjectDescription object for a human subject.
 
@@ -92,8 +93,6 @@ def extract_subject_description(
             age_normalized = float(age)
         except (ValueError, TypeError):
             age_normalized = 0.0
-    else:
-        age_normalized = 0.0
 
     if sex is None:
         sex_normalized = Sex.UNKNOWN
@@ -109,12 +108,19 @@ def extract_subject_description(
             sex_normalized = Sex(sex)
         except ValueError:
             sex_normalized = Sex.UNKNOWN
-    else:
-        sex_normalized = Sex.UNKNOWN
+
+    if species is None:
+        species_normalized = Species.UNKNOWN
+    elif isinstance(species, Species):
+        species_normalized = species
+    elif isinstance(species, str):
+        species_normalized = Species.from_string(species)
+    elif isinstance(species, int):
+        species_normalized = Species(species)
 
     return SubjectDescription(
         id=subject_id,
-        species=Species.HOMO_SAPIENS,
+        species=species_normalized,
         age=age_normalized,
         sex=sex_normalized,
     )
