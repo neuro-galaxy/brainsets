@@ -23,15 +23,13 @@ from moabb.paradigms import P300
 
 from brainsets.descriptions import BrainsetDescription
 from brainsets.taxonomy import Task
-from brainsets.utils.moabb.pipeline import MOABBPipeline
+from brainsets.utils.moabb.pipeline import MOABBPipeline, _base_parser
 from brainsets.utils.split import generate_subject_kfold_assignment
 
 
 logging.basicConfig(level=logging.INFO)
 
-parser = ArgumentParser()
-parser.add_argument("--redownload", action="store_true")
-parser.add_argument("--reprocess", action="store_true")
+parser = ArgumentParser(parents=[_base_parser])
 
 
 class Pipeline(MOABBPipeline):

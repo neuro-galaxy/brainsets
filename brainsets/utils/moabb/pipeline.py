@@ -8,12 +8,14 @@ classes, and implement paradigm-specific processing logic.
 from abc import abstractmethod
 from typing import Dict, Any, Type, Optional
 from pathlib import Path
+from argparse import ArgumentParser
 import os
 import pandas as pd
 import numpy as np
 import datetime
 import logging
 import h5py
+import mne
 
 from moabb.datasets.base import BaseDataset
 from moabb.paradigms.base import BaseParadigm
@@ -28,6 +30,33 @@ from brainsets.descriptions import (
 )
 from brainsets.taxonomy import Species, Task
 from brainsets.utils.split import generate_trial_folds
+
+
+_base_parser = ArgumentParser(add_help=False)
+_base_parser.add_argument(
+    "--redownload", action="store_true", help="Force redownload of raw data"
+)
+_base_parser.add_argument(
+    "--reprocess", action="store_true", help="Force reprocessing of data"
+)
+_base_parser.add_argument(
+    "--bandpass-low",
+    type=float,
+    default=None,
+    help="Low cutoff frequency for bandpass filter in Hz (default: None, no filtering)",
+)
+_base_parser.add_argument(
+    "--bandpass-high",
+    type=float,
+    default=None,
+    help="High cutoff frequency for bandpass filter in Hz (default: None, no filtering)",
+)
+_base_parser.add_argument(
+    "--resample",
+    type=float,
+    default=None,
+    help="Target sampling rate in Hz (default: no resampling)",
+)
 
 
 class MOABBPipeline(BrainsetPipeline):
@@ -75,9 +104,29 @@ class MOABBPipeline(BrainsetPipeline):
         return cls.dataset_class(**cls.dataset_kwargs)
 
     @classmethod
-    def get_paradigm(cls) -> BaseParadigm:
-        """Instantiate the MOABB paradigm with configured kwargs."""
+    def get_paradigm(cls, args=None) -> BaseParadigm:
+        """Instantiate the MOABB paradigm with configured kwargs.
+
+        Parameters
+        ----------
+        args : Namespace, optional
+            CLI arguments containing bandpass_low, bandpass_high, resample params
+
+        Returns
+        -------
+        BaseParadigm
+            Paradigm instance with filtering parameters from args
+        """
         kwargs = {k: v for k, v in cls.paradigm_kwargs.items() if v is not None}
+
+        if args is not None:
+            if args.bandpass_low is not None:
+                kwargs["fmin"] = args.bandpass_low
+            if args.bandpass_high is not None:
+                kwargs["fmax"] = args.bandpass_high
+            if args.resample is not None:
+                kwargs["resample"] = args.resample
+
         return cls.paradigm_class(**kwargs)
 
     @classmethod
@@ -116,13 +165,56 @@ class MOABBPipeline(BrainsetPipeline):
 
         return pd.DataFrame(manifest_list).set_index("session_id")
 
+    def _validate_bandpass_params(self, dataset: BaseDataset, subject: int) -> None:
+        """Validate bandpass parameters against Nyquist frequency.
+
+        Loads raw data briefly to check sampling rate and raises an error if
+        bandpass_high exceeds the Nyquist frequency.
+
+        Parameters
+        ----------
+        dataset : BaseDataset
+            MOABB dataset instance
+        subject : int
+            Subject ID to check
+
+        Raises
+        ------
+        ValueError
+            If bandpass_high >= Nyquist frequency
+        """
+        fmax = self.args.bandpass_high
+        if fmax is None:
+            return
+
+        data_path = dataset.data_path(subject)
+        if isinstance(data_path, dict):
+            first_path = next(iter(data_path.values()))
+            if isinstance(first_path, list):
+                first_path = first_path[0]
+        elif isinstance(data_path, list):
+            first_path = data_path[0]
+        else:
+            first_path = data_path
+
+        raw_check = mne.io.read_raw(first_path, preload=False, verbose=False)
+        sfreq = raw_check.info["sfreq"]
+        nyquist = sfreq / 2.0
+
+        if fmax >= nyquist:
+            raise ValueError(
+                f"Bandpass high ({fmax} Hz) exceeds Nyquist frequency ({nyquist} Hz). "
+                f"Use a value less than {nyquist} Hz or omit --bandpass-high for no filtering."
+            )
+
     def download(self, manifest_item) -> Dict[str, Any]:
         """Download and extract data using MOABB paradigm.
 
         This method:
         1. Sets up MNE download directory
-        2. Calls paradigm.get_data() to get epoched arrays
-        3. Filters results to the specific session from manifest_item
+        2. Validates bandpass parameters against Nyquist frequency
+        3. Calls paradigm.get_data(return_raws=True) to get filtered Raw objects
+        4. Filters results to the specific session from manifest_item
 
         Parameters
         ----------
@@ -133,10 +225,9 @@ class MOABBPipeline(BrainsetPipeline):
         -------
         dict
             Dictionary containing:
-            - X: np.ndarray of shape (n_epochs, n_channels, n_samples)
-            - labels: np.ndarray of shape (n_epochs,) with event names
+            - raws: list of mne.io.Raw objects (filtered, continuous)
             - meta: pd.DataFrame with columns: subject, session, run
-            - info: MNE Info object from first epoch (for channel info)
+            - dataset: BaseDataset instance
         """
         self.update_status("DOWNLOADING")
 
@@ -144,20 +235,20 @@ class MOABBPipeline(BrainsetPipeline):
         os.environ["MNE_DATA"] = str(self.raw_dir.resolve())
 
         dataset = self.get_dataset()
-        paradigm = self.get_paradigm()
         subject = int(manifest_item.subject)
         session = int(manifest_item.session)
 
-        epochs, labels, meta = paradigm.get_data(
+        self._validate_bandpass_params(dataset, subject)
+        paradigm = self.get_paradigm(self.args)
+
+        raws, labels, meta = paradigm.get_data(
             dataset=dataset,
             subjects=[subject],
-            return_epochs=True,
+            return_raws=True,
         )
 
-        if len(epochs) == 0:
-            raise ValueError(
-                f"No epochs found for subject {subject}, session {session}"
-            )
+        if len(raws) == 0:
+            raise ValueError(f"No data found for subject {subject}, session {session}")
 
         session_values = sorted(meta["session"].unique())
         if isinstance(session, int):
@@ -179,42 +270,32 @@ class MOABBPipeline(BrainsetPipeline):
         session_mask = meta["session"] == session_key
         if not session_mask.any():
             raise ValueError(
-                f"No epochs found for subject {subject}, session {session_key}"
+                f"No data found for subject {subject}, session {session_key}"
             )
 
-        epochs_filtered = epochs[session_mask]
-        labels_filtered = labels[session_mask]
         meta_filtered = meta[session_mask].reset_index(drop=True)
 
-        X_filtered = np.concatenate(epochs_filtered, axis=0)
-        info = epochs_filtered[0].info if len(epochs_filtered) > 0 else None
+        raws_filtered = [raws[i] for i in range(len(raws)) if session_mask.iloc[i]]
 
         return {
-            "X": X_filtered,
-            "labels": labels_filtered,
+            "raws": raws_filtered,
             "meta": meta_filtered,
-            "info": info,
-            "epochs": epochs_filtered,
+            "dataset": dataset,
         }
 
-    def _get_channel_types(self, info, epochs):
-        """Extract channel types from MNE info and epochs objects.
+    def _get_channel_types(self, info):
+        """Extract channel types from MNE info object.
 
         Parameters
         ----------
         info : mne.Info
             MNE Info object with channel information
-        epochs : mne.Epochs
-            MNE Epochs object
 
         Returns
         -------
         list[str]
             List of channel type strings (e.g., "EEG", "EOG", "EMG")
         """
-        if len(epochs) > 0:
-            return epochs[0].get_channel_types()
-
         # MNE channel kind constants (mne.io.constants.FIFF)
         ch_type_map = {
             2: "EEG",  # FIFFV_EEG_CH
@@ -228,61 +309,61 @@ class MOABBPipeline(BrainsetPipeline):
             for ch in info["ch_names"]
         ]
 
-    def _extract_eeg_data(self, X, info, ch_types, labels):
-        """Extract EEG data and trial intervals from epoched arrays.
+    def _extract_trials_from_raw(self, raw, dataset) -> Interval:
+        """Extract trial intervals from Raw annotations using actual trial durations.
+
+        Instead of using a fixed duration, this method calculates trial duration
+        by finding the time between consecutive events. Each trial starts at an
+        event onset and ends when the next event begins.
 
         Parameters
         ----------
-        X : np.ndarray
-            Array of shape (n_epochs, n_channels, n_samples)
-        info : mne.Info
-            MNE Info object with channel and sampling rate information
-        ch_types : list[str]
-            List of channel type strings for each channel
-        labels : np.ndarray
-            Array of shape (n_epochs,) with event labels
+        raw : mne.io.Raw
+            Raw MNE object with annotations
+        dataset : BaseDataset
+            MOABB dataset instance
 
         Returns
         -------
-        eeg : RegularTimeSeries
-            Concatenated EEG signals
-        channels : ArrayDict
-            Channel IDs and types
-        trials : Interval
+        Interval
             Trial intervals with start/end times and label fields
         """
-        sfreq = info["sfreq"]
-        n_epochs, n_channels, n_samples = X.shape
-
-        eeg_signals = X.transpose(0, 2, 1).reshape(-1, n_channels)
-
-        eeg = RegularTimeSeries(
-            signal=eeg_signals,
-            sampling_rate=sfreq,
-            domain=Interval(
-                start=np.array([0.0]),
-                end=np.array([(len(eeg_signals) - 1) / sfreq]),
-            ),
+        events, _ = mne.events_from_annotations(
+            raw, event_id=dataset.event_id, verbose=False
         )
 
-        channels = ArrayDict(
-            id=np.array(info["ch_names"], dtype="U"),
-            types=np.array(ch_types, dtype="U"),
+        if len(events) == 0:
+            raise ValueError("No events found in Raw annotations")
+
+        sfreq = raw.info["sfreq"]
+        event_id_to_name = {v: k for k, v in dataset.event_id.items()}
+
+        starts = events[:, 0] / sfreq
+
+        ends = np.zeros(len(events))
+        for i in range(len(events) - 1):
+            ends[i] = events[i + 1, 0] / sfreq
+
+        last_sample = raw.n_times - 1
+        ends[-1] = last_sample / sfreq
+
+        labels = np.array(
+            [
+                event_id_to_name.get(event_code, "unknown")
+                for event_code in events[:, 2]
+            ],
+            dtype="U",
         )
 
-        sample_boundaries = np.arange(n_epochs + 1) * n_samples
-        time_boundaries = sample_boundaries / sfreq
-        start_times = time_boundaries[:-1]
-        end_times = time_boundaries[1:]
         id_values = np.array([self.label_map.get(label, -1) for label in labels])
 
         trials = Interval(
-            start=start_times,
-            end=end_times,
-            timestamps=(start_times + end_times) / 2,
+            start=starts,
+            end=ends,
+            timestamps=(starts + ends) / 2,
             timekeys=["start", "end", "timestamps"],
             **{
-                self.label_field: np.asarray(labels),
+                self.label_field: labels,
                 self.id_field: id_values,
             },
         )
@@ -290,7 +371,42 @@ class MOABBPipeline(BrainsetPipeline):
         if not trials.is_disjoint():
             raise ValueError("Found overlapping trials")
 
-        return eeg, channels, trials
+        return trials
+
+    def _extract_continuous_eeg(self, raw):
+        """Extract continuous EEG signal from Raw object.
+
+        Parameters
+        ----------
+        raw : mne.io.Raw
+            Raw MNE object with continuous data
+
+        Returns
+        -------
+        eeg : RegularTimeSeries
+            Continuous EEG signals
+        channels : ArrayDict
+            Channel IDs and types
+        """
+        data, times = raw.get_data(return_times=True)
+        info = raw.info
+
+        eeg = RegularTimeSeries(
+            signal=data.T,  # (n_samples, n_channels)
+            sampling_rate=info["sfreq"],
+            domain=Interval(
+                start=np.array([times[0]]),
+                end=np.array([times[-1]]),
+            ),
+        )
+
+        ch_types = self._get_channel_types(info)
+        channels = ArrayDict(
+            id=np.array(info["ch_names"], dtype="U"),
+            types=np.array(ch_types, dtype="U"),
+        )
+
+        return eeg, channels
 
     @abstractmethod
     def get_brainset_description(self) -> BrainsetDescription:
@@ -415,10 +531,11 @@ class MOABBPipeline(BrainsetPipeline):
         """Transform MOABB data to brainsets format.
 
         This default implementation handles the common workflow:
-        1. Extract EEG data and channel information
-        2. Extract trial intervals with labels
-        3. Generate stratified splits
-        4. Create and store Data object
+        1. Concatenate runs into continuous recording
+        2. Extract continuous EEG data and channel information
+        3. Extract trial intervals from annotations
+        4. Generate stratified splits
+        5. Create and store Data object
 
         Subclasses can override for custom processing, but typically only
         need to implement get_brainset_description().
@@ -426,13 +543,11 @@ class MOABBPipeline(BrainsetPipeline):
         Parameters
         ----------
         download_output : dict
-            Dictionary returned by download() containing X, labels, meta, info, epochs
+            Dictionary returned by download() containing raws, meta, dataset
         """
-        X = download_output["X"]
-        labels = download_output["labels"]
+        raws = download_output["raws"]
         meta = download_output["meta"]
-        info = download_output["info"]
-        epochs = download_output["epochs"]
+        dataset = download_output["dataset"]
 
         self.update_status("PROCESSING")
         self.processed_dir.mkdir(exist_ok=True, parents=True)
@@ -446,15 +561,25 @@ class MOABBPipeline(BrainsetPipeline):
             self.update_status("Skipped Processing")
             return
 
+        self.update_status("Concatenating Runs")
+        if len(raws) > 1:
+            raw = mne.concatenate_raws(raws, verbose=False)
+        else:
+            raw = raws[0]
+
+        info = raw.info
+
         self.update_status("Creating Descriptions")
         brainset_description = self.get_brainset_description()
         subject_description = self._get_subject_description(subject_id)
         session_description = self._get_session_description(session_id, info)
         device_description = self._get_device_description(subject_id, info)
 
-        self.update_status("Extracting EEG and Trials")
-        ch_types = self._get_channel_types(info, epochs)
-        eeg, channels, trials = self._extract_eeg_data(X, info, ch_types, labels)
+        self.update_status("Extracting Continuous EEG")
+        eeg, channels = self._extract_continuous_eeg(raw)
+
+        self.update_status("Extracting Trial Intervals")
+        trials = self._extract_trials_from_raw(raw, dataset)
 
         self.update_status("Generating Splits")
         splits = self._generate_splits(trials, subject_id=subject_id)
