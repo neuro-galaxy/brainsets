@@ -89,11 +89,16 @@ def extract_subject_description(
         age_normalized = 0.0
     elif isinstance(age, (int, float)):
         age_normalized = float(age)
+        if age_normalized < 0:
+            raise ValueError(f"Age cannot be negative, got {age_normalized}")
     elif isinstance(age, str):
         try:
             age_normalized = float(age)
         except (ValueError, TypeError):
             age_normalized = 0.0
+        else:
+            if age_normalized < 0:
+                raise ValueError(f"Age cannot be negative, got {age_normalized}")
     else:
         age_normalized = 0.0
 
