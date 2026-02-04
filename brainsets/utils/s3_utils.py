@@ -100,10 +100,8 @@ def list_objects(
 
             for obj in page["Contents"]:
                 key = obj["Key"]
-                if not key.endswith("/"):
-                    relative_path = (
-                        key[len(prefix) :] if key.startswith(prefix) else key
-                    )
+                if not key.endswith("/") and key.startswith(prefix):
+                    relative_path = key[len(prefix) :]
                     if relative_path:
                         keys.append(relative_path)
 
