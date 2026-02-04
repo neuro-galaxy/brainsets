@@ -4,10 +4,28 @@ from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlparse
 
-import boto3
-from botocore import UNSIGNED
-from botocore.config import Config
-from botocore.exceptions import ClientError
+try:
+    import boto3
+    from botocore import UNSIGNED
+    from botocore.config import Config
+    from botocore.exceptions import ClientError
+
+    BOTO_AVAILABLE = True
+except ImportError:
+    boto3 = None
+    UNSIGNED = None
+    Config = None
+    ClientError = None
+    BOTO_AVAILABLE = False
+
+
+def _check_boto_available(func_name: str) -> None:
+    """Raise ImportError if boto3/botocore is not available."""
+    if not BOTO_AVAILABLE:
+        raise ImportError(
+            f"{func_name} requires boto3 and botocore which are not installed. "
+            "Install them with `pip install boto3`"
+        )
 
 
 @lru_cache(maxsize=1)
@@ -15,7 +33,7 @@ def get_cached_s3_client(
     retry_mode: str = "adaptive",
     max_attempts: int = 5,
     max_pool_connections: int = 30,
-) -> boto3.client:
+):
     """Get a cached S3 client configured for anonymous access to public buckets.
 
     Uses boto3's retry modes which include:
@@ -29,7 +47,11 @@ def get_cached_s3_client(
 
     Returns:
         A configured boto3 S3 client for unsigned/anonymous access
+
+    Raises:
+        ImportError: If boto3/botocore is not installed.
     """
+    _check_boto_available("get_cached_s3_client")
     return boto3.client(
         "s3",
         config=Config(
@@ -46,7 +68,7 @@ def get_cached_s3_client(
 def list_objects(
     bucket: str,
     prefix: str,
-    s3_client: boto3.client = None,
+    s3_client=None,
 ) -> list[str]:
     """List all object keys under a prefix (excludes directories).
 
@@ -60,7 +82,9 @@ def list_objects(
 
     Raises:
         RuntimeError: If listing fails
+        ImportError: If boto3/botocore is not installed.
     """
+    _check_boto_available("list_objects")
     if s3_client is None:
         s3_client = get_cached_s3_client()
 
@@ -94,7 +118,7 @@ def download_prefix(
     prefix: str,
     target_dir: Path,
     strip_prefix: str = None,
-    s3_client: boto3.client = None,
+    s3_client=None,
 ) -> list[Path]:
     """Download all files matching a prefix pattern.
 
@@ -111,6 +135,7 @@ def download_prefix(
 
     Raises:
         RuntimeError: If download fails or no files match
+        ImportError: If boto3/botocore is not installed.
 
     Examples:
         >>> # Basic usage
@@ -127,6 +152,7 @@ def download_prefix(
                 strip_prefix="data/Projects/"
             )
     """
+    _check_boto_available("download_prefix")
     if s3_client is None:
         s3_client = get_cached_s3_client()
 
@@ -193,7 +219,9 @@ def download_prefix_from_url(s3_url: str, target_dir: Path) -> list[Path]:
     Raises:
         ValueError: If URL is not a valid S3 URL
         RuntimeError: If download fails
+        ImportError: If boto3/botocore is not installed.
     """
+    _check_boto_available("download_prefix_from_url")
     parsed = urlparse(s3_url)
     if parsed.scheme != "s3":
         raise ValueError(f"Invalid S3 URL: {s3_url}")

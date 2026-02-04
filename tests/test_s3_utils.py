@@ -1,13 +1,16 @@
 """Unit tests for S3 utility functions."""
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
 import pytest
-from botocore import UNSIGNED
-from botocore.exceptions import ClientError
+from unittest.mock import MagicMock, patch
+from brainsets.utils.s3_utils import BOTO_AVAILABLE
+
+pytestmark = pytest.mark.skipif(
+    not BOTO_AVAILABLE, reason="boto3/botocore not installed"
+)
 
 from brainsets.utils.s3_utils import (
+    UNSIGNED,
+    ClientError,
     get_cached_s3_client,
     list_objects,
     download_prefix,
