@@ -38,6 +38,7 @@ class Pipeline(MOABBPipeline):
 
     dataset_class = BI2014a
     paradigm_class = P300
+    dataset_sign = "BRAININVADERS2014A"
     dataset_kwargs = {}
 
     task = Task.P300

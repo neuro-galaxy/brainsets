@@ -42,6 +42,7 @@ class Pipeline(MOABBPipeline):
 
     dataset_class = PhysionetMI
     paradigm_class = MotorImagery
+    dataset_sign = "EEGBCI"
     dataset_kwargs = {"imagined": True, "executed": False}
 
     task = Task.MOTOR_IMAGERY

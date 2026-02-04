@@ -9,7 +9,6 @@ from abc import abstractmethod
 from typing import Dict, Any, Type, Optional
 from pathlib import Path
 from argparse import ArgumentParser
-import os
 import pandas as pd
 import numpy as np
 import datetime
@@ -71,6 +70,7 @@ class MOABBPipeline(BrainsetPipeline):
         - brainset_id: str
         - dataset_class: Type[BaseDataset]
         - paradigm_class: Type[BaseParadigm]
+        - dataset_sign: str (e.g., "EEGBCI", "BRAININVADERS2014A")
         - dataset_kwargs: Dict[str, Any] (optional, defaults to {})
         - paradigm_kwargs: Dict[str, Any] (optional, defaults to {})
         - task: Task (e.g., Task.MOTOR_IMAGERY, Task.P300)
@@ -87,12 +87,13 @@ class MOABBPipeline(BrainsetPipeline):
         - Manifest generation from dataset metadata
         - Data download via MOABB paradigm.get_data()
         - Session filtering
-        - MNE download directory setup
+        - MNE download directory setup (via mne.set_config)
         - Default process() workflow (EEG extraction, trial extraction, splits, storage)
     """
 
     dataset_class: Type[BaseDataset]
     paradigm_class: Type[BaseParadigm]
+    dataset_sign: str
     dataset_kwargs: Dict[str, Any] = {}
     paradigm_kwargs: Dict[str, Any] = {}
 
@@ -237,7 +238,17 @@ class MOABBPipeline(BrainsetPipeline):
         self.update_status("DOWNLOADING")
 
         self.raw_dir.mkdir(exist_ok=True, parents=True)
-        os.environ["MNE_DATA"] = str(self.raw_dir.resolve())
+
+        # Set dataset-specific MNE path to override any stale config entries.
+        # This prevents failures when users have deleted directories referenced
+        # in ~/.mne/mne-python.json or have misconfigured MNE_DATA. The
+        # dataset-specific key (MNE_DATASETS_{SIGN}_PATH) takes precedence
+        # over the generic MNE_DATA setting.
+        mne.set_config(
+            f"MNE_DATASETS_{self.dataset_sign}_PATH",
+            str(self.raw_dir.resolve()),
+            set_env=True,
+        )
 
         dataset = self.get_dataset()
         subject = int(manifest_item.subject)
