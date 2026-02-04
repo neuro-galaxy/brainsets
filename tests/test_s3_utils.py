@@ -43,6 +43,33 @@ class TestGetCachedS3Client:
         config = call_args[1]["config"]
         assert config.signature_version == UNSIGNED
 
+    @patch("brainsets.utils.s3_utils.boto3.client")
+    def test_config_with_custom_retry_mode(self, mock_boto_client):
+        mock_client = MagicMock()
+        mock_boto_client.return_value = mock_client
+
+        get_cached_s3_client(
+            retry_mode="standard", max_attempts=3, max_pool_connections=20
+        )
+
+        call_args = mock_boto_client.call_args
+        config = call_args[1]["config"]
+        assert config.retries["mode"] == "standard"
+        assert config.retries["total_max_attempts"] == 3
+        assert config.max_pool_connections == 20
+
+    @patch("brainsets.utils.s3_utils.boto3.client")
+    def test_config_with_adaptive_retry_mode(self, mock_boto_client):
+        mock_client = MagicMock()
+        mock_boto_client.return_value = mock_client
+
+        get_cached_s3_client(retry_mode="adaptive", max_attempts=10)
+
+        call_args = mock_boto_client.call_args
+        config = call_args[1]["config"]
+        assert config.retries["mode"] == "adaptive"
+        assert config.retries["total_max_attempts"] == 10
+
 
 class TestListObjects:
 
@@ -112,6 +139,40 @@ class TestListObjects:
         list_objects("test-bucket", "prefix/")
 
         mock_get_client.assert_called_once()
+
+    def test_handles_key_not_starting_with_prefix(self):
+        mock_client = MagicMock()
+        mock_paginator = MagicMock()
+        mock_client.get_paginator.return_value = mock_paginator
+        mock_paginator.paginate.return_value = [
+            {
+                "Contents": [
+                    {"Key": "ds000000/file1.edf"},
+                    {"Key": "other/file2.edf"},
+                ]
+            }
+        ]
+        result = list_objects("test-bucket", "ds000000/", s3_client=mock_client)
+        assert "file1.edf" in result
+        assert "other/file2.edf" not in result
+
+    def test_filters_empty_relative_path(self):
+        mock_client = MagicMock()
+        mock_paginator = MagicMock()
+        mock_client.get_paginator.return_value = mock_paginator
+        mock_paginator.paginate.return_value = [
+            {
+                "Contents": [
+                    {"Key": "ds000000"},
+                    {"Key": "ds000000/file1.edf"},
+                ]
+            }
+        ]
+        result = list_objects("test-bucket", "ds000000", s3_client=mock_client)
+
+        assert "/file1.edf" in result
+        assert "" not in result
+        assert len(result) == 1
 
 
 class TestDownloadPrefix:
@@ -252,6 +313,57 @@ class TestDownloadPrefix:
 
         assert len(result) == 1
 
+    def test_handles_obj_key_not_starting_with_strip_prefix(self, tmp_path):
+        mock_client = MagicMock()
+        mock_paginator = MagicMock()
+        mock_client.get_paginator.return_value = mock_paginator
+        mock_paginator.paginate.return_value = [
+            {"Contents": [{"Key": "other/path/file.edf"}]}
+        ]
+        result = download_prefix(
+            bucket="test-bucket",
+            prefix="ds000000/",
+            target_dir=tmp_path,
+            strip_prefix="ds000000/",
+            s3_client=mock_client,
+        )
+
+        assert len(result) == 1
+        expected_path = tmp_path / "other" / "path" / "file.edf"
+        assert result[0] == expected_path
+
+    def test_raises_error_on_general_exception(self, tmp_path):
+        mock_client = MagicMock()
+        mock_paginator = MagicMock()
+        mock_client.get_paginator.return_value = mock_paginator
+        mock_paginator.paginate.side_effect = ValueError("Unexpected error")
+
+        with pytest.raises(RuntimeError, match="Failed to download from"):
+            download_prefix(
+                bucket="test-bucket",
+                prefix="ds000000/",
+                target_dir=tmp_path,
+                s3_client=mock_client,
+            )
+
+    @patch("brainsets.utils.s3_utils.get_cached_s3_client")
+    def test_uses_cached_client_when_none_provided(self, mock_get_client, tmp_path):
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_paginator = MagicMock()
+        mock_client.get_paginator.return_value = mock_paginator
+        mock_paginator.paginate.return_value = [
+            {"Contents": [{"Key": "ds000000/file.edf"}]}
+        ]
+
+        download_prefix(
+            bucket="test-bucket",
+            prefix="ds000000/",
+            target_dir=tmp_path,
+        )
+
+        mock_get_client.assert_called_once()
+
 
 class TestDownloadPrefixFromUrl:
 
@@ -302,6 +414,18 @@ class TestDownloadPrefixFromUrl:
         )
 
         # Prefix should be "path/to/data", not "/path/to/data"
+        call_args = mock_download.call_args[0]
+        assert call_args[1] == "path/to/data"
+        assert not call_args[1].startswith("/")
+
+    @patch("brainsets.utils.s3_utils.download_prefix")
+    def test_handles_url_with_leading_slash_in_path(self, mock_download, tmp_path):
+        mock_download.return_value = []
+
+        download_prefix_from_url(
+            s3_url="s3://bucket//path/to/data",
+            target_dir=tmp_path,
+        )
         call_args = mock_download.call_args[0]
         assert call_args[1] == "path/to/data"
         assert not call_args[1].startswith("/")

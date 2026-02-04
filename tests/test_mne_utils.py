@@ -1,15 +1,24 @@
 import datetime
 import numpy as np
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-pytest.importorskip("mne")
-from brainsets.utils.mne_utils import (
-    extract_meas_date,
-    extract_eeg_signal,
-    extract_channels,
-    extract_psg_signal,
-)
+try:
+    import mne
+
+    MNE_AVAILABLE = True
+    from brainsets.utils.mne_utils import (
+        extract_meas_date,
+        extract_eeg_signal,
+        extract_channels,
+        extract_psg_signal,
+    )
+except ImportError:
+    MNE_AVAILABLE = False
+    extract_meas_date = None
+    extract_eeg_signal = None
+    extract_channels = None
+    extract_psg_signal = None
 
 
 def create_mock_raw(
@@ -40,6 +49,7 @@ def create_mock_raw(
     return mock_raw
 
 
+@pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
 class TestExtractMeasDate:
     def test_returns_meas_date_when_present(self):
         expected_date = datetime.datetime(
@@ -57,6 +67,7 @@ class TestExtractMeasDate:
         assert result == expected
 
 
+@pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
 class TestExtractEEGSignal:
 
     def test_returns_regular_time_series(self):
@@ -100,6 +111,7 @@ class TestExtractEEGSignal:
             extract_eeg_signal(mock_raw)
 
 
+@pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
 class TestExtractChannels:
 
     def test_returns_array_dict(self):
@@ -139,6 +151,7 @@ class TestExtractChannels:
         assert result.types.dtype.kind == "U"
 
 
+@pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
 class TestExtractPSGSignal:
 
     def create_mock_psg_raw(self, ch_names, n_samples=1000, sfreq=256.0):
@@ -255,3 +268,75 @@ class TestExtractPSGSignal:
 
         assert "EEG Fpz-Cz" in units.id
         assert "EOG horizontal" in units.id
+
+    def test_extracts_fpz_cz_pattern_case_insensitive(self):
+        ch_names = ["FPZ-CZ", "fpz-cz", "Fpz-Cz"]
+        mock_raw = self.create_mock_psg_raw(ch_names)
+
+        signals, units = extract_psg_signal(mock_raw)
+
+        assert np.sum(units.modality == "EEG") == 3
+
+    def test_extracts_pz_oz_pattern_case_insensitive(self):
+        ch_names = ["PZ-OZ", "pz-oz", "Pz-Oz"]
+        mock_raw = self.create_mock_psg_raw(ch_names)
+
+        signals, units = extract_psg_signal(mock_raw)
+
+        assert np.sum(units.modality == "EEG") == 3
+
+    def test_domain_uses_first_and_last_time_values(self):
+        ch_names = ["EEG Fpz-Cz"]
+        n_samples = 1000
+        sfreq = 256.0
+        mock_raw = self.create_mock_psg_raw(ch_names, n_samples=n_samples, sfreq=sfreq)
+        _, times = mock_raw.get_data(return_times=True)
+
+        signals, units = extract_psg_signal(mock_raw)
+
+        assert np.isclose(signals.domain.start, times[0])
+        assert np.isclose(signals.domain.end, times[-1])
+
+
+class TestCheckMneAvailable:
+    """Test the _check_mne_available function when MNE is not available."""
+
+    @patch("brainsets.utils.mne_utils.MNE_AVAILABLE", False)
+    def test_extract_meas_date_raises_import_error_when_mne_unavailable(self):
+        from brainsets.utils.mne_utils import extract_meas_date
+
+        mock_raw = MagicMock()
+        with pytest.raises(
+            ImportError, match="extract_meas_date requires the MNE library"
+        ):
+            extract_meas_date(mock_raw)
+
+    @patch("brainsets.utils.mne_utils.MNE_AVAILABLE", False)
+    def test_extract_eeg_signal_raises_import_error_when_mne_unavailable(self):
+        from brainsets.utils.mne_utils import extract_eeg_signal
+
+        mock_raw = MagicMock()
+        with pytest.raises(
+            ImportError, match="extract_eeg_signal requires the MNE library"
+        ):
+            extract_eeg_signal(mock_raw)
+
+    @patch("brainsets.utils.mne_utils.MNE_AVAILABLE", False)
+    def test_extract_channels_raises_import_error_when_mne_unavailable(self):
+        from brainsets.utils.mne_utils import extract_channels
+
+        mock_raw = MagicMock()
+        with pytest.raises(
+            ImportError, match="extract_channels requires the MNE library"
+        ):
+            extract_channels(mock_raw)
+
+    @patch("brainsets.utils.mne_utils.MNE_AVAILABLE", False)
+    def test_extract_psg_signal_raises_import_error_when_mne_unavailable(self):
+        from brainsets.utils.mne_utils import extract_psg_signal
+
+        mock_raw = MagicMock()
+        with pytest.raises(
+            ImportError, match="extract_psg_signal requires the MNE library"
+        ):
+            extract_psg_signal(mock_raw)
