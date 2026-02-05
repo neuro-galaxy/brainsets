@@ -84,13 +84,18 @@ class TestListObjects:
                     {"Key": "ds000000/subdir/file1.edf"},
                     {"Key": "ds000000/subdir/subsubdir/"},
                     {"Key": "ds000000/subdir/file2.edf"},
+                    {"Key": "ds000000/subdir/subsubdir/file3.edf"},
                 ]
             }
         ]
 
         result = list_objects("test-bucket", "ds000000/", s3_client=mock_client)
 
-        assert result == ["subdir/file1.edf", "subdir/file2.edf"]
+        assert result == [
+            "subdir/file1.edf",
+            "subdir/file2.edf",
+            "subdir/subsubdir/file3.edf",
+        ]
         mock_client.get_paginator.assert_called_once_with("list_objects_v2")
         mock_paginator.paginate.assert_called_once_with(
             Bucket="test-bucket", Prefix="ds000000/"
@@ -230,7 +235,9 @@ class TestDownloadPrefix:
             {
                 "Contents": [
                     {"Key": "ds000000/subdir/"},
-                    {"Key": "ds000000/file.edf"},
+                    {"Key": "ds000000/subdir/file1.edf"},
+                    {"Key": "ds000000/file2.edf"},
+                    {"Key": "ds000000/subdir/subsubdir/file3.edf"},
                 ]
             }
         ]
@@ -242,8 +249,8 @@ class TestDownloadPrefix:
             s3_client=mock_client,
         )
 
-        assert len(result) == 1
-        assert mock_client.download_file.call_count == 1
+        assert len(result) == 3
+        assert mock_client.download_file.call_count == 3
 
     def test_raises_error_when_no_files_found(self, tmp_path):
         mock_client = MagicMock()
