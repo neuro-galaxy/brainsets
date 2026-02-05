@@ -97,12 +97,12 @@ class TestExtractSubjectDescription:
         assert result_false.sex == Sex.UNKNOWN
 
     def test_sex_as_float(self):
-        with pytest.raises(UnboundLocalError):
-            extract_subject_description(subject_id="subject_1", sex=3.14)
+        result = extract_subject_description(subject_id="subject_1", sex=3.14)
+        assert result.sex == Sex.UNKNOWN
 
     def test_sex_as_tuple(self):
-        with pytest.raises(UnboundLocalError):
-            extract_subject_description(subject_id="subject_1", sex=(1, 2))
+        result = extract_subject_description(subject_id="subject_1", sex=(1, 2))
+        assert result.sex == Sex.UNKNOWN
 
     def test_species_as_list(self):
         with pytest.raises(UnboundLocalError):
