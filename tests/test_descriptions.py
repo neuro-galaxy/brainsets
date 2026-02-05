@@ -88,6 +88,26 @@ class TestExtractSubjectDescription:
         result = extract_subject_description(subject_id="subject_1", sex=99)
         assert result.sex == Sex.UNKNOWN
 
+    def test_sex_as_boolean(self):
+        """Test that passing a boolean for sex is treated as int (True=1=MALE, False=0=UNKNOWN)."""
+        result_true = extract_subject_description(subject_id="subject_1", sex=True)
+        assert result_true.sex == Sex.MALE
+
+        result_false = extract_subject_description(subject_id="subject_1", sex=False)
+        assert result_false.sex == Sex.UNKNOWN
+
+    def test_sex_as_float(self):
+        with pytest.raises(UnboundLocalError):
+            extract_subject_description(subject_id="subject_1", sex=3.14)
+
+    def test_sex_as_tuple(self):
+        with pytest.raises(UnboundLocalError):
+            extract_subject_description(subject_id="subject_1", sex=(1, 2))
+
+    def test_species_as_list(self):
+        with pytest.raises(UnboundLocalError):
+            extract_subject_description(subject_id="subject_1", species=[])
+
     # Species normalization tests
     def test_species_as_enum(self):
         result = extract_subject_description(

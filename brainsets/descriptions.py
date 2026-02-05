@@ -116,6 +116,8 @@ def extract_subject_description(
             sex_normalized = Sex(sex)
         except ValueError:
             sex_normalized = Sex.UNKNOWN
+    else:
+        sex_normalized = Sex.UNKNOWN
 
     if species is None:
         species_normalized = Species.UNKNOWN
