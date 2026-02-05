@@ -213,7 +213,7 @@ class Pipeline(BrainsetPipeline):
         )
 
         self.update_status("Extracting Signals")
-        signals, units = extract_psg_signal(raw_psg)
+        signals, channels = extract_psg_signal(raw_psg)
 
         self.update_status("Extracting Sleep Stages")
         stages = extract_sleep_stages(str(hypnogram_path))
@@ -227,7 +227,7 @@ class Pipeline(BrainsetPipeline):
             session=session_description,
             device=device_description,
             eeg=signals,
-            units=units,
+            channels=channels,
             stages=stages,
             splits=splits,
             domain=signals.domain,

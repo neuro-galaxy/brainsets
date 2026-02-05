@@ -112,36 +112,36 @@ def extract_psg_signal(raw_psg: "mne.io.Raw") -> Tuple[RegularTimeSeries, ArrayD
     ch_names = raw_psg.ch_names
 
     signal_list = []
-    unit_meta = []
+    channel_meta = []
 
     for idx, ch_name in enumerate(ch_names):
         ch_name_lower = ch_name.lower()
         signal_data = data[idx, :]
 
-        modality = None
+        ch_type = None
         if (
             "eeg" in ch_name_lower
             or "fpz-cz" in ch_name_lower
             or "pz-oz" in ch_name_lower
         ):
-            modality = "EEG"
+            ch_type = "EEG"
         elif "eog" in ch_name_lower:
-            modality = "EOG"
+            ch_type = "EOG"
         elif "emg" in ch_name_lower:
-            modality = "EMG"
+            ch_type = "EMG"
         elif "resp" in ch_name_lower:
-            modality = "RESP"
+            ch_type = "RESP"
         elif "temp" in ch_name_lower:
-            modality = "TEMP"
+            ch_type = "TEMP"
         else:
             continue
 
         signal_list.append(signal_data)
 
-        unit_meta.append(
+        channel_meta.append(
             {
-                "id": str(ch_name),
-                "modality": modality,
+                "ch_id": str(ch_name),
+                "ch_type": ch_type,
             }
         )
 
@@ -156,7 +156,9 @@ def extract_psg_signal(raw_psg: "mne.io.Raw") -> Tuple[RegularTimeSeries, ArrayD
         domain=Interval(start=times[0], end=times[-1]),
     )
 
-    units_df = pd.DataFrame(unit_meta)
-    units = ArrayDict.from_dataframe(units_df)
+    channels = ArrayDict(
+        ch_id=np.array([ch["ch_id"] for ch in channel_meta], dtype="U"),
+        ch_type=np.array([ch["ch_type"] for ch in channel_meta], dtype="U"),
+    )
 
-    return signals, units
+    return signals, channels
