@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Callable, Optional, Literal
 from pathlib import Path
 from torch_brain.utils import np_string_prefix
