@@ -22,7 +22,7 @@ class KempSleepEDF2013(Dataset):
             dataset_dir=Path(root) / dirname,
             recording_ids=recording_ids,
             transform=transform,
-            namespace_attributes=["session.id", "subject.id", "units.id"],
+            namespace_attributes=["session.id", "subject.id", "channels.id"],
             **kwargs,
         )
 
