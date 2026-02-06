@@ -4,3 +4,4 @@ from .FlintSlutzkyAccurate2012 import FlintSlutzkyAccurate2012
 from .ChurchlandShenoyNeural2012 import ChurchlandShenoyNeural2012
 from .OdohertySabesNonhuman2017 import OdohertySabesNonhuman2017
 from .AllenVisualCodingOphys2016 import AllenVisualCodingOphys2016
+from .KempSleepEDF2013 import KempSleepEDF2013
