@@ -14,7 +14,7 @@ class KempSleepEDF2013(Dataset):
         transform: Optional[Callable] = None,
         uniquify_channel_ids: bool = True,
         split_type: Optional[Literal["fold_0", "fold_1", "fold_2"]] = "fold_0",
-        dirname: str = "perich_miller_population_2018",
+        dirname: str = "kemp_sleep_edf_2013",
         **kwargs,
     ):
         super().__init__(
