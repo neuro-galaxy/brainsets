@@ -58,7 +58,7 @@ class KempSleepEDF2013(Dataset):
 
     def get_recording_hook(self, data: Data):
         # This dataset does not have unique channel ids across sessions
-        # so we prefix the unit ids with the session id to ensure uniqueness
+        # so we prefix the channel ids with the session id to ensure uniqueness
         if self.uniquify_channel_ids:
             data.channels.id = np_string_prefix(f"{data.session.id}/", data.channels.id)
 
