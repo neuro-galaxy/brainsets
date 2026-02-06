@@ -33,9 +33,11 @@ class KempSleepEDF2013(Dataset):
         split: Optional[Literal["train", "valid", "test"]] = None,
     ):
 
-        if self.split_type == None:
-            # No split type specified => user wants full domain
+        if split is None:
             return {rid: self.get_recording(rid).domain for rid in self.recording_ids}
+
+        if self.split_type is None:
+            raise ValueError("Only split=None supported when split_type is None.")
 
         if self.split_type not in ["fold_0", "fold_1", "fold_2"]:
             raise ValueError(
@@ -45,7 +47,7 @@ class KempSleepEDF2013(Dataset):
 
         if split not in ["train", "valid", "test"]:
             raise ValueError(
-                f"Invalid split '{split}'. Must be one of ['train', 'valid', 'test']."
+                f"Invalid split '{split}'. Must be one of 'train', 'valid', 'test', or None."
             )
 
         key = f"{self.split_type}.{split}"

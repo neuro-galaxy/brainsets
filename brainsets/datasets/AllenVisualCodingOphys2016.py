@@ -37,12 +37,14 @@ class AllenVisualCodingOphys2016(CalciumImagingDatasetMixin, Dataset):
             return {rid: self.get_recording(rid).domain for rid in self.recording_ids}
 
         if self.split_type is None:
-            raise ValueError("split=None only supported when split_type is None.")
+            raise ValueError("Only split=None supported when split_type is None.")
+
         elif self.split_type == "poyo_plus":
             key = f"{split}_domain"
             return {
                 rid: self.get_recording(rid).get_nested_attribute(key)
                 for rid in self.recording_ids
             }
+
         else:
             raise ValueError(f"Invalid split_type '{self.split_type}'.")
