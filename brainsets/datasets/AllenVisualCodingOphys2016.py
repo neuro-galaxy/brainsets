@@ -32,7 +32,7 @@ class AllenVisualCodingOphys2016(CalciumImagingDatasetMixin, Dataset):
         self,
         split: Optional[Literal["train", "valid", "test"]] = None,
     ):
-        if self.split_type == None:
+        if self.split_type is None:
             if split is not None:
                 raise ValueError("Only split=None supported when split_type is None.")
             return {rid: self.get_recording(rid).domain for rid in self.recording_ids}
