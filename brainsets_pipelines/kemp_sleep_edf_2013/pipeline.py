@@ -28,7 +28,7 @@ from brainsets.taxonomy import RecordingTech, Species, Sex
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.utils.split import (
     chop_intervals,
-    generate_stratified_folds,
+    generate_trial_folds,
 )
 from brainsets.utils.s3_utils import get_s3_client_for_download
 from temporaldata import Data, Interval, RegularTimeSeries, ArrayDict
@@ -396,7 +396,7 @@ def create_splits(
     if len(filtered) == 0:
         raise ValueError("No valid epochs remaining after filtering")
 
-    folds = generate_stratified_folds(
+    folds = generate_trial_folds(
         filtered,
         stratify_by="id",
         n_folds=n_folds,
