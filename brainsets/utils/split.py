@@ -1,6 +1,7 @@
+import hashlib
 import logging
 import numpy as np
-from typing import List
+from typing import Dict, List, Optional
 from temporaldata import Interval, Data
 
 
@@ -149,7 +150,9 @@ def generate_train_valid_test_splits(epoch_dict, grid):
 
     for name, epoch in epoch_dict.items():
         if name == "invalid_presentation_epochs":
-            logging.warn(f"Found invalid presentation epochs, which will be excluded.")
+            logging.warning(
+                "Found invalid presentation epochs, which will be excluded."
+            )
             continue
         if len(epoch) == 1:
             train, valid, test = split_one_epoch(epoch, grid)
@@ -325,3 +328,141 @@ def generate_stratified_folds(
             folds.append(fold_data)
 
     return folds
+
+
+def generate_trial_folds(
+    trials: Interval,
+    stratify_by: str,
+    n_folds: int = 5,
+    val_ratio: float = 0.2,
+    seed: int = 42,
+) -> List[Data]:
+    try:
+        from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
+    except ImportError:
+        raise ImportError(
+            "This function requires the scikit-learn library which you can install with "
+            "`pip install scikit-learn`"
+        )
+
+    if not hasattr(trials, stratify_by):
+        raise ValueError(
+            f"Trials must have a '{stratify_by}' attribute for stratification."
+        )
+
+    class_labels = getattr(trials, stratify_by)
+    if len(class_labels) < n_folds:
+        raise ValueError(
+            f"Not enough trials ({len(class_labels)}) for {n_folds} folds."
+        )
+
+    outer_splitter = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
+    folds = []
+    sample_indices = np.arange(len(trials))
+
+    for fold_idx, (train_val_indices, test_indices) in enumerate(
+        outer_splitter.split(sample_indices, class_labels)
+    ):
+        test_split = _create_interval_split(trials, test_indices)
+        train_val_labels = class_labels[train_val_indices]
+        inner_splitter = StratifiedShuffleSplit(
+            n_splits=1, test_size=val_ratio, random_state=seed + fold_idx
+        )
+        for train_indices, val_indices in inner_splitter.split(
+            train_val_indices, train_val_labels
+        ):
+            train_original_indices = train_val_indices[train_indices]
+            val_original_indices = train_val_indices[val_indices]
+            train_split = _create_interval_split(trials, train_original_indices)
+            val_split = _create_interval_split(trials, val_original_indices)
+            combined_domain = train_split | val_split | test_split
+            fold_data = Data(
+                train=train_split,
+                valid=val_split,
+                test=test_split,
+                domain=combined_domain,
+            )
+            folds.append(fold_data)
+    return folds
+
+
+def generate_trial_folds_by_task(
+    trials: Interval,
+    task_configs: Dict[str, List[str]],
+    label_field: str,
+    n_folds: int = 5,
+    val_ratio: float = 0.2,
+    seed: int = 42,
+) -> Dict[str, Interval]:
+    if not hasattr(trials, label_field):
+        raise ValueError(
+            f"Trials must have a '{label_field}' attribute for task filtering."
+        )
+
+    all_labels = getattr(trials, label_field)
+    splits_dict = {}
+
+    for task_name, include_labels in task_configs.items():
+        logging.info(f"\nGenerating {task_name} k-fold train/valid/test splits")
+        task_mask = np.isin(all_labels, include_labels)
+        task_trials = trials.select_by_mask(task_mask)
+
+        if len(task_trials) < n_folds:
+            logging.warning(
+                f"Task {task_name} has only {len(task_trials)} trials, "
+                f"skipping (need at least {n_folds})"
+            )
+            continue
+
+        folds = generate_trial_folds(
+            task_trials,
+            stratify_by=label_field,
+            n_folds=n_folds,
+            val_ratio=val_ratio,
+            seed=seed,
+        )
+
+        for k, fold_data in enumerate(folds):
+            splits_dict[f"{task_name}_fold_{k}_train"] = fold_data.train
+            splits_dict[f"{task_name}_fold_{k}_valid"] = fold_data.valid
+            splits_dict[f"{task_name}_fold_{k}_test"] = fold_data.test
+
+    return splits_dict
+
+
+def generate_subject_kfold_assignment(
+    subject_id: str,
+    session_id: Optional[str] = None,
+    n_folds: int = 3,
+    val_ratio: float = 0.2,
+    seed: int = 42,
+) -> Dict[str, str]:
+    if session_id is not None:
+        base_str = f"{session_id}_{subject_id}_{seed}"
+        fold_prefix = "session_fold_"
+        fold_base = f"{session_id}_{subject_id}_{seed}"
+    else:
+        base_str = f"{subject_id}_{seed}"
+        fold_prefix = "subject_fold_"
+        fold_base = f"{subject_id}_{seed}"
+
+    base_bytes = base_str.encode("utf-8")
+    hash_obj = hashlib.md5(base_bytes)
+    hash_int = int(hash_obj.hexdigest(), 16)
+    bucket = hash_int % n_folds
+
+    assignments = {}
+    for k in range(n_folds):
+        if bucket == k:
+            assignments[f"{fold_prefix}{k}_assignment"] = "test"
+        else:
+            fold_str = f"{fold_base}_{k}"
+            fold_bytes = fold_str.encode("utf-8")
+            fold_hash_obj = hashlib.md5(fold_bytes)
+            fold_hash_int = int(fold_hash_obj.hexdigest(), 16)
+            normalized_hash = (fold_hash_int % 10000) / 10000.0
+            if normalized_hash < val_ratio:
+                assignments[f"{fold_prefix}{k}_assignment"] = "valid"
+            else:
+                assignments[f"{fold_prefix}{k}_assignment"] = "train"
+    return assignments
