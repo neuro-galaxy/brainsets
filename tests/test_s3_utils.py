@@ -12,7 +12,7 @@ from brainsets.utils.s3_utils import (
     UNSIGNED,
     ClientError,
     get_cached_s3_client,
-    list_objects,
+    get_object_list,
     download_prefix,
     download_prefix_from_url,
 )
@@ -89,7 +89,7 @@ class TestListObjects:
             }
         ]
 
-        result = list_objects("test-bucket", "ds000000/", s3_client=mock_client)
+        result = get_object_list("test-bucket", "ds000000/", s3_client=mock_client)
 
         assert result == [
             "subdir/file1.edf",
@@ -107,7 +107,7 @@ class TestListObjects:
         mock_client.get_paginator.return_value = mock_paginator
         mock_paginator.paginate.return_value = [{}]
 
-        result = list_objects("test-bucket", "empty/", s3_client=mock_client)
+        result = get_object_list("test-bucket", "empty/", s3_client=mock_client)
 
         assert result == []
 
@@ -120,7 +120,7 @@ class TestListObjects:
             {"Contents": [{"Key": "prefix/file2.edf"}]},
         ]
 
-        result = list_objects("test-bucket", "prefix/", s3_client=mock_client)
+        result = get_object_list("test-bucket", "prefix/", s3_client=mock_client)
 
         assert result == ["file1.edf", "file2.edf"]
 
@@ -131,7 +131,7 @@ class TestListObjects:
         mock_paginator.paginate.side_effect = Exception("Network error")
 
         with pytest.raises(RuntimeError, match="Error listing objects"):
-            list_objects("test-bucket", "prefix/", s3_client=mock_client)
+            get_object_list("test-bucket", "prefix/", s3_client=mock_client)
 
     @patch("brainsets.utils.s3_utils.get_cached_s3_client")
     def test_uses_cached_client_when_none_provided(self, mock_get_client):
@@ -141,7 +141,7 @@ class TestListObjects:
         mock_client.get_paginator.return_value = mock_paginator
         mock_paginator.paginate.return_value = [{}]
 
-        list_objects("test-bucket", "prefix/")
+        get_object_list("test-bucket", "prefix/")
 
         mock_get_client.assert_called_once()
 
@@ -157,7 +157,7 @@ class TestListObjects:
                 ]
             }
         ]
-        result = list_objects("test-bucket", "ds000000/", s3_client=mock_client)
+        result = get_object_list("test-bucket", "ds000000/", s3_client=mock_client)
         assert "file1.edf" in result
         assert "other/file2.edf" not in result
 
@@ -173,7 +173,7 @@ class TestListObjects:
                 ]
             }
         ]
-        result = list_objects("test-bucket", "ds000000", s3_client=mock_client)
+        result = get_object_list("test-bucket", "ds000000", s3_client=mock_client)
 
         assert "/file1.edf" in result
         assert "" not in result

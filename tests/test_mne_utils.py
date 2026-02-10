@@ -8,14 +8,14 @@ try:
 
     MNE_AVAILABLE = True
     from brainsets.utils.mne_utils import (
-        extract_meas_date,
+        extract_measurement_date,
         extract_eeg_signal,
         extract_channels,
         extract_psg_signal,
     )
 except ImportError:
     MNE_AVAILABLE = False
-    extract_meas_date = None
+    extract_measurement_date = None
     extract_eeg_signal = None
     extract_channels = None
     extract_psg_signal = None
@@ -56,13 +56,13 @@ class TestExtractMeasDate:
             2023, 6, 15, 10, 30, 0, tzinfo=datetime.timezone.utc
         )
         mock_raw = create_mock_raw(meas_date=expected_date)
-        result = extract_meas_date(mock_raw)
+        result = extract_measurement_date(mock_raw)
         assert result == expected_date
 
     def test_returns_unix_epoch_when_meas_date_none(self):
         mock_raw = create_mock_raw(meas_date=None)
         with pytest.warns(UserWarning, match="No measurement date found"):
-            result = extract_meas_date(mock_raw)
+            result = extract_measurement_date(mock_raw)
         expected = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
         assert result == expected
 
@@ -302,17 +302,17 @@ class TestCheckMneAvailable:
     """Test the _check_mne_available function when MNE is not available."""
 
     @patch("brainsets.utils.mne_utils.MNE_AVAILABLE", False)
-    def test_extract_meas_date_raises_import_error_when_mne_unavailable(self):
-        from brainsets.utils.mne_utils import extract_meas_date
+    def test_extract_measurement_date_raises_mne_import_error(self):
+        from brainsets.utils.mne_utils import extract_measurement_date
 
         mock_raw = MagicMock()
         with pytest.raises(
-            ImportError, match="extract_meas_date requires the MNE library"
+            ImportError, match="extract_measurement_date requires the MNE library"
         ):
-            extract_meas_date(mock_raw)
+            extract_measurement_date(mock_raw)
 
     @patch("brainsets.utils.mne_utils.MNE_AVAILABLE", False)
-    def test_extract_eeg_signal_raises_import_error_when_mne_unavailable(self):
+    def test_extract_eeg_signal_raises_mne_import_error(self):
         from brainsets.utils.mne_utils import extract_eeg_signal
 
         mock_raw = MagicMock()
@@ -322,7 +322,7 @@ class TestCheckMneAvailable:
             extract_eeg_signal(mock_raw)
 
     @patch("brainsets.utils.mne_utils.MNE_AVAILABLE", False)
-    def test_extract_channels_raises_import_error_when_mne_unavailable(self):
+    def test_extract_channels_raises_mne_import_error(self):
         from brainsets.utils.mne_utils import extract_channels
 
         mock_raw = MagicMock()
@@ -332,7 +332,7 @@ class TestCheckMneAvailable:
             extract_channels(mock_raw)
 
     @patch("brainsets.utils.mne_utils.MNE_AVAILABLE", False)
-    def test_extract_psg_signal_raises_import_error_when_mne_unavailable(self):
+    def test_extract_psg_signal_raises_mne_import_error(self):
         from brainsets.utils.mne_utils import extract_psg_signal
 
         mock_raw = MagicMock()

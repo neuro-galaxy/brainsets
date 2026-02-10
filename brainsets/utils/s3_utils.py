@@ -65,7 +65,7 @@ def get_cached_s3_client(
     )
 
 
-def list_objects(
+def get_object_list(
     bucket: str,
     prefix: str,
     s3_client=None,
@@ -84,7 +84,7 @@ def list_objects(
         RuntimeError: If listing fails
         ImportError: If boto3/botocore is not installed.
     """
-    _check_boto_available("list_objects")
+    _check_boto_available("get_object_list")
     if s3_client is None:
         s3_client = get_cached_s3_client()
 

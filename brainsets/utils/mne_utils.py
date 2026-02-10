@@ -29,7 +29,7 @@ def _check_mne_available(func_name: str) -> None:
         )
 
 
-def extract_meas_date(
+def extract_measurement_date(
     recording_data: "mne.io.Raw",
 ) -> datetime.datetime:
     """Extract the measurement date from MNE Raw recording data.
@@ -43,7 +43,7 @@ def extract_meas_date(
     Raises:
         ImportError: If MNE is not installed.
     """
-    _check_mne_available("extract_meas_date")
+    _check_mne_available("extract_measurement_date")
     if recording_data.info["meas_date"] is not None:
         return recording_data.info["meas_date"]
     warnings.warn("No measurement date found, using Unix epoch as placeholder")
@@ -102,10 +102,21 @@ def extract_channels(
 
 
 def extract_psg_signal(raw_psg: "mne.io.Raw") -> Tuple[RegularTimeSeries, ArrayDict]:
-    """Extract physiological signals from PSG EDF file as a RegularTimeSeries.
+    """Extract physiological signals from polysomnography (PSG) recording as a RegularTimeSeries.
+
+    Args:
+        raw_psg: The MNE Raw object containing PSG data from an EDF file
+
+    Returns:
+        A tuple containing:
+        - RegularTimeSeries: The extracted physiological signals with
+          sampling rate and time domain information
+        - ArrayDict: Channel metadata with fields 'ch_id' (channel names)
+          and 'ch_type' (channel types: EEG, EOG, EMG, RESP, or TEMP)
 
     Raises:
         ImportError: If MNE is not installed.
+        ValueError: If no signals are extracted from the PSG file.
     """
     _check_mne_available("extract_psg_signal")
     data, times = raw_psg.get_data(return_times=True)

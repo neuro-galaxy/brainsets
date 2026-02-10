@@ -32,7 +32,7 @@ from brainsets.utils.split import (
 )
 from brainsets.utils.s3_utils import get_cached_s3_client
 from brainsets.utils.mne_utils import (
-    extract_meas_date,
+    extract_measurement_date,
     extract_psg_signal,
 )
 from temporaldata import Data, Interval
@@ -200,7 +200,7 @@ class Pipeline(BrainsetPipeline):
             species=Species.HOMO_SAPIENS,
         )
 
-        recording_date = extract_meas_date(raw_psg)
+        recording_date = extract_measurement_date(raw_psg)
 
         session_description = SessionDescription(
             id=base_name,
