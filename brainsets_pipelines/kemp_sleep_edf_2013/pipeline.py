@@ -228,7 +228,6 @@ class Pipeline(BrainsetPipeline):
             device=device_description,
             eeg=signals,
             channels=channels,
-            channels=channels,
             stages=stages,
             splits=splits,
             domain=signals.domain,
