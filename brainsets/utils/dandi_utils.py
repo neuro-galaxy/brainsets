@@ -154,175 +154,108 @@ def get_nwb_asset_list(dandiset_id: str):
     return asset_list
 
 
-def _identify_elecs(electrodes_table) -> Tuple[np.ndarray, np.ndarray]:
-    if not hasattr(electrodes_table, "group_name") or "group_name" not in getattr(
-        electrodes_table, "colnames", []
-    ):
-        n = len(electrodes_table.id) if hasattr(electrodes_table, "id") else 0
-        return np.zeros(n, dtype=bool), np.zeros(n, dtype=bool)
-    group_names = np.asarray(electrodes_table["group_name"][:]).astype(str)
-    surface = np.array(
-        ["surface" in g.lower() or "ecog" in g.lower() for g in group_names]
-    )
-    depth = np.array(["depth" in g.lower() or "seeg" in g.lower() for g in group_names])
-    return surface, depth
-
-
-def _identify_surface_elecs(group_names: np.ndarray) -> np.ndarray:
-    """Surface vs depth ECoG electrodes (AJILE12 / Peterson-Brunton convention)."""
-    group_names = np.asarray(group_names).astype(str)
-    has_phd = np.any(np.char.upper(group_names) == "PHD")
-    is_surf = []
-    for label in group_names:
-        g = label.lower()
-        if "grid" in g:
-            is_surf.append(True)
-        elif g in ("mhd", "latd", "lmtd", "ltpd"):
-            is_surf.append(True)
-        elif g == "ahd" and not has_phd:
-            is_surf.append(True)
-        elif "d" in g:
-            is_surf.append(False)
-        else:
-            is_surf.append(True)
-    return np.array(is_surf, dtype=bool)
-
-
-def _hemisphere_from_reach_events(nwbfile: NWBFile) -> Optional[Hemisphere]:
-    behavior = nwbfile.processing.get("behavior") if nwbfile.processing else None
-    if behavior is None:
-        return None
-    reach = behavior.data_interfaces.get("ReachEvents")
-    if reach is None or not getattr(reach, "description", None):
-        return None
-    desc = reach.description[:]
-    if desc is None or len(desc) == 0:
-        return None
-    c_wrist = str(desc[0]).strip().lower()
-    if c_wrist == "r":
+def _normalize_hemisphere_input(value: Union[Hemisphere, str]) -> Hemisphere:
+    if isinstance(value, Hemisphere):
+        return value
+    s = str(value).strip().upper()
+    if s == "L":
         return Hemisphere.LEFT
-    if c_wrist == "l":
+    if s == "R":
         return Hemisphere.RIGHT
-    return None
+    try:
+        return Hemisphere.from_string(value)
+    except ValueError:
+        return Hemisphere.UNKNOWN
 
 
-def _resolve_hemisphere(
-    subject_hemisphere: Optional[Union[Hemisphere, str]], nwbfile: NWBFile
-) -> Hemisphere:
-    if subject_hemisphere is not None:
-        if isinstance(subject_hemisphere, Hemisphere):
-            return subject_hemisphere
-        s = subject_hemisphere.strip().upper()
-        if s == "L":
+def _hemisphere_from_nwb(nwbfile: NWBFile, n_channels: int) -> Hemisphere:
+    colnames = getattr(nwbfile.electrodes, "colnames", [])
+    for col in ("hemisphere", "location"):
+        if col not in colnames:
+            continue
+        vals = nwbfile.electrodes[col][:]
+        if vals is None or len(vals) == 0:
+            continue
+        texts = np.asarray([str(v).strip().lower() for v in vals])
+        left = np.any(
+            (texts == "l") | (texts == "left") | np.char.find(texts.astype(str), "left")
+            >= 0
+        )
+        right = np.any(
+            (texts == "r")
+            | (texts == "right")
+            | np.char.find(texts.astype(str), "right")
+            >= 0
+        )
+        if left and not right:
             return Hemisphere.LEFT
-        if s == "R":
+        if right and not left:
             return Hemisphere.RIGHT
-        try:
-            return Hemisphere.from_string(subject_hemisphere)
-        except ValueError:
-            pass
-    inferred = _hemisphere_from_reach_events(nwbfile)
-    return inferred if inferred is not None else Hemisphere.UNKNOWN
+        break
+    if hasattr(nwbfile, "subject") and nwbfile.subject is not None:
+        subj = nwbfile.subject
+        for attr in ("hemisphere", "location"):
+            if not hasattr(subj, attr):
+                continue
+            val = getattr(subj, attr)
+            if val is None:
+                continue
+            v = str(val).strip().lower()
+            if v in ("l", "left"):
+                return Hemisphere.LEFT
+            if v in ("r", "right"):
+                return Hemisphere.RIGHT
+    return Hemisphere.UNKNOWN
 
 
 def extract_ecog_from_nwb(
     nwbfile: NWBFile,
-    resample_rate: float = 250.0,
-    apply_filter: bool = True,
     subject_hemisphere: Optional[Union[Hemisphere, str]] = None,
-    iir_filter: bool = False,
-    chunk_duration: float = 60.0,
 ) -> Tuple[RegularTimeSeries, ArrayDict]:
     """
-    Extract ECoG data from NWB file with memory-efficient chunked loading.
+    Extract ECoG data from NWB file at native sampling rate.
 
-    Args:
-        nwbfile: NWB file object
-        resample_rate: Target sampling rate in Hz
-        apply_filter: Legacy parameter, filtering is not supported in chunked mode
-        subject_hemisphere: Subject hemisphere (left/right)
-        iir_filter: Legacy parameter, not used
-        chunk_duration: Duration in seconds to process at once (tune based on memory)
-
-    Returns:
-        Tuple of (RegularTimeSeries with ecog data, ArrayDict with channel metadata)
+    Hemisphere is taken from subject_hemisphere if provided, otherwise from the
+    NWB file (electrodes table "location"/"hemisphere" or subject metadata).
     """
-    try:
-        from scipy import signal
-    except ImportError:
-        raise ImportError("extract_ecog_from_nwb requires scipy")
-
     if "ElectricalSeries" not in nwbfile.acquisition:
         raise KeyError("NWB file has no acquisition['ElectricalSeries']")
 
-    if apply_filter:
-        raise NotImplementedError(
-            "Filtering is not supported in the optimized chunked implementation. "
-            "Set apply_filter=False and apply filtering after extraction if needed."
-        )
-
     electrical_series = nwbfile.acquisition["ElectricalSeries"]
-    ecog_sampling_rate = float(electrical_series.rate)
+    sampling_rate = float(electrical_series.rate)
     electrodes = nwbfile.electrodes
-    n_samples = electrical_series.data.shape[0]
     n_channels = electrical_series.data.shape[1]
 
-    # Calculate downsampling parameters
-    downsample_factor = int(ecog_sampling_rate / resample_rate)
-    chunk_samples = int(chunk_duration * ecog_sampling_rate)
+    data_out = np.asarray(electrical_series.data, dtype=np.float64)
+    n_samples = data_out.shape[0]
+    times_out = np.arange(n_samples) / sampling_rate
 
-    # Process in chunks to avoid memory issues with long recordings
-    downsampled_chunks = []
-
-    for start_idx in range(0, n_samples, chunk_samples):
-        end_idx = min(start_idx + chunk_samples, n_samples)
-
-        # Lazy load only this chunk from HDF5
-        chunk = np.asarray(
-            electrical_series.data[start_idx:end_idx, :], dtype=np.float64
-        )
-
-        # Downsample with built-in anti-aliasing filter
-        if downsample_factor > 1:
-            chunk = signal.decimate(
-                chunk, downsample_factor, axis=0, ftype="iir", zero_phase=True
-            )
-
-        downsampled_chunks.append(chunk)
-        del chunk  # Explicit memory cleanup
-
-    # Concatenate all downsampled chunks
-    data_out = np.concatenate(downsampled_chunks, axis=0)
-    del downsampled_chunks
-
-    # Create time array
-    times_out = np.arange(data_out.shape[0]) / resample_rate
-
-    # Extract channel metadata
     good = np.ones(n_channels, dtype=bool)
     if hasattr(electrodes, "good") and electrodes.good is not None:
         good = np.asarray(electrodes["good"][:]).astype(bool)
     bad_channels = ~good
 
+    if subject_hemisphere is not None:
+        hemisphere = _normalize_hemisphere_input(subject_hemisphere)
+    else:
+        hemisphere = _hemisphere_from_nwb(nwbfile, n_channels)
+
     colnames = getattr(electrodes, "colnames", [])
     if "group_name" in colnames:
         group_names = np.asarray(electrodes["group_name"][:])
-        is_surface = _identify_surface_elecs(group_names)
     else:
         group_names = np.array([""] * n_channels)
-        is_surface = np.zeros(n_channels, dtype=bool)
 
-    hemisphere = _resolve_hemisphere(subject_hemisphere, nwbfile)
     channel_meta = []
     for i in range(n_channels):
         grp = str(group_names[i]) if i < len(group_names) else ""
         channel_meta.append(
             {
-                "id": f"group_ECoGArray/channel_{i}",
+                "id": f"channel_{i}",
                 "unit_number": i,
                 "hemisphere": int(hemisphere),
                 "group": grp,
-                "surface": bool(is_surface[i]),
+                "surface": False,
                 "count": -1,
                 "type": int(RecordingTech.ECOG_ARRAY_ECOGS),
                 "bad": bool(bad_channels[i]),
@@ -333,149 +266,9 @@ def extract_ecog_from_nwb(
     )
 
     domain = Interval(start=np.array([times_out[0]]), end=np.array([times_out[-1]]))
-
     ecog_rts = RegularTimeSeries(
         ecogs=data_out,
-        sampling_rate=resample_rate,
+        sampling_rate=sampling_rate,
         domain=domain,
     )
     return ecog_rts, channels
-
-
-def extract_pose_from_nwb(nwbfile: NWBFile) -> Tuple[Interval, RegularTimeSeries]:
-    """
-    Extract coarse active behavior label as intervals, and extract both wrist movement
-    trajectories and contralateral reach movement events
-
-    Returns:
-        behavior_trials: Interval containing behavior trial information with active event masking
-        wrist_trajectories: RegularTimeSeries containing R_Wrist and L_Wrist position data
-    """
-    # Extract wrist position data
-    r_wrist = nwbfile.processing["behavior"].data_interfaces["Position"]["R_Wrist"]
-    l_wrist = nwbfile.processing["behavior"].data_interfaces["Position"]["L_Wrist"]
-
-    behavior_sampling_rate = r_wrist.rate
-    assert r_wrist.rate == l_wrist.rate
-
-    wrist_trajectories = RegularTimeSeries(
-        r_wrist=r_wrist.data[:],  # dim (total time length x 2)
-        l_wrist=l_wrist.data[:],
-        sampling_rate=behavior_sampling_rate,
-        domain=Interval(
-            start=np.array([0.0]),
-            end=np.array([(len(r_wrist.data) - 1) / behavior_sampling_rate]),
-        ),
-    )
-
-    # Extract coarse behavior labels
-    coarse_behaviors = nwbfile.intervals["epochs"]
-    coarse_behaviors_labels = coarse_behaviors.labels.data[:].tolist()
-
-    # Define active events and compute active event mask
-    active_events = ["Eat", "Talk", "TV", "Computer/phone", "Other activity"]
-    active_event_mask = np.zeros(len(coarse_behaviors_labels)).astype(bool)
-    for k in range(len(coarse_behaviors_labels)):
-        is_active = True
-        for single_event in coarse_behaviors_labels[k].split(", "):
-            if not (single_event in active_events):
-                is_active = False
-        active_event_mask[k] = is_active
-
-    behavior_trials = Interval(
-        start=coarse_behaviors.start_time.data[:],
-        end=coarse_behaviors.stop_time.data[:],
-        behavior_labels=coarse_behaviors.labels.data[:],
-        active=active_event_mask,
-    )
-
-    # Print unique behavior labels and which are active
-    unique_behavior_labels = np.unique(coarse_behaviors_labels)
-    unique_active_behavior_mask = np.zeros(unique_behavior_labels.shape[0]).astype(bool)
-    for k in range(unique_behavior_labels.shape[0]):
-        is_active = True
-        for single_event in unique_behavior_labels[k].split(", "):
-            if not (single_event in active_events):
-                is_active = False
-        unique_active_behavior_mask[k] = is_active
-
-    print(
-        "unique behavior labels",
-        unique_behavior_labels,
-        "in which",
-        unique_behavior_labels[unique_active_behavior_mask],
-        "are active.",
-    )
-
-    return behavior_trials, wrist_trajectories
-
-
-def extract_behavior_intervals_from_nwb(nwbfile: NWBFile) -> Interval:
-    if "epochs" not in nwbfile.intervals:
-        return Interval(
-            start=np.array([]),
-            end=np.array([]),
-            behavior_labels=np.array([]),
-            active=np.array([]),
-        )
-
-    epochs = nwbfile.intervals["epochs"]
-    starts = np.asarray(epochs.start_time.data[:])
-    ends = np.asarray(epochs.stop_time.data[:])
-    labels = epochs.labels.data[:].tolist()
-
-    active_events = ["Eat", "Talk", "TV", "Computer/phone", "Other activity"]
-    active_event_mask = np.zeros(len(labels)).astype(bool)
-    for k in range(len(labels)):
-        is_active = True
-        for single_event in labels[k].split(", "):
-            if not (single_event in active_events):
-                is_active = False
-        active_event_mask[k] = is_active
-
-    behavior_trials = Interval(
-        start=starts,
-        end=ends,
-        behavior_labels=np.asarray(labels),
-        active=active_event_mask,
-    )
-
-    # Print unique behavior labels and which are active
-    unique_behavior_labels = np.unique(labels)
-    unique_active_behavior_mask = np.zeros(unique_behavior_labels.shape[0]).astype(bool)
-    for k in range(unique_behavior_labels.shape[0]):
-        is_active = True
-        for single_event in unique_behavior_labels[k].split(", "):
-            if not (single_event in active_events):
-                is_active = False
-        unique_active_behavior_mask[k] = is_active
-
-    print(
-        "unique behavior labels",
-        unique_behavior_labels,
-        "in which",
-        unique_behavior_labels[unique_active_behavior_mask],
-        "are active.",
-    )
-
-    return behavior_trials
-
-
-def extract_reach_events_from_nwb(
-    nwbfile: NWBFile,
-) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-    behavior = nwbfile.processing.get("behavior")
-    if behavior is None:
-        return None, None
-    reach_events = behavior.data_interfaces.get("ReachEvents")
-    if reach_events is None:
-        return None, None
-    timestamps = (
-        reach_events.timestamps[:] if hasattr(reach_events, "timestamps") else None
-    )
-    hemisphere = None
-    if hasattr(reach_events, "data") and reach_events.data is not None:
-        data = reach_events.data[:]
-        if data is not None and data.size > 0:
-            hemisphere = np.asarray(data).flatten()
-    return np.asarray(timestamps) if timestamps is not None else None, hemisphere

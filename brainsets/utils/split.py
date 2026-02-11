@@ -356,6 +356,11 @@ def generate_trial_folds(
             f"Not enough trials ({len(class_labels)}) for {n_folds} folds."
         )
 
+    unique_labels, counts = np.unique(class_labels, return_counts=True)
+    for label, count in zip(unique_labels, counts):
+        if count < n_folds:
+            raise ValueError(f"Trial category {label} has only {count} trials")
+
     outer_splitter = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
     folds = []
     sample_indices = np.arange(len(trials))

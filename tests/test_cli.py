@@ -1,7 +1,6 @@
 """Tests for CLI commands in brainsets._cli module."""
 
 import pytest
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
 
