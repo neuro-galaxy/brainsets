@@ -251,12 +251,11 @@ def extract_ecog_from_nwb(
         grp = str(group_names[i]) if i < len(group_names) else ""
         channel_meta.append(
             {
-                "id": f"channel_{i}",
-                "unit_number": i,
+                "ids": f"channel_{i}",
+                "index": i,
                 "hemisphere": int(hemisphere),
                 "group": grp,
                 "surface": False,
-                "count": -1,
                 "type": int(RecordingTech.ECOG_ARRAY_ECOGS),
                 "bad": bool(bad_channels[i]),
             }
@@ -267,7 +266,7 @@ def extract_ecog_from_nwb(
 
     domain = Interval(start=np.array([times_out[0]]), end=np.array([times_out[-1]]))
     ecog_rts = RegularTimeSeries(
-        ecogs=data_out,
+        signal=data_out,
         sampling_rate=sampling_rate,
         domain=domain,
     )
