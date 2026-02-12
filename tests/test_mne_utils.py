@@ -171,56 +171,56 @@ class TestExtractPSGSignal:
         ch_names = ["EEG Fpz-Cz", "EEG Pz-Oz", "Other"]
         mock_raw = self.create_mock_psg_raw(ch_names)
 
-        signals, units = extract_psg_signal(mock_raw)
+        signals, channels = extract_psg_signal(mock_raw)
 
-        assert "EEG" in units.modality
-        assert np.sum(units.modality == "EEG") == 2
+        assert "EEG" in channels.ch_type
+        assert np.sum(channels.ch_type == "EEG") == 2
 
     def test_extracts_eog_channels(self):
         ch_names = ["EOG horizontal", "EEG Fpz-Cz"]
         mock_raw = self.create_mock_psg_raw(ch_names)
 
-        signals, units = extract_psg_signal(mock_raw)
+        signals, channels = extract_psg_signal(mock_raw)
 
-        assert "EOG" in units.modality
+        assert "EOG" in channels.ch_type
 
     def test_extracts_emg_channels(self):
         ch_names = ["EMG submental", "EEG Fpz-Cz"]
         mock_raw = self.create_mock_psg_raw(ch_names)
 
-        signals, units = extract_psg_signal(mock_raw)
+        signals, channels = extract_psg_signal(mock_raw)
 
-        assert "EMG" in units.modality
+        assert "EMG" in channels.ch_type
 
     def test_extracts_resp_channels(self):
         ch_names = ["Resp oro-nasal", "EEG Fpz-Cz"]
         mock_raw = self.create_mock_psg_raw(ch_names)
 
-        signals, units = extract_psg_signal(mock_raw)
+        signals, channels = extract_psg_signal(mock_raw)
 
-        assert "RESP" in units.modality
+        assert "RESP" in channels.ch_type
 
     def test_extracts_temp_channels(self):
         ch_names = ["Temp rectal", "EEG Fpz-Cz"]
         mock_raw = self.create_mock_psg_raw(ch_names)
 
-        signals, units = extract_psg_signal(mock_raw)
+        signals, channels = extract_psg_signal(mock_raw)
 
-        assert "TEMP" in units.modality
+        assert "TEMP" in channels.ch_type
 
     def test_skips_unknown_channels(self):
         ch_names = ["Unknown1", "Unknown2", "EEG Fpz-Cz"]
         mock_raw = self.create_mock_psg_raw(ch_names)
 
-        signals, units = extract_psg_signal(mock_raw)
+        signals, channels = extract_psg_signal(mock_raw)
 
-        assert len(units.id) == 1  # only EEG
+        assert len(channels.ch_id) == 1  # only EEG
 
     def test_returns_regular_time_series(self):
         ch_names = ["EEG Fpz-Cz", "EOG horizontal"]
         mock_raw = self.create_mock_psg_raw(ch_names)
 
-        signals, units = extract_psg_signal(mock_raw)
+        signals, channels = extract_psg_signal(mock_raw)
 
         assert hasattr(signals, "signal")
         assert hasattr(signals, "sampling_rate")
@@ -231,7 +231,7 @@ class TestExtractPSGSignal:
         n_samples = 500
         mock_raw = self.create_mock_psg_raw(ch_names, n_samples=n_samples)
 
-        signals, units = extract_psg_signal(mock_raw)
+        signals, channels = extract_psg_signal(mock_raw)
 
         assert signals.signal.shape == (n_samples, 3)
 
@@ -240,18 +240,18 @@ class TestExtractPSGSignal:
         sfreq = 128.0
         mock_raw = self.create_mock_psg_raw(ch_names, sfreq=sfreq)
 
-        signals, units = extract_psg_signal(mock_raw)
+        signals, channels = extract_psg_signal(mock_raw)
 
         assert signals.sampling_rate == sfreq
 
-    def test_units_has_id_and_modality(self):
+    def test_channels_has_id_and_type(self):
         ch_names = ["EEG Fpz-Cz", "EOG horizontal"]
         mock_raw = self.create_mock_psg_raw(ch_names)
 
-        signals, units = extract_psg_signal(mock_raw)
+        signals, channels = extract_psg_signal(mock_raw)
 
-        assert hasattr(units, "id")
-        assert hasattr(units, "modality")
+        assert hasattr(channels, "ch_id")
+        assert hasattr(channels, "ch_type")
 
     def test_raises_error_when_no_signals_extracted(self):
         ch_names = ["Unknown1", "Unknown2"]
@@ -264,26 +264,26 @@ class TestExtractPSGSignal:
         ch_names = ["EEG Fpz-Cz", "EOG horizontal"]
         mock_raw = self.create_mock_psg_raw(ch_names)
 
-        signals, units = extract_psg_signal(mock_raw)
+        signals, channels = extract_psg_signal(mock_raw)
 
-        assert "EEG Fpz-Cz" in units.id
-        assert "EOG horizontal" in units.id
+        assert "EEG Fpz-Cz" in channels.ch_id
+        assert "EOG horizontal" in channels.ch_id
 
     def test_extracts_fpz_cz_pattern_case_insensitive(self):
         ch_names = ["FPZ-CZ", "fpz-cz", "Fpz-Cz"]
         mock_raw = self.create_mock_psg_raw(ch_names)
 
-        signals, units = extract_psg_signal(mock_raw)
+        signals, channels = extract_psg_signal(mock_raw)
 
-        assert np.sum(units.modality == "EEG") == 3
+        assert np.sum(channels.ch_type == "EEG") == 3
 
     def test_extracts_pz_oz_pattern_case_insensitive(self):
         ch_names = ["PZ-OZ", "pz-oz", "Pz-Oz"]
         mock_raw = self.create_mock_psg_raw(ch_names)
 
-        signals, units = extract_psg_signal(mock_raw)
+        signals, channels = extract_psg_signal(mock_raw)
 
-        assert np.sum(units.modality == "EEG") == 3
+        assert np.sum(channels.ch_type == "EEG") == 3
 
     def test_domain_uses_first_and_last_time_values(self):
         ch_names = ["EEG Fpz-Cz"]
@@ -292,7 +292,7 @@ class TestExtractPSGSignal:
         mock_raw = self.create_mock_psg_raw(ch_names, n_samples=n_samples, sfreq=sfreq)
         _, times = mock_raw.get_data(return_times=True)
 
-        signals, units = extract_psg_signal(mock_raw)
+        signals, channels = extract_psg_signal(mock_raw)
 
         assert np.isclose(signals.domain.start, times[0])
         assert np.isclose(signals.domain.end, times[-1])
