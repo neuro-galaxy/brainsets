@@ -86,6 +86,7 @@ class SubjectDescription(temporaldata.Data):
 
         Raises:
             ValueError: If the age is negative.
+            TypeError: If the age is not a float, int, numeric string, or None.
         """
         if age is None:
             return 0.0
@@ -104,7 +105,9 @@ class SubjectDescription(temporaldata.Data):
                     raise ValueError(f"Age cannot be negative, got {age_normalized}")
                 return age_normalized
         else:
-            return 0.0
+            raise TypeError(
+                f"Age must be a float, int, numeric string, or None, got {type(age).__name__}"
+            )
 
     @field_validator("sex", mode="before")
     @classmethod
@@ -117,11 +120,16 @@ class SubjectDescription(temporaldata.Data):
 
         Returns:
             Normalized Sex enum member. Defaults to Sex.UNKNOWN if None or unrecognized.
+
+        Raises:
+            TypeError: If the sex is not a Sex enum, string, int, or None.
         """
         if sex is None:
             return Sex.UNKNOWN
         elif isinstance(sex, Sex):
             return sex
+        elif isinstance(sex, bool):
+            raise TypeError(f"Sex must be a Sex enum, string, int, or None, got bool")
         elif isinstance(sex, str):
             try:
                 return Sex.from_string(sex)
@@ -133,7 +141,9 @@ class SubjectDescription(temporaldata.Data):
             except ValueError:
                 return Sex.UNKNOWN
         else:
-            return Sex.UNKNOWN
+            raise TypeError(
+                f"Sex must be a Sex enum, string, int, or None, got {type(sex).__name__}"
+            )
 
     @field_validator("species", mode="before")
     @classmethod
@@ -149,6 +159,9 @@ class SubjectDescription(temporaldata.Data):
         Returns:
             Normalized Species enum member. Defaults to Species.UNKNOWN if None or
             unrecognized.
+
+        Raises:
+            TypeError: If the species is not a Species enum, string, int, or None.
         """
         if species is None:
             return Species.UNKNOWN
@@ -165,7 +178,9 @@ class SubjectDescription(temporaldata.Data):
             except ValueError:
                 return Species.UNKNOWN
         else:
-            return Species.UNKNOWN
+            raise TypeError(
+                f"Species must be a Species enum, string, int, or None, got {type(species).__name__}"
+            )
 
 
 @dataclass

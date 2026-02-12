@@ -86,24 +86,34 @@ class TestSubjectDescription:
         assert result.sex == Sex.UNKNOWN
 
     def test_sex_as_boolean(self):
-        """Test that passing a boolean for sex is treated as int (True=1=MALE, False=0=UNKNOWN)."""
-        result_true = SubjectDescription(id="subject_1", sex=True)
-        assert result_true.sex == Sex.MALE
+        """Test that passing a boolean for sex raises an error."""
+        with pytest.raises(
+            Exception, match="Sex must be a Sex enum, string, int, or None"
+        ):
+            SubjectDescription(id="subject_1", sex=True)
 
-        result_false = SubjectDescription(id="subject_1", sex=False)
-        assert result_false.sex == Sex.UNKNOWN
+        with pytest.raises(
+            Exception, match="Sex must be a Sex enum, string, int, or None"
+        ):
+            SubjectDescription(id="subject_1", sex=False)
 
     def test_sex_as_float(self):
-        result = SubjectDescription(id="subject_1", sex=3.14)
-        assert result.sex == Sex.UNKNOWN
+        with pytest.raises(
+            Exception, match="Sex must be a Sex enum, string, int, or None"
+        ):
+            SubjectDescription(id="subject_1", sex=3.14)
 
     def test_sex_as_tuple(self):
-        result = SubjectDescription(id="subject_1", sex=(1, 2))
-        assert result.sex == Sex.UNKNOWN
+        with pytest.raises(
+            Exception, match="Sex must be a Sex enum, string, int, or None"
+        ):
+            SubjectDescription(id="subject_1", sex=(1, 2))
 
     def test_species_as_list(self):
-        result = SubjectDescription(id="subject_1", species=[])
-        assert result.species == Species.UNKNOWN
+        with pytest.raises(
+            Exception, match="Species must be a Species enum, string, int, or None"
+        ):
+            SubjectDescription(id="subject_1", species=[])
 
     # Species normalization tests
     def test_species_as_enum(self):
@@ -232,5 +242,7 @@ class TestSubjectDescription:
             SubjectDescription(id="subject_1", age="-10")
 
     def test_age_with_unexpected_type(self):
-        result = SubjectDescription(id="subject_1", age=[])
-        assert result.age == 0.0
+        with pytest.raises(
+            Exception, match="Age must be a float, int, numeric string, or None"
+        ):
+            SubjectDescription(id="subject_1", age=[])
