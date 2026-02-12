@@ -67,7 +67,7 @@ class SubjectDescription(temporaldata.Data):
     """
 
     id: str
-    species: Species
+    species: Species = Species.UNKNOWN
     age: float = 0.0  # in days
     sex: Sex = Sex.UNKNOWN
     genotype: str = "unknown"  # no idea how many there will be for now.
