@@ -38,6 +38,7 @@ from brainsets.utils.dandi_utils import (
 )
 from brainsets.utils.split import (
     generate_subject_kfold_assignment,
+    generate_trial_folds,
     generate_trial_folds_by_task,
 )
 
@@ -59,9 +60,9 @@ parser.add_argument(
 )
 
 # Some sessions contain very few "Other activity" trials (<2) so we can't use them for splitting.
-# We exclude them from the AllActiveBehavior task.
+# We exclude them from the all_active_behavior task.
 BEHAVIOR_TASK_CONFIGS = {
-    "AllActiveBehavior": ["Eat", "Talk", "TV", "Computer/phone"],
+    "all_active_behavior": ["Eat", "Talk", "TV", "Computer/phone"],
 }
 
 
@@ -145,6 +146,7 @@ class Pipeline(BrainsetPipeline):
             elif "Other activity" in label:
                 behavior_trials.behavior_labels[index] = "Other activity"
 
+        active_vs_inactive_splits = {}
         if len(behavior_trials) > 0 and hasattr(behavior_trials, "behavior_labels"):
             behavior_splits = generate_trial_folds_by_task(
                 behavior_trials,
@@ -154,10 +156,28 @@ class Pipeline(BrainsetPipeline):
                 val_ratio=0.2,
                 seed=42,
             )
+            active_folds = generate_trial_folds(
+                behavior_trials,
+                "active",
+                n_folds=3,
+                val_ratio=0.2,
+                seed=42,
+            )
+            for k, fold_data in enumerate(active_folds):
+                active_vs_inactive_splits[f"active_vs_inactive_fold_{k}_train"] = (
+                    fold_data.train
+                )
+                active_vs_inactive_splits[f"active_vs_inactive_fold_{k}_valid"] = (
+                    fold_data.valid
+                )
+                active_vs_inactive_splits[f"active_vs_inactive_fold_{k}_test"] = (
+                    fold_data.test
+                )
         return Data(
             **subject_assign,
             **session_assign,
             **behavior_splits,
+            **active_vs_inactive_splits,
             domain=behavior_trials,
         )
 

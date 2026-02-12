@@ -5,9 +5,20 @@ from temporaldata import Interval
 
 from torch_brain.dataset import Dataset
 
+BEHAVIOR_LABELS = ["Eat", "Talk", "TV", "Computer/phone"]
+
 
 def _empty_interval() -> Interval:
     return Interval(start=np.array([]), end=np.array([]))
+
+
+def _behavior_trials_for_task(recording, task_type: str) -> Interval:
+    trials = recording.behavior_trials
+    if task_type == "active_vs_inactive":
+        return trials
+    # behavior and pose_estimation share the same active-behavior intervals
+    mask = np.isin(trials.behavior_labels, BEHAVIOR_LABELS)
+    return trials.select_by_mask(mask)
 
 
 class PetersonBruntonPoseTrajectory2022(Dataset):
@@ -16,23 +27,13 @@ class PetersonBruntonPoseTrajectory2022(Dataset):
         root: str,
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
-        split_type: Literal[
-            "subject_fold_0",
-            "subject_fold_1",
-            "subject_fold_2",
-            "session_fold_0",
-            "session_fold_1",
-            "session_fold_2",
-            "AllActiveBehavior_fold_0",
-            "AllActiveBehavior_fold_1",
-            "AllActiveBehavior_fold_2",
-            "EatVsOther_fold_0",
-            "EatVsOther_fold_1",
-            "EatVsOther_fold_2",
-            "TalkVsOther_fold_0",
-            "TalkVsOther_fold_1",
-            "TalkVsOther_fold_2",
-        ] = "AllActiveBehavior_fold_0",
+        fold_num: Optional[int] = None,
+        split_type: Optional[
+            Literal["intersubject", "intersession", "intrasession"]
+        ] = None,
+        task_type: Optional[
+            Literal["active_vs_inactive", "behavior", "pose_estimation"]
+        ] = "behavior",
         dirname: str = "peterson_brunton_pose_trajectory_2022",
         **kwargs,
     ):
@@ -43,7 +44,9 @@ class PetersonBruntonPoseTrajectory2022(Dataset):
             namespace_attributes=["session.id", "subject.id", "channels.id"],
             **kwargs,
         )
+        self.fold_num = fold_num
         self.split_type = split_type
+        self.task_type = task_type
 
     def get_sampling_intervals(
         self,
@@ -53,28 +56,58 @@ class PetersonBruntonPoseTrajectory2022(Dataset):
             return {rid: self.get_recording(rid).domain for rid in self.recording_ids}
         if split not in ("train", "valid", "test"):
             raise ValueError("split must be 'train', 'valid', 'test', or None.")
+        if self.split_type is None or self.fold_num is None:
+            raise ValueError(
+                "split_type and fold_num must be set when split is not None."
+            )
+        if self.task_type not in ("active_vs_inactive", "behavior", "pose_estimation"):
+            raise ValueError(f"Invalid task_type '{self.task_type}'.")
 
-        st = self.split_type
-        if st.startswith("subject_fold_"):
-            fold_num = st.replace("subject_fold_", "")
-            assignment_key = f"subject_fold_{fold_num}_assignment"
-            out = {}
-            for rid in self.recording_ids:
-                rec = self.get_recording(rid)
-                assign = rec.get_nested_attribute(f"splits.{assignment_key}")
-                out[rid] = rec.domain if assign == split else _empty_interval()
-            return out
-        if st.startswith("session_fold_"):
-            fold_num = st.replace("session_fold_", "")
-            assignment_key = f"session_fold_{fold_num}_assignment"
-            out = {}
-            for rid in self.recording_ids:
-                rec = self.get_recording(rid)
-                assign = rec.get_nested_attribute(f"splits.{assignment_key}")
-                out[rid] = rec.domain if assign == split else _empty_interval()
-            return out
-        interval_key = f"{st}_{split}"
+        if self.split_type == "intrasession":
+            return self._get_intrasession_intervals(split)
+        if self.split_type in ("intersubject", "intersession"):
+            return self._get_intersubject_or_intersession_intervals(split)
+        raise ValueError(f"Invalid split_type '{self.split_type}'.")
+
+    def _get_intrasession_intervals(
+        self, split: Literal["train", "valid", "test"]
+    ) -> dict:
+        if self.task_type == "active_vs_inactive":
+            key = f"splits.active_vs_inactive_fold_{self.fold_num}_{split}"
+        elif self.task_type in ("behavior", "pose_estimation"):
+            key = f"splits.all_active_behavior_fold_{self.fold_num}_{split}"
+        else:
+            raise ValueError(f"Invalid task_type '{self.task_type}'.")
         return {
-            rid: self.get_recording(rid).get_nested_attribute(f"splits.{interval_key}")
+            rid: self.get_recording(rid).get_nested_attribute(key)
             for rid in self.recording_ids
         }
+
+    def _get_intersubject_or_intersession_intervals(
+        self, split: Literal["train", "valid", "test"]
+    ) -> dict:
+        prefix = "subject" if self.split_type == "intersubject" else "session"
+        assignment_key = f"splits.{prefix}_fold_{self.fold_num}_assignment"
+        result = {}
+        for rid in self.recording_ids:
+            data = self.get_recording(rid)
+            # str() guards against h5py returning bytes or numpy.str_
+            assignment = str(data.get_nested_attribute(assignment_key))
+            if assignment == split:
+                result[rid] = _behavior_trials_for_task(data, self.task_type)
+            else:
+                result[rid] = _empty_interval()
+        return result
+
+
+if __name__ == "__main__":
+    dataset = PetersonBruntonPoseTrajectory2022(
+        root="data/processed",
+        task_type="active_vs_inactive",
+        split_type="intrasession",
+        fold_num=0,
+    )
+    intervals = dataset.get_sampling_intervals(split="test")[
+        "AJILE12_P01_20000107_ses7_pose_trajectories"
+    ]
+    print(intervals)
