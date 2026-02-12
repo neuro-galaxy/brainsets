@@ -20,9 +20,9 @@ import pandas as pd
 from brainsets import serialize_fn_map
 from brainsets.descriptions import (
     BrainsetDescription,
+    SubjectDescription,
     SessionDescription,
     DeviceDescription,
-    extract_subject_description,
 )
 from brainsets.taxonomy import RecordingTech, Species, Sex
 from brainsets.pipeline import BrainsetPipeline
@@ -193,11 +193,11 @@ class Pipeline(BrainsetPipeline):
             subject_id = base_name
             study_type = "unknown"
 
-        subject = extract_subject_description(
-            subject_id=f"{study_type}_{subject_id}",
+        subject = SubjectDescription(
+            id=f"{study_type}_{subject_id}",
+            species=Species.HOMO_SAPIENS,
             age=age,
             sex=sex,
-            species=Species.HOMO_SAPIENS,
         )
 
         recording_date = extract_measurement_date(raw_psg)

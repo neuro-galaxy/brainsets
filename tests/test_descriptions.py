@@ -1,16 +1,13 @@
 import pytest
-from brainsets.descriptions import (
-    extract_subject_description,
-    SubjectDescription,
-)
+from brainsets.descriptions import SubjectDescription
 from brainsets.taxonomy import Species, Sex
 
 
-class TestExtractSubjectDescription:
+class TestSubjectDescription:
 
     def test_basic_usage_with_all_parameters(self):
-        result = extract_subject_description(
-            subject_id="subject_1",
+        result = SubjectDescription(
+            id="subject_1",
             age=30.5,
             sex=Sex.MALE,
             species=Species.HUMAN,
@@ -22,8 +19,8 @@ class TestExtractSubjectDescription:
         assert result.sex == Sex.MALE
         assert result.species == Species.HUMAN
 
-    def test_minimal_usage_with_only_subject_id(self):
-        result = extract_subject_description(subject_id="subject_1")
+    def test_minimal_usage_with_only_id(self):
+        result = SubjectDescription(id="subject_1")
 
         assert isinstance(result, SubjectDescription)
         assert result.id == "subject_1"
@@ -33,25 +30,25 @@ class TestExtractSubjectDescription:
 
     # Age normalization tests
     def test_age_as_int(self):
-        result = extract_subject_description(subject_id="subject_1", age=25)
+        result = SubjectDescription(id="subject_1", age=25)
         assert result.age == 25.0
         assert isinstance(result.age, float)
 
     def test_age_as_float(self):
-        result = extract_subject_description(subject_id="subject_1", age=30.5)
+        result = SubjectDescription(id="subject_1", age=30.5)
         assert result.age == 30.5
 
     def test_age_as_string_numeric(self):
-        result = extract_subject_description(subject_id="subject_1", age="45.7")
+        result = SubjectDescription(id="subject_1", age="45.7")
         assert result.age == 45.7
 
     def test_age_as_string_invalid(self):
-        result = extract_subject_description(subject_id="subject_1", age="invalid")
+        result = SubjectDescription(id="subject_1", age="invalid")
         assert result.age == 0.0
 
     # Sex normalization tests
     def test_sex_as_enum(self):
-        result = extract_subject_description(subject_id="subject_1", sex=Sex.FEMALE)
+        result = SubjectDescription(id="subject_1", species=None, sex=Sex.FEMALE)
         assert result.sex == Sex.FEMALE
 
     def test_sex_as_string_valid(self):
@@ -66,11 +63,11 @@ class TestExtractSubjectDescription:
             ("unknown", Sex.UNKNOWN),
         ]
         for sex_str, expected_sex in test_cases:
-            result = extract_subject_description(subject_id="subject_1", sex=sex_str)
+            result = SubjectDescription(id="subject_1", sex=sex_str)
             assert result.sex == expected_sex, f"Failed for input: {sex_str}"
 
     def test_sex_as_string_invalid(self):
-        result = extract_subject_description(subject_id="subject_1", sex="invalid_sex")
+        result = SubjectDescription(id="subject_1", sex="invalid_sex")
         assert result.sex == Sex.UNKNOWN
 
     def test_sex_as_int_valid(self):
@@ -81,38 +78,36 @@ class TestExtractSubjectDescription:
             (3, Sex.OTHER),
         ]
         for sex_int, expected_sex in test_cases:
-            result = extract_subject_description(subject_id="subject_1", sex=sex_int)
+            result = SubjectDescription(id="subject_1", sex=sex_int)
             assert result.sex == expected_sex, f"Failed for input: {sex_int}"
 
     def test_sex_as_int_invalid(self):
-        result = extract_subject_description(subject_id="subject_1", sex=99)
+        result = SubjectDescription(id="subject_1", sex=99)
         assert result.sex == Sex.UNKNOWN
 
     def test_sex_as_boolean(self):
         """Test that passing a boolean for sex is treated as int (True=1=MALE, False=0=UNKNOWN)."""
-        result_true = extract_subject_description(subject_id="subject_1", sex=True)
+        result_true = SubjectDescription(id="subject_1", sex=True)
         assert result_true.sex == Sex.MALE
 
-        result_false = extract_subject_description(subject_id="subject_1", sex=False)
+        result_false = SubjectDescription(id="subject_1", sex=False)
         assert result_false.sex == Sex.UNKNOWN
 
     def test_sex_as_float(self):
-        result = extract_subject_description(subject_id="subject_1", sex=3.14)
+        result = SubjectDescription(id="subject_1", sex=3.14)
         assert result.sex == Sex.UNKNOWN
 
     def test_sex_as_tuple(self):
-        result = extract_subject_description(subject_id="subject_1", sex=(1, 2))
+        result = SubjectDescription(id="subject_1", sex=(1, 2))
         assert result.sex == Sex.UNKNOWN
 
     def test_species_as_list(self):
-        with pytest.raises(UnboundLocalError):
-            extract_subject_description(subject_id="subject_1", species=[])
+        result = SubjectDescription(id="subject_1", species=[])
+        assert result.species == Species.UNKNOWN
 
     # Species normalization tests
     def test_species_as_enum(self):
-        result = extract_subject_description(
-            subject_id="subject_1", species=Species.HOMO_SAPIENS
-        )
+        result = SubjectDescription(id="subject_1", species=Species.HOMO_SAPIENS)
         assert result.species == Species.HOMO_SAPIENS
 
     def test_species_as_string_valid(self):
@@ -126,15 +121,13 @@ class TestExtractSubjectDescription:
         ]
 
         for species_str, expected_species in test_cases:
-            result = extract_subject_description(subject_id="s_1", species=species_str)
+            result = SubjectDescription(id="s_1", species=species_str)
             assert (
                 result.species == expected_species
             ), f"Failed for input: {species_str}"
 
     def test_species_as_string_invalid(self):
-        result = extract_subject_description(
-            subject_id="subject_1", species="invalid_species"
-        )
+        result = SubjectDescription(id="subject_1", species="invalid_species")
         assert result.species == Species.UNKNOWN
 
     def test_species_as_int_valid(self):
@@ -147,19 +140,19 @@ class TestExtractSubjectDescription:
         ]
 
         for species_int, expected_species in test_cases:
-            result = extract_subject_description(subject_id="s_1", species=species_int)
+            result = SubjectDescription(id="s_1", species=species_int)
             assert (
                 result.species == expected_species
             ), f"Failed for input: {species_int}"
 
     def test_species_as_int_invalid(self):
-        result = extract_subject_description(subject_id="s_1", species=999)
+        result = SubjectDescription(id="s_1", species=999)
         assert result.species == Species.UNKNOWN
 
     # Combined parameter tests
     def test_all_parameters_with_strings(self):
-        result = extract_subject_description(
-            subject_id="subject_1",
+        result = SubjectDescription(
+            id="subject_1",
             age="45.5",
             sex="M",
             species="HOMO_SAPIENS",
@@ -171,8 +164,8 @@ class TestExtractSubjectDescription:
         assert result.species == Species.HOMO_SAPIENS
 
     def test_all_parameters_with_ints(self):
-        result = extract_subject_description(
-            subject_id="subject_1",
+        result = SubjectDescription(
+            id="subject_1",
             age=30,
             sex=2,
             species=2,
@@ -184,8 +177,8 @@ class TestExtractSubjectDescription:
         assert result.species == Species.HOMO_SAPIENS
 
     def test_mixed_parameter_types(self):
-        result = extract_subject_description(
-            subject_id="s_1",
+        result = SubjectDescription(
+            id="s_1",
             age=25.5,
             sex="F",
             species=Species.MACACA_MULATTA,
@@ -197,8 +190,8 @@ class TestExtractSubjectDescription:
         assert result.species == Species.MACACA_MULATTA
 
     def test_invalid_inputs_fallback_to_defaults(self):
-        result = extract_subject_description(
-            subject_id="subject_1",
+        result = SubjectDescription(
+            id="subject_1",
             age="not_a_number",
             sex="invalid",
             species="invalid",
@@ -210,8 +203,8 @@ class TestExtractSubjectDescription:
         assert result.species == Species.UNKNOWN
 
     def test_edge_case_empty_strings(self):
-        result = extract_subject_description(
-            subject_id="subject_1",
+        result = SubjectDescription(
+            id="subject_1",
             age="",
             sex="",
             species="",
@@ -223,21 +216,21 @@ class TestExtractSubjectDescription:
         assert result.species == Species.UNKNOWN
 
     def test_zero_age(self):
-        result = extract_subject_description(subject_id="subject_1", age=0)
+        result = SubjectDescription(id="subject_1", species=None, age=0)
         assert result.age == 0.0
 
     def test_negative_age(self):
         with pytest.raises(ValueError, match="Age cannot be negative"):
-            extract_subject_description(subject_id="subject_1", age=-5)
+            SubjectDescription(id="subject_1", age=-5)
 
     def test_negative_age_float(self):
         with pytest.raises(ValueError, match="Age cannot be negative"):
-            extract_subject_description(subject_id="subject_1", age=-5.5)
+            SubjectDescription(id="subject_1", age=-5.5)
 
     def test_negative_age_string(self):
         with pytest.raises(ValueError, match="Age cannot be negative"):
-            extract_subject_description(subject_id="subject_1", age="-10")
+            SubjectDescription(id="subject_1", age="-10")
 
     def test_age_with_unexpected_type(self):
-        result = extract_subject_description(subject_id="subject_1", age=[])
+        result = SubjectDescription(id="subject_1", age=[])
         assert result.age == 0.0

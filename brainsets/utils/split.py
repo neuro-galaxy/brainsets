@@ -430,10 +430,12 @@ def generate_train_valid_splits_one_epoch(
     val_split_time = train_split_time + split_ratios[1] * (epoch_end - epoch_start)
 
     train_intervals = Interval(
-        start=epoch_start, end=train_split_time,
+        start=epoch_start,
+        end=train_split_time,
     )
     valid_intervals = Interval(
-        start=train_intervals.end[0], end=val_split_time,
+        start=train_intervals.end[0],
+        end=val_split_time,
     )
 
     return train_intervals, valid_intervals

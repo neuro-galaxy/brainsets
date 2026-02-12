@@ -1,6 +1,7 @@
 import datetime
 from typing import Dict, List, Tuple, Optional, Union
 
+from pydantic import field_validator
 from pydantic.dataclasses import dataclass
 import temporaldata
 
@@ -44,6 +45,11 @@ class BrainsetDescription(temporaldata.Data):
 class SubjectDescription(temporaldata.Data):
     r"""A class for describing a subject.
 
+    Fields are automatically normalized during construction:
+    - ``species`` accepts a Species enum, string, int, or None (defaults to Species.UNKNOWN)
+    - ``age`` accepts a float, int, numeric string, or None (defaults to 0.0)
+    - ``sex`` accepts a Sex enum, string, int, or None (defaults to Sex.UNKNOWN)
+
     Parameters
     ----------
     id : str
@@ -67,79 +73,99 @@ class SubjectDescription(temporaldata.Data):
     genotype: str = "unknown"  # no idea how many there will be for now.
     cre_line: Optional[Cre_line] = None
 
+    @field_validator("age", mode="before")
+    @classmethod
+    def normalize_age(cls, age: Union[float, int, str, None] = None) -> float:
+        """Normalize an age value to a float in days.
 
-def extract_subject_description(
-    subject_id: str,
-    age: Union[float, int, str, None] = None,
-    sex: Union[str, int, Sex, None] = None,
-    species: Union[str, int, Species, None] = None,
-) -> SubjectDescription:
-    """Create a SubjectDescription object.
+        Args:
+            age: Age of the subject. Can be a float, int, numeric string, or None.
 
-    Args:
-        subject_id: Unique identifier for the subject
-        age: Age of the subject
-        sex: Sex of the subject (0=U=UNKNOWN, 1=M=MALE, 2=F=FEMALE, 3=O=OTHER)
-        species: Species of the subject
+        Returns:
+            Normalized age as a float. Defaults to 0.0 if None or unparseable.
 
-    Returns:
-        SubjectDescription object
-    """
-    if age is None:
-        age_normalized = 0.0
-    elif isinstance(age, (int, float)):
-        age_normalized = float(age)
-        if age_normalized < 0:
-            raise ValueError(f"Age cannot be negative, got {age_normalized}")
-    elif isinstance(age, str):
-        try:
+        Raises:
+            ValueError: If the age is negative.
+        """
+        if age is None:
+            return 0.0
+        elif isinstance(age, (int, float)):
             age_normalized = float(age)
-        except (ValueError, TypeError):
-            age_normalized = 0.0
-        else:
             if age_normalized < 0:
                 raise ValueError(f"Age cannot be negative, got {age_normalized}")
-    else:
-        age_normalized = 0.0
+            return age_normalized
+        elif isinstance(age, str):
+            try:
+                age_normalized = float(age)
+            except (ValueError, TypeError):
+                return 0.0
+            else:
+                if age_normalized < 0:
+                    raise ValueError(f"Age cannot be negative, got {age_normalized}")
+                return age_normalized
+        else:
+            return 0.0
 
-    if sex is None:
-        sex_normalized = Sex.UNKNOWN
-    elif isinstance(sex, Sex):
-        sex_normalized = sex
-    elif isinstance(sex, str):
-        try:
-            sex_normalized = Sex.from_string(sex)
-        except ValueError:
-            sex_normalized = Sex.UNKNOWN
-    elif isinstance(sex, int):
-        try:
-            sex_normalized = Sex(sex)
-        except ValueError:
-            sex_normalized = Sex.UNKNOWN
-    else:
-        sex_normalized = Sex.UNKNOWN
+    @field_validator("sex", mode="before")
+    @classmethod
+    def normalize_sex(cls, sex: Union[str, int, Sex, None] = None) -> Sex:
+        """Normalize a sex value to a Sex enum member.
 
-    if species is None:
-        species_normalized = Species.UNKNOWN
-    elif isinstance(species, Species):
-        species_normalized = species
-    elif isinstance(species, str):
-        try:
-            species_normalized = Species.from_string(species)
-        except ValueError:
-            species_normalized = Species.UNKNOWN
-    elif isinstance(species, int):
-        try:
-            species_normalized = Species(species)
-        except ValueError:
-            species_normalized = Species.UNKNOWN
+        Args:
+            sex: Sex of the subject. Can be a string (e.g. "M", "MALE"), an int
+                (0=UNKNOWN, 1=MALE, 2=FEMALE, 3=OTHER), a Sex enum member, or None.
 
-    return SubjectDescription(
-        id=subject_id,
-        species=species_normalized,
-        age=age_normalized,
-        sex=sex_normalized,
-    )
+        Returns:
+            Normalized Sex enum member. Defaults to Sex.UNKNOWN if None or unrecognized.
+        """
+        if sex is None:
+            return Sex.UNKNOWN
+        elif isinstance(sex, Sex):
+            return sex
+        elif isinstance(sex, str):
+            try:
+                return Sex.from_string(sex)
+            except ValueError:
+                return Sex.UNKNOWN
+        elif isinstance(sex, int):
+            try:
+                return Sex(sex)
+            except ValueError:
+                return Sex.UNKNOWN
+        else:
+            return Sex.UNKNOWN
+
+    @field_validator("species", mode="before")
+    @classmethod
+    def normalize_species(
+        cls, species: Union[str, int, Species, None] = None
+    ) -> Species:
+        """Normalize a species value to a Species enum member.
+
+        Args:
+            species: Species of the subject. Can be a string, an int, a Species
+                enum member, or None.
+
+        Returns:
+            Normalized Species enum member. Defaults to Species.UNKNOWN if None or
+            unrecognized.
+        """
+        if species is None:
+            return Species.UNKNOWN
+        elif isinstance(species, Species):
+            return species
+        elif isinstance(species, str):
+            try:
+                return Species.from_string(species)
+            except ValueError:
+                return Species.UNKNOWN
+        elif isinstance(species, int):
+            try:
+                return Species(species)
+            except ValueError:
+                return Species.UNKNOWN
+        else:
+            return Species.UNKNOWN
 
 
 @dataclass
