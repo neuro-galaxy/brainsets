@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 try:
     import boto3
     from botocore import UNSIGNED
+    from botocore.client import BaseClient
     from botocore.config import Config
     from botocore.exceptions import ClientError
 
@@ -14,6 +15,7 @@ try:
 except ImportError:
     boto3 = None
     UNSIGNED = None
+    BaseClient = None
     Config = None
     ClientError = None
     BOTO_AVAILABLE = False
@@ -68,7 +70,7 @@ def get_cached_s3_client(
 def get_object_list(
     bucket: str,
     prefix: str,
-    s3_client=None,
+    s3_client: "BaseClient | None" = None,
 ) -> list[str]:
     """List all object keys under a prefix (excludes directories).
 
@@ -116,7 +118,7 @@ def download_prefix(
     prefix: str,
     target_dir: Path,
     strip_prefix: str = None,
-    s3_client=None,
+    s3_client: "BaseClient | None" = None,
 ) -> list[Path]:
     """Download all files matching a prefix pattern.
 
