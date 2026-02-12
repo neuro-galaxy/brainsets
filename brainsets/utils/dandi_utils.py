@@ -4,7 +4,13 @@ from typing import Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 from pynwb import NWBFile
-from temporaldata import ArrayDict, Interval, IrregularTimeSeries, RegularTimeSeries
+from temporaldata import (
+    ArrayDict,
+    Interval,
+    IrregularTimeSeries,
+    RegularTimeSeries,
+    Data,
+)
 
 from brainsets.descriptions import SubjectDescription
 from brainsets.taxonomy import (
@@ -44,8 +50,6 @@ def extract_subject_from_nwb(
         species = "NCBITaxon_" + species.split("_")[-1]
     if sex is None:
         sex = Sex.from_string(nwbfile.subject.sex)
-    if age is None:
-        age = nwbfile.subject.age
 
     return SubjectDescription(
         id=subject_id,
@@ -211,7 +215,7 @@ def _hemisphere_from_nwb(nwbfile: NWBFile, n_channels: int) -> Hemisphere:
 def extract_ecog_from_nwb(
     nwbfile: NWBFile,
     subject_hemisphere: Optional[Union[Hemisphere, str]] = None,
-) -> Tuple[RegularTimeSeries, ArrayDict]:
+) -> Tuple[RegularTimeSeries, Data]:
     """
     Extract ECoG data from NWB file at native sampling rate.
 

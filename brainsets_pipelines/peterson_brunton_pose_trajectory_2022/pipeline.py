@@ -436,36 +436,19 @@ def ajile_extract_behavior_intervals_from_nwb(nwbfile: NWBFile) -> Interval:
     coarse_behaviors_labels = coarse_behaviors.labels.data[:].tolist()
 
     active_events = set(["Eat", "Talk", "TV", "Computer/phone", "Other activity"])
-    labels_arr = np.array(coarse_behaviors_labels, dtype=object)
 
-    # Vectorized: mark True if all split events for a row are in active_events
-    def is_all_active(label):
-        return all(event in active_events for event in label.split(", "))
-
-    active_event_mask = np.vectorize(is_all_active)(labels_arr)
+    active_event_mask = np.array(
+        [
+            all(event in active_events for event in label.split(", "))
+            for label in coarse_behaviors_labels
+        ]
+    )
 
     behavior_trials = Interval(
         start=np.round(coarse_behaviors.start_time.data[:], 3),
         end=np.round(coarse_behaviors.stop_time.data[:], 3),
         behavior_labels=coarse_behaviors.labels.data[:],
         active=active_event_mask,
-    )
-
-    unique_behavior_labels = np.unique(coarse_behaviors_labels)
-    unique_active_behavior_mask = np.zeros(unique_behavior_labels.shape[0]).astype(bool)
-    for k in range(unique_behavior_labels.shape[0]):
-        is_active = True
-        for single_event in unique_behavior_labels[k].split(", "):
-            if single_event not in active_events:
-                is_active = False
-        unique_active_behavior_mask[k] = is_active
-
-    print(
-        "unique behavior labels",
-        unique_behavior_labels,
-        "in which",
-        unique_behavior_labels[unique_active_behavior_mask],
-        "are active.",
     )
 
     return behavior_trials
