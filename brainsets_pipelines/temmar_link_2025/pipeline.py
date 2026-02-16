@@ -161,23 +161,21 @@ class Pipeline(BrainsetPipeline):
 
         # Open NWB file
         self.update_status("Loading NWB")
-        io = NWBHDF5IO(fpath, "r")
-        nwbfile = io.read()
+        with NWBHDF5IO(fpath, "r") as io:
+            nwbfile = io.read()
 
-        # Extract neural activity (pre-binned threshold crossings)
-        self.update_status("Extracting Neural Data")
-        tcfr = extract_threshold_crossings(nwbfile)
-        units = extract_units_metadata(nwbfile)
+            # Extract neural activity (pre-binned threshold crossings)
+            self.update_status("Extracting Neural Data")
+            tcfr = extract_threshold_crossings(nwbfile)
+            units = extract_units_metadata(nwbfile)
 
-        # Extract finger velocity
-        self.update_status("Extracting Behavior")
-        finger = extract_finger_velocity(nwbfile)
+            # Extract finger velocity
+            self.update_status("Extracting Behavior")
+            finger = extract_finger_velocity(nwbfile)
 
-        # Get trial information to identify target styles
-        trials_df = nwbfile.trials.to_dataframe()
-        target_styles = trials_df["target_style"].unique()
-
-        io.close()
+            # Get trial information to identify target styles
+            trials_df = nwbfile.trials.to_dataframe()
+            target_styles = trials_df["target_style"].unique()
 
         # Process each target style as a separate session
         for target_style in target_styles:
@@ -282,7 +280,7 @@ def extract_threshold_crossings(nwbfile):
     else:
         tcfr = IrregularTimeSeries(
             timestamps=tcfr_timestamps,
-            data=tcfr_data,
+            counts=tcfr_data,
             domain="auto",
         )
 
@@ -413,7 +411,8 @@ def assign_within_session_split(data: Data, trials: Interval) -> None:
         data: Data object to modify.
         trials: Trial intervals to split.
     """
-    n_trials = len(trials)
+    valid_trials = trials.select_by_mask(trials.is_valid)
+    n_trials = len(valid_trials)
     empty_interval = Interval(start=np.array([]), end=np.array([]))
 
     # Create train/valid masks
@@ -427,9 +426,9 @@ def assign_within_session_split(data: Data, trials: Interval) -> None:
     valid_mask[train_cutoff:valid_end] = True
 
     # Apply masks
-    train_trials = trials.select_by_mask(train_mask)
-    valid_trials = trials.select_by_mask(valid_mask)
+    train_trials = valid_trials.select_by_mask(train_mask)
+    valid_split_trials = valid_trials.select_by_mask(valid_mask)
 
     data.set_train_domain(train_trials)
-    data.set_valid_domain(valid_trials)
+    data.set_valid_domain(valid_split_trials)
     data.set_test_domain(empty_interval)
