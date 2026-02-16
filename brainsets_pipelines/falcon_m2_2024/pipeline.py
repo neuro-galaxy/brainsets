@@ -203,65 +203,63 @@ class Pipeline(BrainsetPipeline):
 
         # Open NWB file
         self.update_status("Loading NWB")
-        io = NWBHDF5IO(fpath, "r")
-        nwbfile = io.read()
+        with NWBHDF5IO(fpath, "r") as io:
+            nwbfile = io.read()
 
-        # Extract subject metadata (Monkey N)
-        subject = SubjectDescription(
-            id="monkey_n",
-            species=Species.MACACA_MULATTA,
-            sex=Sex.UNKNOWN,
-        )
-
-        # Extract session metadata
-        recording_date = datetime.datetime.strptime(date_str, "%Y%m%d")
-        session_description = SessionDescription(
-            id=session_id,
-            recording_date=recording_date,
-            task=Task.REACHING,
-        )
-
-        # Device description
-        device_description = DeviceDescription(
-            id=f"monkey_n_{session_id}",
-            recording_tech=RecordingTech.UTAH_ARRAY_SPIKES,
-        )
-
-        # Extract finger velocity (needed for timestamps and behavior target)
-        self.update_status("Extracting Finger Velocity")
-        finger = extract_finger_velocity(nwbfile)
-
-        # Extract neural activity (raw spike times first)
-        self.update_status("Extracting Spikes")
-        spikes_raw, units = extract_spikes_from_nwbfile(
-            nwbfile, recording_tech=RecordingTech.UTAH_ARRAY_SPIKES
-        )
-
-        # Conditionally bin spikes
-        if bin_size_ms is not None:
-            bin_size_s = bin_size_ms / 1000.0
-            self.update_status(f"Binning spikes at {bin_size_ms}ms")
-            binned_counts, bin_timestamps = bin_spikes(
-                spikes_raw, units, bin_size_s, finger.timestamps[:]
+            # Extract subject metadata (Monkey N)
+            subject = SubjectDescription(
+                id="monkey_n",
+                species=Species.MACACA_MULATTA,
+                sex=Sex.UNKNOWN,
             )
-            spikes = RegularTimeSeries(
-                counts=binned_counts,
-                sampling_rate=1.0 / bin_size_s,
-                domain="auto",
-                domain_start=bin_timestamps[0],
+
+            # Extract session metadata
+            recording_date = datetime.datetime.strptime(date_str, "%Y%m%d")
+            session_description = SessionDescription(
+                id=session_id,
+                recording_date=recording_date,
+                task=Task.REACHING,
             )
-        else:
-            spikes = spikes_raw
 
-        # Extract evaluation mask (FALCON-specific)
-        self.update_status("Extracting Eval Mask")
-        eval_intervals = extract_eval_mask(nwbfile, finger)
+            # Device description
+            device_description = DeviceDescription(
+                id=f"monkey_n_{session_id}",
+                recording_tech=RecordingTech.UTAH_ARRAY_SPIKES,
+            )
 
-        # Extract trials
-        self.update_status("Extracting Trials")
-        trials = extract_trials(nwbfile)
+            # Extract finger velocity (needed for timestamps and behavior target)
+            self.update_status("Extracting Finger Velocity")
+            finger = extract_finger_velocity(nwbfile)
 
-        io.close()
+            # Extract neural activity (raw spike times first)
+            self.update_status("Extracting Spikes")
+            spikes_raw, units = extract_spikes_from_nwbfile(
+                nwbfile, recording_tech=RecordingTech.UTAH_ARRAY_SPIKES
+            )
+
+            # Conditionally bin spikes
+            if bin_size_ms is not None:
+                bin_size_s = bin_size_ms / 1000.0
+                self.update_status(f"Binning spikes at {bin_size_ms}ms")
+                binned_counts, bin_timestamps = bin_spikes(
+                    spikes_raw, units, bin_size_s, finger.timestamps[:]
+                )
+                spikes = RegularTimeSeries(
+                    counts=binned_counts,
+                    sampling_rate=1.0 / bin_size_s,
+                    domain="auto",
+                    domain_start=bin_timestamps[0],
+                )
+            else:
+                spikes = spikes_raw
+
+            # Extract evaluation mask (FALCON-specific)
+            self.update_status("Extracting Eval Mask")
+            eval_intervals = extract_eval_mask(nwbfile, finger)
+
+            # Extract trials
+            self.update_status("Extracting Trials")
+            trials = extract_trials(nwbfile)
 
         # Create Data object
         data = Data(
@@ -280,7 +278,9 @@ class Pipeline(BrainsetPipeline):
         # Add metadata
         data.falcon_split = split_type
         data.falcon_session_group = (
-            "held_in" if full_session_id in HELD_IN_SESSIONS else "held_out"
+            "held_in"
+            if full_session_id in HELD_IN_SESSIONS
+            else "held_out" if full_session_id in HELD_OUT_SESSIONS else split_type
         )
         if bin_size_ms is not None:
             data.spike_bin_size_ms = bin_size_ms
@@ -359,11 +359,13 @@ def extract_finger_velocity(nwbfile) -> IrregularTimeSeries:
     labels = [ts for ts in vel_container.time_series]
 
     vel_data = []
-    vel_timestamps = None
+    vel_timestamps = vel_container.get_timeseries(labels[0]).timestamps[:]
     for ts in labels:
         ts_data = vel_container.get_timeseries(ts)
         vel_data.append(ts_data.data[:])
-        vel_timestamps = ts_data.timestamps[:]
+        assert np.array_equal(
+            vel_timestamps, ts_data.timestamps[:]
+        ), f"Timestamp mismatch for velocity channel {ts}"
 
     vel_data = np.vstack(vel_data).T  # (time, 2)
 
@@ -423,13 +425,15 @@ def extract_eval_mask(nwbfile, finger: IrregularTimeSeries) -> Interval:
         Interval with evaluation periods.
     """
     eval_mask = nwbfile.acquisition["eval_mask"].data[:].astype(bool)
+    finger_ts = finger.timestamps[:]
 
     # Convert eval_mask to Interval (periods where eval_mask is True)
+    # End timestamps use end-exclusive convention (first sample after eval period)
     eval_mask_starts = []
     eval_mask_ends = []
     in_eval_period = False
 
-    for i, (is_eval, timestamp) in enumerate(zip(eval_mask, finger.timestamps)):
+    for is_eval, timestamp in zip(eval_mask, finger_ts, strict=True):
         if is_eval and not in_eval_period:
             eval_mask_starts.append(timestamp)
             in_eval_period = True
@@ -437,9 +441,10 @@ def extract_eval_mask(nwbfile, finger: IrregularTimeSeries) -> Interval:
             eval_mask_ends.append(timestamp)
             in_eval_period = False
 
-    # Handle case where eval period extends to end
+    # Handle case where eval period extends to end (end-exclusive)
     if in_eval_period:
-        eval_mask_ends.append(finger.timestamps[-1])
+        dt = np.median(np.diff(finger_ts[:100]))
+        eval_mask_ends.append(finger_ts[-1] + dt)
 
     if len(eval_mask_starts) > 0:
         eval_intervals = Interval(
@@ -471,18 +476,14 @@ def bin_spikes(
             bin_timestamps: (n_bins,) array of bin center timestamps.
     """
     n_units = len(units.id)
-
-    # Use reference timestamps as bin end times
-    bin_end_timestamps = reference_timestamps
-    n_bins = len(bin_end_timestamps)
+    n_bins = len(reference_timestamps)
 
     # Initialize output array
     binned_counts = np.zeros((n_bins, n_units), dtype=np.float32)
 
-    # Create bin edges
-    bin_edges = np.concatenate(
-        [np.array([bin_end_timestamps[0] - bin_size_s]), bin_end_timestamps]
-    )
+    # Generate uniform bin edges
+    start = reference_timestamps[0] - bin_size_s
+    bin_edges = start + np.arange(n_bins + 1) * bin_size_s
 
     # Bin spikes for each unit
     spike_times = spikes.timestamps[:]
@@ -494,8 +495,8 @@ def bin_spikes(
         counts, _ = np.histogram(unit_spike_times, bins=bin_edges)
         binned_counts[:, unit_idx] = counts
 
-    # Bin center timestamps
-    bin_timestamps = bin_end_timestamps - (bin_size_s / 2.0)
+    # Bin center timestamps (midpoints of uniform edges)
+    bin_timestamps = bin_edges[:-1] + bin_size_s / 2.0
 
     return binned_counts, bin_timestamps
 
@@ -515,11 +516,11 @@ def assign_falcon_split(data: Data, split_type: str, trials: Interval) -> None:
     valid_trials = trials.select_by_mask(trials.is_valid)
     empty_interval = Interval(start=np.array([]), end=np.array([]))
 
-    if "held_in" in split_type:
+    if split_type == "held_in":
         data.set_train_domain(valid_trials)
         data.set_valid_domain(empty_interval)
         data.set_test_domain(empty_interval)
-    elif "held_out" in split_type:
+    elif split_type == "held_out":
         data.set_train_domain(empty_interval)
         data.set_valid_domain(valid_trials)
         data.set_test_domain(empty_interval)
