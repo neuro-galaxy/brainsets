@@ -5,10 +5,12 @@ MNE Raw objects and convert them to brainsets data structures.
 """
 
 import datetime
+from pathlib import Path
 from typing import Union
 
 import mne
 import numpy as np
+import pandas as pd
 from temporaldata import ArrayDict, Interval, RegularTimeSeries
 
 from brainsets.descriptions import (
@@ -228,3 +230,90 @@ def generate_train_valid_splits_one_epoch(
     valid_intervals = Interval(start=train_intervals.end[0], end=val_split_time)
 
     return train_intervals, valid_intervals
+
+
+def read_bids_channels_tsv(tsv_path: Path) -> pd.DataFrame:
+    """Read BIDS _channels.tsv file.
+
+    Parses the BIDS channels metadata file containing channel information
+    including name, type, sampling rate, and status (good/bad).
+
+    Args:
+        tsv_path: Path to the _channels.tsv file
+
+    Returns:
+        DataFrame with channel information, indexed by channel name.
+        Columns typically include: type, sampling_rate, status, low_cutoff, etc.
+
+    Raises:
+        FileNotFoundError: If the TSV file doesn't exist
+        ValueError: If the file cannot be parsed
+    """
+    tsv_path = Path(tsv_path)
+    if not tsv_path.exists():
+        raise FileNotFoundError(f"Channels TSV file not found: {tsv_path}")
+
+    try:
+        df = pd.read_csv(tsv_path, sep="\t", na_values=["n/a", "N/A"])
+        return df
+    except Exception as e:
+        raise ValueError(f"Failed to parse channels TSV file {tsv_path}: {e}") from e
+
+
+def read_bids_electrodes_tsv(tsv_path: Path) -> pd.DataFrame:
+    """Read BIDS _electrodes.tsv file.
+
+    Parses the BIDS electrodes metadata file containing electrode coordinates
+    and properties (name, x, y, z coordinates, size, etc.).
+
+    Args:
+        tsv_path: Path to the _electrodes.tsv file
+
+    Returns:
+        DataFrame with electrode information, indexed by electrode name.
+        Columns typically include: x, y, z (coordinates), size, and other properties.
+
+    Raises:
+        FileNotFoundError: If the TSV file doesn't exist
+        ValueError: If the file cannot be parsed
+    """
+    tsv_path = Path(tsv_path)
+    if not tsv_path.exists():
+        raise FileNotFoundError(f"Electrodes TSV file not found: {tsv_path}")
+
+    try:
+        df = pd.read_csv(tsv_path, sep="\t", na_values=["n/a", "N/A"])
+        return df
+    except Exception as e:
+        raise ValueError(f"Failed to parse electrodes TSV file {tsv_path}: {e}") from e
+
+
+def read_bids_coordsystem_json(json_path: Path) -> dict:
+    """Read BIDS _coordsystem.json file.
+
+    Parses the BIDS coordinate system metadata file containing information
+    about the coordinate system used for electrode positions.
+
+    Args:
+        json_path: Path to the _coordsystem.json file
+
+    Returns:
+        Dictionary with coordinate system metadata.
+
+    Raises:
+        FileNotFoundError: If the JSON file doesn't exist
+        ValueError: If the file cannot be parsed
+    """
+    import json
+
+    json_path = Path(json_path)
+    if not json_path.exists():
+        raise FileNotFoundError(f"Coordinate system JSON file not found: {json_path}")
+
+    try:
+        with open(json_path) as f:
+            return json.load(f)
+    except Exception as e:
+        raise ValueError(
+            f"Failed to parse coordinate system JSON file {json_path}: {e}"
+        ) from e

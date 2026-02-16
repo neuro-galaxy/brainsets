@@ -9,13 +9,15 @@ This package provides utilities for working with OpenNeuro datasets:
 
 from .data_extraction import (
     extract_brainset_description,
-    extract_channels,
     extract_device_description,
     extract_meas_date,
     extract_session_description,
     extract_signal,
     extract_subject_description,
     generate_train_valid_splits_one_epoch,
+    read_bids_channels_tsv,
+    read_bids_coordsystem_json,
+    read_bids_electrodes_tsv,
 )
 from .dataset import (
     OPENNEURO_S3_BUCKET,
@@ -24,10 +26,11 @@ from .dataset import (
     download_recording,
     fetch_all_filenames,
     fetch_eeg_recordings,
+    fetch_ieeg_recordings,
     fetch_participants_tsv,
     validate_dataset_id,
 )
-from .pipeline import OpenNeuroEEGPipeline
+from .pipeline import OpenNeuroEEGPipeline, OpenNeuroIEEGPipeline, OpenNeuroPipeline
 
 __all__ = [
     # dataset.py
@@ -35,6 +38,7 @@ __all__ = [
     "validate_dataset_id",
     "fetch_all_filenames",
     "fetch_eeg_recordings",
+    "fetch_ieeg_recordings",
     "fetch_participants_tsv",
     "construct_s3_url_from_path",
     "download_recording",
@@ -46,8 +50,12 @@ __all__ = [
     "extract_device_description",
     "extract_meas_date",
     "extract_signal",
-    "extract_channels",
     "generate_train_valid_splits_one_epoch",
+    "read_bids_channels_tsv",
+    "read_bids_electrodes_tsv",
+    "read_bids_coordsystem_json",
     # pipeline.py
+    "OpenNeuroPipeline",
     "OpenNeuroEEGPipeline",
+    "OpenNeuroIEEGPipeline",
 ]

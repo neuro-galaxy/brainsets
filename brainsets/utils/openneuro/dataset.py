@@ -11,7 +11,12 @@ from typing import Optional
 import pandas as pd
 from botocore.exceptions import ClientError
 
-from brainsets.utils.bids_utils import EEG_EXTENSIONS, parse_bids_eeg_filename
+from brainsets.utils.bids_utils import (
+    EEG_EXTENSIONS,
+    IEEG_EXTENSIONS,
+    parse_bids_eeg_filename,
+    parse_bids_ieeg_filename,
+)
 from brainsets.utils.s3_utils import (
     download_prefix_from_url,
     get_cached_s3_client,
@@ -94,21 +99,24 @@ def fetch_all_filenames(dataset_id: str, tag: Optional[str] = None) -> list[str]
     return filenames
 
 
-def fetch_eeg_recordings(dataset_id: str) -> list[dict]:
-    """Discover all EEG recordings in a dataset by parsing BIDS filenames.
+def _fetch_recordings(
+    dataset_id: str,
+    extensions: set[str],
+    parse_fn,
+    data_file_key: str,
+) -> list[dict]:
+    """Discover recordings in a dataset by parsing BIDS filenames.
+
+    Internal helper function used by fetch_eeg_recordings and fetch_ieeg_recordings.
 
     Args:
         dataset_id: The OpenNeuro dataset identifier
+        extensions: Set of file extensions to accept (e.g., EEG_EXTENSIONS)
+        parse_fn: Function to parse BIDS filename (e.g., parse_bids_eeg_filename)
+        data_file_key: Key name for data file path in returned dict (e.g., 'eeg_file')
 
     Returns:
-        List of dicts with keys:
-            - recording_id: Full recording identifier (e.g., 'sub-01_ses-01_task-Sleep')
-            - subject_id: Subject identifier (e.g., 'sub-01')
-            - session_id: Session identifier or None (e.g., 'ses-01')
-            - task_id: Task identifier (e.g., 'Sleep')
-            - acq_id: Acquisition identifier or None (e.g., 'headband')
-            - run_id: Run identifier or None (e.g., '01')
-            - eeg_file: Relative path to EEG file
+        List of dicts with recording metadata
     """
     dataset_id = validate_dataset_id(dataset_id)
     all_files = fetch_all_filenames(dataset_id)
@@ -118,10 +126,10 @@ def fetch_eeg_recordings(dataset_id: str) -> list[dict]:
 
     for filepath in all_files:
         ext = Path(filepath).suffix.lower()
-        if ext not in EEG_EXTENSIONS:
+        if ext not in extensions:
             continue
 
-        parsed = parse_bids_eeg_filename(filepath)
+        parsed = parse_fn(filepath)
         if not parsed:
             continue
 
@@ -148,11 +156,53 @@ def fetch_eeg_recordings(dataset_id: str) -> list[dict]:
                 "task_id": parsed["task_id"],
                 "acq_id": parsed["acq_id"],
                 "run_id": parsed["run_id"],
-                "eeg_file": filepath,
+                data_file_key: filepath,
             }
         )
 
     return recordings
+
+
+def fetch_eeg_recordings(dataset_id: str) -> list[dict]:
+    """Discover all EEG recordings in a dataset by parsing BIDS filenames.
+
+    Args:
+        dataset_id: The OpenNeuro dataset identifier
+
+    Returns:
+        List of dicts with keys:
+            - recording_id: Full recording identifier (e.g., 'sub-01_ses-01_task-Sleep')
+            - subject_id: Subject identifier (e.g., 'sub-01')
+            - session_id: Session identifier or None (e.g., 'ses-01')
+            - task_id: Task identifier (e.g., 'Sleep')
+            - acq_id: Acquisition identifier or None (e.g., 'headband')
+            - run_id: Run identifier or None (e.g., '01')
+            - eeg_file: Relative path to EEG file
+    """
+    return _fetch_recordings(
+        dataset_id, EEG_EXTENSIONS, parse_bids_eeg_filename, "eeg_file"
+    )
+
+
+def fetch_ieeg_recordings(dataset_id: str) -> list[dict]:
+    """Discover all iEEG recordings in a dataset by parsing BIDS filenames.
+
+    Args:
+        dataset_id: The OpenNeuro dataset identifier
+
+    Returns:
+        List of dicts with keys:
+            - recording_id: Full recording identifier (e.g., 'sub-01_ses-01_task-VisualNaming')
+            - subject_id: Subject identifier (e.g., 'sub-01')
+            - session_id: Session identifier or None (e.g., 'ses-01')
+            - task_id: Task identifier (e.g., 'VisualNaming')
+            - acq_id: Acquisition identifier or None (e.g., 'ecog')
+            - run_id: Run identifier or None (e.g., '01')
+            - ieeg_file: Relative path to iEEG file
+    """
+    return _fetch_recordings(
+        dataset_id, IEEG_EXTENSIONS, parse_bids_ieeg_filename, "ieeg_file"
+    )
 
 
 def fetch_participants_tsv(dataset_id: str) -> Optional[pd.DataFrame]:
@@ -194,21 +244,28 @@ def fetch_participants_tsv(dataset_id: str) -> Optional[pd.DataFrame]:
         raise
 
 
-def construct_s3_url_from_path(dataset_id: str, eeg_file_path: str) -> str:
+def construct_s3_url_from_path(dataset_id: str, data_file_path: str) -> str:
     """Construct S3 URL directly from a known file path.
 
     This avoids S3 API calls by using the path that was already discovered.
+    Automatically detects and strips both _eeg and _ieeg suffixes.
 
     Args:
         dataset_id: OpenNeuro dataset identifier
-        eeg_file_path: Relative path to the EEG file within the dataset
+        data_file_path: Relative path to the EEG/iEEG file within the dataset
 
     Returns:
         S3 URL prefix for downloading the recording files
     """
     dataset_id = validate_dataset_id(dataset_id)
-    parent_dir = str(Path(eeg_file_path).parent)
-    recording_id = Path(eeg_file_path).stem.replace("_eeg", "")
+    parent_dir = str(Path(data_file_path).parent)
+    stem = Path(data_file_path).stem
+    if stem.endswith("_eeg"):
+        recording_id = stem[:-4]  # Remove "_eeg"
+    elif stem.endswith("_ieeg"):
+        recording_id = stem[:-5]  # Remove "_ieeg"
+    else:
+        recording_id = stem
     return f"s3://openneuro.org/{dataset_id}/{parent_dir}/{recording_id}"
 
 
@@ -229,7 +286,7 @@ def download_recording(s3_url: str, target_dir: Path) -> list[Path]:
 
 
 def check_recording_files_exist(recording_id: str, subject_dir: Path) -> bool:
-    """Check if EEG files matching the recording_id pattern exist locally.
+    """Check if EEG/iEEG files matching the recording_id pattern exist locally.
 
     Args:
         recording_id: Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband')
@@ -241,20 +298,30 @@ def check_recording_files_exist(recording_id: str, subject_dir: Path) -> bool:
     if not subject_dir.exists():
         return False
 
-    # BIDS-compliant EEG extensions plus .fif for MNE-processed files.
-    # BIDS formats: .edf (European Data Format), .set (EEGLAB), .bdf (Biosemi),
-    #               .vhdr (BrainVision header), .eeg (BrainVision data)
+    # BIDS-compliant EEG and iEEG extensions plus .fif for MNE-processed files.
+    # EEG BIDS formats: .edf (European Data Format), .set (EEGLAB), .bdf (Biosemi),
+    #                   .vhdr (BrainVision header), .eeg (BrainVision data)
+    # iEEG BIDS formats: .edf, .set, .bdf, .vhdr, .eeg, .nwb (Neurodata Without Borders)
     # Non-BIDS: .fif (MNE FIFF format) included for locally processed files.
-    eeg_patterns = [
+    patterns = [
+        # EEG patterns
         f"**/{recording_id}_eeg.edf",
         f"**/{recording_id}_eeg.fif",
         f"**/{recording_id}_eeg.set",
         f"**/{recording_id}_eeg.bdf",
         f"**/{recording_id}_eeg.vhdr",
         f"**/{recording_id}_eeg.eeg",
+        # iEEG patterns
+        f"**/{recording_id}_ieeg.edf",
+        f"**/{recording_id}_ieeg.fif",
+        f"**/{recording_id}_ieeg.set",
+        f"**/{recording_id}_ieeg.bdf",
+        f"**/{recording_id}_ieeg.vhdr",
+        f"**/{recording_id}_ieeg.eeg",
+        f"**/{recording_id}_ieeg.nwb",
     ]
 
-    for pattern in eeg_patterns:
+    for pattern in patterns:
         if list(subject_dir.glob(pattern)):
             return True
 

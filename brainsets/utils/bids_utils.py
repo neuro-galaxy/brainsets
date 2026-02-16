@@ -32,6 +32,31 @@ BIDS_EEG_PATTERN = re.compile(
 # Reference: https://bids-specification.readthedocs.io/en/stable/modality-specific-files/electroencephalography.html
 EEG_EXTENSIONS = {".edf", ".vhdr", ".set", ".bdf"}
 
+# BIDS iEEG filename pattern (BIDS v1.10.1):
+# Required entities: sub-<label>, task-<label>
+# Optional entities: ses-<label>, acq-<label>, run-<index>
+# Modality suffix: _ieeg
+# Extension: format-specific (.edf, .vhdr, .set, .bdf, .nwb)
+# Reference: https://bids-specification.readthedocs.io/en/stable/modality-specific-files/intracranial-electroencephalography.html
+BIDS_IEEG_PATTERN = re.compile(
+    r"^(?P<subject>sub-[^_]+)"
+    r"(?:_(?P<session>ses-[^_]+))?"
+    r"_task-(?P<task>[^_]+)"
+    r"(?:_acq-(?P<acq>[^_]+))?"
+    r"(?:_run-(?P<run>[^_]+))?"
+    r"_ieeg"
+    r"\.(?P<ext>\w+)$"
+)
+
+# BIDS iEEG supported formats (BIDS v1.10.1):
+# - European Data Format (.edf): Single file per recording.
+# - BrainVision (.vhdr): Header file; requires .vmrk (markers) and .eeg (data) files.
+# - EEGLAB (.set): MATLAB format; optional .fdt file contains float data.
+# - Biosemi (.bdf): Single file per recording.
+# - NWB (.nwb): Neurodata Without Borders format for standardized neurophysiology storage.
+# Reference: https://bids-specification.readthedocs.io/en/stable/modality-specific-files/intracranial-electroencephalography.html
+IEEG_EXTENSIONS = {".edf", ".vhdr", ".set", ".bdf", ".nwb"}
+
 
 def parse_bids_eeg_filename(filename: str) -> Optional[dict]:
     """Parse a BIDS-compliant EEG filename to extract components.
@@ -45,6 +70,30 @@ def parse_bids_eeg_filename(filename: str) -> Optional[dict]:
     """
     basename = Path(filename).name
     match = BIDS_EEG_PATTERN.match(basename)
+    if not match:
+        return None
+
+    return {
+        "subject_id": match.group("subject"),
+        "session_id": match.group("session"),
+        "task_id": match.group("task"),
+        "acq_id": match.group("acq"),
+        "run_id": match.group("run"),
+    }
+
+
+def parse_bids_ieeg_filename(filename: str) -> Optional[dict]:
+    """Parse a BIDS-compliant iEEG filename to extract components.
+
+    Args:
+        filename: The filename to parse (e.g., 'sub-01_task-VisualNaming_ieeg.edf')
+
+    Returns:
+        Dictionary with keys: subject_id, session_id, task_id, acq_id, run_id
+        Returns None if the filename doesn't match BIDS iEEG pattern
+    """
+    basename = Path(filename).name
+    match = BIDS_IEEG_PATTERN.match(basename)
     if not match:
         return None
 
