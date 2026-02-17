@@ -25,12 +25,14 @@ from temporaldata import ArrayDict, Data
 from brainsets import serialize_fn_map
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.utils.bids_utils import parse_recording_id
+from brainsets.utils.mne_utils import (
+    extract_eeg_signal,
+    extract_measurement_date,
+)
 from brainsets.utils.openneuro.data_extraction import (
     extract_brainset_description,
     extract_device_description,
-    extract_meas_date,
     extract_session_description,
-    extract_signal,
     extract_subject_description,
 )
 from brainsets.utils.openneuro.dataset import (
@@ -358,12 +360,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             sex=subject_info.get("sex"),
         )
 
-        meas_date = extract_meas_date(raw)
-        if meas_date is None:
-            logging.warning(
-                f"No measurement date found for {recording_id}, using Unix epoch as placeholder"
-            )
-            meas_date = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+        meas_date = extract_measurement_date(raw)
 
         session_description = extract_session_description(
             session_id=recording_id, recording_date=meas_date
@@ -372,7 +369,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         device_description = extract_device_description(device_id=recording_id)
 
         self.update_status(f"Extracting {self.modality.upper()} Signal")
-        signal = extract_signal(raw)
+        signal = extract_eeg_signal(raw)
 
         self.update_status("Building Channels")
         channels = self._build_channels(raw, recording_id, data_dir)

@@ -16,14 +16,11 @@ from brainsets.descriptions import (
 from brainsets.taxonomy import Sex, Species
 from brainsets.utils.openneuro.data_extraction import (
     extract_brainset_description,
-    extract_channels,
     extract_device_description,
-    extract_meas_date,
     extract_session_description,
-    extract_signal,
     extract_subject_description,
-    generate_train_valid_splits_one_epoch,
 )
+from brainsets.utils.split import generate_train_valid_splits_one_epoch
 
 
 class TestExtractBrainsetDescription:
@@ -126,49 +123,6 @@ class TestExtractDeviceDescription:
 
         assert isinstance(result, DeviceDescription)
         assert result.id == "device-01"
-
-
-class TestExtractMeasDate:
-    def test_with_date(self):
-        mock_raw = MagicMock()
-        mock_raw.info = {"meas_date": datetime.datetime(2024, 1, 15)}
-
-        result = extract_meas_date(mock_raw)
-
-        assert result == datetime.datetime(2024, 1, 15)
-
-    def test_without_date(self):
-        mock_raw = MagicMock()
-        mock_raw.info = {"meas_date": None}
-
-        result = extract_meas_date(mock_raw)
-
-        assert result is None
-
-
-class TestExtractSignal:
-    def test_extracts_signal(self):
-        mock_raw = MagicMock()
-        mock_raw.info = {"sfreq": 256.0}
-        mock_raw.get_data.return_value = np.random.randn(4, 1000)
-
-        result = extract_signal(mock_raw)
-
-        assert result.sampling_rate == 256.0
-        assert result.signal.shape == (1000, 4)
-
-
-class TestExtractChannels:
-    def test_extracts_channels(self):
-        mock_raw = MagicMock()
-        mock_raw.ch_names = ["F3", "F4", "C3", "C4"]
-        mock_raw.get_channel_types.return_value = ["eeg", "eeg", "eeg", "eeg"]
-
-        result = extract_channels(mock_raw)
-
-        assert len(result.id) == 4
-        assert list(result.id) == ["F3", "F4", "C3", "C4"]
-        assert list(result.types) == ["eeg", "eeg", "eeg", "eeg"]
 
 
 class TestGenerateTrainValidSplits:

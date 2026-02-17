@@ -10,11 +10,8 @@ This package provides utilities for working with OpenNeuro datasets:
 from .data_extraction import (
     extract_brainset_description,
     extract_device_description,
-    extract_meas_date,
     extract_session_description,
-    extract_signal,
     extract_subject_description,
-    generate_train_valid_splits_one_epoch,
 )
 from .dataset import (
     OPENNEURO_S3_BUCKET,
@@ -29,6 +26,7 @@ from .dataset import (
     validate_dataset_id,
 )
 from .pipeline import OpenNeuroEEGPipeline, OpenNeuroIEEGPipeline, OpenNeuroPipeline
+from brainsets.utils.split import generate_train_valid_splits_one_epoch
 
 __all__ = [
     # dataset.py
@@ -47,8 +45,7 @@ __all__ = [
     "extract_subject_description",
     "extract_session_description",
     "extract_device_description",
-    "extract_meas_date",
-    "extract_signal",
+    # split.py
     "generate_train_valid_splits_one_epoch",
     # pipeline.py
     "OpenNeuroPipeline",

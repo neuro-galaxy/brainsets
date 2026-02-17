@@ -4,10 +4,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pandas as pd
 import pytest
-from temporaldata import ArrayDict
 
 from brainsets.utils.openneuro import OpenNeuroEEGPipeline
 
@@ -123,12 +121,11 @@ class TestApplyChannelMapping:
         pipeline.MODALITY_CHANNELS = {"EEG": ["F3"]}
         pipeline.update_status = MagicMock()
 
-        channels = ArrayDict(
-            id=np.array(["PSG_F3", "C3"]),
-            types=np.array(["misc", "misc"]),
-        )
+        raw = MagicMock()
+        raw.ch_names = ["PSG_F3", "C3"]
+        raw.get_channel_types.return_value = ["misc", "misc"]
 
-        result = pipeline._apply_channel_mapping(channels, "test_recording")
+        result = pipeline._build_channels(raw, "test_recording", None)
 
         assert result.id[0] == "F3"
         assert result.id[1] == "C3"
@@ -140,12 +137,11 @@ class TestApplyChannelMapping:
         pipeline.MODALITY_CHANNELS = None
         pipeline.update_status = MagicMock()
 
-        channels = ArrayDict(
-            id=np.array(["F3", "C3"]),
-            types=np.array(["misc", "misc"]),
-        )
+        raw = MagicMock()
+        raw.ch_names = ["F3", "C3"]
+        raw.get_channel_types.return_value = ["misc", "misc"]
 
-        result = pipeline._apply_channel_mapping(channels, "test_recording")
+        result = pipeline._build_channels(raw, "test_recording", None)
 
         assert list(result.id) == ["F3", "C3"]
         assert list(result.types) == ["misc", "misc"]

@@ -9,7 +9,14 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-from botocore.exceptions import ClientError
+
+try:
+    from botocore.exceptions import ClientError
+
+    BOTO_AVAILABLE = True
+except ImportError:
+    ClientError = None
+    BOTO_AVAILABLE = False
 
 from brainsets.utils.bids_utils import (
     EEG_EXTENSIONS,
@@ -20,7 +27,7 @@ from brainsets.utils.bids_utils import (
 from brainsets.utils.s3_utils import (
     download_prefix_from_url,
     get_cached_s3_client,
-    list_objects,
+    get_object_list,
 )
 
 OPENNEURO_S3_BUCKET = "openneuro.org"
@@ -88,7 +95,7 @@ def fetch_all_filenames(dataset_id: str, tag: Optional[str] = None) -> list[str]
     dataset_id = validate_dataset_id(dataset_id)
     prefix = f"{dataset_id}/"
 
-    filenames = list_objects(OPENNEURO_S3_BUCKET, prefix)
+    filenames = get_object_list(OPENNEURO_S3_BUCKET, prefix)
 
     if len(filenames) == 0:
         raise RuntimeError(
