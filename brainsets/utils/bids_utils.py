@@ -104,3 +104,56 @@ def parse_bids_ieeg_filename(filename: str) -> Optional[dict]:
         "acq_id": match.group("acq"),
         "run_id": match.group("run"),
     }
+
+
+def parse_recording_id(recording_id: str) -> dict:
+    """Parse a recording_id string to extract BIDS entities.
+
+    Recording IDs are built from BIDS entities in the format:
+    sub-XX[_ses-YY]_task-ZZ[_acq-AA][_run-RR]
+
+    Args:
+        recording_id: The recording identifier to parse
+
+    Returns:
+        Dictionary with keys: subject_id, session_id, task_id, acq_id, run_id
+        (session_id, acq_id, run_id may be None if not present)
+
+    Raises:
+        ValueError: If the recording_id format is invalid
+    """
+    parts = recording_id.split("_")
+    if not parts or not parts[0].startswith("sub-"):
+        raise ValueError(f"Invalid recording_id format: {recording_id}")
+
+    subject_id = parts[0]
+    session_id = None
+    task_id = None
+    acq_id = None
+    run_id = None
+
+    idx = 1
+    if idx < len(parts) and parts[idx].startswith("ses-"):
+        session_id = parts[idx]
+        idx += 1
+
+    if idx < len(parts) and parts[idx].startswith("task-"):
+        task_id = parts[idx]
+        idx += 1
+    else:
+        raise ValueError(f"Recording ID missing task entity: {recording_id}")
+
+    while idx < len(parts):
+        if parts[idx].startswith("acq-"):
+            acq_id = parts[idx]
+        elif parts[idx].startswith("run-"):
+            run_id = parts[idx]
+        idx += 1
+
+    return {
+        "subject_id": subject_id,
+        "session_id": session_id,
+        "task_id": task_id,
+        "acq_id": acq_id,
+        "run_id": run_id,
+    }

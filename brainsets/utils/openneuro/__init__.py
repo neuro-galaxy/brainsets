@@ -15,14 +15,12 @@ from .data_extraction import (
     extract_signal,
     extract_subject_description,
     generate_train_valid_splits_one_epoch,
-    read_bids_channels_tsv,
-    read_bids_coordsystem_json,
-    read_bids_electrodes_tsv,
 )
 from .dataset import (
     OPENNEURO_S3_BUCKET,
     check_recording_files_exist,
     construct_s3_url_from_path,
+    download_dataset_description,
     download_recording,
     fetch_all_filenames,
     fetch_eeg_recordings,
@@ -42,6 +40,7 @@ __all__ = [
     "fetch_participants_tsv",
     "construct_s3_url_from_path",
     "download_recording",
+    "download_dataset_description",
     "check_recording_files_exist",
     # data_extraction.py
     "extract_brainset_description",
@@ -51,9 +50,6 @@ __all__ = [
     "extract_meas_date",
     "extract_signal",
     "generate_train_valid_splits_one_epoch",
-    "read_bids_channels_tsv",
-    "read_bids_electrodes_tsv",
-    "read_bids_coordsystem_json",
     # pipeline.py
     "OpenNeuroPipeline",
     "OpenNeuroEEGPipeline",

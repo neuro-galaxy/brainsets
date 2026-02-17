@@ -285,44 +285,74 @@ def download_recording(s3_url: str, target_dir: Path) -> list[Path]:
     return download_prefix_from_url(s3_url, target_dir)
 
 
+def download_dataset_description(dataset_id: str, target_dir: Path) -> Path:
+    """Download dataset_description.json from OpenNeuro S3.
+
+    This file is required for mne-bids to recognize a valid BIDS dataset.
+    If the file already exists locally, it is not re-downloaded.
+
+    Args:
+        dataset_id: The OpenNeuro dataset identifier
+        target_dir: Local directory to download to
+
+    Returns:
+        Path to the downloaded or existing dataset_description.json file
+
+    Raises:
+        RuntimeError: If download fails or file doesn't exist on S3
+    """
+    dataset_id = validate_dataset_id(dataset_id)
+    target_dir = Path(target_dir)
+    target_path = target_dir / "dataset_description.json"
+
+    if target_path.exists():
+        return target_path
+
+    s3_client = get_cached_s3_client()
+    key = f"{dataset_id}/dataset_description.json"
+
+    try:
+        response = s3_client.get_object(Bucket=OPENNEURO_S3_BUCKET, Key=key)
+        content = response["Body"].read()
+
+        target_dir.mkdir(parents=True, exist_ok=True)
+        with open(target_path, "wb") as f:
+            f.write(content)
+
+        return target_path
+
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+        if error_code in ("NoSuchKey", "404"):
+            raise RuntimeError(
+                f"dataset_description.json not found for {dataset_id} on OpenNeuro S3"
+            ) from e
+        raise RuntimeError(
+            f"Failed to download dataset_description.json for {dataset_id}: {e}"
+        ) from e
+
+
 def check_recording_files_exist(recording_id: str, subject_dir: Path) -> bool:
-    """Check if EEG/iEEG files matching the recording_id pattern exist locally.
+    """Check if data files matching the recording_id pattern exist locally.
+
+    Searches for any data file (EEG or iEEG) in the BIDS-structured directory.
+    Supports all BIDS-compliant formats (.edf, .vhdr, .set, .bdf, .eeg, .nwb)
+    plus .fif for MNE-processed files.
 
     Args:
         recording_id: Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband')
         subject_dir: Subject directory to search in
 
     Returns:
-        True if at least one recording file is found, False otherwise
+        True if at least one data file is found, False otherwise
     """
     if not subject_dir.exists():
         return False
 
-    # BIDS-compliant EEG and iEEG extensions plus .fif for MNE-processed files.
-    # EEG BIDS formats: .edf (European Data Format), .set (EEGLAB), .bdf (Biosemi),
-    #                   .vhdr (BrainVision header), .eeg (BrainVision data)
-    # iEEG BIDS formats: .edf, .set, .bdf, .vhdr, .eeg, .nwb (Neurodata Without Borders)
-    # Non-BIDS: .fif (MNE FIFF format) included for locally processed files.
-    patterns = [
-        # EEG patterns
-        f"**/{recording_id}_eeg.edf",
-        f"**/{recording_id}_eeg.fif",
-        f"**/{recording_id}_eeg.set",
-        f"**/{recording_id}_eeg.bdf",
-        f"**/{recording_id}_eeg.vhdr",
-        f"**/{recording_id}_eeg.eeg",
-        # iEEG patterns
-        f"**/{recording_id}_ieeg.edf",
-        f"**/{recording_id}_ieeg.fif",
-        f"**/{recording_id}_ieeg.set",
-        f"**/{recording_id}_ieeg.bdf",
-        f"**/{recording_id}_ieeg.vhdr",
-        f"**/{recording_id}_ieeg.eeg",
-        f"**/{recording_id}_ieeg.nwb",
-    ]
+    supported_extensions = {".edf", ".set", ".bdf", ".vhdr", ".eeg", ".nwb", ".fif"}
 
-    for pattern in patterns:
-        if list(subject_dir.glob(pattern)):
+    for file in subject_dir.rglob(f"{recording_id}_*"):
+        if file.suffix.lower() in supported_extensions:
             return True
 
     return False

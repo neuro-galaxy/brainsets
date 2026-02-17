@@ -2,6 +2,7 @@
 # python-version = "3.11"
 # dependencies = [
 #   "mne==1.11.0",
+#   "mne-bids==0.18",
 #   "boto3==1.42.0",
 #   "requests==2.32.5",
 # ]

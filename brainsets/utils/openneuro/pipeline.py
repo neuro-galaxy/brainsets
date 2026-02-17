@@ -19,10 +19,12 @@ import h5py
 import mne
 import numpy as np
 import pandas as pd
+from mne_bids import BIDSPath, read_raw_bids
 from temporaldata import ArrayDict, Data
 
 from brainsets import serialize_fn_map
 from brainsets.pipeline import BrainsetPipeline
+from brainsets.utils.bids_utils import parse_recording_id
 from brainsets.utils.openneuro.data_extraction import (
     extract_brainset_description,
     extract_device_description,
@@ -30,12 +32,11 @@ from brainsets.utils.openneuro.data_extraction import (
     extract_session_description,
     extract_signal,
     extract_subject_description,
-    read_bids_channels_tsv,
-    read_bids_electrodes_tsv,
 )
 from brainsets.utils.openneuro.dataset import (
     check_recording_files_exist,
     construct_s3_url_from_path,
+    download_dataset_description,
     download_recording,
     fetch_eeg_recordings,
     fetch_ieeg_recordings,
@@ -80,9 +81,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     subject_ids: Optional[list[str]] = None
     """Optional list of subject IDs to process. If None, processes all subjects."""
 
-    FILE_EXTENSIONS: set[str] = {".fif", ".set", ".edf", ".bdf", ".vhdr", ".eeg"}
-    """Supported file extensions for loading. Overridable per modality."""
-
     derived_version: str = "1.0.0"
     """Version of the processed data."""
 
@@ -96,6 +94,38 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         Must be implemented by subclasses.
         """
         raise NotImplementedError("Subclasses must implement modality property")
+
+    def _build_bids_path(self, recording_id: str, data_dir: Path) -> BIDSPath:
+        """Build a mne_bids.BIDSPath from recording_id and data directory.
+
+        Args:
+            recording_id: Recording identifier (e.g., 'sub-01_ses-01_task-Sleep')
+            data_dir: Data directory (not used; BIDS root is set to self.raw_dir)
+
+        Returns:
+            BIDSPath configured for reading via mne_bids.read_raw_bids
+
+        Raises:
+            ValueError: If recording_id cannot be parsed
+        """
+        entities = parse_recording_id(recording_id)
+
+        bids_path = BIDSPath(
+            root=self.raw_dir,
+            subject=entities["subject_id"].split("-")[1],
+            session=(
+                entities["session_id"].split("-")[1] if entities["session_id"] else None
+            ),
+            task=entities["task_id"].split("-")[1],
+            acquisition=(
+                entities["acq_id"].split("-")[1] if entities["acq_id"] else None
+            ),
+            run=entities["run_id"].split("-")[1] if entities["run_id"] else None,
+            datatype=self.modality,
+            suffix=self.modality,
+        )
+
+        return bids_path
 
     def _build_channels(
         self, raw: mne.io.Raw, recording_id: str, data_dir: Path
@@ -259,6 +289,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         try:
             download_recording(s3_url, target_dir)
+            download_dataset_description(self.dataset_id, target_dir)
         except Exception as e:
             raise RuntimeError(
                 f"Failed to download data for {subject_id} from {self.dataset_id}: {str(e)}"
@@ -270,75 +301,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             "session_id": session_id,
             "fpath": subject_dir,
         }
-
-    def _find_data_file(self, data_dir: Path, recording_id: str) -> Path:
-        """Find the data file (EEG or iEEG) for a recording in the data directory.
-
-        Returns:
-            Path to the data file
-
-        Raises:
-            RuntimeError: If no file or multiple ambiguous files found
-        """
-        candidates = [
-            p
-            for p in data_dir.rglob(f"{recording_id}*")
-            if p.suffix.lower() in self.FILE_EXTENSIONS
-        ]
-
-        if not candidates:
-            raise RuntimeError(
-                f"No {self.modality.upper()} files found in {data_dir} for recording {recording_id}."
-            )
-
-        if len(candidates) > 1:
-            # BIDS files have "_eeg." or "_ieeg." before extension
-            # Filter for this pattern to disambiguate from sidecar files
-            # (e.g., _channels.tsv, _events.tsv) or auxiliary files.
-            if self.modality == "eeg":
-                pattern = "_eeg."
-            else:
-                pattern = "_ieeg."
-            bids_files = [f for f in candidates if pattern in f.name]
-            if len(bids_files) == 1:
-                return bids_files[0]
-            raise RuntimeError(
-                f"Multiple {self.modality.upper()} files found in {data_dir} for recording {recording_id}: "
-                f"{candidates}"
-            )
-
-        return candidates[0]
-
-    def _load_data_file(self, data_file: Path) -> mne.io.Raw:
-        """Load a data file (EEG or iEEG) using MNE's auto-detecting reader.
-
-        Uses mne.io.read_raw() which automatically selects the appropriate
-        reader based on file extension (.fif, .set, .edf, .bdf, .vhdr, etc.).
-
-        Returns:
-            MNE Raw object
-
-        Raises:
-            RuntimeError: If the file cannot be loaded
-            ValueError: If BrainVision .eeg file is missing its .vhdr header
-        """
-        # BrainVision format consists of three files:
-        # - .vhdr: Header file (contains metadata, must be loaded)
-        # - .vmrk: Marker file (contains event markers)
-        # - .eeg: Binary data file
-        # MNE requires loading via the .vhdr header file.
-        if data_file.suffix.lower() == ".eeg":
-            vhdr_file = data_file.with_suffix(".vhdr")
-            if not vhdr_file.exists():
-                raise ValueError(f"Could not find .vhdr header file for {data_file}")
-            data_file = vhdr_file
-
-        try:
-            return mne.io.read_raw(data_file, preload=True, verbose=False)
-        except Exception as e:
-            raise RuntimeError(
-                f"Failed to load {self.modality.upper()} file {data_file}: {e}"
-            ) from e
 
     def _process_common(self, download_output: dict) -> Optional[tuple[Data, Path]]:
         """Process data files and create a Data object.
@@ -362,9 +324,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         subject_id = download_output["subject_id"]
         data_dir = Path(download_output["fpath"])
 
-        data_file = self._find_data_file(data_dir, recording_id)
-        self.update_status(f"Processing {data_file.name}")
-
         store_path = self.processed_dir / f"{recording_id}.h5"
 
         if not getattr(self.args, "reprocess", False):
@@ -373,7 +332,8 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
                 return None
 
         self.update_status(f"Loading {self.modality.upper()} file")
-        raw = self._load_data_file(data_file)
+        bids_path = self._build_bids_path(recording_id, data_dir)
+        raw = read_raw_bids(bids_path, verbose=False)
 
         self.update_status("Extracting Metadata")
         source = f"https://openneuro.org/datasets/{self.dataset_id}"
@@ -494,16 +454,6 @@ class OpenNeuroEEGPipeline(OpenNeuroPipeline):
     modality = "eeg"
     """Data modality for this pipeline."""
 
-    FILE_EXTENSIONS = {".fif", ".set", ".edf", ".bdf", ".vhdr", ".eeg"}
-    """Supported EEG file extensions for loading.
-
-    BIDS-compliant extensions: .edf, .vhdr, .set, .bdf, .eeg
-    Non-BIDS extension: .fif (MNE FIFF format, included for processed data)
-
-    Note: .vhdr is the BrainVision header file. When a .eeg file is found,
-    the code automatically looks for its .vhdr header (see _load_data_file).
-    """
-
     ELECTRODE_RENAME: Optional[dict[str, str]] = None
     """Optional dict mapping old electrode names to new standardized names.
 
@@ -602,124 +552,52 @@ class OpenNeuroIEEGPipeline(OpenNeuroPipeline):
     modality = "ieeg"
     """Data modality for this pipeline."""
 
-    FILE_EXTENSIONS = {".fif", ".set", ".edf", ".bdf", ".vhdr", ".eeg", ".nwb"}
-    """Supported iEEG file extensions for loading.
-
-    BIDS iEEG formats: .edf, .vhdr, .set, .bdf, .eeg, .nwb
-    Non-BIDS: .fif (MNE FIFF format for processed data)
-    """
-
-    def _read_channels_tsv(self, data_dir: Path, recording_id: str) -> pd.DataFrame:
-        """Read channel metadata from BIDS _channels.tsv sidecar.
-
-        Override this method to customize channel parsing for non-standard formats.
-
-        Args:
-            data_dir: Directory containing the recording files
-            recording_id: Recording identifier to find sidecar files
-
-        Returns:
-            DataFrame with channel metadata (name, type, status, etc.)
-
-        Raises:
-            FileNotFoundError: If _channels.tsv cannot be found
-        """
-        channels_files = list(data_dir.glob(f"**/{recording_id}*_channels.tsv"))
-        if not channels_files:
-            raise FileNotFoundError(
-                f"No _channels.tsv found for recording {recording_id} in {data_dir}"
-            )
-        if len(channels_files) > 1:
-            logging.warning(
-                f"Multiple _channels.tsv files found for {recording_id}, using first: {channels_files[0]}"
-            )
-        return read_bids_channels_tsv(channels_files[0])
-
-    def _read_electrodes_tsv(self, data_dir: Path, recording_id: str) -> pd.DataFrame:
-        """Read electrode coordinates from BIDS _electrodes.tsv sidecar.
-
-        Override this method to customize electrode parsing for non-standard formats.
-
-        Args:
-            data_dir: Directory containing the recording files
-            recording_id: Recording identifier to find sidecar files
-
-        Returns:
-            DataFrame with electrode metadata (name, x, y, z coordinates, etc.)
-
-        Raises:
-            FileNotFoundError: If _electrodes.tsv cannot be found
-        """
-        electrodes_files = list(data_dir.glob(f"**/{recording_id}*_electrodes.tsv"))
-        if not electrodes_files:
-            raise FileNotFoundError(
-                f"No _electrodes.tsv found for recording {recording_id} in {data_dir}"
-            )
-        if len(electrodes_files) > 1:
-            logging.warning(
-                f"Multiple _electrodes.tsv files found for {recording_id}, using first: {electrodes_files[0]}"
-            )
-        return read_bids_electrodes_tsv(electrodes_files[0])
-
     def _build_channels(
         self, raw: mne.io.Raw, recording_id: str, data_dir: Path
     ) -> ArrayDict:
-        """Build channels from BIDS iEEG sidecars.
+        """Build channels from iEEG recording.
 
-        Reads _channels.tsv for channel types and status, and _electrodes.tsv for
-        coordinates. Merges metadata with MNE channel information.
+        Extracts channel information, types, and coordinates from the loaded Raw object.
+        mne-bids already populated raw.info with channel types from _channels.tsv
+        and electrode coordinates from _electrodes.tsv via the montage.
 
         Args:
-            raw: The loaded MNE Raw object
-            recording_id: Recording identifier
-            data_dir: Data directory containing sidecar files
+            raw: The loaded MNE Raw object (already processed by mne-bids)
+            recording_id: Recording identifier (not used; metadata comes from raw)
+            data_dir: Data directory (not used; metadata comes from raw)
 
         Returns:
             ArrayDict with channel id, type, status, and coordinate fields
         """
-        self.update_status("Reading channels metadata")
-        channels_df = self._read_channels_tsv(data_dir, recording_id)
-
-        self.update_status("Reading electrodes metadata")
-        electrodes_df = self._read_electrodes_tsv(data_dir, recording_id)
-
         channel_ids = np.array(raw.ch_names, dtype="U")
         channel_count = len(channel_ids)
 
-        # Extract types from channels.tsv, default to MNE types if not found
         channel_types = np.array(raw.get_channel_types(), dtype="U")
-        if "name" in channels_df.columns and "type" in channels_df.columns:
-            for idx, ch_name in enumerate(channel_ids):
-                mask = channels_df["name"] == ch_name
-                if mask.any():
-                    ch_type = channels_df.loc[mask, "type"].iloc[0]
-                    channel_types[idx] = str(ch_type)
 
-        # Extract status (good/bad), default to good if not found
         status = np.full(channel_count, "good", dtype="U")
-        if "name" in channels_df.columns and "status" in channels_df.columns:
-            for idx, ch_name in enumerate(channel_ids):
-                mask = channels_df["name"] == ch_name
-                if mask.any():
-                    ch_status = channels_df.loc[mask, "status"].iloc[0]
-                    status[idx] = str(ch_status)
+        bad_channels = raw.info.get("bads", [])
+        for idx, ch_name in enumerate(channel_ids):
+            if ch_name in bad_channels:
+                status[idx] = "bad"
 
-        # Extract coordinates (x, y, z)
         x_coords = np.full(channel_count, np.nan)
         y_coords = np.full(channel_count, np.nan)
         z_coords = np.full(channel_count, np.nan)
 
-        if "name" in electrodes_df.columns:
-            for idx, ch_name in enumerate(channel_ids):
-                mask = electrodes_df["name"] == ch_name
-                if mask.any():
-                    row = electrodes_df.loc[mask].iloc[0]
-                    if "x" in row:
-                        x_coords[idx] = float(row["x"])
-                    if "y" in row:
-                        y_coords[idx] = float(row["y"])
-                    if "z" in row:
-                        z_coords[idx] = float(row["z"])
+        try:
+            montage = raw.get_montage()
+            if montage is not None:
+                positions = montage.get_positions()
+                if positions is not None and "ch_pos" in positions:
+                    ch_pos = positions["ch_pos"]
+                    for idx, ch_name in enumerate(channel_ids):
+                        if ch_name in ch_pos:
+                            coords = ch_pos[ch_name]
+                            x_coords[idx] = float(coords[0])
+                            y_coords[idx] = float(coords[1])
+                            z_coords[idx] = float(coords[2])
+        except Exception:
+            pass
 
         return ArrayDict(
             id=channel_ids,
