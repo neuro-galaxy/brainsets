@@ -48,7 +48,7 @@ dev = [
     "mne~=1.11.0",
     "boto3>=1.42.32",
 ]
-testing = ["boto3>=1.42.32", "mne>=1.8.0"]
+testing = ["boto3>=1.42.32", "mne>=1.8.0", "mne-bids"]
 
 [project.urls]
 Homepage = "https://github.com/neuro-galaxy/brainsets"
