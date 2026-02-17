@@ -13,19 +13,20 @@ import mne
 import h5py
 import pandas as pd
 from temporaldata import Data
-from brainsets.descriptions import (
-    BrainsetDescription,
-    SubjectDescription,
-    SessionDescription,
-    DeviceDescription,
-)
 from brainsets import serialize_fn_map
 from brainsets.pipeline import BrainsetPipeline
+from brainsets.taxonomy import RecordingTech
 from brainsets.utils.s3_utils import get_cached_s3_client, get_object_list
 from brainsets.utils.mne_utils import (
     extract_measurement_date,
     extract_eeg_signal,
     extract_channels,
+)
+from brainsets.descriptions import (
+    BrainsetDescription,
+    SubjectDescription,
+    SessionDescription,
+    DeviceDescription,
 )
 
 parser = ArgumentParser()
@@ -125,7 +126,10 @@ class Pipeline(BrainsetPipeline):
             id=recording_id, recording_date=meas_date
         )
 
-        device_description = DeviceDescription(id=recording_id)
+        device_description = DeviceDescription(
+            id=recording_id,
+            recording_tech=RecordingTech.SCALP_EEG,
+        )
 
         # TODO: get subject metadat from PublicFile and add here
         subject_description = SubjectDescription(
