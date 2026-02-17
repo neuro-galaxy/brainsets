@@ -8,6 +8,8 @@
 
 from argparse import ArgumentParser
 from pathlib import Path
+import ssl
+from urllib.request import urlopen
 
 import mne
 import h5py
@@ -39,6 +41,55 @@ class Pipeline(BrainsetPipeline):
     bucket = "fcp-indi"
     prefix = "data/Projects/EEG_Eyetracking_CMI_data/"
     parser = parser
+
+    def _download_subject_metadata(self) -> Path:
+        """Download the MIPDB public metadata CSV if not already cached locally.
+
+        Returns the local path to the downloaded CSV file.
+        """
+        # the metadata file is not hosted in the same s3 bucket
+        local_path = self.raw_dir / "MIPDB_PublicFile.csv"
+        metadata_url = "https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/_static/MIPDB_PublicFile.csv"
+
+        if not local_path.exists() or self.args.redownload:
+            self.update_status("Downloading subject metadata CSV")
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            # NITRC's certificate has a hostname mismatch; skip verification
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            with urlopen(metadata_url, context=ctx) as response:
+                local_path.write_bytes(response.read())
+        else:
+            self.update_status("Subject metadata CSV already cached")
+
+        return local_path
+
+    def _get_subject_metadata(self, participant_id: str) -> dict:
+        """Look up subject metadata (age, sex) from the MIPDB public metadata.
+
+        Args:
+            participant_id: Subject identifier (e.g., "A00054400").
+
+        Returns:
+            Dict with 'age' and 'sex' keys.
+        """
+        csv_path = self._download_subject_metadata()
+        df = pd.read_csv(csv_path, index_col="ID")
+
+        if participant_id not in df.index:
+            self.update_status(
+                f"Warning: no metadata found for subject {participant_id}"
+            )
+            return {"age": 0.0, "sex": 0}
+
+        subject = df.loc[participant_id]
+
+        age = subject.get("Age", None)
+        sex = subject.get("Sex", None)
+        sex = int(sex) if pd.notna(sex) else 0
+
+        return {"age": age, "sex": sex}
 
     @classmethod
     def get_manifest(cls, raw_dir: Path, args) -> pd.DataFrame:
@@ -131,12 +182,14 @@ class Pipeline(BrainsetPipeline):
             recording_tech=RecordingTech.SCALP_EEG,
         )
 
-        # TODO: get subject metadat from PublicFile and add here
+        subject_id = recording_id[:9]
+        subject_info = self._get_subject_metadata(subject_id)
+
         subject_description = SubjectDescription(
-            id=recording_id[:9],
+            id=subject_id,
             species="HUMAN",
-            age=0,
-            sex="UNKNOWN",
+            age=subject_info["age"],
+            sex=subject_info["sex"],
         )
 
         self.update_status("Extracting EEG signal")
