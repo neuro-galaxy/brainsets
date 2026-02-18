@@ -70,6 +70,7 @@ class TestParseBidsEegFilename:
         assert result is None
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("dataset_id,error", [("ds006695", False), ("ds00555", True)])
 def test_fetch_all_filenames(dataset_id, error):
     if error:

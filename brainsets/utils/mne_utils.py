@@ -7,7 +7,6 @@ MNE Raw objects and convert them to brainsets data structures.
 import datetime
 import warnings
 import numpy as np
-import pandas as pd
 from typing import Tuple
 from temporaldata import ArrayDict, Interval, RegularTimeSeries
 

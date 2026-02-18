@@ -11,6 +11,7 @@ pytestmark = pytest.mark.skipif(
 from brainsets.utils.s3_utils import (
     UNSIGNED,
     ClientError,
+    clear_cached_s3_client,
     get_cached_s3_client,
     get_object_list,
     download_prefix,
@@ -19,9 +20,11 @@ from brainsets.utils.s3_utils import (
 
 
 class TestGetCachedS3Client:
-
     def setup_method(self):
-        get_cached_s3_client.cache_clear()
+        clear_cached_s3_client()
+
+    def teardown_method(self):
+        clear_cached_s3_client()
 
     @patch("brainsets.utils.s3_utils.boto3.client")
     def test_returns_s3_client(self, mock_boto_client):
@@ -70,9 +73,17 @@ class TestGetCachedS3Client:
         assert config.retries["mode"] == "adaptive"
         assert config.retries["total_max_attempts"] == 10
 
+    @patch("brainsets.utils.s3_utils.boto3.client")
+    def test_raises_on_different_params(self, mock_boto_client):
+        mock_boto_client.return_value = MagicMock()
+
+        get_cached_s3_client(retry_mode="adaptive", max_attempts=5)
+
+        with pytest.raises(ValueError, match="already called with"):
+            get_cached_s3_client(retry_mode="standard", max_attempts=10)
+
 
 class TestListObjects:
-
     def test_lists_objects_successfully(self):
         """Test listing objects returns keys without directories."""
         mock_client = MagicMock()
@@ -181,7 +192,6 @@ class TestListObjects:
 
 
 class TestDownloadPrefix:
-
     def test_downloads_files_successfully(self, tmp_path):
         mock_client = MagicMock()
         mock_paginator = MagicMock()
@@ -373,7 +383,6 @@ class TestDownloadPrefix:
 
 
 class TestDownloadPrefixFromUrl:
-
     @patch("brainsets.utils.s3_utils.download_prefix")
     def test_parses_s3_url_correctly(self, mock_download, tmp_path):
         mock_download.return_value = [tmp_path / "file.edf"]

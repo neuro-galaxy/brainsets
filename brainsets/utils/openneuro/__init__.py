@@ -3,16 +3,9 @@
 This package provides utilities for working with OpenNeuro datasets:
 - S3-based file listing and downloading
 - BIDS filename parsing for EEG recordings discovery
-- Data extraction utilities for MNE Raw objects
-- OpenNeuroEEGPipeline base class for building EEG pipelines
+- OpenNeuroPipeline base class and EEG/iEEG subclasses for building pipelines
 """
 
-from .data_extraction import (
-    extract_brainset_description,
-    extract_device_description,
-    extract_session_description,
-    extract_subject_description,
-)
 from .dataset import (
     OPENNEURO_S3_BUCKET,
     check_recording_files_exist,
@@ -26,7 +19,7 @@ from .dataset import (
     validate_dataset_id,
 )
 from .pipeline import OpenNeuroEEGPipeline, OpenNeuroIEEGPipeline, OpenNeuroPipeline
-from brainsets.utils.split import generate_train_valid_splits_one_epoch
+from ..split import generate_train_valid_splits_one_epoch
 
 __all__ = [
     # dataset.py
@@ -40,11 +33,6 @@ __all__ = [
     "download_recording",
     "download_dataset_description",
     "check_recording_files_exist",
-    # data_extraction.py
-    "extract_brainset_description",
-    "extract_subject_description",
-    "extract_session_description",
-    "extract_device_description",
     # split.py
     "generate_train_valid_splits_one_epoch",
     # pipeline.py

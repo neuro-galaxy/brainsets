@@ -1,13 +1,13 @@
-"""Base pipeline class for OpenNeuro EEG datasets.
+"""Base pipeline classes for OpenNeuro datasets.
 
-This module provides the OpenNeuroEEGPipeline base class that handles common
-functionality for processing EEG datasets from OpenNeuro, including:
+This module provides the OpenNeuroPipeline abstract base class and its
+concrete subclasses (OpenNeuroEEGPipeline, OpenNeuroIEEGPipeline) that
+handle common functionality for processing datasets from OpenNeuro, including:
 - Dynamic recording discovery from OpenNeuro S3
-- Downloading EEG files with caching
+- Downloading EEG/iEEG files with caching
 - Common processing workflow with electrode mapping
 """
 
-import datetime
 import logging
 from abc import ABC
 from argparse import ArgumentParser, Namespace
@@ -23,17 +23,18 @@ from mne_bids import BIDSPath, read_raw_bids
 from temporaldata import ArrayDict, Data
 
 from brainsets import serialize_fn_map
+from brainsets.descriptions import (
+    BrainsetDescription,
+    DeviceDescription,
+    SessionDescription,
+    SubjectDescription,
+)
 from brainsets.pipeline import BrainsetPipeline
+from brainsets.taxonomy import Species
 from brainsets.utils.bids_utils import parse_recording_id
 from brainsets.utils.mne_utils import (
     extract_eeg_signal,
     extract_measurement_date,
-)
-from brainsets.utils.openneuro.data_extraction import (
-    extract_brainset_description,
-    extract_device_description,
-    extract_session_description,
-    extract_subject_description,
 )
 from brainsets.utils.openneuro.dataset import (
     check_recording_files_exist,
@@ -89,13 +90,8 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     description: Optional[str] = None
     """Optional description of the dataset."""
 
-    @property
-    def modality(self) -> str:
-        """Return the data modality: 'eeg' or 'ieeg'.
-
-        Must be implemented by subclasses.
-        """
-        raise NotImplementedError("Subclasses must implement modality property")
+    modality: str
+    """Data modality for this pipeline. Must be overridden by subclasses."""
 
     def _build_bids_path(self, recording_id: str, data_dir: Path) -> BIDSPath:
         """Build a mne_bids.BIDSPath from recording_id and data directory.
@@ -114,15 +110,17 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         bids_path = BIDSPath(
             root=self.raw_dir,
-            subject=entities["subject_id"].split("-")[1],
+            subject=entities["subject_id"].split("-", 1)[1],
             session=(
-                entities["session_id"].split("-")[1] if entities["session_id"] else None
+                entities["session_id"].split("-", 1)[1]
+                if entities["session_id"]
+                else None
             ),
-            task=entities["task_id"].split("-")[1],
+            task=entities["task_id"].split("-", 1)[1],
             acquisition=(
-                entities["acq_id"].split("-")[1] if entities["acq_id"] else None
+                entities["acq_id"].split("-", 1)[1] if entities["acq_id"] else None
             ),
-            run=entities["run_id"].split("-")[1] if entities["run_id"] else None,
+            run=(entities["run_id"].split("-", 1)[1] if entities["run_id"] else None),
             datatype=self.modality,
             suffix=self.modality,
         )
@@ -345,8 +343,8 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             else f"OpenNeuro dataset {self.dataset_id}"
         )
 
-        brainset_description = extract_brainset_description(
-            dataset_id=self.dataset_id,
+        brainset_description = BrainsetDescription(
+            id=self.dataset_id,
             origin_version=f"openneuro/{self.dataset_id}",
             derived_version=self.derived_version,
             source=source,
@@ -354,19 +352,20 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         )
 
         subject_info = self.get_subject_info(subject_id)
-        subject_description = extract_subject_description(
-            subject_id=subject_id,
+        subject_description = SubjectDescription(
+            id=subject_id,
+            species=Species.HOMO_SAPIENS,
             age=subject_info.get("age"),
             sex=subject_info.get("sex"),
         )
 
         meas_date = extract_measurement_date(raw)
 
-        session_description = extract_session_description(
-            session_id=recording_id, recording_date=meas_date
+        session_description = SessionDescription(
+            id=recording_id, recording_date=meas_date
         )
 
-        device_description = extract_device_description(device_id=recording_id)
+        device_description = DeviceDescription(id=recording_id)
 
         self.update_status(f"Extracting {self.modality.upper()} Signal")
         signal = extract_eeg_signal(raw)
@@ -593,8 +592,10 @@ class OpenNeuroIEEGPipeline(OpenNeuroPipeline):
                             x_coords[idx] = float(coords[0])
                             y_coords[idx] = float(coords[1])
                             z_coords[idx] = float(coords[2])
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning(
+                f"Could not extract electrode positions for {recording_id}: {e}"
+            )
 
         return ArrayDict(
             id=channel_ids,

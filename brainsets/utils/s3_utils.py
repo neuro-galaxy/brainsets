@@ -1,6 +1,5 @@
 """Generic S3 utilities for downloading data from public buckets."""
 
-from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -30,13 +29,19 @@ def _check_boto_available(func_name: str) -> None:
         )
 
 
-@lru_cache(maxsize=1)
+_s3_client_cache: dict = {}
+
+
 def get_cached_s3_client(
     retry_mode: str = "adaptive",
     max_attempts: int = 5,
     max_pool_connections: int = 30,
 ):
     """Get a cached S3 client configured for anonymous access to public buckets.
+
+    The client is created on the first call and cached. Subsequent calls with
+    different parameters will raise a ValueError; call ``clear_cached_s3_client``
+    first if you need to change the configuration.
 
     Uses boto3's retry modes which include:
     - Exponential backoff with random jitter
@@ -52,9 +57,22 @@ def get_cached_s3_client(
 
     Raises:
         ImportError: If boto3/botocore is not installed.
+        ValueError: If called with different parameters than the first invocation.
     """
     _check_boto_available("get_cached_s3_client")
-    return boto3.client(
+
+    params = (retry_mode, max_attempts, max_pool_connections)
+
+    if "client" in _s3_client_cache:
+        if _s3_client_cache["params"] != params:
+            raise ValueError(
+                f"get_cached_s3_client was already called with "
+                f"{_s3_client_cache['params']} but is now being called with "
+                f"{params}. Call clear_cached_s3_client() first to reconfigure."
+            )
+        return _s3_client_cache["client"]
+
+    client = boto3.client(
         "s3",
         config=Config(
             signature_version=UNSIGNED,
@@ -65,6 +83,14 @@ def get_cached_s3_client(
             max_pool_connections=max_pool_connections,
         ),
     )
+    _s3_client_cache["client"] = client
+    _s3_client_cache["params"] = params
+    return client
+
+
+def clear_cached_s3_client():
+    """Clear the cached S3 client so it can be re-created with new parameters."""
+    _s3_client_cache.clear()
 
 
 def get_object_list(
