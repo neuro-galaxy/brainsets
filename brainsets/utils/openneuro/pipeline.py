@@ -339,7 +339,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         brainset_description = BrainsetDescription(
             id=self.dataset_id,
-            origin_version=f"openneuro/{self.dataset_id}",
+            origin_version=f"openneuro/{self.brainset_id}",
             derived_version=self.derived_version,
             source=source,
             description=dataset_description,
