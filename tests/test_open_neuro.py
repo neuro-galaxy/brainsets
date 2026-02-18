@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 from botocore.exceptions import ClientError
 
-from brainsets.utils.bids_utils import parse_bids_eeg_filename
+from brainsets.utils.bids_utils import parse_bids_filename
 from brainsets.utils.openneuro import (
     fetch_all_filenames,
     fetch_eeg_recordings,
@@ -34,40 +34,50 @@ class TestValidateDatasetId:
             validate_dataset_id("invalid")
 
 
-class TestParseBidsEegFilename:
-    def test_simple_pattern(self):
-        result = parse_bids_eeg_filename("sub-01_task-Sleep_eeg.edf")
+class TestParseBidsFilename:
+    def test_simple_pattern_eeg(self):
+        result = parse_bids_filename("sub-01_task-Sleep_eeg.edf", "eeg")
         assert result is not None
-        assert result["subject_id"] == "sub-01"
-        assert result["session_id"] is None
-        assert result["task_id"] == "Sleep"
-        assert result["acq_id"] is None
-        assert result["run_id"] is None
+        assert result["subject"] == "01"
+        assert result["session"] is None
+        assert result["task"] == "Sleep"
+        assert result["acquisition"] is None
+        assert result["run"] is None
 
-    def test_full_pattern(self):
-        result = parse_bids_eeg_filename(
-            "sub-01_ses-01_task-Rest_acq-headband_run-02_eeg.vhdr"
+    def test_full_pattern_eeg(self):
+        result = parse_bids_filename(
+            "sub-01_ses-01_task-Rest_acq-headband_run-02_eeg.vhdr", "eeg"
         )
         assert result is not None
-        assert result["subject_id"] == "sub-01"
-        assert result["session_id"] == "ses-01"
-        assert result["task_id"] == "Rest"
-        assert result["acq_id"] == "headband"
-        assert result["run_id"] == "02"
+        assert result["subject"] == "01"
+        assert result["session"] == "01"
+        assert result["task"] == "Rest"
+        assert result["acquisition"] == "headband"
+        assert result["run"] == "02"
 
     def test_with_path(self):
-        result = parse_bids_eeg_filename("sub-01/eeg/sub-01_task-Sleep_eeg.edf")
+        result = parse_bids_filename("sub-01/eeg/sub-01_task-Sleep_eeg.edf", "eeg")
         assert result is not None
-        assert result["subject_id"] == "sub-01"
-        assert result["task_id"] == "Sleep"
+        assert result["subject"] == "01"
+        assert result["task"] == "Sleep"
 
-    def test_non_eeg_file(self):
-        result = parse_bids_eeg_filename("sub-01_task-Sleep_bold.nii.gz")
+    def test_wrong_modality(self):
+        result = parse_bids_filename("sub-01_task-Sleep_eeg.edf", "ieeg")
+        assert result is None
+
+    def test_non_bids_file(self):
+        result = parse_bids_filename("sub-01_task-Sleep_bold.nii.gz", "eeg")
         assert result is None
 
     def test_invalid_pattern(self):
-        result = parse_bids_eeg_filename("invalid_filename.edf")
+        result = parse_bids_filename("invalid_filename.edf", "eeg")
         assert result is None
+
+    def test_ieeg_modality(self):
+        result = parse_bids_filename("sub-01_task-VisualNaming_ieeg.edf", "ieeg")
+        assert result is not None
+        assert result["subject"] == "01"
+        assert result["task"] == "VisualNaming"
 
 
 @pytest.mark.integration

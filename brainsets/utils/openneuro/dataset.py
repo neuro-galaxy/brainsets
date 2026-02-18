@@ -21,8 +21,7 @@ except ImportError:
 from brainsets.utils.bids_utils import (
     EEG_EXTENSIONS,
     IEEG_EXTENSIONS,
-    parse_bids_eeg_filename,
-    parse_bids_ieeg_filename,
+    parse_bids_filename,
 )
 from brainsets.utils.s3_utils import (
     download_prefix_from_url,
@@ -109,7 +108,7 @@ def fetch_all_filenames(dataset_id: str, tag: Optional[str] = None) -> list[str]
 def _fetch_recordings(
     dataset_id: str,
     extensions: set[str],
-    parse_fn,
+    modality: str,
     data_file_key: str,
 ) -> list[dict]:
     """Discover recordings in a dataset by parsing BIDS filenames.
@@ -119,7 +118,7 @@ def _fetch_recordings(
     Args:
         dataset_id: The OpenNeuro dataset identifier
         extensions: Set of file extensions to accept (e.g., EEG_EXTENSIONS)
-        parse_fn: Function to parse BIDS filename (e.g., parse_bids_eeg_filename)
+        modality: The modality suffix to match (e.g., 'eeg', 'ieeg')
         data_file_key: Key name for data file path in returned dict (e.g., 'eeg_file')
 
     Returns:
@@ -136,18 +135,18 @@ def _fetch_recordings(
         if ext not in extensions:
             continue
 
-        parsed = parse_fn(filepath)
+        parsed = parse_bids_filename(filepath, modality)
         if not parsed:
             continue
 
-        components = [parsed["subject_id"]]
-        if parsed["session_id"]:
-            components.append(parsed["session_id"])
-        components.append(f"task-{parsed['task_id']}")
-        if parsed["acq_id"]:
-            components.append(f"acq-{parsed['acq_id']}")
-        if parsed["run_id"]:
-            components.append(f"run-{parsed['run_id']}")
+        components = [f"sub-{parsed['subject']}"]
+        if parsed["session"]:
+            components.append(f"ses-{parsed['session']}")
+        components.append(f"task-{parsed['task']}")
+        if parsed["acquisition"]:
+            components.append(f"acq-{parsed['acquisition']}")
+        if parsed["run"]:
+            components.append(f"run-{parsed['run']}")
 
         recording_id = "_".join(components)
 
@@ -158,11 +157,11 @@ def _fetch_recordings(
         recordings.append(
             {
                 "recording_id": recording_id,
-                "subject_id": parsed["subject_id"],
-                "session_id": parsed["session_id"],
-                "task_id": parsed["task_id"],
-                "acq_id": parsed["acq_id"],
-                "run_id": parsed["run_id"],
+                "subject_id": f"sub-{parsed['subject']}",
+                "session_id": f"ses-{parsed['session']}" if parsed["session"] else None,
+                "task_id": parsed["task"],
+                "acq_id": parsed["acquisition"],
+                "run_id": parsed["run"],
                 data_file_key: filepath,
             }
         )
@@ -186,9 +185,7 @@ def fetch_eeg_recordings(dataset_id: str) -> list[dict]:
             - run_id: Run identifier or None (e.g., '01')
             - eeg_file: Relative path to EEG file
     """
-    return _fetch_recordings(
-        dataset_id, EEG_EXTENSIONS, parse_bids_eeg_filename, "eeg_file"
-    )
+    return _fetch_recordings(dataset_id, EEG_EXTENSIONS, "eeg", "eeg_file")
 
 
 def fetch_ieeg_recordings(dataset_id: str) -> list[dict]:
@@ -207,9 +204,7 @@ def fetch_ieeg_recordings(dataset_id: str) -> list[dict]:
             - run_id: Run identifier or None (e.g., '01')
             - ieeg_file: Relative path to iEEG file
     """
-    return _fetch_recordings(
-        dataset_id, IEEG_EXTENSIONS, parse_bids_ieeg_filename, "ieeg_file"
-    )
+    return _fetch_recordings(dataset_id, IEEG_EXTENSIONS, "ieeg", "ieeg_file")
 
 
 def fetch_participants_tsv(dataset_id: str) -> Optional[pd.DataFrame]:

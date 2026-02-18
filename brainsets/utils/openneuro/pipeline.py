@@ -110,17 +110,11 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         bids_path = BIDSPath(
             root=self.raw_dir,
-            subject=entities["subject_id"].split("-", 1)[1],
-            session=(
-                entities["session_id"].split("-", 1)[1]
-                if entities["session_id"]
-                else None
-            ),
-            task=entities["task_id"].split("-", 1)[1],
-            acquisition=(
-                entities["acq_id"].split("-", 1)[1] if entities["acq_id"] else None
-            ),
-            run=(entities["run_id"].split("-", 1)[1] if entities["run_id"] else None),
+            subject=entities["subject"],
+            session=entities.get("session"),
+            task=entities["task"],
+            acquisition=entities.get("acquisition"),
+            run=entities.get("run"),
             datatype=self.modality,
             suffix=self.modality,
         )
