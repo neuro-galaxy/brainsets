@@ -1,6 +1,6 @@
 import datetime
 from typing import Dict, List, Tuple, Optional, Union
-
+import numpy as np
 from pydantic import field_validator
 from pydantic.dataclasses import dataclass
 import temporaldata
@@ -90,7 +90,7 @@ class SubjectDescription(temporaldata.Data):
         """
         if age is None:
             return 0.0
-        elif isinstance(age, (int, float)):
+        elif isinstance(age, (int, float, np.int64, np.float64)):
             age_normalized = float(age)
             if age_normalized < 0:
                 raise ValueError(f"Age cannot be negative, got {age_normalized}")
