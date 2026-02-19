@@ -69,7 +69,6 @@ class TestExtractMeasDate:
 
 @pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
 class TestExtractEEGSignal:
-
     def test_returns_regular_time_series(self):
         mock_raw = create_mock_raw(n_channels=4, n_samples=500, sfreq=256.0)
         result = extract_eeg_signal(mock_raw)
@@ -113,7 +112,6 @@ class TestExtractEEGSignal:
 
 @pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
 class TestExtractChannels:
-
     def test_returns_array_dict(self):
         mock_raw = create_mock_raw()
         result = extract_channels(mock_raw)
@@ -153,7 +151,6 @@ class TestExtractChannels:
 
 @pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
 class TestExtractPSGSignal:
-
     def create_mock_psg_raw(self, ch_names, n_samples=1000, sfreq=256.0):
         mock_raw = MagicMock()
         n_channels = len(ch_names)
@@ -173,8 +170,8 @@ class TestExtractPSGSignal:
 
         signals, channels = extract_psg_signal(mock_raw)
 
-        assert "EEG" in channels.ch_type
-        assert np.sum(channels.ch_type == "EEG") == 2
+        assert "EEG" in channels.types
+        assert np.sum(channels.types == "EEG") == 2
 
     def test_extracts_eog_channels(self):
         ch_names = ["EOG horizontal", "EEG Fpz-Cz"]
@@ -182,7 +179,7 @@ class TestExtractPSGSignal:
 
         signals, channels = extract_psg_signal(mock_raw)
 
-        assert "EOG" in channels.ch_type
+        assert "EOG" in channels.types
 
     def test_extracts_emg_channels(self):
         ch_names = ["EMG submental", "EEG Fpz-Cz"]
@@ -190,7 +187,7 @@ class TestExtractPSGSignal:
 
         signals, channels = extract_psg_signal(mock_raw)
 
-        assert "EMG" in channels.ch_type
+        assert "EMG" in channels.types
 
     def test_extracts_resp_channels(self):
         ch_names = ["Resp oro-nasal", "EEG Fpz-Cz"]
@@ -198,7 +195,7 @@ class TestExtractPSGSignal:
 
         signals, channels = extract_psg_signal(mock_raw)
 
-        assert "RESP" in channels.ch_type
+        assert "RESP" in channels.types
 
     def test_extracts_temp_channels(self):
         ch_names = ["Temp rectal", "EEG Fpz-Cz"]
@@ -206,7 +203,7 @@ class TestExtractPSGSignal:
 
         signals, channels = extract_psg_signal(mock_raw)
 
-        assert "TEMP" in channels.ch_type
+        assert "TEMP" in channels.types
 
     def test_skips_unknown_channels(self):
         ch_names = ["Unknown1", "Unknown2", "EEG Fpz-Cz"]
@@ -214,7 +211,7 @@ class TestExtractPSGSignal:
 
         signals, channels = extract_psg_signal(mock_raw)
 
-        assert len(channels.ch_id) == 1  # only EEG
+        assert len(channels.ids) == 1  # only EEG
 
     def test_returns_regular_time_series(self):
         ch_names = ["EEG Fpz-Cz", "EOG horizontal"]
@@ -250,8 +247,8 @@ class TestExtractPSGSignal:
 
         signals, channels = extract_psg_signal(mock_raw)
 
-        assert hasattr(channels, "ch_id")
-        assert hasattr(channels, "ch_type")
+        assert hasattr(channels, "ids")
+        assert hasattr(channels, "types")
 
     def test_raises_error_when_no_signals_extracted(self):
         ch_names = ["Unknown1", "Unknown2"]
@@ -266,8 +263,8 @@ class TestExtractPSGSignal:
 
         signals, channels = extract_psg_signal(mock_raw)
 
-        assert "EEG Fpz-Cz" in channels.ch_id
-        assert "EOG horizontal" in channels.ch_id
+        assert "EEG Fpz-Cz" in channels.ids
+        assert "EOG horizontal" in channels.ids
 
     def test_extracts_fpz_cz_pattern_case_insensitive(self):
         ch_names = ["FPZ-CZ", "fpz-cz", "Fpz-Cz"]
@@ -275,7 +272,7 @@ class TestExtractPSGSignal:
 
         signals, channels = extract_psg_signal(mock_raw)
 
-        assert np.sum(channels.ch_type == "EEG") == 3
+        assert np.sum(channels.types == "EEG") == 3
 
     def test_extracts_pz_oz_pattern_case_insensitive(self):
         ch_names = ["PZ-OZ", "pz-oz", "Pz-Oz"]
@@ -283,7 +280,7 @@ class TestExtractPSGSignal:
 
         signals, channels = extract_psg_signal(mock_raw)
 
-        assert np.sum(channels.ch_type == "EEG") == 3
+        assert np.sum(channels.types == "EEG") == 3
 
     def test_domain_uses_first_and_last_time_values(self):
         ch_names = ["EEG Fpz-Cz"]

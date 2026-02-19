@@ -7,7 +7,6 @@ MNE Raw objects and convert them to brainsets data structures.
 import datetime
 import warnings
 import numpy as np
-import pandas as pd
 from typing import Tuple
 from temporaldata import ArrayDict, Interval, RegularTimeSeries
 
@@ -151,8 +150,8 @@ def extract_psg_signal(raw_psg: "mne.io.Raw") -> Tuple[RegularTimeSeries, ArrayD
 
         channel_meta.append(
             {
-                "ch_id": str(ch_name),
-                "ch_type": ch_type,
+                "ids": str(ch_name),
+                "types": ch_type,
             }
         )
 
@@ -168,8 +167,8 @@ def extract_psg_signal(raw_psg: "mne.io.Raw") -> Tuple[RegularTimeSeries, ArrayD
     )
 
     channels = ArrayDict(
-        ch_id=np.array([ch["ch_id"] for ch in channel_meta], dtype="U"),
-        ch_type=np.array([ch["ch_type"] for ch in channel_meta], dtype="U"),
+        ids=np.array([ch["ids"] for ch in channel_meta], dtype="U"),
+        types=np.array([ch["types"] for ch in channel_meta], dtype="U"),
     )
 
     return signals, channels
