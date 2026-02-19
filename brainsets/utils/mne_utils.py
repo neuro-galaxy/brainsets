@@ -95,7 +95,7 @@ def extract_channels(
     """
     _check_mne_available("extract_channels")
     return ArrayDict(
-        id=np.array(recording_data.ch_names, dtype="U"),
+        ids=np.array(recording_data.ch_names, dtype="U"),
         types=np.array(recording_data.get_channel_types(), dtype="U"),
     )
 
