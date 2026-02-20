@@ -349,6 +349,14 @@ def generate_stratified_folds(
             f"Not enough samples ({len(class_labels)}) for {n_folds} folds."
         )
 
+    unique_labels, counts = np.unique(class_labels, return_counts=True)
+    for label, count in zip(unique_labels, counts):
+        if count < n_folds:
+            raise ValueError(
+                f"Stratification category '{label}' has only {count} samples, "
+                f"need at least {n_folds} for {n_folds}-fold split."
+            )
+
     outer_splitter = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
     folds = []
     sample_indices = np.arange(len(intervals))
@@ -439,6 +447,50 @@ def generate_train_valid_splits_one_epoch(
     )
 
     return train_intervals, valid_intervals
+
+
+def generate_stratified_folds_by_task(
+    trials: Interval,
+    task_configs: Dict[str, List[str]],
+    label_field: str,
+    n_folds: int = 5,
+    val_ratio: float = 0.2,
+    seed: int = 42,
+) -> Dict[str, Interval]:
+    if not hasattr(trials, label_field):
+        raise ValueError(
+            f"Trials must have a '{label_field}' attribute for task filtering."
+        )
+
+    all_labels = getattr(trials, label_field)
+    splits_dict = {}
+
+    for task_name, include_labels in task_configs.items():
+        logging.info(f"\nGenerating {task_name} k-fold train/valid/test splits")
+        task_mask = np.isin(all_labels, include_labels)
+        task_trials = trials.select_by_mask(task_mask)
+
+        if len(task_trials) < n_folds:
+            logging.warning(
+                f"Task {task_name} has only {len(task_trials)} trials, "
+                f"skipping (need at least {n_folds})"
+            )
+            continue
+
+        folds = generate_stratified_folds(
+            task_trials,
+            stratify_by=label_field,
+            n_folds=n_folds,
+            val_ratio=val_ratio,
+            seed=seed,
+        )
+
+        for k, fold_data in enumerate(folds):
+            splits_dict[f"{task_name}_fold_{k}_train"] = fold_data.train
+            splits_dict[f"{task_name}_fold_{k}_valid"] = fold_data.valid
+            splits_dict[f"{task_name}_fold_{k}_test"] = fold_data.test
+
+    return splits_dict
 
 
 def generate_subject_kfold_assignment(
