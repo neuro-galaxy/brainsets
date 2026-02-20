@@ -24,7 +24,7 @@ from moabb.paradigms import MotorImagery
 from temporaldata import Data
 from brainsets.descriptions import BrainsetDescription
 from brainsets.taxonomy import Task
-from brainsets.utils.moabb.pipeline import MOABBPipeline, _base_parser
+from brainsets.utils.moabb.pipeline import MOABBPipeline, base_parser
 from brainsets.utils.split import (
     generate_trial_folds_by_task,
     generate_subject_kfold_assignment,
@@ -33,11 +33,19 @@ from brainsets.utils.split import (
 
 logging.basicConfig(level=logging.INFO)
 
-parser = ArgumentParser(parents=[_base_parser])
+parser = ArgumentParser(parents=[base_parser])
 
 
 class Pipeline(MOABBPipeline):
     brainset_id = "schalk_wolpaw_physionet_2009"
+    brainset_description = BrainsetDescription(
+        id="schalk_wolpaw_physionet_2009",
+        origin_version="unknown",
+        derived_version="1.0.0",
+        source="https://moabb.neurotechx.com/docs/generated/moabb.datasets.PhysionetMI.html",
+        description="PhysioNet Motor Imagery dataset: over 1500 EEG recordings "
+        "from 109 volunteers performing motor imagery tasks.",
+    )
     parser = parser
 
     dataset_class = PhysionetMI
@@ -65,7 +73,7 @@ class Pipeline(MOABBPipeline):
         "RightHandFeetImagery": ["right_hand", "feet"],
     }
 
-    def _generate_splits(self, trials, subject_id: str = None):
+    def generate_splits(self, trials, subject_id: str = None):
         """Generate task-specific and subject-level k-fold splits.
 
         Generates:
@@ -101,13 +109,3 @@ class Pipeline(MOABBPipeline):
             return Data(**task_splits, **subject_assignments, domain=trials)
         else:
             return Data(**task_splits, domain=trials)
-
-    def get_brainset_description(self):
-        return BrainsetDescription(
-            id="schalk_wolpaw_physionet_2009",
-            origin_version="unknown",
-            derived_version="1.0.0",
-            source="https://moabb.neurotechx.com/docs/generated/moabb.datasets.PhysionetMI.html",
-            description="PhysioNet Motor Imagery dataset: over 1500 EEG recordings "
-            "from 109 volunteers performing motor imagery tasks.",
-        )

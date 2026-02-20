@@ -5,7 +5,6 @@ the brainsets pipeline framework. Subclasses define the dataset and paradigm
 classes, and implement paradigm-specific processing logic.
 """
 
-from abc import abstractmethod
 from typing import Dict, Any, Type, Optional
 from pathlib import Path
 from argparse import ArgumentParser
@@ -18,11 +17,6 @@ import mne
 
 from moabb.datasets.base import BaseDataset
 from moabb.paradigms.base import BaseParadigm
-from moabb.datasets.preprocessing import (
-    get_filter_pipeline,
-    get_resample_pipeline,
-    make_fixed_pipeline,
-)
 from temporaldata import Data, RegularTimeSeries, Interval, ArrayDict
 from brainsets.pipeline import BrainsetPipeline
 from brainsets import serialize_fn_map
@@ -36,26 +30,26 @@ from brainsets.taxonomy import Species, Task
 from brainsets.utils.split import generate_trial_folds
 
 
-_base_parser = ArgumentParser(add_help=False)
-_base_parser.add_argument(
+base_parser = ArgumentParser(add_help=False)
+base_parser.add_argument(
     "--redownload", action="store_true", help="Force redownload of raw data"
 )
-_base_parser.add_argument(
+base_parser.add_argument(
     "--reprocess", action="store_true", help="Force reprocessing of data"
 )
-_base_parser.add_argument(
+base_parser.add_argument(
     "--bandpass-low",
     type=float,
     default=None,
     help="Low cutoff frequency for bandpass filter in Hz (default: None, no filtering)",
 )
-_base_parser.add_argument(
+base_parser.add_argument(
     "--bandpass-high",
     type=float,
     default=None,
     help="High cutoff frequency for bandpass filter in Hz (default: None, no filtering)",
 )
-_base_parser.add_argument(
+base_parser.add_argument(
     "--resample",
     type=float,
     default=None,
@@ -68,6 +62,7 @@ class MOABBPipeline(BrainsetPipeline):
 
     Subclasses must define:
         - brainset_id: str
+        - brainset_description: BrainsetDescription
         - dataset_class: Type[BaseDataset]
         - paradigm_class: Type[BaseParadigm]
         - dataset_sign: str (e.g., "EEGBCI", "BRAININVADERS2014A")
@@ -80,9 +75,6 @@ class MOABBPipeline(BrainsetPipeline):
         - stratify_field: str (e.g., "movements", "targets")
         - label_map: Dict[str, int] (mapping from label strings to integer IDs)
 
-    Subclasses must implement:
-        - get_brainset_description(): Return dataset-specific BrainsetDescription
-
     The base class handles:
         - Manifest generation from dataset metadata
         - Data download via MOABB paradigm.get_data()
@@ -94,6 +86,7 @@ class MOABBPipeline(BrainsetPipeline):
     dataset_class: Type[BaseDataset]
     paradigm_class: Type[BaseParadigm]
     dataset_sign: str
+    brainset_description: BrainsetDescription
     dataset_kwargs: Dict[str, Any] = {}
     paradigm_kwargs: Dict[str, Any] = {}
 
@@ -213,13 +206,18 @@ class MOABBPipeline(BrainsetPipeline):
             )
 
     def download(self, manifest_item) -> Dict[str, Any]:
-        """Download and extract data using MOABB paradigm.
+        """Download and extract data using MOABB dataset.
+
+        Uses dataset._get_single_subject_data() instead of paradigm.get_data()
+        to avoid MOABB's SetRawAnnotations transformer, which assigns a fixed
+        duration to all annotations and silently drops the last event in each
+        run when that duration exceeds the recording length.
 
         This method:
         1. Sets up MNE download directory
         2. Validates bandpass parameters against Nyquist frequency
-        3. If no filtering requested: modifies paradigm to skip filtering step
-        4. Calls paradigm.get_data(return_raws=True) to get Raw objects
+        3. Loads Raw objects directly via dataset._get_single_subject_data()
+        4. Applies bandpass filtering and/or resampling if requested
         5. Filters results to the specific session from manifest_item
 
         Parameters
@@ -255,75 +253,57 @@ class MOABBPipeline(BrainsetPipeline):
         session = int(manifest_item.session)
 
         self._validate_bandpass_params(dataset, subject)
-        paradigm = self.get_paradigm(self.args)
 
         no_filtering = (
             self.args.bandpass_low is None and self.args.bandpass_high is None
         )
         needs_resample = self.args.resample is not None
 
-        if no_filtering:
-            if needs_resample:
-                resample_rate = self.args.resample
-                paradigm._get_raw_pipelines = lambda: [
-                    get_resample_pipeline(resample_rate)
-                ]
-            else:
-                paradigm._get_raw_pipelines = lambda: [None]
-        elif needs_resample:
-            resample_rate = self.args.resample
+        # Load data directly from the dataset, bypassing paradigm.get_data()
+        # and its SetRawAnnotations transformer which drops events.
+        recording_data = dataset._get_single_subject_data(subject)
 
-            def make_filter_resample_pipelines():
-                pipelines = []
-                for fmin, fmax in paradigm.filters:
-                    combined = make_fixed_pipeline(
-                        get_filter_pipeline(fmin, fmax),
-                        get_resample_pipeline(resample_rate),
-                    )
-                    pipelines.append(combined)
-                return pipelines
-
-            paradigm._get_raw_pipelines = make_filter_resample_pipelines
-
-        raws, _, meta = paradigm.get_data(
-            dataset=dataset,
-            subjects=[subject],
-            return_raws=True,
-        )
-
-        if len(raws) == 0:
-            raise ValueError(f"No data found for subject {subject}, session {session}")
-
-        session_values = sorted(meta["session"].unique())
-        if isinstance(session, int):
-            if session < len(session_values):
-                session_key = session_values[session]
-            else:
-                raise ValueError(
-                    f"Session index {session} out of range for subject {subject}. "
-                    f"Available {len(session_values)} sessions: {list(session_values)}"
-                )
+        session_values = sorted(recording_data.keys())
+        if session < len(session_values):
+            session_key = session_values[session]
         else:
-            session_key = str(session)
-            if session_key not in session_values:
-                raise ValueError(
-                    f"Session {session_key} not found for subject {subject}. "
-                    f"Available sessions: {list(session_values)}"
-                )
+            raise ValueError(
+                f"Session index {session} out of range for subject {subject}. "
+                f"Available {len(session_values)} sessions: {list(session_values)}"
+            )
 
-        session_mask = meta["session"] == session_key
-        if not session_mask.any():
+        session_data = recording_data[session_key]
+
+        if len(session_data) == 0:
             raise ValueError(
                 f"No data found for subject {subject}, session {session_key}"
             )
 
-        meta_filtered = meta[session_mask].reset_index(drop=True)
+        raws = list(session_data.values())
+        run_keys = list(session_data.keys())
 
-        raws_filtered = [raws[i] for i in range(len(raws)) if session_mask.iloc[i]]
+        # Apply filtering and/or resampling if requested
+        for raw in raws:
+            if not no_filtering:
+                raw.filter(
+                    self.args.bandpass_low,
+                    self.args.bandpass_high,
+                    verbose=False,
+                )
+            if needs_resample:
+                raw.resample(self.args.resample, verbose=False)
+
+        meta = pd.DataFrame(
+            {
+                "subject": [subject] * len(raws),
+                "session": [session_key] * len(raws),
+                "run": run_keys,
+            }
+        )
 
         return {
-            "raws": raws_filtered,
-            "meta": meta_filtered,
+            "raws": raws,
+            "meta": meta,
             "dataset": dataset,
         }
 
@@ -372,15 +352,36 @@ class MOABBPipeline(BrainsetPipeline):
         Interval
             Trial intervals with start/end times and label fields
         """
-        events, _ = mne.events_from_annotations(
-            raw, event_id=dataset.event_id, verbose=False
-        )
+        stim_channels = mne.utils._get_stim_channel(None, raw.info, raise_error=False)
+        if len(stim_channels) > 0:
+            events = mne.find_events(raw, shortest_event=0, verbose=False)
+
+            valid_codes = set()
+            for v in dataset.event_id.values():
+                if isinstance(v, list):
+                    valid_codes.update(v)
+                else:
+                    valid_codes.add(v)
+
+            mask = np.isin(events[:, 2], list(valid_codes))
+            events = events[mask]
+        else:
+            events, _ = mne.events_from_annotations(
+                raw, event_id=dataset.event_id, verbose=False
+            )
 
         if len(events) == 0:
-            raise ValueError("No events found in Raw annotations")
+            raise ValueError("No events found in Raw annotations or stim channels")
 
         sfreq = raw.info["sfreq"]
-        event_id_to_name = {v: k for k, v in dataset.event_id.items()}
+
+        event_id_to_name = {}
+        for name, codes in dataset.event_id.items():
+            if isinstance(codes, list):
+                for code in codes:
+                    event_id_to_name[code] = name
+            else:
+                event_id_to_name[codes] = name
 
         starts = events[:, 0] / sfreq
 
@@ -451,17 +452,6 @@ class MOABBPipeline(BrainsetPipeline):
         )
 
         return eeg, channels
-
-    @abstractmethod
-    def get_brainset_description(self) -> BrainsetDescription:
-        """Return dataset-specific BrainsetDescription.
-
-        Returns
-        -------
-        BrainsetDescription
-            Description object with dataset metadata
-        """
-        ...
 
     def _get_subject_description(self, subject_id: str) -> SubjectDescription:
         """Create subject description from subject ID.
@@ -545,7 +535,7 @@ class MOABBPipeline(BrainsetPipeline):
             id=f"{subject_id}_{recording_date.strftime('%Y%m%d')}",
         )
 
-    def _generate_splits(self, trials, subject_id: Optional[str] = None):
+    def generate_splits(self, trials, subject_id: Optional[str] = None):
         """Generate stratified folds for trials.
 
         Parameters
@@ -581,8 +571,7 @@ class MOABBPipeline(BrainsetPipeline):
         4. Generate stratified splits
         5. Create and store Data object
 
-        Subclasses can override for custom processing, but typically only
-        need to implement get_brainset_description().
+        Subclasses can override for custom processing when needed.
 
         Parameters
         ----------
@@ -614,7 +603,7 @@ class MOABBPipeline(BrainsetPipeline):
         info = raw.info
 
         self.update_status("Creating Descriptions")
-        brainset_description = self.get_brainset_description()
+        brainset_description = self.brainset_description
         subject_description = self._get_subject_description(subject_id)
         session_description = self._get_session_description(session_id, info)
         device_description = self._get_device_description(subject_id, info)
@@ -626,7 +615,7 @@ class MOABBPipeline(BrainsetPipeline):
         trials = self._extract_trials_from_raw(raw, dataset)
 
         self.update_status("Generating Splits")
-        splits = self._generate_splits(trials, subject_id=subject_id)
+        splits = self.generate_splits(trials, subject_id=subject_id)
 
         self.update_status("Creating Data Object")
         data = Data(

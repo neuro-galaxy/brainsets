@@ -23,17 +23,26 @@ from moabb.paradigms import P300
 
 from brainsets.descriptions import BrainsetDescription
 from brainsets.taxonomy import Task
-from brainsets.utils.moabb.pipeline import MOABBPipeline, _base_parser
+from brainsets.utils.moabb.pipeline import MOABBPipeline, base_parser
 from brainsets.utils.split import generate_subject_kfold_assignment
 
 
 logging.basicConfig(level=logging.INFO)
 
-parser = ArgumentParser(parents=[_base_parser])
+parser = ArgumentParser(parents=[base_parser])
 
 
 class Pipeline(MOABBPipeline):
     brainset_id = "korczowski_brain_invaders_2014a"
+    brainset_description = BrainsetDescription(
+        id="korczowski_brain_invaders_2014a",
+        origin_version="unknown",
+        derived_version="1.0.0",
+        source="https://moabb.neurotechx.com/docs/generated/moabb.datasets.BI2014a.html",
+        description="Brain Invaders 2014a P300 dataset: EEG recordings from "
+        "71 subjects performing a visual P300 Brain-Computer Interface task "
+        "using 16 active dry electrodes.",
+    )
     parser = parser
 
     dataset_class = BI2014a
@@ -51,7 +60,7 @@ class Pipeline(MOABBPipeline):
         "NonTarget": 0,
     }
 
-    def _generate_splits(self, trials, subject_id: str = None):
+    def generate_splits(self, trials, subject_id: str = None):
         """Generate stratified folds and subject-level k-fold assignments.
 
         Generates:
@@ -70,7 +79,7 @@ class Pipeline(MOABBPipeline):
         splits : Data
             Data object containing all split masks
         """
-        splits = super()._generate_splits(trials, subject_id=subject_id)
+        splits = super().generate_splits(trials, subject_id=subject_id)
 
         if subject_id is not None:
             subject_assignments = generate_subject_kfold_assignment(
@@ -80,14 +89,3 @@ class Pipeline(MOABBPipeline):
                 setattr(splits, key, value)
 
         return splits
-
-    def get_brainset_description(self):
-        return BrainsetDescription(
-            id="korczowski_brain_invaders_2014a",
-            origin_version="unknown",
-            derived_version="1.0.0",
-            source="https://moabb.neurotechx.com/docs/generated/moabb.datasets.BI2014a.html",
-            description="Brain Invaders 2014a P300 dataset: EEG recordings from "
-            "71 subjects performing a visual P300 Brain-Computer Interface task "
-            "using 16 active dry electrodes.",
-        )
