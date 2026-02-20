@@ -15,6 +15,7 @@ import shutil
 import urllib.request
 import zipfile
 import torch
+from torch.utils.data import Subset
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -55,7 +56,7 @@ FILENAME_PATTERN = r"sub_(\d+)_trial(\d{3})"
 
 INCL_CHANNEL_KEY_PREFIX_MAP = lambda lite, nano, binary_tasks, eval_setting, eval_name, fold_idx: \
     f"included$lite{int(lite)}$nano{int(nano)}$binary_tasks{int(binary_tasks)}${eval_setting}${eval_name}$fold{fold_idx}"
-EvalSettingOption = Literal["within_session", "cross_session", "cross_subject"]
+EvalSettingOption = Literal["within_session", "cross_x"]
 ALL_EVAL_SETTINGS = {
     "lite": [True, False],
     "nano": [True, False],
@@ -230,14 +231,11 @@ class Pipeline(BrainsetPipeline):
             lite, nano, binary_tasks, eval_setting = setting_combination
             if lite and nano:  # lite and nano cannot be True at the same time
                 continue
-            if eval_setting == "cross_session" and nano:  # cross-session splits are not supported for nano
+            if eval_setting == "cross_x" and nano:  # keep benchmark parity with cross-session support
                 continue
             if lite and (subject_id, trial_id) not in neuroprobe_config.NEUROPROBE_LITE_SUBJECT_TRIALS:
                 continue
             if nano and (subject_id, trial_id) not in neuroprobe_config.NEUROPROBE_NANO_SUBJECT_TRIALS:
-                continue
-            if eval_setting == "cross_subject" and subject_id == neuroprobe_config.DS_DM_TRAIN_SUBJECT_ID:
-                # don't extract test split for the training subject and trial
                 continue
 
             self.update_status(f"Extracting splits (lite={lite}, nano={nano}, binary_tasks={binary_tasks}, eval_setting={eval_setting})")
@@ -415,41 +413,10 @@ def _extract_and_structure_splits(
                 ).astype(bool),
             )
 
-            train_items = [
-                _unpack_dataset_item(item) for item in fold["train_dataset"]
-            ]
-            train_windows, train_labels = zip(*train_items)
-            X_train = np.array(train_windows)
-            y_train = np.array(train_labels)
-
-            val_items = [_unpack_dataset_item(item) for item in fold["val_dataset"]]
-            val_windows, val_labels = zip(*val_items)
-            X_val = np.array(val_windows)
-            y_val = np.array(val_labels)
-
-            test_items = [_unpack_dataset_item(item) for item in fold["test_dataset"]]
-            test_windows, test_labels = zip(*test_items)
-            X_test = np.array(test_windows)
-            y_test = np.array(test_labels)
-
-            # derive train and test intervals from the extracted index windows
-            train_intervals = Interval(
-                start=X_train[:, 0].astype(np.float64)
-                / neuroprobe_config.SAMPLING_RATE,
-                end=X_train[:, 1].astype(np.float64) / neuroprobe_config.SAMPLING_RATE,
-                label=y_train,
-            )
-            val_intervals = Interval(
-                start=X_val[:, 0].astype(np.float64)
-                / neuroprobe_config.SAMPLING_RATE,
-                end=X_val[:, 1].astype(np.float64) / neuroprobe_config.SAMPLING_RATE,
-                label=y_val,
-            )
-            test_intervals = Interval(
-                start=X_test[:, 0].astype(np.float64) / neuroprobe_config.SAMPLING_RATE,
-                end=X_test[:, 1].astype(np.float64) / neuroprobe_config.SAMPLING_RATE,
-                label=y_test,
-            )
+            # Derive intervals from balanced dataset items.
+            train_intervals = _intervals_from_dataset(fold["train_dataset"])
+            val_intervals = _intervals_from_dataset(fold["val_dataset"])
+            test_intervals = _intervals_from_dataset(fold["test_dataset"])
 
             split_indices[SPLIT_KEY_MAP(eval_name, fold_idx, "train")] = train_intervals
             split_indices[SPLIT_KEY_MAP(eval_name, fold_idx, "val")] = val_intervals
@@ -483,42 +450,99 @@ def _extract_splits(
             nano=nano,
             binary_tasks=binary_tasks,
             output_indices=True,
+            output_dict=True,
             start_neural_data_before_word_onset=start_neural_data_before_word_onset,
             end_neural_data_after_word_onset=end_neural_data_after_word_onset,
             max_samples=max_samples,
         )
         return folds
-    elif eval_setting == "cross_session":
-        folds = neuroprobe_train_test_splits.generate_splits_cross_session(
-            test_subject=all_subjects[subject_id],
-            test_trial_id=trial_id,
+    elif eval_setting == "cross_x":
+        return _extract_local_role_splits(
+            subject=all_subjects[subject_id],
+            trial_id=trial_id,
             eval_name=eval_name,
             dtype=dtype,
             lite=lite,
+            nano=nano, # NOTE: We add nano here for completeness 
             binary_tasks=binary_tasks,
             output_indices=True,
-            start_neural_data_before_word_onset=start_neural_data_before_word_onset,
-            end_neural_data_after_word_onset=end_neural_data_after_word_onset,
-            max_samples=max_samples,
-            include_all_other_trials=False,  # TODO double-check this
-        )
-        return folds
-    elif eval_setting == "cross_subject":
-        folds = neuroprobe_train_test_splits.generate_splits_cross_subject(
-            all_subjects=all_subjects,
-            test_subject_id=subject_id,
-            test_trial_id=trial_id,
-            eval_name=eval_name,
-            dtype=dtype,
-            lite=lite,
-            nano=nano,
-            binary_tasks=binary_tasks,
-            output_indices=True,
+            output_dict=True,
             start_neural_data_before_word_onset=start_neural_data_before_word_onset,
             end_neural_data_after_word_onset=end_neural_data_after_word_onset,
             max_samples=max_samples,
         )
-        return folds
+    raise ValueError(f"Unsupported eval_setting: {eval_setting}")
+
+
+def _extract_local_role_splits(
+    subject: object,
+    trial_id: int,
+    eval_name: str,
+    dtype: torch.dtype,
+    lite: bool,
+    nano: bool,
+    binary_tasks: bool,
+    output_indices: bool,
+    output_dict: bool,
+    start_neural_data_before_word_onset: int,
+    end_neural_data_after_word_onset: int,
+    max_samples: Optional[int],
+) -> List[Dict[str, object]]:
+    local_dataset = neuroprobe.BrainTreebankSubjectTrialBenchmarkDataset(
+        subject=subject,
+        trial_id=trial_id,
+        dtype=dtype,
+        eval_name=eval_name,
+        binary_tasks=binary_tasks,
+        output_indices=output_indices,
+        output_dict=output_dict,
+        start_neural_data_before_word_onset=start_neural_data_before_word_onset,
+        end_neural_data_after_word_onset=end_neural_data_after_word_onset,
+        lite=lite,
+        nano=nano,
+        max_samples=max_samples,
+    )
+
+    local_size = len(local_dataset)
+    val_size = local_size // 2
+    val_indices = list(range(val_size))
+    test_indices = list(range(val_size, local_size))
+    val_dataset = Subset(local_dataset, val_indices)
+    test_dataset = Subset(local_dataset, test_indices)
+
+    # Mirror Neuroprobe split metadata expectations on Subset wrappers.
+    val_dataset.electrode_coordinates = local_dataset.electrode_coordinates
+    val_dataset.electrode_labels = local_dataset.electrode_labels
+    test_dataset.electrode_coordinates = local_dataset.electrode_coordinates
+    test_dataset.electrode_labels = local_dataset.electrode_labels
+
+    return [
+        {
+            "train_dataset": local_dataset,
+            "val_dataset": val_dataset,
+            "test_dataset": test_dataset,
+        }
+    ]
+
+
+def _intervals_from_dataset(dataset) -> Interval:
+    items = [_unpack_dataset_item(item) for item in dataset]
+    if len(items) == 0:
+        return Interval(
+            start=np.array([], dtype=np.float64),
+            end=np.array([], dtype=np.float64),
+            label=np.array([], dtype=np.int64),
+        )
+
+    windows, labels = zip(*items)
+    window_array = np.array(windows)
+    label_array = np.array(labels)
+
+    return Interval(
+        start=window_array[:, 0].astype(np.float64) / neuroprobe_config.SAMPLING_RATE,
+        end=window_array[:, 1].astype(np.float64) / neuroprobe_config.SAMPLING_RATE,
+        label=label_array,
+    )
 
 
 def _extract_neural_data(input_file: Path, channels: ArrayDict) -> IrregularTimeSeries:
