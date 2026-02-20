@@ -384,10 +384,10 @@ def create_splits(
         seed=seed,
     )
     namespaced_assignments = {
-        f"subject_{key}": value for key, value in subject_assignments.items()
+        f"intersubject_{key}": value for key, value in subject_assignments.items()
     }
     namespaced_assignments.update(
-        {f"session_{key}": value for key, value in session_assignments.items()}
+        {f"intersession_{key}": value for key, value in session_assignments.items()}
     )
     for key, value in namespaced_assignments.items():
         setattr(splits, key, value)

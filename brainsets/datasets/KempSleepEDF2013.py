@@ -1,11 +1,12 @@
-from typing import Callable, Optional, Literal
+from typing import Callable, Optional, Literal, get_args
 from pathlib import Path
 from torch_brain.utils import np_string_prefix
 from temporaldata import Data
 
 from torch_brain.dataset import Dataset
 
-FOLD_TYPES = Literal["intrasession", "intersubject", "intersession"]
+FoldType = Literal["intrasession", "intersubject", "intersession"]
+VALID_FOLD_TYPES = get_args(FoldType)
 
 
 class KempSleepEDF2013(Dataset):
@@ -32,7 +33,7 @@ class KempSleepEDF2013(Dataset):
         transform: Optional[Callable] = None,
         uniquify_channel_ids: bool = True,
         fold_number: Optional[int] = 0,
-        fold_type: FOLD_TYPES = "intrasession",
+        fold_type: FoldType = "intrasession",
         dirname: str = "kemp_sleep_edf_2013",
         **kwargs,
     ):
@@ -54,9 +55,9 @@ class KempSleepEDF2013(Dataset):
         self.fold_number = fold_number
         self.fold_type = fold_type
 
-        if fold_type not in ["intrasession", "intersubject", "intersession"]:
+        if fold_type not in VALID_FOLD_TYPES:
             raise ValueError(
-                f"Invalid fold_type '{fold_type}'. Must be one of ['intrasession', 'intersubject', 'intersession']."
+                f"Invalid fold_type '{fold_type}'. Must be one of {VALID_FOLD_TYPES}."
             )
 
     def get_sampling_intervals(
@@ -79,8 +80,7 @@ class KempSleepEDF2013(Dataset):
                 for rid in self.recording_ids
             }
         elif self.fold_type in ("intersubject", "intersession"):
-            prefix = "subject" if self.fold_type == "intersubject" else "session"
-            key = f"splits.{prefix}_fold_{self.fold_number}_assignment"
+            key = f"splits.{self.fold_type}_fold_{self.fold_number}_assignment"
             fallback_key = f"splits.fold_{self.fold_number}_assignment"
             result = {}
             for rid in self.recording_ids:
