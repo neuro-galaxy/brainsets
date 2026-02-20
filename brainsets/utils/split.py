@@ -1,12 +1,49 @@
 import hashlib
 import logging
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from temporaldata import Interval, Data
 
 
-def split_one_epoch(epoch, grid, split_ratios=[0.6, 0.1, 0.3]):
-    assert len(epoch) == 1
+def split_one_epoch(
+    epoch: Interval,
+    grid: Interval,
+    split_ratios: Optional[List[float]] = None,
+) -> Tuple[Interval, Interval, Interval]:
+    """Split a single epoch into train, validation, and test intervals.
+
+    Args:
+        epoch: The full time interval to split (must contain a single interval)
+        grid: Grid intervals used to align split boundaries
+        split_ratios: List of three ratios [train_ratio, valid_ratio, test_ratio]
+            that sum to 1.0. Defaults to [0.6, 0.1, 0.3].
+
+    Returns:
+        Tuple of (train_interval, valid_interval, test_interval)
+
+    Raises:
+        ValueError:
+            if split_ratios is not a sequence of exactly three numbers,
+            if any ratio is negative,
+            if split_ratios do not sum to 1, or
+            if the epoch does not contain a single interval
+    """
+    if split_ratios is None:
+        split_ratios = [0.6, 0.1, 0.3]
+
+    if not hasattr(split_ratios, "__len__") or len(split_ratios) != 3:
+        raise ValueError(
+            "split_ratios must be a sequence of three numbers (train, valid, test)"
+        )
+
+    if any(r < 0 for r in split_ratios):
+        raise ValueError("split_ratios elements must be non-negative")
+
+    if not np.isclose(sum(split_ratios), 1.0):
+        raise ValueError("Split ratios must sum to 1")
+
+    if len(epoch) != 1:
+        raise ValueError("Epoch must contain a single interval")
     epoch_start = epoch.start[0]
     epoch_end = epoch.end[0]
 
@@ -39,14 +76,21 @@ def split_one_epoch(epoch, grid, split_ratios=[0.6, 0.1, 0.3]):
         else:
             val_test_split_time = grid_match.start[0]
 
-    train_interval = Interval(start=epoch_start, end=train_val_split_time)
-    val_interval = Interval(start=train_interval.end[0], end=val_test_split_time)
-    test_interval = Interval(start=val_interval.end[0], end=epoch_end)
+    train_interval = Interval(
+        start=np.array([epoch_start]), end=np.array([train_val_split_time])
+    )
+    val_interval = Interval(
+        start=train_interval.end[0:1], end=np.array([val_test_split_time])
+    )
+    test_interval = Interval(start=val_interval.end[0:1], end=np.array([epoch_end]))
 
     return train_interval, val_interval, test_interval
 
 
-def split_two_epochs(epoch, grid):
+def split_two_epochs(
+    epoch: Interval,
+    grid: Interval,
+) -> Tuple[Interval, Interval, Interval]:
     assert len(epoch) == 2
     first_epoch_start = epoch.start[0]
     first_epoch_end = epoch.end[0]
@@ -60,16 +104,20 @@ def split_two_epochs(epoch, grid):
             split_time = grid_match.start[0]
 
     train_interval = Interval(
-        start=first_epoch_start,
-        end=split_time,
+        start=np.array([first_epoch_start]),
+        end=np.array([split_time]),
     )
-    val_interval = Interval(start=train_interval.end[0], end=first_epoch_end)
+    val_interval = Interval(
+        start=train_interval.end[0:1], end=np.array([first_epoch_end])
+    )
     test_interval = epoch.select_by_mask(np.array([False, True]))
 
     return train_interval, val_interval, test_interval
 
 
-def split_three_epochs(epoch, grid):
+def split_three_epochs(
+    epoch: Interval, grid: Interval
+) -> Tuple[Interval, Interval, Interval]:
     assert len(epoch) == 3
 
     test_interval = epoch.select_by_mask(np.array([False, False, True]))
@@ -86,12 +134,14 @@ def split_three_epochs(epoch, grid):
             split_time = grid_match.start[0]
 
     train_interval.end[1] = split_time
-    val_interval = Interval(start=train_interval.end[1], end=epoch.end[1])
+    val_interval = Interval(start=train_interval.end[1:2], end=epoch.end[1:2])
 
     return train_interval, val_interval, test_interval
 
 
-def split_four_epochs(epoch, grid):
+def split_four_epochs(
+    epoch: Interval, grid: Interval
+) -> Tuple[Interval, Interval, Interval]:
     assert len(epoch) == 4
 
     test_interval = epoch.select_by_mask(np.array([False, False, False, True]))
@@ -107,12 +157,14 @@ def split_four_epochs(epoch, grid):
             split_time = grid_match.start[0]
 
     train_interval.end[2] = split_time
-    val_interval = Interval(start=train_interval.end[2], end=epoch.end[2])
+    val_interval = Interval(start=train_interval.end[2:3], end=epoch.end[2:3])
 
     return train_interval, val_interval, test_interval
 
 
-def split_five_epochs(epoch, grid):
+def split_five_epochs(
+    epoch: Interval, grid: Interval
+) -> Tuple[Interval, Interval, Interval]:
     assert len(epoch) == 5
 
     train_interval = epoch.select_by_mask(np.array([True, True, True, False, False]))
@@ -129,12 +181,14 @@ def split_five_epochs(epoch, grid):
             split_time = grid_match.start[0]
 
     train_interval.end[2] = split_time
-    val_interval = Interval(start=train_interval.end[2], end=epoch.end[2])
+    val_interval = Interval(start=train_interval.end[2:3], end=epoch.end[2:3])
 
     return train_interval, val_interval, test_interval
 
 
-def split_more_than_five_epochs(epoch):
+def split_more_than_five_epochs(
+    epoch: Interval,
+) -> Tuple[Interval, Interval, Interval]:
     assert len(epoch) > 5
 
     train_interval, val_interval, test_interval = epoch.split(
@@ -143,7 +197,9 @@ def split_more_than_five_epochs(epoch):
     return train_interval, val_interval, test_interval
 
 
-def generate_train_valid_test_splits(epoch_dict, grid):
+def generate_train_valid_test_splits(
+    epoch_dict: Dict[str, Interval], grid: Interval
+) -> Tuple[Interval, Interval, Interval]:
     train_intervals = Interval(np.array([]), np.array([]))
     valid_intervals = Interval(np.array([]), np.array([]))
     test_intervals = Interval(np.array([]), np.array([]))
@@ -203,7 +259,7 @@ def chop_intervals(
 
     for i, (start, end) in enumerate(zip(intervals.start, intervals.end)):
         if end - start <= duration:
-            chopped = Interval(start=start, end=end)
+            chopped = Interval(start=np.array([start]), end=np.array([end]))
         else:
             chopped = Interval.arange(start, end, step=duration, include_end=True)
 
@@ -293,6 +349,14 @@ def generate_stratified_folds(
             f"Not enough samples ({len(class_labels)}) for {n_folds} folds."
         )
 
+    unique_labels, counts = np.unique(class_labels, return_counts=True)
+    for label, count in zip(unique_labels, counts):
+        if count < n_folds:
+            raise ValueError(
+                f"Stratification category '{label}' has only {count} samples, "
+                f"need at least {n_folds} for {n_folds}-fold split."
+            )
+
     outer_splitter = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
     folds = []
     sample_indices = np.arange(len(intervals))
@@ -330,68 +394,62 @@ def generate_stratified_folds(
     return folds
 
 
-def generate_trial_folds(
-    trials: Interval,
-    stratify_by: str,
-    n_folds: int = 5,
-    val_ratio: float = 0.2,
-    seed: int = 42,
-) -> List[Data]:
-    try:
-        from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
-    except ImportError:
-        raise ImportError(
-            "This function requires the scikit-learn library which you can install with "
-            "`pip install scikit-learn`"
-        )
+def generate_train_valid_splits_one_epoch(
+    epoch: Interval, split_ratios: Optional[List[float]] = None
+) -> Tuple[Interval, Interval]:
+    """Split a single time interval into training and validation intervals.
 
-    if not hasattr(trials, stratify_by):
+    Args:
+        epoch: The full time interval to split (must contain a single interval)
+        split_ratios: List of two ratios [train_ratio, valid_ratio] that sum to 1.0.
+            Defaults to [0.9, 0.1].
+
+    Returns:
+        Tuple of (train_intervals, valid_intervals)
+
+    Raises:
+        ValueError:
+            if split_ratios is not a sequence of exactly two numbers,
+            if any ratio is negative,
+            if split_ratios do not sum to 1, or
+            if the epoch does not contain a single interval
+    """
+    if split_ratios is None:
+        split_ratios = [0.9, 0.1]
+
+    if not hasattr(split_ratios, "__len__") or len(split_ratios) != 2:
         raise ValueError(
-            f"Trials must have a '{stratify_by}' attribute for stratification."
+            "split_ratios must be a sequence of two numbers (train, valid)"
         )
 
-    class_labels = getattr(trials, stratify_by)
-    if len(class_labels) < n_folds:
-        raise ValueError(
-            f"Not enough trials ({len(class_labels)}) for {n_folds} folds."
-        )
+    if any(r < 0 for r in split_ratios):
+        raise ValueError("split_ratios elements must be non-negative")
 
-    unique_labels, counts = np.unique(class_labels, return_counts=True)
-    for label, count in zip(unique_labels, counts):
-        if count < n_folds:
-            raise ValueError(f"Trial category {label} has only {count} trials")
+    if not np.isclose(sum(split_ratios), 1.0):
+        raise ValueError("Split ratios must sum to 1")
 
-    outer_splitter = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
-    folds = []
-    sample_indices = np.arange(len(trials))
+    if len(epoch) != 1:
+        raise ValueError("Epoch must contain a single interval")
 
-    for fold_idx, (train_val_indices, test_indices) in enumerate(
-        outer_splitter.split(sample_indices, class_labels)
-    ):
-        test_split = _create_interval_split(trials, test_indices)
-        train_val_labels = class_labels[train_val_indices]
-        inner_splitter = StratifiedShuffleSplit(
-            n_splits=1, test_size=val_ratio, random_state=seed + fold_idx
-        )
-        for train_indices, val_indices in inner_splitter.split(
-            train_val_indices, train_val_labels
-        ):
-            train_original_indices = train_val_indices[train_indices]
-            val_original_indices = train_val_indices[val_indices]
-            train_split = _create_interval_split(trials, train_original_indices)
-            val_split = _create_interval_split(trials, val_original_indices)
-            combined_domain = train_split | val_split | test_split
-            fold_data = Data(
-                train=train_split,
-                valid=val_split,
-                test=test_split,
-                domain=combined_domain,
-            )
-            folds.append(fold_data)
-    return folds
+    epoch_start = epoch.start[0]
+    epoch_end = epoch.end[0]
+
+    train_split_time = epoch_start + split_ratios[0] * (epoch_end - epoch_start)
+    val_split_time = train_split_time + split_ratios[1] * (epoch_end - epoch_start)
+
+    train_intervals = Interval(
+        start=epoch_start,
+        end=train_split_time,
+    )
+    valid_intervals = Interval(
+        start=train_intervals.end[0],
+        end=val_split_time,
+    )
+
+    return train_intervals, valid_intervals
 
 
-def generate_trial_folds_by_task(
+def generate_stratified_folds_by_task(
     trials: Interval,
     task_configs: Dict[str, List[str]],
     label_field: str,
@@ -419,7 +477,7 @@ def generate_trial_folds_by_task(
             )
             continue
 
-        folds = generate_trial_folds(
+        folds = generate_stratified_folds(
             task_trials,
             stratify_by=label_field,
             n_folds=n_folds,
@@ -442,6 +500,48 @@ def generate_subject_kfold_assignment(
     val_ratio: float = 0.2,
     seed: int = 42,
 ) -> Dict[str, str]:
+    """Generate deterministic k-fold train/valid/test assignments for a subject.
+
+    This function performs cross-subject or cross-session splitting using hash-based
+    assignment. It deterministically assigns a subject (or subject-session pair) to
+    train, valid, or test for each fold. The same subject_id with the same seed will
+    always receive the same assignments, allowing independent processing in parallel.
+
+    Args
+    ----
+    subject_id : str
+        Subject identifier (e.g., "S001", "sub-01").
+    session_id : str, optional
+        Session identifier (e.g., "S001_sess-01"). If provided, enables intersession
+        splitting; otherwise enables intersubject splitting. Default is None.
+    n_folds : int
+        Number of folds for cross-validation. Default is 3.
+    val_ratio : float
+        Ratio of validation set relative to train+valid combined. Default is 0.2.
+    seed : int
+        Random seed for reproducibility. Default is 42.
+
+    Returns
+    -------
+    Dict[str, str]
+        Dictionary mapping fold assignment keys to "train", "valid", or "test".
+        - If session_id is None: keys are "subject_fold_{k}_assignment"
+        - If session_id is provided: keys are "session_fold_{k}_assignment"
+
+    Examples
+    --------
+    >>> assignments = generate_subject_kfold_assignment("sub-01", n_folds=3)
+    >>> assignments
+    {'subject_fold_0_assignment': 'train', 'subject_fold_1_assignment': 'test',
+     'subject_fold_2_assignment': 'train'}
+
+    >>> assignments_sess = generate_subject_kfold_assignment(
+    ...     "sub-01", session_id="sub-01_ses-01", n_folds=3
+    ... )
+    >>> assignments_sess
+    {'session_fold_0_assignment': 'valid', 'session_fold_1_assignment': 'train',
+     'session_fold_2_assignment': 'test'}
+    """
     if session_id is not None:
         base_str = f"{session_id}_{subject_id}_{seed}"
         fold_prefix = "session_fold_"

@@ -38,8 +38,8 @@ from brainsets.utils.dandi_utils import (
 )
 from brainsets.utils.split import (
     generate_subject_kfold_assignment,
-    generate_trial_folds,
-    generate_trial_folds_by_task,
+    generate_stratified_folds,
+    generate_stratified_folds_by_task,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -148,7 +148,7 @@ class Pipeline(BrainsetPipeline):
 
         active_vs_inactive_splits = {}
         if len(behavior_trials) > 0 and hasattr(behavior_trials, "behavior_labels"):
-            behavior_splits = generate_trial_folds_by_task(
+            behavior_splits = generate_stratified_folds_by_task(
                 behavior_trials,
                 BEHAVIOR_TASK_CONFIGS,
                 "behavior_labels",
@@ -156,7 +156,7 @@ class Pipeline(BrainsetPipeline):
                 val_ratio=0.2,
                 seed=42,
             )
-            active_folds = generate_trial_folds(
+            active_folds = generate_stratified_folds(
                 behavior_trials,
                 "active",
                 n_folds=3,
