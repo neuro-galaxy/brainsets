@@ -5,8 +5,26 @@ from temporaldata import Data
 
 from torch_brain.dataset import Dataset
 
+FOLD_TYPES = Literal["intrasession", "intersubject", "intersession"]
+
 
 class KempSleepEDF2013(Dataset):
+    """Sleep-EDF Database Expanded containing 197 whole-night polysomnographic sleep recordings.
+
+    Args:
+        root (str): Root directory for the dataset.
+        recording_ids (list[str], optional): List of recording IDs to load.
+        transform (Callable, optional): Data transformation to apply.
+        uniquify_channel_ids (bool, optional): Whether to prefix channel IDs with session ID to ensure uniqueness. Defaults to True.
+        fold_number (int, optional): The cross-validation fold index (0 to 2 for a 3-fold split). Defaults to 0.
+        fold_type (str, optional): The splitting strategy. Must be one of:
+            - \"intrasession\": Epoch-level stratified split within each session.
+            - \"intersubject\": Subject-level split (subjects are assigned to train/valid/test).
+            - \"intersession\": Session-level split (subject-session pairs are assigned to train/valid/test).
+            Defaults to \"intrasession\".
+        dirname (str, optional): Subdirectory for the dataset. Defaults to "kemp_sleep_edf_2013".
+    """
+
     def __init__(
         self,
         root: str,
@@ -14,9 +32,7 @@ class KempSleepEDF2013(Dataset):
         transform: Optional[Callable] = None,
         uniquify_channel_ids: bool = True,
         fold_number: Optional[int] = 0,
-        fold_type: Literal[
-            "intrasession", "intersubject", "intersession"
-        ] = "intrasession",
+        fold_type: FOLD_TYPES = "intrasession",
         dirname: str = "kemp_sleep_edf_2013",
         **kwargs,
     ):
@@ -29,9 +45,12 @@ class KempSleepEDF2013(Dataset):
         )
 
         self.uniquify_channel_ids = uniquify_channel_ids
-        assert (
-            fold_number is not None and fold_number >= 0 and fold_number < 3
-        ), f"Fold number must be between 0 and 2, got {fold_number}"
+
+        if fold_number is None or not (0 <= fold_number < 3):
+            raise ValueError(
+                f"Fold number must be an integer between 0 and 2, got {fold_number}"
+            )
+
         self.fold_number = fold_number
         self.fold_type = fold_type
 
@@ -62,10 +81,14 @@ class KempSleepEDF2013(Dataset):
         elif self.fold_type in ("intersubject", "intersession"):
             prefix = "subject" if self.fold_type == "intersubject" else "session"
             key = f"splits.{prefix}_fold_{self.fold_number}_assignment"
+            fallback_key = f"splits.fold_{self.fold_number}_assignment"
             result = {}
             for rid in self.recording_ids:
                 rec = self.get_recording(rid)
-                assignment = str(rec.get_nested_attribute(key))
+                try:
+                    assignment = str(rec.get_nested_attribute(key))
+                except (AttributeError, KeyError):
+                    assignment = str(rec.get_nested_attribute(fallback_key))
                 if assignment == split:
                     result[rid] = rec.domain
             return result

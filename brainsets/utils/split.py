@@ -441,27 +441,23 @@ def generate_train_valid_splits_one_epoch(
     return train_intervals, valid_intervals
 
 
-def generate_subject_kfold_assignment(
-    subject_id: str,
-    session_id: Optional[str] = None,
+def generate_string_kfold_assignment(
+    string_id: str,
     n_folds: int = 3,
     val_ratio: float = 0.2,
     seed: int = 42,
 ) -> Dict[str, str]:
-    """Generate deterministic k-fold train/valid/test assignments for a subject.
+    """Generate deterministic k-fold train/valid/test assignments for a string ID.
 
-    This function performs cross-subject or cross-session splitting using hash-based
-    assignment. It deterministically assigns a subject (or subject-session pair) to
-    train, valid, or test for each fold. The same subject_id with the same seed will
+    This function performs hash-based assignment and deterministically assigns a
+    string identifier to train, valid, or test for each fold. The same `string_id`
+    with the same seed will
     always receive the same assignments, allowing independent processing in parallel.
 
     Args
     ----
-    subject_id : str
-        Subject identifier (e.g., "S001", "sub-01").
-    session_id : str, optional
-        Session identifier (e.g., "S001_sess-01"). If provided, enables intersession
-        splitting; otherwise enables intersubject splitting. Default is None.
+    string_id : str
+        String identifier (e.g., "S001", "sub-01", or "sub-01_ses-01").
     n_folds : int
         Number of folds for cross-validation. Default is 3.
     val_ratio : float
@@ -472,32 +468,29 @@ def generate_subject_kfold_assignment(
     Returns
     -------
     Dict[str, str]
-        Dictionary mapping fold assignment keys to "train", "valid", or "test".
-        - If session_id is None: keys are "subject_fold_{k}_assignment"
-        - If session_id is provided: keys are "session_fold_{k}_assignment"
+        Dictionary mapping keys like "fold_0_assignment" to "train", "valid", or
+        "test".
 
     Examples
     --------
-    >>> assignments = generate_subject_kfold_assignment("sub-01", n_folds=3)
+    >>> assignments = generate_string_kfold_assignment("sub-01", n_folds=3)
     >>> assignments
-    {'subject_fold_0_assignment': 'train', 'subject_fold_1_assignment': 'test',
-     'subject_fold_2_assignment': 'train'}
+    {'fold_0_assignment': 'train', 'fold_1_assignment': 'test',
+     'fold_2_assignment': 'train'}
 
-    >>> assignments_sess = generate_subject_kfold_assignment(
-    ...     "sub-01", session_id="sub-01_ses-01", n_folds=3
-    ... )
-    >>> assignments_sess
-    {'session_fold_0_assignment': 'valid', 'session_fold_1_assignment': 'train',
-     'session_fold_2_assignment': 'test'}
+    >>> generate_string_kfold_assignment("sub-01_ses-01", n_folds=3)
+    {'fold_0_assignment': 'valid', 'fold_1_assignment': 'train',
+     'fold_2_assignment': 'test'}
     """
-    if session_id is not None:
-        base_str = f"{session_id}_{subject_id}_{seed}"
-        fold_prefix = "session_fold_"
-        fold_base = f"{session_id}_{subject_id}_{seed}"
-    else:
-        base_str = f"{subject_id}_{seed}"
-        fold_prefix = "subject_fold_"
-        fold_base = f"{subject_id}_{seed}"
+    if not isinstance(string_id, str) or not string_id:
+        raise ValueError("string_id must be a non-empty string")
+    if n_folds < 1:
+        raise ValueError(f"n_folds must be at least 1, got {n_folds}")
+    if not (0.0 <= val_ratio <= 1.0):
+        raise ValueError(f"val_ratio must be between 0 and 1, got {val_ratio}")
+
+    base_str = f"{string_id}_{seed}"
+    fold_prefix = "fold_"
 
     base_bytes = base_str.encode("utf-8")
     hash_obj = hashlib.md5(base_bytes)
@@ -509,7 +502,7 @@ def generate_subject_kfold_assignment(
         if bucket == k:
             assignments[f"{fold_prefix}{k}_assignment"] = "test"
         else:
-            fold_str = f"{fold_base}_{k}"
+            fold_str = f"{base_str}_{k}"
             fold_bytes = fold_str.encode("utf-8")
             fold_hash_obj = hashlib.md5(fold_bytes)
             fold_hash_int = int(fold_hash_obj.hexdigest(), 16)

@@ -29,7 +29,7 @@ from brainsets.pipeline import BrainsetPipeline
 from brainsets.utils.split import (
     chop_intervals,
     generate_stratified_folds,
-    generate_subject_kfold_assignment,
+    generate_string_kfold_assignment,
 )
 from brainsets.utils.s3_utils import get_cached_s3_client
 from brainsets.utils.mne_utils import (
@@ -374,13 +374,22 @@ def create_splits(
     folds_dict = {f"fold_{i}": fold for i, fold in enumerate(folds)}
     splits = Data(**folds_dict, domain=filtered)
 
-    subject_assignments = generate_subject_kfold_assignment(
-        subject_id, n_folds=n_folds, val_ratio=0.2, seed=seed
+    subject_assignments = generate_string_kfold_assignment(
+        string_id=subject_id, n_folds=n_folds, val_ratio=0.2, seed=seed
     )
-    session_assignments = generate_subject_kfold_assignment(
-        subject_id, session_id=session_id, n_folds=n_folds, val_ratio=0.2, seed=seed
+    session_assignments = generate_string_kfold_assignment(
+        string_id=f"{subject_id}_{session_id}",
+        n_folds=n_folds,
+        val_ratio=0.2,
+        seed=seed,
     )
-    for key, value in {**subject_assignments, **session_assignments}.items():
+    namespaced_assignments = {
+        f"subject_{key}": value for key, value in subject_assignments.items()
+    }
+    namespaced_assignments.update(
+        {f"session_{key}": value for key, value in session_assignments.items()}
+    )
+    for key, value in namespaced_assignments.items():
         setattr(splits, key, value)
 
     return splits
