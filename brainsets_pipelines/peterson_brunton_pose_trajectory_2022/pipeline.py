@@ -125,6 +125,7 @@ class Pipeline(BrainsetPipeline):
         session_id: str,
         behavior_trials: Interval,
     ) -> Data:
+        # TODO: Make sure that for the behavior splits, we use the chop intervals function before we generate the splits.
         subject_assign = generate_subject_kfold_assignment(
             subject_id, n_folds=3, val_ratio=0.2, seed=42
         )
