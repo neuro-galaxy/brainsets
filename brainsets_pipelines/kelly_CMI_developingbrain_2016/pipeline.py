@@ -23,6 +23,7 @@ from brainsets.utils.mne_utils import (
     extract_measurement_date,
     extract_eeg_signal,
     extract_channels,
+    extract_annotations,
 )
 from brainsets.descriptions import (
     BrainsetDescription,
@@ -196,16 +197,23 @@ class Pipeline(BrainsetPipeline):
         eeg_signal = extract_eeg_signal(raw)
         channels = extract_channels(raw)
 
+        self.update_status("Extracting annotations")
+        annotations = extract_annotations(raw)
+
         self.update_status("Creating Data Object")
-        data = Data(
-            brainset=brainset_description,
-            subject=subject_description,
-            session=session_description,
-            device=device_description,
-            eeg=eeg_signal,
-            channels=channels,
-            domain=eeg_signal.domain,
-        )
+        data_kwargs = {
+            "brainset": brainset_description,
+            "subject": subject_description,
+            "session": session_description,
+            "device": device_description,
+            "eeg": eeg_signal,
+            "channels": channels,
+            "domain": eeg_signal.domain,
+        }
+        if len(annotations) > 0:
+            data_kwargs["annotations"] = annotations
+
+        data = Data(**data_kwargs)
 
         self.update_status("Storing processed data to disk")
         output_path.parent.mkdir(parents=True, exist_ok=True)

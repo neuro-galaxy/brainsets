@@ -101,6 +101,33 @@ def extract_channels(
     )
 
 
+def extract_annotations(recording_data: "mne.io.Raw") -> Interval:
+    """Extract annotations from an MNE Raw object as an Interval.
+
+    Args:
+        recording_data: The MNE Raw object containing annotations.
+
+    Returns:
+        An Interval with start/end arrays and a 'description' field, or an empty
+        Interval if no annotations are present.
+
+    Raises:
+        ImportError: If MNE is not installed.
+    """
+    _check_mne_available("extract_annotations")
+    annotations = recording_data.annotations
+
+    if len(annotations) == 0:
+        warnings.warn("No annotations found in recording data")
+        return Interval(start=np.array([]), end=np.array([]))
+
+    start = np.array(annotations.onset)
+    end = start + np.array(annotations.duration)
+    description = np.array(annotations.description, dtype="U")
+
+    return Interval(start=start, end=end, description=description)
+
+
 def extract_psg_signal(raw_psg: "mne.io.Raw") -> Tuple[RegularTimeSeries, ArrayDict]:
     """Extract physiological signals from polysomnography (PSG) recording as a RegularTimeSeries.
 
