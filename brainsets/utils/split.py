@@ -446,7 +446,7 @@ def generate_string_kfold_assignment(
     n_folds: int = 3,
     val_ratio: float = 0.2,
     seed: int = 42,
-) -> Dict[str, str]:
+) -> List[str]:
     """Generate deterministic k-fold train/valid/test assignments for a string ID.
 
     This function performs hash-based assignment and deterministically assigns a
@@ -467,20 +467,18 @@ def generate_string_kfold_assignment(
 
     Returns
     -------
-    Dict[str, str]
-        Dictionary mapping keys like "fold_0_assignment" to "train", "valid", or
-        "test".
+    List[str]
+        List of fold assignments where index ``k`` corresponds to fold ``k`` and
+        each value is one of ``"train"``, ``"valid"``, or ``"test"``.
 
     Examples
     --------
     >>> assignments = generate_string_kfold_assignment("sub-01", n_folds=3)
     >>> assignments
-    {'fold_0_assignment': 'train', 'fold_1_assignment': 'test',
-     'fold_2_assignment': 'train'}
+    ['train', 'test', 'train']
 
     >>> generate_string_kfold_assignment("sub-01_ses-01", n_folds=3)
-    {'fold_0_assignment': 'valid', 'fold_1_assignment': 'train',
-     'fold_2_assignment': 'test'}
+    ['valid', 'train', 'test']
     """
     if not isinstance(string_id, str) or not string_id:
         raise ValueError("string_id must be a non-empty string")
@@ -490,17 +488,15 @@ def generate_string_kfold_assignment(
         raise ValueError(f"val_ratio must be between 0 and 1, got {val_ratio}")
 
     base_str = f"{string_id}_{seed}"
-    fold_prefix = "fold_"
-
     base_bytes = base_str.encode("utf-8")
     hash_obj = hashlib.md5(base_bytes)
     hash_int = int(hash_obj.hexdigest(), 16)
     bucket = hash_int % n_folds
 
-    assignments = {}
+    assignments: List[str] = []
     for k in range(n_folds):
         if bucket == k:
-            assignments[f"{fold_prefix}{k}_assignment"] = "test"
+            assignments.append("test")
         else:
             fold_str = f"{base_str}_{k}"
             fold_bytes = fold_str.encode("utf-8")
@@ -508,7 +504,7 @@ def generate_string_kfold_assignment(
             fold_hash_int = int(fold_hash_obj.hexdigest(), 16)
             normalized_hash = (fold_hash_int % 10000) / 10000.0
             if normalized_hash < val_ratio:
-                assignments[f"{fold_prefix}{k}_assignment"] = "valid"
+                assignments.append("valid")
             else:
-                assignments[f"{fold_prefix}{k}_assignment"] = "train"
+                assignments.append("train")
     return assignments

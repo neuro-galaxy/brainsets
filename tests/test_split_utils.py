@@ -272,18 +272,16 @@ class TestGenerateStringKfoldAssignment:
 
     # ==================== BASIC STRUCTURE & PARAMETERS ====================
 
-    def test_output_structure_and_key_names(self):
-        """Test output key schema and assignment values."""
+    def test_output_structure_and_index_order(self):
+        """Test output list schema and assignment values."""
         n_folds = 3
         assignments = generate_string_kfold_assignment("S001", n_folds=n_folds)
 
-        assert isinstance(assignments, dict)
+        assert isinstance(assignments, list)
         assert len(assignments) == n_folds
 
-        for k in range(n_folds):
-            key = f"fold_{k}_assignment"
-            assert key in assignments
-            assert assignments[key] in ["train", "valid", "test"]
+        for assignment in assignments:
+            assert assignment in ["train", "valid", "test"]
 
     @pytest.mark.parametrize("n_folds", [1, 2, 3, 5, 10])
     def test_correct_number_of_folds(self, n_folds):
@@ -296,7 +294,7 @@ class TestGenerateStringKfoldAssignment:
         """Exactly one fold should be assigned to test (leave-one-out pattern)."""
         assignments = generate_string_kfold_assignment("S001", n_folds=n_folds)
 
-        test_count = sum(1 for v in assignments.values() if v == "test")
+        test_count = sum(1 for v in assignments if v == "test")
         assert test_count == 1
 
     # ==================== DETERMINISM & REPRODUCIBILITY ====================
@@ -334,7 +332,7 @@ class TestGenerateStringKfoldAssignment:
                 f"S{i:03d}", n_folds=n_folds, seed=42
             )
             for k in range(n_folds):
-                if assignments[f"fold_{k}_assignment"] == "test":
+                if assignments[k] == "test":
                     test_fold_assignments[f"S{i:03d}"] = k
                     break
 
@@ -352,17 +350,14 @@ class TestGenerateStringKfoldAssignment:
 
         assert assignments_ses1 != assignments_ses2
 
-    def test_subject_and_session_keys_are_uniform(self):
-        """Subject-level and session-level IDs share the same fold key schema."""
+    def test_subject_and_session_lengths_are_uniform(self):
+        """Subject-level and session-level IDs share the same fold list schema."""
         assignments_subj = generate_string_kfold_assignment("S001", n_folds=3)
         assignments_sess = generate_string_kfold_assignment(
             "S001_S001_ses01", n_folds=3
         )
 
-        assert set(assignments_subj.keys()) == set(assignments_sess.keys())
-        for k in range(3):
-            assert f"fold_{k}_assignment" in assignments_subj
-            assert f"fold_{k}_assignment" in assignments_sess
+        assert len(assignments_subj) == len(assignments_sess) == 3
 
     # ==================== FOLD ISOLATION (NO SPILLING BETWEEN FOLDS) ====================
 
@@ -375,15 +370,13 @@ class TestGenerateStringKfoldAssignment:
             subject_id, n_folds=n_folds, seed=42
         )
 
-        test_folds = [
-            k for k in range(n_folds) if assignments[f"fold_{k}_assignment"] == "test"
-        ]
+        test_folds = [k for k in range(n_folds) if assignments[k] == "test"]
         assert len(test_folds) == 1
         test_fold = test_folds[0]
 
         for k in range(n_folds):
             if k != test_fold:
-                assignment = assignments[f"fold_{k}_assignment"]
+                assignment = assignments[k]
                 assert assignment in ["train", "valid"]
 
     def test_no_fold_contamination_at_scale(self):
@@ -401,7 +394,7 @@ class TestGenerateStringKfoldAssignment:
 
             test_count = 0
             for k in range(n_folds):
-                if assignments[f"fold_{k}_assignment"] == "test":
+                if assignments[k] == "test":
                     subject_test_folds[subject_id] = k
                     test_count += 1
 
@@ -423,7 +416,7 @@ class TestGenerateStringKfoldAssignment:
             )
 
             for k in range(n_folds):
-                if assignments[f"fold_{k}_assignment"] == "test":
+                if assignments[k] == "test":
                     fold_test_counts[k] += 1
                     break
 
@@ -442,9 +435,9 @@ class TestGenerateStringKfoldAssignment:
                 f"S{i:03d}", n_folds=n_folds, seed=42
             )
 
-            train_count = sum(1 for v in assignments.values() if v == "train")
-            valid_count = sum(1 for v in assignments.values() if v == "valid")
-            test_count = sum(1 for v in assignments.values() if v == "test")
+            train_count = sum(1 for v in assignments if v == "train")
+            valid_count = sum(1 for v in assignments if v == "valid")
+            test_count = sum(1 for v in assignments if v == "test")
 
             assert train_count + valid_count + test_count == n_folds
 
@@ -458,7 +451,7 @@ class TestGenerateStringKfoldAssignment:
         )
 
         assert len(assignments) == 5
-        assert sum(1 for v in assignments.values() if v == "test") == 1
+        assert sum(1 for v in assignments if v == "test") == 1
 
     def test_val_ratio_zero_no_valid_assignments(self):
         """With val_ratio=0, no subjects are assigned to valid."""
@@ -471,7 +464,7 @@ class TestGenerateStringKfoldAssignment:
             assignments = generate_string_kfold_assignment(
                 f"S{i:03d}", n_folds=n_folds, val_ratio=0.0, seed=42
             )
-            valid_count += sum(1 for v in assignments.values() if v == "valid")
+            valid_count += sum(1 for v in assignments if v == "valid")
 
         assert valid_count == 0
 
@@ -487,7 +480,7 @@ class TestGenerateStringKfoldAssignment:
                 subject_id, n_folds=n_folds, val_ratio=val_ratio, seed=42
             )
             for k in range(n_folds):
-                if assignments[f"fold_{k}_assignment"] == "test":
+                if assignments[k] == "test":
                     test_folds[val_ratio] = k
                     break
 
@@ -509,7 +502,7 @@ class TestGenerateStringKfoldAssignment:
             )
 
             for k in range(n_folds):
-                assignment = assignments[f"fold_{k}_assignment"]
+                assignment = assignments[k]
                 if assignment != "test":
                     fold_non_test_counts[k] += 1
                     if assignment == "valid":
@@ -538,7 +531,7 @@ class TestGenerateStringKfoldAssignment:
             )
 
             for k in range(n_folds):
-                assignment = assignments[f"fold_{k}_assignment"]
+                assignment = assignments[k]
                 if assignment == "test":
                     test_fold_counts[k] += 1
                 elif assignment == "valid":
@@ -585,7 +578,7 @@ class TestGenerateStringKfoldAssignment:
             )
 
             for k in range(n_folds):
-                assignment = assignments[f"fold_{k}_assignment"]
+                assignment = assignments[k]
                 fold_counts[k][assignment] += 1
 
         # Check test fold distribution
