@@ -32,6 +32,24 @@ from brainsets.descriptions import (
     DeviceDescription,
 )
 
+PARADIGM_MAP = {
+    # "annotation_code": "Paradigm Name",
+    90: "Resting Paradigm",
+    91: "Sequence Learning Paradigm",
+    92: "Symbol Search Paradigm",
+    93: "Surround Suppression Paradigm Block 1",
+    94: "Contrast Change Paradigm Block 1",
+    95: "Contrast Change Paradigm Block 2",
+    96: "Contrast Change Paradigm Block 3",
+    97: "Surround Suppression Paradigm Block 2",
+    81: "Naturalistic Viewing Paradigm Video 1",
+    82: "Naturalistic Viewing Paradigm Video 2",
+    83: "Naturalistic Viewing Paradigm Video 3",
+    84: "Naturalistic Viewing Paradigm Video 4",
+    85: "Naturalistic Viewing Paradigm Video 5",
+    86: "Naturalistic Viewing Paradigm Video 6",
+}
+
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
 parser.add_argument("--reprocess", action="store_true")
@@ -199,6 +217,9 @@ class Pipeline(BrainsetPipeline):
 
         self.update_status("Extracting annotations")
         annotations = extract_annotations(raw)
+        if len(annotations) > 0:
+            first_code = int(annotations.description[0])
+            paradigm_name = PARADIGM_MAP.get(first_code, first_code)
 
         self.update_status("Creating Data Object")
         data_kwargs = {
@@ -211,6 +232,7 @@ class Pipeline(BrainsetPipeline):
             "domain": eeg_signal.domain,
         }
         if len(annotations) > 0:
+            data_kwargs["paradigm"] = paradigm_name
             data_kwargs["annotations"] = annotations
 
         data = Data(**data_kwargs)
