@@ -32,7 +32,7 @@ class KempSleepEDF2013(Dataset):
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
         uniquify_channel_ids: bool = True,
-        fold_number: Optional[int] = 0,
+        fold_number: int = 0,
         fold_type: FoldType = "intrasession",
         dirname: str = "kemp_sleep_edf_2013",
         **kwargs,
