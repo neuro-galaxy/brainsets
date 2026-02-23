@@ -386,61 +386,6 @@ def generate_stratified_folds(
     return folds
 
 
-def generate_train_valid_splits_one_epoch(
-    epoch: Interval, split_ratios: Optional[List[float]] = None
-) -> Tuple[Interval, Interval]:
-    """Split a single time interval into training and validation intervals.
-
-    Args:
-        epoch: The full time interval to split (must contain a single interval)
-        split_ratios: List of two ratios [train_ratio, valid_ratio] that sum to 1.0.
-            Defaults to [0.9, 0.1].
-
-    Returns:
-        Tuple of (train_intervals, valid_intervals)
-
-    Raises:
-        ValueError:
-            if split_ratios is not a sequence of exactly two numbers,
-            if any ratio is negative,
-            if split_ratios do not sum to 1, or
-            if the epoch does not contain a single interval
-    """
-    if split_ratios is None:
-        split_ratios = [0.9, 0.1]
-
-    if not hasattr(split_ratios, "__len__") or len(split_ratios) != 2:
-        raise ValueError(
-            "split_ratios must be a sequence of two numbers (train, valid)"
-        )
-
-    if any(r < 0 for r in split_ratios):
-        raise ValueError("split_ratios elements must be non-negative")
-
-    if not np.isclose(sum(split_ratios), 1.0):
-        raise ValueError("Split ratios must sum to 1")
-
-    if len(epoch) != 1:
-        raise ValueError("Epoch must contain a single interval")
-
-    epoch_start = epoch.start[0]
-    epoch_end = epoch.end[0]
-
-    train_split_time = epoch_start + split_ratios[0] * (epoch_end - epoch_start)
-    val_split_time = train_split_time + split_ratios[1] * (epoch_end - epoch_start)
-
-    train_intervals = Interval(
-        start=epoch_start,
-        end=train_split_time,
-    )
-    valid_intervals = Interval(
-        start=train_intervals.end[0],
-        end=val_split_time,
-    )
-
-    return train_intervals, valid_intervals
-
-
 def generate_string_kfold_assignment(
     string_id: str,
     n_folds: int = 3,
