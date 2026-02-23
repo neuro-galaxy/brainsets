@@ -4,6 +4,7 @@
 #   "mne~=1.11.0",
 #   "boto3~=1.41.0",
 #   "scikit-learn==1.7.2",
+#   "temporaldata@git+https://github.com/neuro-galaxy/temporaldata@main",
 # ]
 # ///
 
@@ -342,7 +343,7 @@ def create_splits(
     if len(stages) == 0:
         raise ValueError("No stages provided for splitting")
 
-    chopped = stages.subdivide(duration=epoch_duration, check_no_overlap=True)
+    chopped = stages.subdivide(step=epoch_duration, drop_short=True)
     logging.info(f"Chopped {len(stages)} stages into {len(chopped)} epochs")
 
     UNKNOWN_STAGE_ID = 6
