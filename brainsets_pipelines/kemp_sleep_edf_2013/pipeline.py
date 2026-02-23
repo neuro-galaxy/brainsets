@@ -27,7 +27,6 @@ from brainsets.descriptions import (
 from brainsets.taxonomy import RecordingTech, Species, Sex
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.utils.split import (
-    chop_intervals,
     generate_stratified_folds,
     generate_string_kfold_assignment,
 )
@@ -343,7 +342,7 @@ def create_splits(
     if len(stages) == 0:
         raise ValueError("No stages provided for splitting")
 
-    chopped = chop_intervals(stages, duration=epoch_duration, check_no_overlap=True)
+    chopped = stages.subdivide(duration=epoch_duration, check_no_overlap=True)
     logging.info(f"Chopped {len(stages)} stages into {len(chopped)} epochs")
 
     UNKNOWN_STAGE_ID = 6

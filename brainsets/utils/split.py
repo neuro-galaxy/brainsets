@@ -230,63 +230,6 @@ def generate_train_valid_test_splits(
     return train_intervals, valid_intervals, test_intervals
 
 
-def chop_intervals(
-    intervals: Interval, duration: float, check_no_overlap: bool = False
-) -> Interval:
-    """
-    Subdivides intervals into fixed-length epochs using Interval.arange().
-
-    If some intervals are shorter than the duration, keep them as they are.
-    If an interval is not a perfect multiple of the duration, the last chunk will be shorter.
-
-    Args:
-        intervals: The original intervals to chop.
-        duration: The duration of each chopped interval in seconds.
-        check_no_overlap: If True, verify the resulting intervals don't overlap.
-
-    Returns:
-        Interval: A new Interval object containing the chopped segments.
-                  Metadata from the original intervals is preserved and repeated for each segment.
-
-    Raises:
-        ValueError: If check_no_overlap is True and intervals overlap.
-    """
-    if len(intervals) == 0:
-        return Interval(start=np.array([]), end=np.array([]))
-
-    chopped_intervals = []
-    original_indices = []
-
-    for i, (start, end) in enumerate(zip(intervals.start, intervals.end)):
-        if end - start <= duration:
-            chopped = Interval(start=np.array([start]), end=np.array([end]))
-        else:
-            chopped = Interval.arange(start, end, step=duration, include_end=True)
-
-        chopped_intervals.append(chopped)
-        original_indices.extend([i] * len(chopped))
-
-    all_starts = np.concatenate([c.start for c in chopped_intervals])
-    all_ends = np.concatenate([c.end for c in chopped_intervals])
-
-    kwargs = {}
-    if hasattr(intervals, "keys"):
-        for key in intervals.keys():
-            if key in ["start", "end"]:
-                continue
-            val = getattr(intervals, key)
-            if isinstance(val, np.ndarray) and len(val) == len(intervals):
-                kwargs[key] = val[original_indices]
-
-    result = Interval(start=all_starts, end=all_ends, **kwargs)
-
-    if check_no_overlap:
-        if not result.is_disjoint():
-            raise ValueError("Intervals overlap after chopping")
-
-    return result
-
-
 def _create_interval_split(intervals: Interval, indices: np.ndarray) -> Interval:
     """Create an Interval subset from indices and sort it."""
     mask = np.zeros(len(intervals), dtype=bool)
