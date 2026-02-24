@@ -241,6 +241,10 @@ class Pipeline(BrainsetPipeline):
         raw = mne.io.read_raw_egi(str(download_output), preload=True, verbose=True)
         meas_date = extract_measurement_date(raw)
 
+        session_description = SessionDescription(
+            id=recording_id, recording_date=meas_date
+        )
+
         subject_id = recording_id[:9]
         device_description = DeviceDescription(
             id=f"GSN_HydroCel_129_{subject_id}",
@@ -268,15 +272,9 @@ class Pipeline(BrainsetPipeline):
             paradigm_entry = PARADIGM_MAP.get(first_code)
             if paradigm_entry is not None:
                 paradigm_name, task = paradigm_entry
-                session_description = SessionDescription(
-                    id=recording_id, recording_date=meas_date, task=task
-                )
-
+                session_description.task = task
             else:
                 paradigm_name = str(first_code)
-                session_description = SessionDescription(
-                    id=recording_id, recording_date=meas_date
-                )
 
         self.update_status("Creating Data Object")
         data_kwargs = {
