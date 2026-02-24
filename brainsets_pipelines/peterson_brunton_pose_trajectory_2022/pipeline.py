@@ -141,6 +141,7 @@ class Pipeline(BrainsetPipeline):
         session_id: str,
         active_behavior_trials: Interval,
         active_vs_inactive_trials: Interval,
+        pose_valid_domain: Interval,
     ) -> Data:
         subject_assign = generate_subject_kfold_assignment(
             subject_id, n_folds=3, val_ratio=0.2, seed=42
@@ -171,11 +172,42 @@ class Pipeline(BrainsetPipeline):
                 seed=42,
             )
 
+        pose_estimation_splits = {}
+        if len(active_vs_inactive_trials) > 0 and len(pose_valid_domain) > 0:
+            if len(pose_valid_domain) > 0:
+                # Build fixed-size chunks, then use shared k-fold utility so each fold's
+                # test split is disjoint across folds.
+                chopped = pose_valid_domain.subdivide(step=30.0, drop_short=False)
+                if len(chopped) >= 3:
+                    pose_chunks = Interval(
+                        start=chopped.start,
+                        end=chopped.end,
+                        pose_split_label=np.zeros(len(chopped), dtype=int),
+                    )
+                    folds = generate_stratified_folds(
+                        pose_chunks,
+                        stratify_by="pose_split_label",
+                        n_folds=3,
+                        val_ratio=0.2,
+                        seed=42,
+                    )
+                    for fold_idx, fold_data in enumerate(folds):
+                        pose_estimation_splits[
+                            f"pose_estimation_fold_{fold_idx}_train"
+                        ] = fold_data.train
+                        pose_estimation_splits[
+                            f"pose_estimation_fold_{fold_idx}_valid"
+                        ] = fold_data.valid
+                        pose_estimation_splits[
+                            f"pose_estimation_fold_{fold_idx}_test"
+                        ] = fold_data.test
+
         return Data(
             **subject_assign,
             **session_assign,
             **behavior_splits,
             **active_vs_inactive_splits,
+            **pose_estimation_splits,
             domain=active_vs_inactive_trials,
         )
 
@@ -247,14 +279,41 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Extracting pose trajectories")
         pose = ajile_extract_pose_from_nwb(nwbfile)
 
+        self.update_status("Computing pose valid domain")
+        pose_valid_domain = compute_pose_valid_domain(pose)
+
         self.update_status("Extracting behavior intervals")
         active_behavior_trials, active_vs_inactive_trials = (
             ajile_extract_behavior_intervals_from_nwb(nwbfile)
         )
 
+        if len(pose_valid_domain) > 0 and len(active_vs_inactive_trials) > 0:
+            pose_outside_active = pose_valid_domain.difference(
+                active_vs_inactive_trials
+            )
+            if len(pose_outside_active) > 0:
+                outside_duration = np.sum(
+                    pose_outside_active.end - pose_outside_active.start
+                )
+                total_pose_duration = np.sum(
+                    pose_valid_domain.end - pose_valid_domain.start
+                )
+                outside_pct = 100.0 * outside_duration / total_pose_duration
+                logging.warning(
+                    f"Pose valid data extends {outside_pct:.1f}% outside active behavior intervals. "
+                    f"Consider reviewing pose data extraction."
+                )
+
+        # Filter out pose data outside of active vs inactive intervals as those are the Data Breaks
+        pose_valid_domain = pose_valid_domain & active_vs_inactive_trials
+
         self.update_status("Generating splits")
         splits = self._generate_splits(
-            subject.id, session_id, active_behavior_trials, active_vs_inactive_trials
+            subject.id,
+            session_id,
+            active_behavior_trials,
+            active_vs_inactive_trials,
+            pose_valid_domain,
         )
 
         session_description = SessionDescription(
@@ -278,6 +337,7 @@ class Pipeline(BrainsetPipeline):
             pose=pose,
             active_behavior_trials=active_behavior_trials,
             active_vs_inactive_trials=active_vs_inactive_trials,
+            pose_valid_domain=pose_valid_domain,
             splits=splits,
             domain=pose.domain,
         )
@@ -424,6 +484,49 @@ def ajile_extract_pose_from_nwb(
     )
 
     return pose_trajectories
+
+
+def compute_pose_valid_domain(pose: RegularTimeSeries) -> Interval:
+    """Compute the domain where pose data is non-NaN for all keypoints.
+
+    Args:
+        pose: RegularTimeSeries containing pose trajectories with fields for each keypoint.
+
+    Returns:
+        Interval: Contiguous time segments where all 9 keypoints have valid (non-NaN) data.
+    """
+    keypoints = [
+        "r_wrist",
+        "l_wrist",
+        "l_ear",
+        "l_elbow",
+        "l_shoulder",
+        "nose",
+        "r_ear",
+        "r_elbow",
+        "r_shoulder",
+    ]
+
+    stacked_data = np.column_stack([getattr(pose, kp) for kp in keypoints])
+    valid_mask = ~np.any(np.isnan(stacked_data), axis=1)
+
+    if not np.any(valid_mask):
+        return Interval(start=np.array([]), end=np.array([]))
+
+    edges = np.diff(valid_mask.astype(int))
+    starts_idx = np.where(edges == 1)[0] + 1
+    ends_idx = np.where(edges == -1)[0]
+
+    if valid_mask[0]:
+        starts_idx = np.insert(starts_idx, 0, 0)
+    if valid_mask[-1]:
+        ends_idx = np.append(ends_idx, len(valid_mask) - 1)
+
+    sampling_rate = float(pose.sampling_rate)
+    start_times = starts_idx / sampling_rate
+    end_times = (ends_idx + 1) / sampling_rate
+
+    return Interval(start=start_times, end=end_times)
 
 
 def ajile_extract_behavior_intervals_from_nwb(
