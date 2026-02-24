@@ -246,12 +246,12 @@ class Pipeline(BrainsetPipeline):
             id=recording_id, recording_date=meas_date
         )
 
+        subject_id = recording_id[:9]
         device_description = DeviceDescription(
-            id=recording_id,
+            id=f"GSN_HydroCel_129_{subject_id}",
             recording_tech=RecordingTech.SCALP_EEG,
         )
 
-        subject_id = recording_id[:9]
         subject_info = self._get_subject_metadata(subject_id)
 
         subject_description = SubjectDescription(
