@@ -13,8 +13,9 @@ from urllib.request import urlopen
 
 import mne
 import h5py
+import numpy as np
 import pandas as pd
-from temporaldata import Data
+from temporaldata import ArrayDict, Data
 from brainsets import serialize_fn_map
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.taxonomy import RecordingTech
@@ -109,6 +110,55 @@ class Pipeline(BrainsetPipeline):
         sex = int(sex) if pd.notna(sex) else 0
 
         return {"age": age, "sex": sex}
+
+    def _download_channel_location(self) -> Path:
+        """Download the GSN HydroCel 129 channel location SFP file.
+
+        Returns the local path to the downloaded file.
+        """
+        local_path = self.raw_dir / "GSN_HydroCel_129.sfp"
+        metadata_url = "https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/_static/GSN_HydroCel_129.sfp"
+
+        if not local_path.exists() or self.args.redownload:
+            self.update_status("Downloading channel location file")
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            with urlopen(metadata_url, context=ctx) as response:
+                local_path.write_bytes(response.read())
+        else:
+            self.update_status("Channel location file already cached")
+
+        return local_path
+
+    def _add_channel_locations(self, channels: ArrayDict) -> None:
+        """Add 3D EEG electrode positions to *channels* in-place.
+
+        Reads the GSN HydroCel 129 SFP file (label, X, Y, Z in Cartesian
+        head coordinates) and sets ``channels.locations`` to an ``(N, 3)``
+        float array aligned with ``channels.ids``.
+        Only channels whose type is ``"eeg"`` are looked up; all others receive NaN
+        coordinates.
+
+        Args:
+            channels: ArrayDict with ``ids`` and ``types``.
+        """
+        sfp_path = self._download_channel_location()
+        loc_df = pd.read_csv(
+            sfp_path,
+            sep=r"\s+",
+            header=None,
+            names=["label", "x", "y", "z"],
+        )
+        loc_map = {row.label: (row.x, row.y, row.z) for _, row in loc_df.iterrows()}
+
+        locations = np.full((len(channels.ids), 3), np.nan)
+        for i, (ch, ch_type) in enumerate(zip(channels.ids, channels.types)):
+            if ch_type == "eeg" and ch in loc_map:
+                locations[i] = loc_map[ch]
+
+        channels.locations = locations
 
     @classmethod
     def get_manifest(cls, raw_dir: Path, args) -> pd.DataFrame:
@@ -211,9 +261,10 @@ class Pipeline(BrainsetPipeline):
             sex=subject_info["sex"],
         )
 
-        self.update_status("Extracting EEG signal")
+        self.update_status("Extracting EEG signal and channels")
         eeg_signal = extract_eeg_signal(raw)
         channels = extract_channels(raw)
+        self._add_channel_locations(channels)
 
         self.update_status("Extracting annotations")
         annotations = extract_annotations(raw)
