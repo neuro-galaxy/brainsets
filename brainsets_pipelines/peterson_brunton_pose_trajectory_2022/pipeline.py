@@ -60,10 +60,25 @@ parser.add_argument(
     help="Apply 70–150 Hz bandpass and Hilbert envelope",
 )
 
+# Priority order for simplifying multi-label active behaviors to a single label
+ACTIVE_BEHAVIOR_PRIORITY = ["Eat", "Talk", "TV", "Computer/phone", "Other activity"]
+ACTIVE_BEHAVIOR_TO_ID = {label: i for i, label in enumerate(ACTIVE_BEHAVIOR_PRIORITY)}
+
+INACTIVE_BEHAVIORS = {"Sleep/rest", "Inactive"}
+
+ACTIVE_VS_INACTIVE_TO_ID = {"Active": 0, "Inactive": 1}
+
 # Some sessions contain very few "Other activity" trials (<2) so we can't use them for splitting.
 # We exclude them from the all_active_behavior task.
 BEHAVIOR_TASK_CONFIGS = {
     "all_active_behavior": ["Eat", "Talk", "TV", "Computer/phone"],
+}
+
+ACTIVE_VS_INACTIVE_TASK_CONFIGS = {
+    "active_vs_inactive": [
+        "Active",
+        "Inactive",
+    ],
 }
 
 
@@ -116,6 +131,7 @@ class Pipeline(BrainsetPipeline):
             manifest_item.url,
             self.raw_dir,
             overwrite=getattr(self.args, "redownload", False),
+            skip_existing=True,
         )
         return fpath
 
@@ -123,7 +139,9 @@ class Pipeline(BrainsetPipeline):
         self,
         subject_id: str,
         session_id: str,
-        behavior_trials: Interval,
+        active_behavior_trials: Interval,
+        active_vs_inactive_trials: Interval,
+        pose_valid_domain: Interval,
     ) -> Data:
         subject_assign = generate_subject_kfold_assignment(
             subject_id, n_folds=3, val_ratio=0.2, seed=42
@@ -131,55 +149,66 @@ class Pipeline(BrainsetPipeline):
         session_assign = generate_subject_kfold_assignment(
             subject_id, session_id=session_id, n_folds=3, val_ratio=0.2, seed=42
         )
-        behavior_splits = {}
-        # The trials main contain multiple behavior labels.
-        # If a trial contains Eat and any other behavior label, we want to consider it as just Eat.
-        # For example, if a trial contains "Eat, Talk" or "Eat, TV", we want to consider it as just "Eat".
-        for index, label in enumerate(behavior_trials.behavior_labels):
-            if "Eat" in label:
-                behavior_trials.behavior_labels[index] = "Eat"
-            elif "Talk" in label:
-                behavior_trials.behavior_labels[index] = "Talk"
-            elif "TV" in label:
-                behavior_trials.behavior_labels[index] = "TV"
-            elif "Computer/phone" in label:
-                behavior_trials.behavior_labels[index] = "Computer/phone"
-            elif "Other activity" in label:
-                behavior_trials.behavior_labels[index] = "Other activity"
 
-        active_vs_inactive_splits = {}
-        if len(behavior_trials) > 0 and hasattr(behavior_trials, "behavior_labels"):
+        behavior_splits = {}
+        if len(active_behavior_trials) > 0:
             behavior_splits = generate_stratified_folds_by_task(
-                behavior_trials,
+                active_behavior_trials,
                 BEHAVIOR_TASK_CONFIGS,
                 "behavior_labels",
                 n_folds=3,
                 val_ratio=0.2,
                 seed=42,
             )
-            active_folds = generate_stratified_folds(
-                behavior_trials,
-                "active",
+
+        active_vs_inactive_splits = {}
+        if len(active_vs_inactive_trials) > 0:
+            active_vs_inactive_splits = generate_stratified_folds_by_task(
+                active_vs_inactive_trials,
+                ACTIVE_VS_INACTIVE_TASK_CONFIGS,
+                "behavior_labels",
                 n_folds=3,
                 val_ratio=0.2,
                 seed=42,
             )
-            for k, fold_data in enumerate(active_folds):
-                active_vs_inactive_splits[f"active_vs_inactive_fold_{k}_train"] = (
-                    fold_data.train
-                )
-                active_vs_inactive_splits[f"active_vs_inactive_fold_{k}_valid"] = (
-                    fold_data.valid
-                )
-                active_vs_inactive_splits[f"active_vs_inactive_fold_{k}_test"] = (
-                    fold_data.test
-                )
+
+        pose_estimation_splits = {}
+        if len(active_vs_inactive_trials) > 0 and len(pose_valid_domain) > 0:
+            if len(pose_valid_domain) > 0:
+                # Build fixed-size chunks, then use shared k-fold utility so each fold's
+                # test split is disjoint across folds.
+                chopped = pose_valid_domain.subdivide(step=30.0, drop_short=False)
+                if len(chopped) >= 3:
+                    pose_chunks = Interval(
+                        start=chopped.start,
+                        end=chopped.end,
+                        pose_split_label=np.zeros(len(chopped), dtype=int),
+                    )
+                    folds = generate_stratified_folds(
+                        pose_chunks,
+                        stratify_by="pose_split_label",
+                        n_folds=3,
+                        val_ratio=0.2,
+                        seed=42,
+                    )
+                    for fold_idx, fold_data in enumerate(folds):
+                        pose_estimation_splits[
+                            f"pose_estimation_fold_{fold_idx}_train"
+                        ] = fold_data.train
+                        pose_estimation_splits[
+                            f"pose_estimation_fold_{fold_idx}_valid"
+                        ] = fold_data.valid
+                        pose_estimation_splits[
+                            f"pose_estimation_fold_{fold_idx}_test"
+                        ] = fold_data.test
+
         return Data(
             **subject_assign,
             **session_assign,
             **behavior_splits,
             **active_vs_inactive_splits,
-            domain=behavior_trials,
+            **pose_estimation_splits,
+            domain=active_vs_inactive_trials,
         )
 
     def process(self, fpath: Path) -> None:
@@ -250,11 +279,42 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Extracting pose trajectories")
         pose = ajile_extract_pose_from_nwb(nwbfile)
 
-        # self.update_status("Extracting behavior intervals")
-        behavior_trials = ajile_extract_behavior_intervals_from_nwb(nwbfile)
+        self.update_status("Computing pose valid domain")
+        pose_valid_domain = compute_pose_valid_domain(pose)
+
+        self.update_status("Extracting behavior intervals")
+        active_behavior_trials, active_vs_inactive_trials = (
+            ajile_extract_behavior_intervals_from_nwb(nwbfile)
+        )
+
+        if len(pose_valid_domain) > 0 and len(active_vs_inactive_trials) > 0:
+            pose_outside_active = pose_valid_domain.difference(
+                active_vs_inactive_trials
+            )
+            if len(pose_outside_active) > 0:
+                outside_duration = np.sum(
+                    pose_outside_active.end - pose_outside_active.start
+                )
+                total_pose_duration = np.sum(
+                    pose_valid_domain.end - pose_valid_domain.start
+                )
+                outside_pct = 100.0 * outside_duration / total_pose_duration
+                logging.warning(
+                    f"Pose valid data extends {outside_pct:.1f}% outside active behavior intervals. "
+                    f"Consider reviewing pose data extraction."
+                )
+
+        # Filter out pose data outside of active vs inactive intervals as those are the Data Breaks
+        pose_valid_domain = pose_valid_domain & active_vs_inactive_trials
 
         self.update_status("Generating splits")
-        splits = self._generate_splits(subject.id, session_id, behavior_trials)
+        splits = self._generate_splits(
+            subject.id,
+            session_id,
+            active_behavior_trials,
+            active_vs_inactive_trials,
+            pose_valid_domain,
+        )
 
         session_description = SessionDescription(
             id=session_id,
@@ -275,9 +335,11 @@ class Pipeline(BrainsetPipeline):
             ecog=ecog,
             channels=channels,
             pose=pose,
-            behavior_trials=behavior_trials,
+            active_behavior_trials=active_behavior_trials,
+            active_vs_inactive_trials=active_vs_inactive_trials,
+            pose_valid_domain=pose_valid_domain,
             splits=splits,
-            domain=ecog.domain,
+            domain=pose.domain,
         )
 
         self.update_status("Storing")
@@ -424,32 +486,148 @@ def ajile_extract_pose_from_nwb(
     return pose_trajectories
 
 
-def ajile_extract_behavior_intervals_from_nwb(nwbfile: NWBFile) -> Interval:
+def compute_pose_valid_domain(pose: RegularTimeSeries) -> Interval:
+    """Compute the domain where pose data is non-NaN for all keypoints.
+
+    Args:
+        pose: RegularTimeSeries containing pose trajectories with fields for each keypoint.
+
+    Returns:
+        Interval: Contiguous time segments where all 9 keypoints have valid (non-NaN) data.
+    """
+    keypoints = [
+        "r_wrist",
+        "l_wrist",
+        "l_ear",
+        "l_elbow",
+        "l_shoulder",
+        "nose",
+        "r_ear",
+        "r_elbow",
+        "r_shoulder",
+    ]
+
+    stacked_data = np.column_stack([getattr(pose, kp) for kp in keypoints])
+    valid_mask = ~np.any(np.isnan(stacked_data), axis=1)
+
+    if not np.any(valid_mask):
+        return Interval(start=np.array([]), end=np.array([]))
+
+    edges = np.diff(valid_mask.astype(int))
+    starts_idx = np.where(edges == 1)[0] + 1
+    ends_idx = np.where(edges == -1)[0]
+
+    if valid_mask[0]:
+        starts_idx = np.insert(starts_idx, 0, 0)
+    if valid_mask[-1]:
+        ends_idx = np.append(ends_idx, len(valid_mask) - 1)
+
+    sampling_rate = float(pose.sampling_rate)
+    start_times = starts_idx / sampling_rate
+    end_times = (ends_idx + 1) / sampling_rate
+
+    return Interval(start=start_times, end=end_times)
+
+
+def ajile_extract_behavior_intervals_from_nwb(
+    nwbfile: NWBFile,
+) -> Tuple[Interval, Interval]:
+    """Extract two behavior interval objects from NWB.
+
+    Returns:
+        Tuple of (active_behavior_trials, active_vs_inactive_trials):
+        - active_behavior_trials: Active behaviors with simplified single label per interval
+        - active_vs_inactive_trials: Active or Inactive labels (excludes data breaks/blocklist)
+    """
     if "epochs" not in nwbfile.intervals:
-        return Interval(
-            start=np.array([]),
-            end=np.array([]),
-            behavior_labels=np.array([]),
-            active=np.array([]),
+        return (
+            Interval(
+                start=np.array([]),
+                end=np.array([]),
+                behavior_labels=np.array([], dtype=str),
+                behavior_id=np.array([], dtype=int),
+                timestamps=np.array([]),
+            ),
+            Interval(
+                start=np.array([]),
+                end=np.array([]),
+                behavior_labels=np.array([], dtype=str),
+                behavior_id=np.array([], dtype=int),
+                timestamps=np.array([]),
+            ),
         )
 
     coarse_behaviors = nwbfile.intervals["epochs"]
     coarse_behaviors_labels = coarse_behaviors.labels.data[:].tolist()
+    start_times = np.round(coarse_behaviors.start_time.data[:], 3)
+    end_times = np.round(coarse_behaviors.stop_time.data[:], 3)
 
-    active_events = set(["Eat", "Talk", "TV", "Computer/phone", "Other activity"])
+    active_event_set = set(ACTIVE_BEHAVIOR_PRIORITY)
+    inactive_event_set = INACTIVE_BEHAVIORS
 
     active_event_mask = np.array(
         [
-            all(event in active_events for event in label.split(", "))
+            all(event in active_event_set for event in label.split(", "))
             for label in coarse_behaviors_labels
         ]
     )
+    inactive_event_mask = np.array(
+        [
+            all(event in inactive_event_set for event in label.split(", "))
+            for label in coarse_behaviors_labels
+        ]
+    )
+    active_or_inactive_mask = active_event_mask | inactive_event_mask
 
-    behavior_trials = Interval(
-        start=np.round(coarse_behaviors.start_time.data[:], 3),
-        end=np.round(coarse_behaviors.stop_time.data[:], 3),
-        behavior_labels=coarse_behaviors.labels.data[:],
-        active=active_event_mask,
+    # Some of the behavior intervals can have multiple labels.
+    # We simplify them to a single label based on a priority order.
+    active_indices = np.where(active_event_mask)[0]
+    active_starts = start_times[active_indices]
+    active_ends = end_times[active_indices]
+    active_labels_raw = [coarse_behaviors_labels[i] for i in active_indices]
+
+    simplified_labels = []
+    for label in active_labels_raw:
+        behaviors = label.split(", ")
+        simplified = next(
+            (b for b in ACTIVE_BEHAVIOR_PRIORITY if b in behaviors), behaviors[0]
+        )
+        simplified_labels.append(simplified)
+
+    simplified_labels_arr = np.array(simplified_labels, dtype=str)
+    behavior_ids = np.array(
+        [ACTIVE_BEHAVIOR_TO_ID[label] for label in simplified_labels], dtype=int
+    )
+    active_timestamps = (active_starts + active_ends) / 2
+
+    active_behavior_trials = Interval(
+        start=active_starts,
+        end=active_ends,
+        behavior_labels=simplified_labels_arr,
+        behavior_id=behavior_ids,
+        timestamps=active_timestamps,
     )
 
-    return behavior_trials
+    # Build active_vs_inactive_trials
+    active_or_inactive_indices = np.where(active_or_inactive_mask)[0]
+    avi_starts = start_times[active_or_inactive_indices]
+    avi_ends = end_times[active_or_inactive_indices]
+    avi_mask_subset = inactive_event_mask[active_or_inactive_indices]
+
+    avi_labels = np.array(
+        ["Inactive" if m else "Active" for m in avi_mask_subset], dtype=str
+    )
+    avi_behavior_ids = np.array(
+        [ACTIVE_VS_INACTIVE_TO_ID[label] for label in avi_labels], dtype=int
+    )
+    avi_timestamps = (avi_starts + avi_ends) / 2
+
+    active_vs_inactive_trials = Interval(
+        start=avi_starts,
+        end=avi_ends,
+        behavior_labels=avi_labels,
+        behavior_id=avi_behavior_ids,
+        timestamps=avi_timestamps,
+    )
+
+    return active_behavior_trials, active_vs_inactive_trials

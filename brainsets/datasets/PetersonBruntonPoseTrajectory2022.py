@@ -13,10 +13,10 @@ def _empty_interval() -> Interval:
 
 
 def _behavior_trials_for_task(recording, task_type: str) -> Interval:
-    trials = recording.behavior_trials
     if task_type == "active_vs_inactive":
-        return trials
+        return recording.active_vs_inactive_trials
     # behavior and pose_estimation share the same active-behavior intervals
+    trials = recording.active_behavior_trials
     mask = np.isin(trials.behavior_labels, BEHAVIOR_LABELS)
     return trials.select_by_mask(mask)
 
@@ -74,7 +74,9 @@ class PetersonBruntonPoseTrajectory2022(Dataset):
     ) -> dict:
         if self.task_type == "active_vs_inactive":
             key = f"splits.active_vs_inactive_fold_{self.fold_num}_{split}"
-        elif self.task_type in ("behavior", "pose_estimation"):
+        elif self.task_type == "pose_estimation":
+            key = f"splits.pose_estimation_fold_{self.fold_num}_{split}"
+        elif self.task_type == "behavior":
             key = f"splits.all_active_behavior_fold_{self.fold_num}_{split}"
         else:
             raise ValueError(f"Invalid task_type '{self.task_type}'.")
@@ -94,20 +96,14 @@ class PetersonBruntonPoseTrajectory2022(Dataset):
             # str() guards against h5py returning bytes or numpy.str_
             assignment = str(data.get_nested_attribute(assignment_key))
             if assignment == split:
-                result[rid] = _behavior_trials_for_task(data, self.task_type)
+                if self.task_type == "pose_estimation":
+                    result[rid] = data.pose_valid_domain
+                elif self.task_type == "behavior":
+                    result[rid] = data.active_behavior_trials
+                elif self.task_type == "active_vs_inactive":
+                    result[rid] = data.active_vs_inactive_trials
+                else:
+                    raise ValueError(f"Invalid task_type '{self.task_type}'.")
             else:
                 result[rid] = _empty_interval()
         return result
-
-
-if __name__ == "__main__":
-    dataset = PetersonBruntonPoseTrajectory2022(
-        root="data/processed",
-        task_type="active_vs_inactive",
-        split_type="intrasession",
-        fold_num=0,
-    )
-    intervals = dataset.get_sampling_intervals(split="test")[
-        "AJILE12_P01_20000107_ses7_pose_trajectories"
-    ]
-    print(intervals)
