@@ -18,7 +18,7 @@ import pandas as pd
 from temporaldata import ArrayDict, Data
 from brainsets import serialize_fn_map
 from brainsets.pipeline import BrainsetPipeline
-from brainsets.taxonomy import RecordingTech
+from brainsets.taxonomy import RecordingTech, Task
 from brainsets.utils.s3_utils import get_cached_s3_client, get_object_list
 from brainsets.utils.mne_utils import (
     extract_measurement_date,
@@ -34,21 +34,21 @@ from brainsets.descriptions import (
 )
 
 PARADIGM_MAP = {
-    # "annotation_code": "Paradigm Name",
-    90: "Resting Paradigm",
-    91: "Sequence Learning Paradigm",
-    92: "Symbol Search Paradigm",
-    93: "Surround Suppression Paradigm Block 1",
-    94: "Contrast Change Paradigm Block 1",
-    95: "Contrast Change Paradigm Block 2",
-    96: "Contrast Change Paradigm Block 3",
-    97: "Surround Suppression Paradigm Block 2",
-    81: "Naturalistic Viewing Paradigm Video 1",
-    82: "Naturalistic Viewing Paradigm Video 2",
-    83: "Naturalistic Viewing Paradigm Video 3",
-    84: "Naturalistic Viewing Paradigm Video 4",
-    85: "Naturalistic Viewing Paradigm Video 5",
-    86: "Naturalistic Viewing Paradigm Video 6",
+    # annotation_code: (paradigm_name, task)
+    90: ("Resting Paradigm", Task.RESTING_STATE),
+    91: ("Sequence Learning Paradigm", Task.SEQUENCE_LEARNING),
+    92: ("Symbol Search Paradigm", Task.VISUAL_SEARCH),
+    93: ("Surround Suppression Paradigm Block 1", Task.SURROUND_SUPPRESSION),
+    94: ("Contrast Change Paradigm Block 1", Task.CONTRAST_CHANGE_DETECTION),
+    95: ("Contrast Change Paradigm Block 2", Task.CONTRAST_CHANGE_DETECTION),
+    96: ("Contrast Change Paradigm Block 3", Task.CONTRAST_CHANGE_DETECTION),
+    97: ("Surround Suppression Paradigm Block 2", Task.SURROUND_SUPPRESSION),
+    81: ("Naturalistic Viewing Paradigm Video 1", Task.NATURALISTIC_VIEWING),
+    82: ("Naturalistic Viewing Paradigm Video 2", Task.NATURALISTIC_VIEWING),
+    83: ("Naturalistic Viewing Paradigm Video 3", Task.NATURALISTIC_VIEWING),
+    84: ("Naturalistic Viewing Paradigm Video 4", Task.NATURALISTIC_VIEWING),
+    85: ("Naturalistic Viewing Paradigm Video 5", Task.NATURALISTIC_VIEWING),
+    86: ("Naturalistic Viewing Paradigm Video 6", Task.NATURALISTIC_VIEWING),
 }
 
 parser = ArgumentParser()
@@ -239,12 +239,7 @@ class Pipeline(BrainsetPipeline):
 
         self.update_status("Loading EEG file")
         raw = mne.io.read_raw_egi(str(download_output), preload=True, verbose=True)
-
         meas_date = extract_measurement_date(raw)
-
-        session_description = SessionDescription(
-            id=recording_id, recording_date=meas_date
-        )
 
         subject_id = recording_id[:9]
         device_description = DeviceDescription(
@@ -270,7 +265,18 @@ class Pipeline(BrainsetPipeline):
         annotations = extract_annotations(raw)
         if len(annotations) > 0:
             first_code = int(annotations.description[0])
-            paradigm_name = PARADIGM_MAP.get(first_code, first_code)
+            paradigm_entry = PARADIGM_MAP.get(first_code)
+            if paradigm_entry is not None:
+                paradigm_name, task = paradigm_entry
+                session_description = SessionDescription(
+                    id=recording_id, recording_date=meas_date, task=task
+                )
+
+            else:
+                paradigm_name = str(first_code)
+                session_description = SessionDescription(
+                    id=recording_id, recording_date=meas_date
+                )
 
         self.update_status("Creating Data Object")
         data_kwargs = {
