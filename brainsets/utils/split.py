@@ -335,12 +335,21 @@ def generate_string_kfold_assignment(
     val_ratio: float = 0.2,
     seed: int = 42,
 ) -> List[str]:
-    """Generate deterministic k-fold train/valid/test assignments for a string ID.
+    """Generate deterministic per-fold train/valid/test assignments for one ID.
 
-    This function performs hash-based assignment and deterministically assigns a
-    string identifier to train, valid, or test for each fold. The same `string_id`
-    with the same seed will
-    always receive the same assignments, allowing independent processing in parallel.
+    The assignment is independent for each fold index ``k``, but follows a
+    deterministic two-step rule:
+
+    1. Compute a global bucket from ``md5(f"{string_id}_{seed}") % n_folds``.
+       The fold whose index equals this bucket is labeled ``"test"``.
+    2. For every other fold, compute a fold-specific hash
+       ``md5(f"{string_id}_{seed}_{k}")`` and map it to ``[0, 1)``.
+       If that value is below ``val_ratio``, the fold is ``"valid"``,
+       otherwise it is ``"train"``.
+
+    As a result, each ``string_id`` appears in the test split for exactly one
+    fold and is never in test for the remaining folds. This makes the output
+    reproducible across runs and safe for parallel processing.
 
     Args
     ----
@@ -358,6 +367,7 @@ def generate_string_kfold_assignment(
     List[str]
         List of fold assignments where index ``k`` corresponds to fold ``k`` and
         each value is one of ``"train"``, ``"valid"``, or ``"test"``.
+        Exactly one entry is ``"test"``.
 
     Examples
     --------
