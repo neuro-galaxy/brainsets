@@ -13,10 +13,10 @@ def _empty_interval() -> Interval:
 
 
 def _behavior_trials_for_task(recording, task_type: str) -> Interval:
-    trials = recording.behavior_trials
     if task_type == "active_vs_inactive":
-        return trials
+        return recording.active_vs_inactive_trials
     # behavior and pose_estimation share the same active-behavior intervals
+    trials = recording.active_behavior_trials
     mask = np.isin(trials.behavior_labels, BEHAVIOR_LABELS)
     return trials.select_by_mask(mask)
 

@@ -125,7 +125,7 @@ def extract_spikes_from_nwbfile(nwbfile, recording_tech):
     return spikes, units
 
 
-def download_file(path, url, raw_dir, overwrite=False) -> Path:
+def download_file(path, url, raw_dir, overwrite=False, skip_existing=False) -> Path:
     try:
         import dandi.download
     except ImportError:
@@ -134,14 +134,19 @@ def download_file(path, url, raw_dir, overwrite=False) -> Path:
     asset_path = Path(path)
     download_dir = raw_dir / asset_path.parent
     download_dir.mkdir(exist_ok=True, parents=True)
+    existing_mode = (
+        dandi.download.DownloadExisting.OVERWRITE
+        if overwrite
+        else (
+            dandi.download.DownloadExisting.SKIP
+            if skip_existing
+            else dandi.download.DownloadExisting.REFRESH
+        )
+    )
     dandi.download.download(
         url,
         download_dir,
-        existing=(
-            dandi.download.DownloadExisting.REFRESH
-            if not overwrite
-            else dandi.download.DownloadExisting.OVERWRITE
-        ),
+        existing=existing_mode,
     )
     return raw_dir / asset_path
 
