@@ -230,19 +230,19 @@ class Pipeline(BrainsetPipeline):
             description="AJILE12: ECoG and upper body pose trajectories from 12 human subjects during naturalistic movements.",
         )
 
-        # self.update_status("Extracting ECoG")
-        # resample_rate = getattr(self.args, "resample_rate")
-        # subject_hemisphere = resolve_hemisphere_ajile(
-        #     part.get("hemi") if part else None, nwbfile
-        # )
-        # ecog, channels = extract_ecog_from_nwb(
-        #     nwbfile, subject_hemisphere=subject_hemisphere
-        # )
-        # self.update_status("Resampling ECoG")
-        # if resample_rate < ecog.sampling_rate:
-        #     ecog = resample_ecog_ajile(ecog, resample_rate, chunk_duration_sec=60.0)
-        # else:
-        #     self.update_status("ECoG already at desired sampling rate")
+        self.update_status("Extracting ECoG")
+        resample_rate = getattr(self.args, "resample_rate")
+        subject_hemisphere = resolve_hemisphere_ajile(
+            part.get("hemi") if part else None, nwbfile
+        )
+        ecog, channels = extract_ecog_from_nwb(
+            nwbfile, subject_hemisphere=subject_hemisphere
+        )
+        self.update_status("Resampling ECoG")
+        if resample_rate < ecog.sampling_rate:
+            ecog = resample_ecog_ajile(ecog, resample_rate, chunk_duration_sec=60.0)
+        else:
+            self.update_status("ECoG already at desired sampling rate")
 
         self.update_status("Extracting pose trajectories")
         pose = ajile_extract_pose_from_nwb(nwbfile)
