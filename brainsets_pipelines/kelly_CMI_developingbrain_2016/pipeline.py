@@ -3,6 +3,7 @@
 # dependencies = [
 #   "boto3~=1.41.0",
 #   "mne~=1.11.0",
+#   "scikit-learn~=1.6.0",
 # ]
 # ///
 
@@ -11,15 +12,17 @@ from pathlib import Path
 import ssl
 from urllib.request import urlopen
 
+import logging
 import mne
 import h5py
 import numpy as np
 import pandas as pd
-from temporaldata import ArrayDict, Data
+from temporaldata import ArrayDict, Data, Interval
 from brainsets import serialize_fn_map
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.taxonomy import RecordingTech, Task
 from brainsets.utils.s3_utils import get_cached_s3_client, get_object_list
+from brainsets.utils.split import generate_folds, generate_string_kfold_assignment
 from brainsets.utils.mne_utils import (
     extract_measurement_date,
     extract_eeg_signal,
@@ -137,7 +140,7 @@ class Pipeline(BrainsetPipeline):
 
         Reads the GSN HydroCel 129 SFP file (label, X, Y, Z in Cartesian
         head coordinates) and sets ``channels.locations`` to an ``(N, 3)``
-        float array aligned with ``channels.ids``.
+        float array aligned with ``channels.id``.
         Only channels whose type is ``"eeg"`` are looked up; all others receive NaN
         coordinates.
 
@@ -153,8 +156,8 @@ class Pipeline(BrainsetPipeline):
         )
         loc_map = {row.label: (row.x, row.y, row.z) for _, row in loc_df.iterrows()}
 
-        locations = np.full((len(channels.ids), 3), np.nan)
-        for i, (ch, ch_type) in enumerate(zip(channels.ids, channels.types)):
+        locations = np.full((len(channels.id), 3), np.nan)
+        for i, (ch, ch_type) in enumerate(zip(channels.id, channels.type)):
             if ch_type == "eeg" and ch in loc_map:
                 locations[i] = loc_map[ch]
 
@@ -276,6 +279,14 @@ class Pipeline(BrainsetPipeline):
             else:
                 paradigm_name = str(first_code)
 
+        self.update_status("Creating splits")
+        splits = create_splits(
+            eeg_domain=eeg_signal.domain,
+            annotations=annotations,
+            subject_id=subject_description.id,
+            session_id=session_description.id,
+        )
+
         self.update_status("Creating Data Object")
         data_kwargs = {
             "brainset": brainset_description,
@@ -285,6 +296,7 @@ class Pipeline(BrainsetPipeline):
             "eeg": eeg_signal,
             "channels": channels,
             "domain": eeg_signal.domain,
+            "splits": splits,
         }
         if len(annotations) > 0:
             data_kwargs["paradigm"] = paradigm_name
@@ -297,3 +309,80 @@ class Pipeline(BrainsetPipeline):
 
         with h5py.File(output_path, "w") as file:
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
+
+
+def create_splits(
+    eeg_domain: Interval,
+    annotations: Interval,
+    subject_id: str,
+    session_id: str,
+    epoch_duration: float = 30.0,
+    n_folds: int = 3,
+    seed: int = 42,
+) -> Data:
+    """Generate train/valid/test splits for one recording.
+
+    When paradigm annotations are available, the valid domain starts at the first
+    annotation (paradigm onset) and extends to the end of the EEG recording.
+    If no annotations are present the full EEG domain is used.
+
+    Generates three types of splits:
+    - Intrasession (epoch-level): k-fold within each session
+    - Intersubject (session-level): subject assigned to train/valid/test per fold
+    - Intersession (session-level): subject-session assigned per fold
+
+    Args:
+        eeg_domain: Full time domain of the EEG recording.
+        annotations: Paradigm annotations extracted from the recording.
+        subject_id: Subject identifier for cross-subject splits.
+        session_id: Session identifier for cross-session splits.
+        epoch_duration: Duration of each epoch in seconds.
+        n_folds: Number of cross-validation folds.
+        seed: Random seed for reproducibility.
+    """
+    if len(annotations) > 0:
+        crop_start = annotations.start[0]
+    else:
+        crop_start = eeg_domain.start[0]
+
+    cropped_domain = Interval(
+        start=np.array([crop_start]),
+        end=eeg_domain.end.copy(),
+    )
+
+    epochs = cropped_domain.subdivide(step=epoch_duration, drop_short=True)
+    logging.info(f"Subdivided domain into {len(epochs)} epochs of {epoch_duration}s")
+
+    if len(epochs) < n_folds:
+        raise ValueError(
+            f"Not enough epochs ({len(epochs)}) for {n_folds} folds. "
+            f"Domain duration: {cropped_domain.end[0] - cropped_domain.start[0]:.1f}s"
+        )
+
+    folds = generate_folds(
+        epochs,
+        n_folds=n_folds,
+        val_ratio=0.2,
+        seed=seed,
+    )
+    logging.info(f"Generated {n_folds} folds")
+
+    folds_dict = {f"fold_{i}": fold for i, fold in enumerate(folds)}
+    splits = Data(**folds_dict, domain=epochs)
+
+    subject_assignments = generate_string_kfold_assignment(
+        string_id=subject_id, n_folds=n_folds, val_ratio=0.2, seed=seed
+    )
+    session_assignments = generate_string_kfold_assignment(
+        string_id=f"{subject_id}_{session_id}",
+        n_folds=n_folds,
+        val_ratio=0.2,
+        seed=seed,
+    )
+
+    for fold_idx, assignment in enumerate(subject_assignments):
+        setattr(splits, f"intersubject_fold_{fold_idx}_assignment", assignment)
+    for fold_idx, assignment in enumerate(session_assignments):
+        setattr(splits, f"intersession_fold_{fold_idx}_assignment", assignment)
+
+    return splits
