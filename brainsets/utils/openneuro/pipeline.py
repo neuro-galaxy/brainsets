@@ -19,7 +19,7 @@ import h5py
 import mne
 import numpy as np
 import pandas as pd
-from temporaldata import ArrayDict, Data
+from temporaldata import ArrayDict, Data, Interval
 
 try:
     from mne_bids import BIDSPath, read_raw_bids
@@ -44,6 +44,7 @@ from brainsets.utils.mne_utils import (
     extract_eeg_signal,
     extract_measurement_date,
 )
+from brainsets.utils.split import generate_string_kfold_assignment
 from brainsets.utils.openneuro.dataset import (
     check_recording_files_exist,
     construct_s3_url_from_path,
@@ -109,6 +110,9 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
     modality: str
     """Data modality for this pipeline. Must be overridden by subclasses."""
+
+    split_ratios: tuple[float, float] = (0.9, 0.1)
+    """Default train/valid time split ratios for recordings."""
 
     def _build_bids_path(self, recording_id: str, data_dir: Path) -> BIDSPath:
         """Build a mne_bids.BIDSPath from recording_id and data directory.
@@ -198,6 +202,67 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             sex = None
 
         return {"age": age, "sex": sex}
+
+    def _generate_splits(self, domain, subject_id: str, session_id: str) -> Data:
+        """Generate default train/valid splits and assignment labels.
+
+        Subclasses can override this method to customize split behavior.
+        """
+        if len(self.split_ratios) != 2:
+            raise ValueError(
+                "split_ratios must contain exactly two values (train, valid)"
+            )
+        if any(ratio < 0 for ratio in self.split_ratios):
+            raise ValueError("split_ratios cannot contain negative values")
+        if not np.isclose(sum(self.split_ratios), 1.0):
+            raise ValueError("split_ratios must sum to 1.0")
+
+        starts = np.asarray(domain.start)
+        ends = np.asarray(domain.end)
+        durations = ends - starts
+
+        train_ends = starts + durations * self.split_ratios[0]
+        valid_ends = train_ends + durations * self.split_ratios[1]
+
+        train = Interval(start=starts.copy(), end=train_ends)
+        valid = Interval(start=train_ends, end=valid_ends)
+
+        valid_ratio = self.split_ratios[1]
+        if valid_ratio <= 0:
+            assignment_n_folds = 1
+        else:
+            assignment_n_folds = max(1, int(round(1.0 / valid_ratio)))
+        assignment_seed = 42
+        assignment_fold_idx = 0
+
+        subject_assignments = generate_string_kfold_assignment(
+            string_id=subject_id,
+            n_folds=assignment_n_folds,
+            val_ratio=0.0,
+            seed=assignment_seed,
+        )
+        session_assignments = generate_string_kfold_assignment(
+            string_id=f"{subject_id}_{session_id}",
+            n_folds=assignment_n_folds,
+            val_ratio=0.0,
+            seed=assignment_seed,
+        )
+
+        subject_assignment = subject_assignments[assignment_fold_idx]
+        if subject_assignment == "test":
+            subject_assignment = "valid"
+
+        session_assignment = session_assignments[assignment_fold_idx]
+        if session_assignment == "test":
+            session_assignment = "valid"
+
+        return Data(
+            train=train,
+            valid=valid,
+            intersubject_assignment=subject_assignment,
+            intersession_assignment=session_assignment,
+            domain=domain,
+        )
 
     @classmethod
     def get_manifest(cls, raw_dir: Path, args: Optional[Namespace]) -> pd.DataFrame:
@@ -398,6 +463,11 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         data_kwargs[self.modality] = signal
 
         data = Data(**data_kwargs)
+        data.splits = self._generate_splits(
+            domain=data.domain,
+            subject_id=subject_id,
+            session_id=session_description.id,
+        )
 
         return data, store_path
 

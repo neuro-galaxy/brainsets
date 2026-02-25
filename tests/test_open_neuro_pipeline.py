@@ -4,8 +4,10 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pandas as pd
 import pytest
+from temporaldata import Interval
 
 from brainsets.utils.openneuro import OpenNeuroEEGPipeline
 
@@ -145,6 +147,57 @@ class TestApplyChannelMapping:
 
         assert list(result.id) == ["F3", "C3"]
         assert list(result.types) == ["misc", "misc"]
+
+
+class TestGenerateSplits:
+    def test_generate_splits_creates_expected_structure(self):
+        pipeline = MockPipeline.__new__(MockPipeline)
+        domain = Interval(start=np.array([0.0]), end=np.array([100.0]))
+
+        splits = pipeline._generate_splits(
+            domain=domain, subject_id="sub-01", session_id="ses-01"
+        )
+
+        assert np.isclose(splits.train.start[0], 0.0)
+        assert np.isclose(splits.train.end[0], 90.0)
+        assert np.isclose(splits.valid.start[0], 90.0)
+        assert np.isclose(splits.valid.end[0], 100.0)
+        assert not hasattr(splits, "test")
+        assert splits.intersubject_assignment in {"train", "valid"}
+        assert splits.intersession_assignment in {"train", "valid"}
+
+    def test_generate_splits_respects_custom_split_ratios(self):
+        pipeline = MockPipeline.__new__(MockPipeline)
+        pipeline.split_ratios = (0.8, 0.2)
+        domain = Interval(start=np.array([0.0]), end=np.array([100.0]))
+
+        splits = pipeline._generate_splits(
+            domain=domain, subject_id="sub-01", session_id="ses-01"
+        )
+
+        assert np.isclose(splits.train.end[0], 80.0)
+        assert np.isclose(splits.valid.end[0], 100.0)
+
+    @patch("brainsets.utils.openneuro.pipeline.generate_string_kfold_assignment")
+    def test_generate_splits_uses_matching_assignment_ratio(
+        self, mock_generate_assignment
+    ):
+        pipeline = MockPipeline.__new__(MockPipeline)
+        pipeline.split_ratios = (0.9, 0.1)
+        domain = Interval(start=np.array([0.0]), end=np.array([100.0]))
+        mock_generate_assignment.return_value = ["test"] + ["train"] * 9
+
+        splits = pipeline._generate_splits(
+            domain=domain, subject_id="sub-01", session_id="ses-01"
+        )
+
+        assert mock_generate_assignment.call_count == 2
+        for call in mock_generate_assignment.call_args_list:
+            assert call.kwargs["n_folds"] == 10
+            assert call.kwargs["val_ratio"] == 0.0
+            assert call.kwargs["seed"] == 42
+        assert splits.intersubject_assignment == "valid"
+        assert splits.intersession_assignment == "valid"
 
 
 class TestDownload:
