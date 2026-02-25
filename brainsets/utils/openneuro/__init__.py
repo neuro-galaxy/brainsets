@@ -19,10 +19,8 @@ from .dataset import (
     validate_dataset_id,
 )
 from .pipeline import OpenNeuroEEGPipeline, OpenNeuroIEEGPipeline, OpenNeuroPipeline
-from ..split import generate_train_valid_splits_one_epoch
 
 __all__ = [
-    # dataset.py
     "OPENNEURO_S3_BUCKET",
     "validate_dataset_id",
     "fetch_all_filenames",
@@ -33,9 +31,6 @@ __all__ = [
     "download_recording",
     "download_dataset_description",
     "check_recording_files_exist",
-    # split.py
-    "generate_train_valid_splits_one_epoch",
-    # pipeline.py
     "OpenNeuroPipeline",
     "OpenNeuroEEGPipeline",
     "OpenNeuroIEEGPipeline",

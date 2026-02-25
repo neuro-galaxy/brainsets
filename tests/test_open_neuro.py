@@ -1,6 +1,5 @@
 """Tests for brainsets.utils.openneuro and related modules."""
 
-from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
