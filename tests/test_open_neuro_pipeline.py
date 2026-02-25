@@ -148,9 +148,12 @@ class TestApplyChannelMapping:
 
 
 class TestDownload:
+    @patch("brainsets.utils.openneuro.pipeline.download_dataset_description")
     @patch("brainsets.utils.openneuro.pipeline.check_recording_files_exist")
     @patch("brainsets.utils.openneuro.pipeline.download_recording")
-    def test_download_new_file(self, mock_download, mock_check_exists):
+    def test_download_new_file(
+        self, mock_download, mock_check_exists, mock_download_dataset_description
+    ):
         mock_check_exists.return_value = False
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -175,6 +178,7 @@ class TestDownload:
             result = pipeline.download(manifest_item)
 
             mock_download.assert_called_once()
+            mock_download_dataset_description.assert_called_once()
             assert result["recording_id"] == "sub-01_task-Sleep"
             assert result["subject_id"] == "sub-01"
 
@@ -206,9 +210,12 @@ class TestDownload:
             assert result["recording_id"] == "sub-01_task-Sleep"
             pipeline.update_status.assert_any_call("Already Downloaded")
 
+    @patch("brainsets.utils.openneuro.pipeline.download_dataset_description")
     @patch("brainsets.utils.openneuro.pipeline.check_recording_files_exist")
     @patch("brainsets.utils.openneuro.pipeline.download_recording")
-    def test_download_with_redownload_flag(self, mock_download, mock_check_exists):
+    def test_download_with_redownload_flag(
+        self, mock_download, mock_check_exists, mock_download_dataset_description
+    ):
         mock_check_exists.return_value = True
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -236,11 +243,15 @@ class TestDownload:
             result = pipeline.download(manifest_item)
 
             mock_download.assert_called_once()
+            mock_download_dataset_description.assert_called_once()
             assert result["recording_id"] == "sub-01_task-Sleep"
 
+    @patch("brainsets.utils.openneuro.pipeline.download_dataset_description")
     @patch("brainsets.utils.openneuro.pipeline.check_recording_files_exist")
     @patch("brainsets.utils.openneuro.pipeline.download_recording")
-    def test_download_error_handling(self, mock_download, mock_check_exists):
+    def test_download_error_handling(
+        self, mock_download, mock_check_exists, mock_download_dataset_description
+    ):
         mock_check_exists.return_value = False
         mock_download.side_effect = RuntimeError("Download failed")
 
@@ -265,6 +276,7 @@ class TestDownload:
 
             with pytest.raises(RuntimeError, match="Failed to download"):
                 pipeline.download(manifest_item)
+            mock_download_dataset_description.assert_not_called()
 
 
 class TestGetSubjectInfo:

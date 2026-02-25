@@ -19,8 +19,16 @@ import h5py
 import mne
 import numpy as np
 import pandas as pd
-from mne_bids import BIDSPath, read_raw_bids
 from temporaldata import ArrayDict, Data
+
+try:
+    from mne_bids import BIDSPath, read_raw_bids
+
+    MNE_BIDS_AVAILABLE = True
+except ImportError:
+    BIDSPath = None
+    read_raw_bids = None
+    MNE_BIDS_AVAILABLE = False
 
 from brainsets import serialize_fn_map
 from brainsets.descriptions import (
@@ -50,6 +58,15 @@ from brainsets.utils.openneuro.dataset import (
 _openneuro_parser = ArgumentParser()
 _openneuro_parser.add_argument("--redownload", action="store_true")
 _openneuro_parser.add_argument("--reprocess", action="store_true")
+
+
+def _require_mne_bids(func_name: str) -> None:
+    """Raise ImportError if mne-bids is not available."""
+    if not MNE_BIDS_AVAILABLE:
+        raise ImportError(
+            f"{func_name} requires mne-bids, which is not installed. "
+            "Install it with `pip install mne-bids`."
+        )
 
 
 class OpenNeuroPipeline(BrainsetPipeline, ABC):
@@ -106,6 +123,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         Raises:
             ValueError: If recording_id cannot be parsed
         """
+        _require_mne_bids("_build_bids_path")
         entities = parse_recording_id(recording_id)
 
         bids_path = BIDSPath(
@@ -287,7 +305,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         except Exception as e:
             raise RuntimeError(
                 f"Failed to download data for {subject_id} from {self.dataset_id}: {str(e)}"
-            )
+            ) from e
 
         return {
             "recording_id": recording_id,
@@ -314,7 +332,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         """
         self.processed_dir.mkdir(exist_ok=True, parents=True)
 
-        recording_id = download_output.get("recording_id")
+        recording_id = download_output["recording_id"]
         subject_id = download_output["subject_id"]
         data_dir = Path(download_output["fpath"])
 
@@ -325,6 +343,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
                 self.update_status("Already Processed")
                 return None
 
+        _require_mne_bids("_process_common")
         self.update_status(f"Loading {self.modality.upper()} file")
         bids_path = self._build_bids_path(recording_id, data_dir)
         raw = read_raw_bids(bids_path, verbose=False)
@@ -338,8 +357,8 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         )
 
         brainset_description = BrainsetDescription(
-            id=self.dataset_id,
-            origin_version=f"openneuro/{self.brainset_id}",
+            id=self.brainset_id,
+            origin_version=f"openneuro/{self.dataset_id}",
             derived_version=self.derived_version,
             source=source,
             description=dataset_description,

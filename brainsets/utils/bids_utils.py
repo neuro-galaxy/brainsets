@@ -6,7 +6,14 @@ reusable by any BIDS-compliant pipeline.
 
 from typing import Optional
 
-from mne_bids import get_bids_path_from_fname, get_entities_from_fname
+try:
+    from mne_bids import get_bids_path_from_fname, get_entities_from_fname
+
+    MNE_BIDS_AVAILABLE = True
+except ImportError:
+    get_bids_path_from_fname = None
+    get_entities_from_fname = None
+    MNE_BIDS_AVAILABLE = False
 
 # BIDS EEG supported formats (BIDS v1.10.1):
 # - European Data Format (.edf): Single file per recording. edf+ files permitted.
@@ -26,6 +33,15 @@ EEG_EXTENSIONS = {".edf", ".vhdr", ".set", ".bdf"}
 IEEG_EXTENSIONS = {".edf", ".vhdr", ".set", ".bdf", ".nwb"}
 
 
+def _require_mne_bids(func_name: str) -> None:
+    """Raise ImportError if mne-bids is not available."""
+    if not MNE_BIDS_AVAILABLE:
+        raise ImportError(
+            f"{func_name} requires mne-bids, which is not installed. "
+            "Install it with `pip install mne-bids`."
+        )
+
+
 def parse_bids_filename(filename: str, modality: str) -> Optional[dict]:
     """Parse a BIDS filename to extract entities if suffix matches modality.
 
@@ -40,6 +56,7 @@ def parse_bids_filename(filename: str, modality: str) -> Optional[dict]:
         All values are prefix-free (e.g., subject='01', not 'sub-01')
         Returns None if the filename doesn't match BIDS pattern or modality
     """
+    _require_mne_bids("parse_bids_filename")
     try:
         bids_path = get_bids_path_from_fname(filename, check=False)
     except (ValueError, IndexError, RuntimeError):
@@ -74,6 +91,7 @@ def parse_recording_id(recording_id: str) -> dict:
     Raises:
         ValueError: If the recording_id format is invalid or missing required entities
     """
+    _require_mne_bids("parse_recording_id")
     entities = get_entities_from_fname(recording_id, on_error="ignore")
 
     if not entities.get("subject"):

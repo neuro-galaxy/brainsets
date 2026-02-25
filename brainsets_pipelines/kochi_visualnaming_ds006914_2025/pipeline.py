@@ -3,7 +3,7 @@
 # dependencies = [
 #   "mne==1.11.0",
 #   "mne-bids==0.18",
-#   "boto3==1.42.0",
+#   "boto3>=1.42.32",
 #   "requests==2.32.5",
 # ]
 # ///

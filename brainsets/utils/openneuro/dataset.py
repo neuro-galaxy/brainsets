@@ -15,7 +15,7 @@ try:
 
     BOTO_AVAILABLE = True
 except ImportError:
-    ClientError = None
+    ClientError = Exception
     BOTO_AVAILABLE = False
 
 from brainsets.utils.bids_utils import (

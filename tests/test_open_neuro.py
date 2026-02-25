@@ -10,6 +10,7 @@ from brainsets.utils.bids_utils import parse_bids_filename
 from brainsets.utils.openneuro import (
     fetch_all_filenames,
     fetch_eeg_recordings,
+    fetch_ieeg_recordings,
     fetch_participants_tsv,
     validate_dataset_id,
 )
@@ -80,7 +81,14 @@ class TestParseBidsFilename:
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("dataset_id,error", [("ds006695", False), ("ds00555", True)])
+@pytest.mark.parametrize(
+    "dataset_id,error",
+    [
+        ("ds006695", False),
+        # Use a syntactically valid but non-existent ID to keep this deterministic.
+        ("ds000000", True),
+    ],
+)
 def test_fetch_all_filenames(dataset_id, error):
     if error:
         with pytest.raises(RuntimeError):
@@ -138,6 +146,44 @@ class TestFetchEegRecordings:
         ]
 
         recordings = fetch_eeg_recordings("ds005555")
+        assert len(recordings) == 0
+
+
+class TestFetchIeegRecordings:
+    @patch("brainsets.utils.openneuro.dataset.fetch_all_filenames")
+    def test_fetch_ieeg_recordings(self, mock_fetch_filenames):
+        mock_fetch_filenames.return_value = [
+            "sub-01/ieeg/sub-01_task-VisualNaming_ieeg.edf",
+            "sub-01/ieeg/sub-01_task-VisualNaming_channels.tsv",
+            "sub-02/ieeg/sub-02_ses-01_task-Rest_acq-ecog_run-01_ieeg.vhdr",
+            "sub-02/ieeg/sub-02_ses-01_task-Rest_acq-ecog_run-01_ieeg.vmrk",
+            "participants.tsv",
+        ]
+
+        recordings = fetch_ieeg_recordings("ds006914")
+
+        assert len(recordings) == 2
+
+        rec1 = next(r for r in recordings if r["subject_id"] == "sub-01")
+        assert rec1["recording_id"] == "sub-01_task-VisualNaming"
+        assert rec1["task_id"] == "VisualNaming"
+        assert rec1["session_id"] is None
+
+        rec2 = next(r for r in recordings if r["subject_id"] == "sub-02")
+        assert rec2["recording_id"] == "sub-02_ses-01_task-Rest_acq-ecog_run-01"
+        assert rec2["task_id"] == "Rest"
+        assert rec2["session_id"] == "ses-01"
+        assert rec2["acq_id"] == "ecog"
+        assert rec2["run_id"] == "01"
+
+    @patch("brainsets.utils.openneuro.dataset.fetch_all_filenames")
+    def test_no_ieeg_files(self, mock_fetch_filenames):
+        mock_fetch_filenames.return_value = [
+            "participants.tsv",
+            "dataset_description.json",
+        ]
+
+        recordings = fetch_ieeg_recordings("ds006914")
         assert len(recordings) == 0
 
 

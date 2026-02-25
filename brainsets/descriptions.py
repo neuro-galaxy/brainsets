@@ -90,7 +90,7 @@ class SubjectDescription(temporaldata.Data):
         """
         if age is None:
             return 0.0
-        elif isinstance(age, (int, float, np.int64, np.float64)):
+        elif isinstance(age, (int, float, np.integer, np.floating)):
             age_normalized = float(age)
             if age_normalized < 0:
                 raise ValueError(f"Age cannot be negative, got {age_normalized}")
