@@ -274,6 +274,13 @@ def generate_folds(
             "`pip install scikit-learn`"
         )
 
+    if n_folds < 2:
+        raise ValueError(f"n_folds must be at least 2, got {n_folds}")
+    if not (0.0 < val_ratio < 1.0):
+        raise ValueError(
+            f"val_ratio must be between 0 and 1 (exclusive), got {val_ratio}"
+        )
+
     if len(intervals) < n_folds:
         raise ValueError(f"Not enough samples ({len(intervals)}) for {n_folds} folds.")
 
