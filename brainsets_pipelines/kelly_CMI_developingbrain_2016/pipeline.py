@@ -199,7 +199,10 @@ class Pipeline(BrainsetPipeline):
                     }
                 )
 
-        manifest = pd.DataFrame(manifest_rows).set_index("session_id")
+        manifest = pd.DataFrame(
+            manifest_rows,
+            columns=["session_id", "participant_id", "s3_key"],
+        ).set_index("session_id")
         return manifest
 
     def download(self, manifest_item) -> Path:
@@ -272,13 +275,22 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Extracting annotations")
         annotations = extract_annotations(raw)
         if len(annotations) > 0:
-            first_code = int(annotations.description[0])
-            paradigm_entry = PARADIGM_MAP.get(first_code)
+            first_label = str(annotations.description[0]).strip()
+            try:
+                first_code = int(float(first_label))
+            except ValueError:
+                logging.warning(
+                    "Unexpected annotation label '%s'; using raw label", first_label
+                )
+                first_code = None
+
+            paradigm_entry = PARADIGM_MAP.get(first_code, None)
+
             if paradigm_entry is not None:
                 paradigm_name, task = paradigm_entry
                 session_description.task = task
             else:
-                paradigm_name = str(first_code)
+                paradigm_name = first_code
 
         self.update_status("Creating splits")
         splits = create_splits(
