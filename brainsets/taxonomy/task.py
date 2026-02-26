@@ -23,6 +23,19 @@ class Task(StringIntEnum):
     # Full sentence speaking
     CONTINUOUS_SPEAKING_SENTENCE = 7
 
+    # EEG tasks
+    RESTING_STATE = 8
+
+    SEQUENCE_LEARNING = 9
+
+    VISUAL_SEARCH = 10
+
+    SURROUND_SUPPRESSION = 11
+
+    CONTRAST_CHANGE_DETECTION = 12
+
+    NATURALISTIC_VIEWING = 13
+
 
 class Stimulus(StringIntEnum):
     """Stimuli can variously act like inputs (for conditioning) or like outputs."""

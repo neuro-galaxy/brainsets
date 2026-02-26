@@ -239,6 +239,85 @@ def _create_interval_split(intervals: Interval, indices: np.ndarray) -> Interval
     return split
 
 
+def generate_folds(
+    intervals: Interval,
+    n_folds: int = 5,
+    val_ratio: float = 0.2,
+    seed: int = 42,
+) -> List[Data]:
+    """Generate train/valid/test splits using a two-stage splitting process.
+
+    The splitting is performed in two stages:
+        1. Outer split (KFold): The intervals are divided into *n_folds*,
+           where each fold uses one partition as the test set and the remaining
+           partitions as train+valid.
+        2. Inner split (ShuffleSplit): The train+valid portion of each fold
+           is further split into train and valid sets using *val_ratio*.
+
+    Args:
+        intervals: The intervals to split.
+        n_folds: Number of folds for cross-validation.
+        val_ratio: Ratio of validation set relative to train+valid combined.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        List of Data objects, one for each fold.
+
+    Raises:
+        ValueError: If there are fewer samples than *n_folds*.
+    """
+    try:
+        from sklearn.model_selection import KFold, ShuffleSplit
+    except ImportError:
+        raise ImportError(
+            "This function requires the scikit-learn library which you can install with "
+            "`pip install scikit-learn`"
+        )
+
+    if n_folds < 2:
+        raise ValueError(f"n_folds must be at least 2, got {n_folds}")
+    if not (0.0 < val_ratio < 1.0):
+        raise ValueError(
+            f"val_ratio must be between 0 and 1 (exclusive), got {val_ratio}"
+        )
+
+    if len(intervals) < n_folds:
+        raise ValueError(f"Not enough samples ({len(intervals)}) for {n_folds} folds.")
+
+    outer_splitter = KFold(n_splits=n_folds, shuffle=True, random_state=seed)
+    folds = []
+    sample_indices = np.arange(len(intervals))
+
+    for fold_idx, (train_val_indices, test_indices) in enumerate(
+        outer_splitter.split(sample_indices)
+    ):
+        test_split = _create_interval_split(intervals, test_indices)
+
+        inner_splitter = ShuffleSplit(
+            n_splits=1, test_size=val_ratio, random_state=seed + fold_idx
+        )
+
+        for train_indices, val_indices in inner_splitter.split(train_val_indices):
+            train_original_indices = train_val_indices[train_indices]
+            val_original_indices = train_val_indices[val_indices]
+
+            train_split = _create_interval_split(intervals, train_original_indices)
+            val_split = _create_interval_split(intervals, val_original_indices)
+
+            combined_domain = train_split | val_split | test_split
+
+            fold_data = Data(
+                train=train_split,
+                valid=val_split,
+                test=test_split,
+                domain=combined_domain,
+            )
+
+            folds.append(fold_data)
+
+    return folds
+
+
 def generate_stratified_folds(
     intervals: Interval,
     stratify_by: str,
