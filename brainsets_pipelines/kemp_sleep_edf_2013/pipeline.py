@@ -4,6 +4,7 @@
 #   "mne~=1.11.0",
 #   "boto3~=1.41.0",
 #   "scikit-learn==1.7.2",
+#   "temporaldata@git+https://github.com/neuro-galaxy/temporaldata@main",
 # ]
 # ///
 
@@ -20,18 +21,22 @@ import pandas as pd
 from brainsets import serialize_fn_map
 from brainsets.descriptions import (
     BrainsetDescription,
-    SessionDescription,
     SubjectDescription,
+    SessionDescription,
     DeviceDescription,
 )
 from brainsets.taxonomy import RecordingTech, Species, Sex
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.utils.split import (
-    chop_intervals,
     generate_stratified_folds,
+    generate_string_kfold_assignment,
 )
-from brainsets.utils.s3_utils import get_s3_client_for_download
-from temporaldata import Data, Interval, RegularTimeSeries, ArrayDict
+from brainsets.utils.s3_utils import get_cached_s3_client
+from brainsets.utils.mne_utils import (
+    extract_measurement_date,
+    extract_psg_signal,
+)
+from temporaldata import Data, Interval
 
 
 logging.basicConfig(level=logging.INFO)
@@ -57,7 +62,7 @@ class Pipeline(BrainsetPipeline):
 
     @classmethod
     def get_manifest(cls, raw_dir: Path, args) -> pd.DataFrame:
-        s3 = get_s3_client_for_download()
+        s3 = get_cached_s3_client()
 
         prefixes = []
         if args.study_type in ["sc", "both"]:
@@ -121,7 +126,7 @@ class Pipeline(BrainsetPipeline):
 
     def download(self, manifest_item) -> Tuple[Path, Path]:
         self.update_status("DOWNLOADING")
-        s3 = get_s3_client_for_download()
+        s3 = get_cached_s3_client()
 
         psg_key = manifest_item.psg_s3_key
         hypnogram_key = manifest_item.hypnogram_s3_key
@@ -196,9 +201,7 @@ class Pipeline(BrainsetPipeline):
             sex=sex,
         )
 
-        recording_date = raw_psg.info.get("meas_date")
-        if recording_date is not None:
-            recording_date = recording_date.strftime("%Y-%m-%d")
+        recording_date = extract_measurement_date(raw_psg)
 
         session_description = SessionDescription(
             id=base_name,
@@ -211,13 +214,19 @@ class Pipeline(BrainsetPipeline):
         )
 
         self.update_status("Extracting Signals")
-        signals, channels = extract_signals(raw_psg)
+        signals, channels = extract_psg_signal(raw_psg)
 
         self.update_status("Extracting Sleep Stages")
         stages = extract_sleep_stages(str(hypnogram_path))
 
         self.update_status("Creating Splits")
-        splits = create_splits(stages, n_folds=3, seed=42)
+        splits = create_splits(
+            stages,
+            subject_id=subject.id,
+            session_id=session_description.id,
+            n_folds=3,
+            seed=42,
+        )
 
         data = Data(
             brainset=brainset_description,
@@ -250,74 +259,13 @@ def parse_subject_metadata(raw: mne.io.Raw) -> Tuple[Optional[int], Sex]:
         age_str = subject_info.get("last_name")
         if age_str is not None:
             age = int(age_str.replace("yr", ""))
-    except (ValueError, AttributeError) as e:
+    except (ValueError, AttributeError):
         logging.warning(f"Could not parse age from last_name: {age_str}, setting to 0")
         age = 0
 
-    sex_str = subject_info.get("sex")
-
-    if sex_str is not None:
-        sex = Sex.MALE if sex_str == 1 else Sex.FEMALE if sex_str == 2 else Sex.UNKNOWN
-    else:
-        sex = Sex.UNKNOWN
+    sex = subject_info.get("sex")
 
     return age, sex
-
-
-def extract_signals(raw_psg: mne.io.Raw) -> Tuple[RegularTimeSeries, ArrayDict]:
-    """Extract physiological signals from PSG EDF file as a RegularTimeSeries."""
-    data, times = raw_psg.get_data(return_times=True)
-    ch_names = raw_psg.ch_names
-
-    signal_list = []
-    channel_meta = []
-
-    for idx, ch_name in enumerate(ch_names):
-        ch_name_lower = ch_name.lower()
-        signal_data = data[idx, :]
-
-        modality = None
-        if (
-            "eeg" in ch_name_lower
-            or "fpz-cz" in ch_name_lower
-            or "pz-oz" in ch_name_lower
-        ):
-            modality = "EEG"
-        elif "eog" in ch_name_lower:
-            modality = "EOG"
-        elif "emg" in ch_name_lower:
-            modality = "EMG"
-        elif "resp" in ch_name_lower:
-            modality = "RESP"
-        elif "temp" in ch_name_lower:
-            modality = "TEMP"
-        else:
-            continue
-
-        signal_list.append(signal_data)
-
-        channel_meta.append(
-            {
-                "id": str(ch_name),
-                "modality": modality,
-            }
-        )
-
-    if not signal_list:
-        raise ValueError("No signals extracted from PSG file")
-
-    stacked_signals = np.stack(signal_list, axis=1)
-
-    signals = RegularTimeSeries(
-        signal=stacked_signals,
-        sampling_rate=raw_psg.info["sfreq"],
-        domain=Interval(start=times[0], end=times[-1]),
-    )
-
-    channel_df = pd.DataFrame(channel_meta)
-    channels = ArrayDict.from_dataframe(channel_df)
-
-    return signals, channels
 
 
 def extract_sleep_stages(hypnogram_file: str) -> Interval:
@@ -362,7 +310,12 @@ def extract_sleep_stages(hypnogram_file: str) -> Interval:
 
 
 def create_splits(
-    stages: Interval, epoch_duration: float = 30.0, n_folds: int = 5, seed: int = 42
+    stages: Interval,
+    subject_id: str,
+    session_id: str,
+    epoch_duration: float = 30.0,
+    n_folds: int = 3,
+    seed: int = 42,
 ) -> Data:
     """Generate train/valid/test splits from sleep stage intervals.
 
@@ -373,11 +326,24 @@ def create_splits(
     The unknown sleep stage (stage 6) is the only one removed from the splits to maintain flexibility.
     Users can still access all stages in the raw data and choose the number of sleep stages relevant
     to their research.
+
+    Generates three types of splits:
+    - Intrasession (epoch-level): stratified k-fold within each session
+    - Intersubject (session-level): subject is assigned train/valid/test per fold
+    - Intersession (session-level): subject-session is assigned train/valid/test per fold
+
+    Args:
+        stages: Sleep stage intervals to split
+        subject_id: Subject identifier for cross-subject splits
+        session_id: Session identifier for cross-session splits
+        epoch_duration: Duration of each epoch in seconds
+        n_folds: Number of folds for cross-validation
+        seed: Random seed for reproducibility
     """
     if len(stages) == 0:
         raise ValueError("No stages provided for splitting")
 
-    chopped = chop_intervals(stages, duration=epoch_duration, check_no_overlap=True)
+    chopped = stages.subdivide(step=epoch_duration, drop_short=True)
     logging.info(f"Chopped {len(stages)} stages into {len(chopped)} epochs")
 
     UNKNOWN_STAGE_ID = 6
@@ -407,5 +373,27 @@ def create_splits(
 
     folds_dict = {f"fold_{i}": fold for i, fold in enumerate(folds)}
     splits = Data(**folds_dict, domain=filtered)
+
+    subject_assignments = generate_string_kfold_assignment(
+        string_id=subject_id, n_folds=n_folds, val_ratio=0.2, seed=seed
+    )
+    session_assignments = generate_string_kfold_assignment(
+        string_id=f"{subject_id}_{session_id}",
+        n_folds=n_folds,
+        val_ratio=0.2,
+        seed=seed,
+    )
+    namespaced_assignments = {
+        f"intersubject_fold_{fold_idx}_assignment": assignment
+        for fold_idx, assignment in enumerate(subject_assignments)
+    }
+    namespaced_assignments.update(
+        {
+            f"intersession_fold_{fold_idx}_assignment": assignment
+            for fold_idx, assignment in enumerate(session_assignments)
+        }
+    )
+    for key, value in namespaced_assignments.items():
+        setattr(splits, key, value)
 
     return splits

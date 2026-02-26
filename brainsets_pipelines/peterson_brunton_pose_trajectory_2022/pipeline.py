@@ -38,7 +38,7 @@ from brainsets.utils.dandi_utils import (
     get_nwb_asset_list,
 )
 from brainsets.utils.split import (
-    generate_subject_kfold_assignment,
+    generate_string_kfold_assignment,
     generate_stratified_folds,
     generate_stratified_folds_by_task,
 )
@@ -143,11 +143,24 @@ class Pipeline(BrainsetPipeline):
         active_vs_inactive_trials: Interval,
         pose_valid_domain: Interval,
     ) -> Data:
-        subject_assign = generate_subject_kfold_assignment(
-            subject_id, n_folds=3, val_ratio=0.2, seed=42
+        subject_assignments = generate_string_kfold_assignment(
+            string_id=subject_id, n_folds=3, val_ratio=0.2, seed=42
         )
-        session_assign = generate_subject_kfold_assignment(
-            subject_id, session_id=session_id, n_folds=3, val_ratio=0.2, seed=42
+        session_assignments = generate_string_kfold_assignment(
+            string_id=f"{subject_id}_{session_id}",
+            n_folds=3,
+            val_ratio=0.2,
+            seed=42,
+        )
+        namespaced_assignments = {
+            f"intersubject_fold_{fold_idx}_assignment": assignment
+            for fold_idx, assignment in enumerate(subject_assignments)
+        }
+        namespaced_assignments.update(
+            {
+                f"intersession_fold_{fold_idx}_assignment": assignment
+                for fold_idx, assignment in enumerate(session_assignments)
+            }
         )
 
         behavior_splits = {}
@@ -203,8 +216,7 @@ class Pipeline(BrainsetPipeline):
                         ] = fold_data.test
 
         return Data(
-            **subject_assign,
-            **session_assign,
+            **namespaced_assignments,
             **behavior_splits,
             **active_vs_inactive_splits,
             **pose_estimation_splits,

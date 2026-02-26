@@ -88,8 +88,11 @@ class PetersonBruntonPoseTrajectory2022(Dataset):
     def _get_intersubject_or_intersession_intervals(
         self, split: Literal["train", "valid", "test"]
     ) -> dict:
-        prefix = "subject" if self.split_type == "intersubject" else "session"
-        assignment_key = f"splits.{prefix}_fold_{self.fold_num}_assignment"
+        if self.split_type == "intersubject":
+            assignment_key = f"splits.intersubject_fold_{self.fold_num}_assignment"
+        else:
+            assignment_key = f"splits.intersession_fold_{self.fold_num}_assignment"
+
         result = {}
         for rid in self.recording_ids:
             data = self.get_recording(rid)
