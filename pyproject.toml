@@ -47,7 +47,6 @@ dev = [
     "torch_brain@git+https://github.com/neuro-galaxy/torch_brain",
     "mne~=1.11.0",
     "boto3~=1.41.0",
-    "ipykernel>=6.31.0",
 ]
 
 [project.urls]
