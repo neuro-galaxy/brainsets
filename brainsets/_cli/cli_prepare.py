@@ -20,6 +20,8 @@ from .utils import (
     expand_path,
 )
 
+RAY_ENABLE_UV_RUN_RUNTIME_ENV = "RAY_ENABLE_UV_RUN_RUNTIME_ENV"
+
 
 @click.command(
     context_settings=dict(ignore_unknown_options=True, allow_extra_args=True)
@@ -192,12 +194,28 @@ def prepare(
     if verbose:
         click.echo(f"Command: {command}")
 
+    subprocess_env = None
+    # Ray can propagate `uv run ...` to each worker process, causing repeated
+    # per-worker environment bootstrap on heavy dependency stacks. Unless the
+    # user explicitly configured this behavior, disable uv-run propagation for
+    # this subprocess invocation.
+    if (
+        not use_active_env
+        and inline_md is not None
+        and RAY_ENABLE_UV_RUN_RUNTIME_ENV not in os.environ
+    ):
+        subprocess_env = os.environ.copy()
+        subprocess_env[RAY_ENABLE_UV_RUN_RUNTIME_ENV] = "0"
+        if verbose:
+            click.echo("Setting RAY_ENABLE_UV_RUN_RUNTIME_ENV=0 for this run.")
+
     try:
         process = subprocess.run(
             command,
             check=True,
             capture_output=False,
             text=True,
+            env=subprocess_env,
         )
 
     except subprocess.CalledProcessError as e:
