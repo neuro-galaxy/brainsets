@@ -4,6 +4,7 @@
 #   "boto3~=1.41.0",
 #   "mne~=1.11.0",
 #   "scikit-learn~=1.6.0",
+#   "temporaldata@git+https://github.com/neuro-galaxy/temporaldata@main",
 # ]
 # ///
 
