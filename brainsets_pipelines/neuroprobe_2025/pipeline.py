@@ -105,15 +105,21 @@ class Pipeline(BrainsetPipeline):
         manifest = pd.DataFrame(manifest_list).set_index("filename")
         return manifest
 
-    def download(self, manifest_item):
-        # download common assets
-        self.update_status("Downloading common assets")
-        _ensure_common_assets(
-            self.raw_dir,
-            COMMON_ASSETS,
-            overwrite=bool(self.args and self.args.redownload)
+    @classmethod
+    def run_before(
+        cls,
+        raw_dir: Path,
+        args: Optional[Namespace],
+    ) -> None:
+        raw_dir.mkdir(exist_ok=True, parents=True)
+        overwrite = bool(args and args.redownload)
+        logging.info(
+            "Ensuring Neuroprobe shared assets are available (overwrite=%s)",
+            overwrite,
         )
-        
+        _ensure_common_assets(raw_dir, COMMON_ASSETS, overwrite=overwrite)
+
+    def download(self, manifest_item):
         # download subject data
         self.update_status("DOWNLOADING")
         extracted_path = _download_and_extract(

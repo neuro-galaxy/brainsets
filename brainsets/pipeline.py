@@ -124,6 +124,20 @@ class BrainsetPipeline(ABC):
         """
         ...
 
+    @classmethod
+    def run_before(
+        cls,
+        raw_dir: Path,
+        args: Optional[Namespace],
+    ) -> None:
+        r"""Optional hook called once by the runner after manifest generation and
+        before any worker starts.
+
+        Subclasses may override this to perform shared setup, such as downloading
+        common assets.
+        """
+        return None
+
     @abstractmethod
     def download(self, manifest_item: NamedTuple) -> Any:
         r"""Download the asset indicated by `manifest_item`.

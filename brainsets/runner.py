@@ -154,6 +154,11 @@ def run():
             print(manifest)
         sys.exit(0)
 
+    pipeline_cls.run_before(
+        raw_dir=raw_dir,
+        args=pipeline_args,
+    )
+
     if args.single is None:
         # Parallel run
 
