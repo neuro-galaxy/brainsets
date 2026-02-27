@@ -11,6 +11,7 @@ from typing import Tuple
 from temporaldata import ArrayDict, Interval, RegularTimeSeries
 from pathlib import Path
 import logging
+
 try:
     import mne
 
@@ -87,7 +88,7 @@ def extract_channels(
 ) -> ArrayDict:
     """Extract channel metadata from an MNE Raw object, optionally applying name and type mappings.
 
-    This function generates channel metadata including channel IDs, types, status, 
+    This function generates channel metadata including channel IDs, types, status,
     and (if available) spatial coordinates by combining information from the MNE Raw object
     and optional user-provided mappings.
 
@@ -121,14 +122,26 @@ def extract_channels(
 
     # Optional: apply channels name re-mapping
     if channels_name_mapping:
-        channel_ids = np.array([channels_name_mapping.get(ch, ch) for ch in channel_ids], dtype="U")
+        channel_ids = np.array(
+            [channels_name_mapping.get(ch, ch) for ch in channel_ids], dtype="U"
+        )
 
     # Optional: apply channels type re-mapping
     if channels_type_mapping:
         # Build a mapping from channel name to new type using a dictionary comprehension
-        ch_type_lookup = {ch: new_type for new_type, ch_list in channels_type_mapping.items() for ch in ch_list}
+        ch_type_lookup = {
+            ch: new_type
+            for new_type, ch_list in channels_type_mapping.items()
+            for ch in ch_list
+        }
         # Use the lookup, defaulting to original type if channel not remapped
-        channel_types = np.array([ch_type_lookup.get(ch, orig_type) for ch, orig_type in zip(channel_ids, channel_types)], dtype="U")
+        channel_types = np.array(
+            [
+                ch_type_lookup.get(ch, orig_type)
+                for ch, orig_type in zip(channel_ids, channel_types)
+            ],
+            dtype="U",
+        )
 
     # status extraction (defaults to "good", mark raw.info["bads"] as "bad")
     status = np.full(channel_count, "good", dtype="U")
@@ -155,9 +168,7 @@ def extract_channels(
                         y_coords[idx] = float(coords[1])
                         z_coords[idx] = float(coords[2])
     except Exception as e:
-        logging.warning(
-            f"Could not extract channel coordinates: {e}"
-        )
+        logging.warning(f"Could not extract channel coordinates: {e}")
 
     channel_fields = {
         "id": channel_ids,

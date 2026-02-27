@@ -53,14 +53,14 @@ class TestFetchRecordings:
         assert rec1["recording_id"] == "sub-01_task-Sleep"
         assert rec1["task_id"] == "Sleep"
         assert rec1["session_id"] is None
-        
+
         rec2 = next(r for r in recordings if r["subject_id"] == "sub-02")
         assert rec2["recording_id"] == "sub-02_ses-01_task-Rest_acq-headband_run-01"
         assert rec2["task_id"] == "Rest"
         assert rec2["session_id"] == "ses-01"
         assert rec2["acquisition_id"] == "headband"
         assert rec2["run_id"] == "01"
-        
+
     def test_raises_when_bids_root_and_candidate_files_both_provided(self, tmp_path):
         with pytest.raises(ValueError, match="mutually exclusive"):
             _fetch_recordings(
@@ -122,6 +122,7 @@ class TestFetchRecordings:
         recordings = fetch_eeg_recordings(candidate_files=candidate_files)
         assert len(recordings) == 0
 
+
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestCheckRecordingFilesExist:
     def test_returns_false_when_subject_dir_missing(self, tmp_path):
@@ -141,6 +142,7 @@ class TestCheckRecordingFilesExist:
         (subject_dir / "sub-01_task-rest_events.tsv").write_text("dummy")
 
         assert check_recording_files_exist("sub-01_task-rest", subject_dir) is False
+
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestBuildBidsPath:
@@ -163,16 +165,21 @@ class TestBuildBidsPath:
 
     def test_raises_for_missing_task_entity(self, tmp_path):
         with pytest.raises(ValueError, match="missing task entity"):
-            build_bids_path(tmp_path, "sub-01_ses-02_acq-ecog_run-03_desc-preproc", "eeg")
-    
+            build_bids_path(
+                tmp_path, "sub-01_ses-02_acq-ecog_run-03_desc-preproc", "eeg"
+            )
+
     def test_raises_for_missing_subject_entity(self, tmp_path):
         with pytest.raises(ValueError, match="missing subject entity"):
             build_bids_path(tmp_path, "task-rest_acq-ecog_run-03_desc-preproc", "eeg")
 
+
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestParseBidsFname:
     def test_parses_valid_bids_filename(self):
-        relative_path = "sub-01_ses-02_task-Sleep_acq-headband_run-03_desc-clean_eeg.edf"
+        relative_path = (
+            "sub-01_ses-02_task-Sleep_acq-headband_run-03_desc-clean_eeg.edf"
+        )
         parsed = _parse_bids_fname(relative_path, modality="eeg")
         assert parsed == {
             "subject": "01",
@@ -219,6 +226,7 @@ class TestParseBidsFname:
     def test_returns_none_for_invalid_filename(self):
         assert _parse_bids_fname("not-a-bids-name", modality="eeg") is None
 
+
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestLoadParticipantsTsv:
     def test_returns_none_when_participants_tsv_missing(self, tmp_path):
@@ -235,9 +243,7 @@ class TestLoadParticipantsTsv:
     def test_loads_and_indexes_participants_data(self, tmp_path):
         participants_tsv = tmp_path / "participants.tsv"
         participants_tsv.write_text(
-            "participant_id\tage\tsex\n"
-            "sub-01\t34\tF\n"
-            "sub-02\tn/a\tN/A\n"
+            "participant_id\tage\tsex\n" "sub-01\t34\tF\n" "sub-02\tn/a\tN/A\n"
         )
 
         participants_data = load_participants_tsv(tmp_path)
@@ -250,6 +256,7 @@ class TestLoadParticipantsTsv:
         assert pd.isna(participants_data.loc["sub-02", "age"])
         assert pd.isna(participants_data.loc["sub-02", "sex"])
 
+
 def _participants_df(tsv_content: str) -> pd.DataFrame:
     """Build a participants-like DataFrame with BIDS NA handling."""
     return pd.read_csv(
@@ -258,6 +265,7 @@ def _participants_df(tsv_content: str) -> pd.DataFrame:
         na_values=["n/a", "N/A"],
         keep_default_na=True,
     ).set_index("participant_id")
+
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestGetSubjectInfo:
@@ -294,10 +302,13 @@ class TestGetSubjectInfo:
         assert subject_info == {"age": None, "sex": None}
 
     def test_returns_none_for_missing_age_and_sex_columns(self):
-        participants_data = _participants_df("participant_id\thandedness\nsub-01\tright\n")
+        participants_data = _participants_df(
+            "participant_id\thandedness\nsub-01\tright\n"
+        )
 
         subject_info = get_subject_info("sub-01", participants_data=participants_data)
         assert subject_info == {"age": None, "sex": None}
+
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 def test_ieeg_extensions_include_nwb():

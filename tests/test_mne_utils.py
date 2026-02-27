@@ -185,9 +185,15 @@ class TestExtractChannels:
         assert "x" in result.keys()
         assert "y" in result.keys()
         assert "z" in result.keys()
-        np.testing.assert_allclose(result.x, np.array([0.1, np.nan, 0.4]), equal_nan=True)
-        np.testing.assert_allclose(result.y, np.array([0.2, np.nan, 0.5]), equal_nan=True)
-        np.testing.assert_allclose(result.z, np.array([0.3, np.nan, 0.6]), equal_nan=True)
+        np.testing.assert_allclose(
+            result.x, np.array([0.1, np.nan, 0.4]), equal_nan=True
+        )
+        np.testing.assert_allclose(
+            result.y, np.array([0.2, np.nan, 0.5]), equal_nan=True
+        )
+        np.testing.assert_allclose(
+            result.z, np.array([0.3, np.nan, 0.6]), equal_nan=True
+        )
 
 
 @pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")

@@ -29,7 +29,7 @@ IEEG_EXTENSIONS = {".edf", ".vhdr", ".set", ".bdf", ".nwb"}
 
 
 def fetch_eeg_recordings(
-    bids_root: Optional[Path | str] = None, 
+    bids_root: Optional[Path | str] = None,
     candidate_files: Optional[list[Path | str]] = None,
 ) -> list[dict]:
     """Discover all EEG recordings in a dataset by parsing BIDS filenames.
@@ -51,7 +51,7 @@ def fetch_eeg_recordings(
 
 
 def fetch_ieeg_recordings(
-    bids_root: Optional[Path | str] = None, 
+    bids_root: Optional[Path | str] = None,
     candidate_files: Optional[list[Path | str]] = None,
 ) -> list[dict]:
     """Discover all iEEG recordings in a dataset by parsing BIDS filenames.
@@ -73,7 +73,7 @@ def fetch_ieeg_recordings(
 
 
 def check_recording_files_exist(
-    recording_id: str, 
+    recording_id: str,
     subject_dir: str | Path,
 ) -> bool:
     """Check if data files matching the recording_id pattern exist locally.
@@ -103,7 +103,9 @@ def check_recording_files_exist(
     return False
 
 
-def build_bids_path(bids_root: str | Path, recording_id: str, modality: str) -> BIDSPath:
+def build_bids_path(
+    bids_root: str | Path, recording_id: str, modality: str
+) -> BIDSPath:
     """Build a mne_bids.BIDSPath from recording_id and data directory.
 
     Args:
@@ -123,7 +125,7 @@ def build_bids_path(bids_root: str | Path, recording_id: str, modality: str) -> 
         raise ValueError(f"Recording ID missing subject entity: {recording_id}")
     if not entities.get("task"):
         raise ValueError(f"Recording ID missing task entity: {recording_id}")
-    
+
     bids_path = BIDSPath(
         root=bids_root,
         subject=entities["subject"],
@@ -164,8 +166,8 @@ def load_participants_tsv(bids_root: Path | str) -> Optional[pd.DataFrame]:
 
 def get_subject_info(
     subject_id: str,
-    participants_data: Optional[pd.DataFrame] = None, 
-    bids_root: Optional[Path | str] = None, 
+    participants_data: Optional[pd.DataFrame] = None,
+    bids_root: Optional[Path | str] = None,
 ) -> dict:
     """Return subject information dict with 'age' and 'sex' keys.
 
@@ -183,7 +185,9 @@ def get_subject_info(
     """
     if participants_data is None:
         if bids_root is None:
-            raise ValueError("'bids_root' is required if 'participants_data' is not provided")
+            raise ValueError(
+                "'bids_root' is required if 'participants_data' is not provided"
+            )
         participants_data = load_participants_tsv(bids_root)
 
     if participants_data is None:
@@ -244,14 +248,16 @@ def _fetch_recordings(
         )
     if candidate_files is None:
         if bids_root is None:
-            raise ValueError("'bids_root' is required if 'candidate_files' is not provided")  
+            raise ValueError(
+                "'bids_root' is required if 'candidate_files' is not provided"
+            )
         # Construct a BIDSPath for the desired modality
         bids_path = BIDSPath(root=bids_root, datatype=modality)
         candidate_files = bids_path.match()
-    
+
     if len(candidate_files) == 0:
         return []
-            
+
     recordings = []
     seen_recording_ids = set()
 
@@ -259,7 +265,7 @@ def _fetch_recordings(
         ext = Path(filepath).suffix.lower()
         if ext not in extensions:
             continue
-        
+
         parsed = _parse_bids_fname(filepath, modality)
         if not parsed:
             continue
@@ -319,7 +325,7 @@ def _parse_bids_fname(
         bids_path = get_bids_path_from_fname(fname, check=False)
     except (ValueError, IndexError, RuntimeError, KeyError):
         return None
-    
+
     # If modality is provided, check if the suffix matches
     if modality is not None and bids_path.suffix != modality:
         return None
