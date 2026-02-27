@@ -9,7 +9,8 @@ import warnings
 import numpy as np
 from typing import Tuple
 from temporaldata import ArrayDict, Interval, RegularTimeSeries
-
+from pathlib import Path
+import logging
 try:
     import mne
 
@@ -80,25 +81,87 @@ def extract_eeg_signal(
 
 
 def extract_channels(
-    recording_data: "mne.io.Raw",
+    recording_data: mne.io.Raw,
+    channels_name_mapping: dict | None = None,
+    channels_type_mapping: dict | None = None,
 ) -> ArrayDict:
-    """Extract channel names and types from MNE Raw data.
+    """Build channels by combining rename/modality mapping and iEEG metadata extraction.
+
+    - Starts from `raw.ch_names` and `raw.get_channel_types()`
+    - Optionally applies channels name and type re-mapping
+    - Adds channel status and coordinates when available
 
     Args:
         recording_data: The MNE Raw object containing EEG data
+        data_dir: The data directory
+        channels_name_mapping: A dictionary of channels name mapping
+        channels_type_mapping: A dictionary of channels type mapping
 
     Returns:
         ArrayDict with fields 'id' (channel names) and 'types' (channel types)
 
     Raises:
         ImportError: If MNE is not installed.
+        ValueError: If no channel are extracted from the recording.
     """
     _check_mne_available("extract_channels")
-    return ArrayDict(
-        id=np.array(recording_data.ch_names, dtype="U"),
-        type=np.array(recording_data.get_channel_types(), dtype="U"),
-    )
+    channel_ids = np.array(recording_data.ch_names, dtype="U")
+    channel_count = len(channel_ids)
+    channel_types = np.array(recording_data.get_channel_types(), dtype="U")
 
+    # Optional: apply channels name re-mapping
+    if channels_name_mapping:
+        channel_ids = np.array([channels_name_mapping.get(ch, ch) for ch in channel_ids], dtype="U")
+
+    # Optional: apply channels type re-mapping
+    if channels_type_mapping:
+        # Build a mapping from channel name to new type using a dictionary comprehension
+        ch_type_lookup = {ch: new_type for new_type, ch_list in channels_type_mapping.items() for ch in ch_list}
+        # Use the lookup, defaulting to original type if channel not remapped
+        channel_types = np.array([ch_type_lookup.get(ch, orig_type) for ch, orig_type in zip(channel_ids, channel_types)], dtype="U")
+
+    # status extraction (defaults to "good", mark raw.info["bads"] as "bad")
+    status = np.full(channel_count, "good", dtype="U")
+    bad_channels = recording_data.info.get("bads", [])
+    for idx, ch_name in enumerate(channel_ids):
+        if ch_name in bad_channels:
+            status[idx] = "bad"
+
+    # coordinate extraction from montage (x, y, z in meters)
+    x_coords = np.full(channel_count, np.nan)
+    y_coords = np.full(channel_count, np.nan)
+    z_coords = np.full(channel_count, np.nan)
+
+    try:
+        montage = recording_data.get_montage()
+        if montage is not None:
+            positions = montage.get_positions()
+            ch_pos = positions.get("ch_pos") if positions is not None else None
+            if ch_pos is not None:
+                for idx, ch_name in enumerate(channel_ids):
+                    if ch_name in ch_pos:
+                        coords = ch_pos[ch_name]
+                        x_coords[idx] = float(coords[0])
+                        y_coords[idx] = float(coords[1])
+                        z_coords[idx] = float(coords[2])
+    except Exception as e:
+        logging.warning(
+            f"Could not extract channel coordinates: {e}"
+        )
+
+    channel_fields = {
+        "id": channel_ids,
+        "type": channel_types,
+        "status": status,
+    }
+    if not np.all(np.isnan(x_coords)):
+        channel_fields["x"] = x_coords
+    if not np.all(np.isnan(y_coords)):
+        channel_fields["y"] = y_coords
+    if not np.all(np.isnan(z_coords)):
+        channel_fields["z"] = z_coords
+
+    return ArrayDict(**channel_fields)
 
 def extract_psg_signal(raw_psg: "mne.io.Raw") -> Tuple[RegularTimeSeries, ArrayDict]:
     """Extract physiological signals from polysomnography (PSG) recording as a RegularTimeSeries.
