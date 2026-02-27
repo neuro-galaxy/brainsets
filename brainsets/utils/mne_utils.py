@@ -173,6 +173,7 @@ def extract_channels(
 
     return ArrayDict(**channel_fields)
 
+
 def extract_psg_signal(raw_psg: "mne.io.Raw") -> Tuple[RegularTimeSeries, ArrayDict]:
     """Extract physiological signals from polysomnography (PSG) recording as a RegularTimeSeries.
 
