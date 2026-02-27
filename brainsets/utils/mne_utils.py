@@ -82,27 +82,37 @@ def extract_eeg_signal(
 
 def extract_channels(
     recording_data: mne.io.Raw,
-    channels_name_mapping: dict | None = None,
-    channels_type_mapping: dict | None = None,
+    channels_name_mapping: dict[str, str] | None = None,
+    channels_type_mapping: dict[str, list[str]] | None = None,
 ) -> ArrayDict:
-    """Build channels by combining rename/modality mapping and iEEG metadata extraction.
+    """Extract channel metadata from an MNE Raw object, optionally applying name and type mappings.
 
-    - Starts from `raw.ch_names` and `raw.get_channel_types()`
-    - Optionally applies channels name and type re-mapping
-    - Adds channel status and coordinates when available
+    This function generates channel metadata including channel IDs, types, status, 
+    and (if available) spatial coordinates by combining information from the MNE Raw object
+    and optional user-provided mappings.
+
+    The process includes:
+        - Extracting channel names and original types from `raw.ch_names` and `raw.get_channel_types()`
+        - Optionally applying a channel name mapping (`channels_name_mapping`) to rename channels
+        - Optionally applying a channel type mapping (`channels_type_mapping`) to change channel types
+        - Marking channels in `raw.info["bads"]` as "bad" in the status array (all others are "good")
+        - Extracting x, y, z coordinates from the Raw object's montage if available
 
     Args:
-        recording_data: The MNE Raw object containing EEG data
-        data_dir: The data directory
-        channels_name_mapping: A dictionary of channels name mapping
-        channels_type_mapping: A dictionary of channels type mapping
+        recording_data: The MNE Raw object containing signal data and channel metadata.
+        channels_name_mapping: Optional; dict mapping original channel names to new names.
+        channels_type_mapping: Optional; dict mapping desired channel type (str) to a list of channel names to assign to that type.
 
     Returns:
-        ArrayDict with fields 'id' (channel names) and 'types' (channel types)
+        ArrayDict containing the channel metadata with fields:
+            - 'id': channel names (possibly renamed)
+            - 'type': channel types (possibly remapped)
+            - 'status': 'good' or 'bad' for each channel
+            - 'x', 'y', 'z': spatial coordinates (only if available)
 
     Raises:
         ImportError: If MNE is not installed.
-        ValueError: If no channel are extracted from the recording.
+        ValueError: If no channels are extracted from the recording.
     """
     _check_mne_available("extract_channels")
     channel_ids = np.array(recording_data.ch_names, dtype="U")
