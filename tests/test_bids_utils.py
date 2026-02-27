@@ -29,7 +29,7 @@ except ImportError:
     parse_bids_fname = None
     parse_recording_id = None
 
-s
+
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestParseBidsFname:
     def test_parses_valid_bids_filename(self):
