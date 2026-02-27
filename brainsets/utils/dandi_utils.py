@@ -265,7 +265,7 @@ def extract_ecog_from_nwb(
                 "hemisphere": int(hemisphere),
                 "group": grp,
                 "surface": False,
-                "type": int(RecordingTech.ECOG_ARRAY_ECOGS),
+                "type": "ECOG",
                 "bad": bool(bad_channels[i]),
             }
         )

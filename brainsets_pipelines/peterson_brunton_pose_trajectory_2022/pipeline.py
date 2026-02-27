@@ -294,6 +294,9 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Computing pose valid domain")
         pose_valid_domain = compute_pose_valid_domain(pose)
 
+        self.update_status("Computing ECoG valid domain")
+        ecog_valid_domain = compute_ecog_valid_domain(ecog)
+
         self.update_status("Extracting behavior intervals")
         active_behavior_trials, active_vs_inactive_trials = (
             ajile_extract_behavior_intervals_from_nwb(nwbfile)
@@ -316,8 +319,30 @@ class Pipeline(BrainsetPipeline):
                     f"Consider reviewing pose data extraction."
                 )
 
-        # Filter out pose data outside of active vs inactive intervals as those are the Data Breaks
-        pose_valid_domain = pose_valid_domain & active_vs_inactive_trials
+        # Compute joint signal valid domain (both pose and ECoG must be valid)
+        signal_valid_domain = pose_valid_domain & ecog_valid_domain
+
+        # Trim trials to the joint valid domain so every sampleable point
+        # is NaN-free in both pose and ECoG.  Trials partially overlapping
+        # NaN regions are clipped (and potentially split); metadata is
+        # replicated for each resulting sub-interval.
+        original_avi_duration = float(
+            np.sum(active_vs_inactive_trials.end - active_vs_inactive_trials.start)
+        )
+        active_vs_inactive_trials = _trim_trials_to_domain(
+            active_vs_inactive_trials, signal_valid_domain
+        )
+        active_behavior_trials = _trim_trials_to_domain(
+            active_behavior_trials, signal_valid_domain
+        )
+        trimmed_avi_duration = float(
+            np.sum(active_vs_inactive_trials.end - active_vs_inactive_trials.start)
+        )
+        logging.info(
+            f"Trimmed active_vs_inactive trials to valid signal domain: "
+            f"{original_avi_duration:.1f}s -> {trimmed_avi_duration:.1f}s "
+            f"({100 * (original_avi_duration - trimmed_avi_duration) / original_avi_duration:.1f}% removed)."
+        )
 
         self.update_status("Generating splits")
         splits = self._generate_splits(
@@ -325,7 +350,7 @@ class Pipeline(BrainsetPipeline):
             session_id,
             active_behavior_trials,
             active_vs_inactive_trials,
-            pose_valid_domain,
+            signal_valid_domain,
         )
 
         session_description = SessionDescription(
@@ -349,9 +374,9 @@ class Pipeline(BrainsetPipeline):
             pose=pose,
             active_behavior_trials=active_behavior_trials,
             active_vs_inactive_trials=active_vs_inactive_trials,
-            pose_valid_domain=pose_valid_domain,
+            pose_valid_domain=signal_valid_domain,
             splits=splits,
-            domain=pose.domain,
+            domain=signal_valid_domain,
         )
 
         self.update_status("Storing")
@@ -535,6 +560,86 @@ def compute_pose_valid_domain(pose: RegularTimeSeries) -> Interval:
         ends_idx = np.append(ends_idx, len(valid_mask) - 1)
 
     sampling_rate = float(pose.sampling_rate)
+    start_times = starts_idx / sampling_rate
+    end_times = (ends_idx + 1) / sampling_rate
+
+    return Interval(start=start_times, end=end_times)
+
+
+def _trim_trials_to_domain(trials: Interval, valid_domain: Interval) -> Interval:
+    """Clip trial intervals to valid_domain via Interval intersection.
+
+    Each trial is intersected with valid_domain using ``__and__``.
+    A trial that partially overlaps an invalid region is clipped (and may
+    be split into multiple sub-intervals).  Metadata attributes
+    (behavior_labels, behavior_id) are replicated for each resulting
+    segment; timestamps are recomputed as sub-interval midpoints.
+    """
+    if len(trials) == 0 or len(valid_domain) == 0:
+        return trials
+
+    all_starts = []
+    all_ends = []
+    source_indices = []
+
+    for i in range(len(trials)):
+        single = Interval(start=trials.start[i : i + 1], end=trials.end[i : i + 1])
+        clipped = single & valid_domain
+        for j in range(len(clipped)):
+            all_starts.append(clipped.start[j])
+            all_ends.append(clipped.end[j])
+            source_indices.append(i)
+
+    if not all_starts:
+        kwargs: dict = {"start": np.array([]), "end": np.array([])}
+        if hasattr(trials, "behavior_labels"):
+            kwargs["behavior_labels"] = np.array([], dtype=trials.behavior_labels.dtype)
+        if hasattr(trials, "behavior_id"):
+            kwargs["behavior_id"] = np.array([], dtype=trials.behavior_id.dtype)
+        if hasattr(trials, "timestamps"):
+            kwargs["timestamps"] = np.array([])
+        return Interval(**kwargs)
+
+    starts = np.array(all_starts)
+    ends = np.array(all_ends)
+    idx = np.array(source_indices)
+
+    result_kwargs: dict = {"start": starts, "end": ends}
+    if hasattr(trials, "behavior_labels") and trials.behavior_labels is not None:
+        result_kwargs["behavior_labels"] = trials.behavior_labels[idx]
+    if hasattr(trials, "behavior_id") and trials.behavior_id is not None:
+        result_kwargs["behavior_id"] = trials.behavior_id[idx]
+    if hasattr(trials, "timestamps") and trials.timestamps is not None:
+        result_kwargs["timestamps"] = (starts + ends) / 2.0
+
+    return Interval(**result_kwargs)
+
+
+def compute_ecog_valid_domain(ecog: RegularTimeSeries) -> Interval:
+    """Compute the domain where ECoG data is non-NaN across all channels.
+
+    Args:
+        ecog: RegularTimeSeries containing ECoG signal of shape (n_samples, n_channels).
+
+    Returns:
+        Interval: Contiguous time segments where all channels have valid (non-NaN) data.
+    """
+    signal_data = np.asarray(ecog.signal[:], dtype=np.float64)
+    valid_mask = ~np.any(np.isnan(signal_data), axis=1)
+
+    if not np.any(valid_mask):
+        return Interval(start=np.array([]), end=np.array([]))
+
+    edges = np.diff(valid_mask.astype(int))
+    starts_idx = np.where(edges == 1)[0] + 1
+    ends_idx = np.where(edges == -1)[0]
+
+    if valid_mask[0]:
+        starts_idx = np.insert(starts_idx, 0, 0)
+    if valid_mask[-1]:
+        ends_idx = np.append(ends_idx, len(valid_mask) - 1)
+
+    sampling_rate = float(ecog.sampling_rate)
     start_times = starts_idx / sampling_rate
     end_times = (ends_idx + 1) / sampling_rate
 
