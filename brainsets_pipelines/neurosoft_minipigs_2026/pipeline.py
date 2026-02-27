@@ -44,7 +44,10 @@ from brainsets.pipeline import BrainsetPipeline
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
 parser.add_argument("--reprocess", action="store_true")
-parser.add_argument("--bids-root", type=Path, required=False, help="Path to BIDS root directory")
+parser.add_argument(
+    "--bids-root", type=Path, required=False, help="Path to BIDS root directory"
+)
+
 
 class Pipeline(BrainsetPipeline):
     brainset_id = "neurosoft_minipigs_2026"
@@ -65,8 +68,7 @@ class Pipeline(BrainsetPipeline):
                 - subject_id  : (str) BIDS subject identifier, e.g., 'sub-01'
                 - session_id  : (str or None) BIDS session identifier, e.g., 'ses-01', or None if not present
                 - task_id     : (str) BIDS task identifier (e.g., 'Sleep')
-                - data_file   : (str) Relative path or filename of the iEEG data
-                - fpath       : (pathlib.Path) Local directory or filepath for the subject's raw data
+                - fpath       : (pathlib.Path) Local file full path to the iEEG recording file (e.g., .edf, .vhdr, etc.)
         Raises:
             ValueError: If no iEEG recordings are found within the provided BIDS root directory.
         """
@@ -78,14 +80,14 @@ class Pipeline(BrainsetPipeline):
                 "Request access from Neurosoft to download the data and place it in the appropriate BIDS root raw_dir/brainset_id directory. "
                 f"Please set the --bids-root argument when running the pipeline, e.g. --bids-root /path/to/raw_dir/{cls.brainset_id}"
             )
-        
+
         if not bids_root.exists():
             raise FileNotFoundError(
                 f"BIDS root directory '{bids_root}' does not exist. "
             )
-        
+
         cls.bids_root = bids_root
-    
+
         recordings = fetch_ieeg_recordings(bids_root)
         manifest_list = []
         for rec in recordings:
@@ -100,14 +102,12 @@ class Pipeline(BrainsetPipeline):
             )
 
         if not manifest_list:
-            raise ValueError(
-                f"No iEEG recordings found in BODS root {bids_root}"
-            )
+            raise ValueError(f"No iEEG recordings found in BODS root {bids_root}")
 
         manifest = pd.DataFrame(manifest_list).set_index("recording_id")
-        manifest.to_csv("manifest.csv")
+        # manifest.to_csv("manifest.csv")
         return manifest
-        
+
     def download(self, manifest_item):
         """Download data for a single recording from OpenNeuro S3.
 
@@ -161,7 +161,6 @@ class Pipeline(BrainsetPipeline):
 
         recording_id = download_output.get("recording_id")
         subject_id = download_output["subject_id"]
-        # data_dir = Path(download_output["fpath"])
 
         store_path = self.processed_dir / f"{recording_id}.h5"
 
@@ -173,6 +172,9 @@ class Pipeline(BrainsetPipeline):
         self.update_status(f"Loading {self.modality.upper()} file")
         bids_path = build_bids_path(self.bids_root, recording_id, self.modality)
         raw = read_raw_bids(bids_path, verbose=False)
+        # TODO test getting BIDS path from fpath
+        # fpath = download_output["fpath"]
+        # bids_path = mne_bids.get_bids_path_from_fname(fpath, self.modality)
 
         self.update_status("Extracting Metadata")
         source = "NeurosoftBioelectronics"
@@ -245,4 +247,3 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Storing")
         with h5py.File(store_path, "w") as file:
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
-
