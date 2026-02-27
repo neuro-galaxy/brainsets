@@ -15,6 +15,7 @@ try:
     )
     from temporaldata import ArrayDict
 except ImportError:
+    print("MNE not installed")
     MNE_AVAILABLE = False
     extract_measurement_date = None
     extract_eeg_signal = None
@@ -40,9 +41,11 @@ def create_mock_raw(
     mock_raw.info = {
         "sfreq": sfreq,
         "meas_date": meas_date,
+        "bads": [],
     }
     mock_raw.ch_names = ch_names
     mock_raw.get_channel_types.return_value = ch_types
+    mock_raw.get_montage.return_value = None
 
     mock_data = np.random.randn(n_channels, n_samples)
     mock_raw.get_data.return_value = mock_data
@@ -155,6 +158,42 @@ class TestExtractChannels:
         result = extract_channels(mock_raw)
 
         assert result.type.dtype.kind == "U"
+
+    def test_coordinates_not_included_when_montage_missing(self):
+        mock_raw = create_mock_raw()
+
+        result = extract_channels(mock_raw)
+
+        assert "x" not in result.keys()
+        assert "y" not in result.keys()
+        assert "z" not in result.keys()
+
+    def test_coordinates_included_when_montage_has_positions(self):
+        ch_names = ["CH0", "CH1", "CH2"]
+        mock_raw = create_mock_raw(ch_names=ch_names, n_channels=len(ch_names))
+        montage = MagicMock()
+        montage.get_positions.return_value = {
+            "ch_pos": {
+                "CH0": np.array([0.1, 0.2, 0.3]),
+                "CH2": np.array([0.4, 0.5, 0.6]),
+            }
+        }
+        mock_raw.get_montage.return_value = montage
+
+        result = extract_channels(mock_raw)
+
+        assert "x" in result.keys()
+        assert "y" in result.keys()
+        assert "z" in result.keys()
+        np.testing.assert_allclose(
+            result.x, np.array([0.1, np.nan, 0.4]), equal_nan=True
+        )
+        np.testing.assert_allclose(
+            result.y, np.array([0.2, np.nan, 0.5]), equal_nan=True
+        )
+        np.testing.assert_allclose(
+            result.z, np.array([0.3, np.nan, 0.6]), equal_nan=True
+        )
 
 
 @pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
