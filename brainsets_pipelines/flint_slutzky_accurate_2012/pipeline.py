@@ -58,12 +58,7 @@ class Pipeline(BrainsetPipeline):
     brainset_id = "flint_slutzky_accurate_2012"
     parser = parser
 
-    @classmethod
-    def get_manifest(
-        cls,
-        raw_dir: Path,
-        args: Optional[Namespace],
-    ) -> pd.DataFrame:
+    def get_manifest(self) -> pd.DataFrame:
         manifest_list = [
             {"session_id": x.split(".")[0].lower(), "fname": x} for x in MANIFEST_LIST
         ]

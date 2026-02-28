@@ -66,8 +66,7 @@ class Pipeline(BrainsetPipeline):
     brainset_id = "allen_visual_coding_ophys_2016"
     parser = parser
 
-    @classmethod
-    def get_manifest(cls, raw_dir, args) -> pd.DataFrame:
+    def get_manifest(self) -> pd.DataFrame:
 
         # We have a precomputed list of "good" sessions that were used in POYO+.
         pipeline_dir = Path(__file__).resolve().parent
@@ -79,8 +78,8 @@ class Pipeline(BrainsetPipeline):
 
         # But also create the BOC manifest, since we're on the
         # root process right now.
-        raw_dir.mkdir(exist_ok=True, parents=True)
-        BrainObservatoryCache(manifest_file=raw_dir / "manifest.json")
+        self.raw_dir.mkdir(exist_ok=True, parents=True)
+        BrainObservatoryCache(manifest_file=self.raw_dir / "manifest.json")
         return manifest
 
     def download(self, manifest_item):

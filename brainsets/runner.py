@@ -144,10 +144,14 @@ def run():
     raw_dir = args.raw_dir / pipeline_cls.brainset_id
     processed_dir = args.processed_dir / pipeline_cls.brainset_id
 
-    manifest = pipeline_cls.get_manifest(
+    # Create a pipeline object to run get_manifest()
+    pipeline_obj = pipeline_cls(
         raw_dir=raw_dir,
+        processed_dir=processed_dir,
         args=pipeline_args,
+        download_only=args.download_only,
     )
+    manifest = pipeline_obj.get_manifest()
     print(f"Discovered {len(manifest)} manifest items")
 
     if args.list:
@@ -174,11 +178,8 @@ def run():
         actor_pool = ActorPool(
             [
                 actor_cls.remote(
-                    tracker_handle=tracker,
-                    raw_dir=raw_dir,
-                    processed_dir=processed_dir,
-                    args=pipeline_args,
-                    download_only=args.download_only,
+                    _state_dict=pipeline_obj.__dict__,
+                    _tracker_handle=tracker,
                 )
                 for _ in range(args.cores)
             ]
@@ -192,13 +193,7 @@ def run():
         # Single run
         manifest_item = manifest.loc[args.single]
         manifest_item.Index = args.single
-        pipeline = pipeline_cls(
-            raw_dir=raw_dir,
-            processed_dir=processed_dir,
-            args=pipeline_args,
-            download_only=args.download_only,
-        )
-        pipeline._run_item(manifest_item)
+        pipeline_obj._run_item(manifest_item)
 
 
 if __name__ == "__main__":

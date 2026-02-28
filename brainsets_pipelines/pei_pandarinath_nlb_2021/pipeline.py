@@ -37,9 +37,8 @@ class Pipeline(BrainsetPipeline):
     dandiset_id = "DANDI:000140/0.220113.0408"
     parser = parser
 
-    @classmethod
-    def get_manifest(cls, raw_dir, args) -> pd.DataFrame:
-        asset_list = get_nwb_asset_list(cls.dandiset_id)
+    def get_manifest(self) -> pd.DataFrame:
+        asset_list = get_nwb_asset_list(self.dandiset_id)
         manifest_list = [{"path": x.path, "url": x.download_url} for x in asset_list]
 
         for m in manifest_list:

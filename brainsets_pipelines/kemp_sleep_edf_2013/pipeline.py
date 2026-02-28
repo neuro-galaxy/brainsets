@@ -60,15 +60,14 @@ class Pipeline(BrainsetPipeline):
     prefix = "sleep-edfx/1.0.0"
     parser = parser
 
-    @classmethod
-    def get_manifest(cls, raw_dir: Path, args) -> pd.DataFrame:
+    def get_manifest(self) -> pd.DataFrame:
         s3 = get_cached_s3_client()
 
         prefixes = []
-        if args.study_type in ["sc", "both"]:
-            prefixes.append(f"{cls.prefix}/sleep-cassette/")
-        if args.study_type in ["st", "both"]:
-            prefixes.append(f"{cls.prefix}/sleep-telemetry/")
+        if self.args.study_type in ["sc", "both"]:
+            prefixes.append(f"{self.prefix}/sleep-cassette/")
+        if self.args.study_type in ["st", "both"]:
+            prefixes.append(f"{self.prefix}/sleep-telemetry/")
 
         def find_hypnogram_key(s3, psg_key: str) -> Optional[str]:
             """Find the hypnogram file corresponding to a PSG file."""
@@ -78,7 +77,7 @@ class Pipeline(BrainsetPipeline):
             for prefix_len in [7, 6]:
                 prefix = base_name[:prefix_len]
                 search_prefix = str(psg_path.parent / prefix)
-                response = s3.list_objects_v2(Bucket=cls.bucket, Prefix=search_prefix)
+                response = s3.list_objects_v2(Bucket=self.bucket, Prefix=search_prefix)
 
                 for obj in response.get("Contents", []):
                     if "Hypnogram" in obj["Key"] and obj["Key"].endswith(".edf"):
@@ -90,7 +89,7 @@ class Pipeline(BrainsetPipeline):
 
         for prefix in prefixes:
             paginator = s3.get_paginator("list_objects_v2")
-            for page in paginator.paginate(Bucket=cls.bucket, Prefix=prefix):
+            for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
                 for obj in page.get("Contents", []):
                     key = obj["Key"]
                     if key.endswith("PSG.edf"):

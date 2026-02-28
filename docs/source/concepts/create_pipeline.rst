@@ -83,8 +83,7 @@ Pipelines can also expose custom CLI arguments by attaching an
         brainset_id = "my_brainset"
         parser = parser
 
-        @classmethod
-        def get_manifest(cls, raw_dir, args) -> pd.DataFrame:
+        def get_manifest(self) -> pd.DataFrame:
             ...
 
         def download(self, manifest_item):
@@ -110,10 +109,8 @@ recording.
 The pipeline runner will iterate over the rows in this table,
 downloading the processing each asset it describes.
 
-|get_manifest| receives the path to the directory where raw data should be downloaded
-and any arguments parsed from the CLI. 
-It should return a :class:`pandas.DataFrame` indexed by a unique identifier, with one 
-row per downloadable item. 
+|get_manifest| should return a :class:`pandas.DataFrame` indexed by a unique identifier,
+with one row per downloadable item. 
 Columns can contain any metadata you find useful during download or processing.
 When doing single-asset processing (``brainsets prepare my_brainset -s <manifest_item_index>``),
 the CLI uses the index of the manifest directly, so keep it easy to understand.
@@ -127,11 +124,10 @@ using the Dandi API:
 
 .. code-block:: python
 
-    @classmethod
-    def get_manifest(cls, raw_dir, args) -> pd.DataFrame:
+    def get_manifest(self) -> pd.DataFrame:
         from dandi_utils import get_nwb_asset_list
 
-        asset_list = get_nwb_asset_list(cls.dandiset_id)
+        asset_list = get_nwb_asset_list(self.dandiset_id)
         manifest_list = [{"path": x.path, "url": x.download_url} for x in asset_list]
         
         # Create a simple identifier for each item
@@ -145,7 +141,7 @@ using the Dandi API:
 Tips:
 
 * Store enough information to make filenames deterministic.
-* Use the ``raw_dir`` to cache manifest results if the source API is slow.
+* Use ``self.raw_dir`` to cache manifest results if the source API is slow.
 * Respect user arguments (for example, allowing the CLI to filter sessions).
 
 
