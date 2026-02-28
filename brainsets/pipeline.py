@@ -115,9 +115,6 @@ class BrainsetPipeline(ABC):
         The index of this DataFrame will be used to identify assets for when user wants
         to process a single asset.
 
-        Any instance attributes set in this method will be available in
-        :meth:`download()` and :meth:`process()`, even when running in parallel.
-
         Returns
         -------
         pandas.DataFrame
