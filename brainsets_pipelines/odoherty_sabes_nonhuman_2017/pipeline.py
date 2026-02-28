@@ -45,7 +45,7 @@ class Pipeline(BrainsetPipeline):
         manifest_out = r_fd.read()
         exit_code = r_fd.close()
         if exit_code is not None and exit_code != 0:
-            raise RuntimeError("zenodo_get (list) failed with exit code {exit_code}")
+            raise RuntimeError(f"zenodo_get (list) failed with exit code {exit_code}")
 
         # fetch md5sums
         exit_code = os.system(f'cd "{self.raw_dir}" && zenodo_get -m 3854034')
