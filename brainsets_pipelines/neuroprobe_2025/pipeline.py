@@ -87,9 +87,18 @@ class Pipeline(BrainsetPipeline):
         raw_dir: Path,
         args: Optional[Namespace],
     ) -> pd.DataFrame:
+        raw_dir.mkdir(exist_ok=True, parents=True)
         _prepare_neuroprobe_lib(raw_dir)
 
-        raw_dir.mkdir(exist_ok=True, parents=True)
+        # Ensure shared metadata/assets are present once before parallel workers run.
+        logging.info(
+            "Downloading common assets for neuroprobe_2025; this may take several minutes."
+        )
+        _ensure_common_assets(
+            raw_dir,
+            COMMON_ASSETS,
+            overwrite=bool(args and args.redownload),
+        )
 
         # construct manifest for selected mode
         manifest_list = [
@@ -106,14 +115,6 @@ class Pipeline(BrainsetPipeline):
         return manifest
 
     def download(self, manifest_item):
-        # download common assets
-        self.update_status("Downloading common assets")
-        _ensure_common_assets(
-            self.raw_dir,
-            COMMON_ASSETS,
-            overwrite=bool(self.args and self.args.redownload)
-        )
-        
         # download subject data
         self.update_status("DOWNLOADING")
         extracted_path = _download_and_extract(
