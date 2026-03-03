@@ -239,92 +239,133 @@ def _create_interval_split(intervals: Interval, indices: np.ndarray) -> Interval
     return split
 
 
-def generate_stratified_folds(
+def generate_folds(
     intervals: Interval,
-    stratify_by: str,
     n_folds: int = 5,
     val_ratio: float = 0.2,
     seed: int = 42,
+    stratify_by: Optional[str] = None,
 ) -> List[Data]:
-    """
-    Generates stratified train/valid/test splits using a two-stage splitting process.
+    """Generate train/valid/test splits using a two-stage splitting process.
+
+    If *stratify_by* is None, splitting uses KFold (outer) and ShuffleSplit (inner).
+    If *stratify_by* is an attribute name present on the intervals, splitting uses
+    StratifiedKFold and StratifiedShuffleSplit so that each fold preserves the
+    class distribution of that attribute.
 
     The splitting is performed in two stages:
-        1. Outer split (StratifiedKFold): The intervals are divided into n_folds,
-           where each fold uses one partition as the test set and the remaining
-           partitions as train+valid. Stratification ensures each fold maintains
-           the class distribution of the original data.
-        2. Inner split (StratifiedShuffleSplit): The train+valid portion of each fold
-           is further split into train and valid sets using val_ratio, while preserving
-           the class distribution.
+        1. Outer split: The intervals are divided into *n_folds*, where each fold
+           uses one partition as the test set and the remaining partitions as train+valid.
+        2. Inner split: The train+valid portion of each fold is further split into
+           train and valid sets using *val_ratio*.
+    When used, stratification ensures each fold maintains the class distribution of the
+    original data according to the *stratify_by* attribute.
 
     Args:
         intervals: The intervals to split.
         n_folds: Number of folds for cross-validation.
         val_ratio: Ratio of validation set relative to train+valid combined.
-        seed: Random seed.
-        stratify_by: The attribute name to use for stratification (e.g., "id", "label",
-            "class"). The intervals must have this attribute.
+        seed: Random seed for reproducibility.
+        stratify_by: Optional attribute name to stratify by (e.g., "id", "label").
+            If provided, intervals must have this attribute.
 
     Returns:
         List of Data objects, one for each fold.
 
     Raises:
-        ValueError: If the intervals don't have the specified stratify_by attribute.
-        ValueError: If there are fewer samples than n_folds.
+        ValueError: If there are fewer samples than *n_folds*.
+        ValueError: If stratify_by is provided but intervals do not have that attribute.
     """
+    if n_folds < 2:
+        raise ValueError(f"n_folds must be at least 2, got {n_folds}")
+    if not (0.0 < val_ratio < 1.0):
+        raise ValueError(
+            f"val_ratio must be between 0 and 1 (exclusive), got {val_ratio}"
+        )
+    if stratify_by is not None and not hasattr(intervals, stratify_by):
+        raise ValueError(
+            f"Intervals must have a '{stratify_by}' attribute for stratification."
+        )
+
     try:
-        from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
+        from sklearn.model_selection import (
+            KFold,
+            StratifiedKFold,
+            ShuffleSplit,
+            StratifiedShuffleSplit,
+        )
     except ImportError:
         raise ImportError(
             "This function requires the scikit-learn library which you can install with "
             "`pip install scikit-learn`"
         )
 
-    if not hasattr(intervals, stratify_by):
-        raise ValueError(
-            f"Intervals must have a '{stratify_by}' attribute for stratification."
-        )
+    use_stratify = stratify_by is not None
 
-    class_labels = getattr(intervals, stratify_by)
-    if len(class_labels) < n_folds:
-        raise ValueError(
-            f"Not enough samples ({len(class_labels)}) for {n_folds} folds."
-        )
+    if use_stratify:
+        class_labels = getattr(intervals, stratify_by)
+        if len(class_labels) < n_folds:
+            raise ValueError(
+                f"Not enough samples ({len(class_labels)}) for {n_folds} folds."
+            )
+    else:
+        if len(intervals) < n_folds:
+            raise ValueError(
+                f"Not enough samples ({len(intervals)}) for {n_folds} folds."
+            )
 
-    outer_splitter = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
     folds = []
     sample_indices = np.arange(len(intervals))
 
-    for fold_idx, (train_val_indices, test_indices) in enumerate(
-        outer_splitter.split(sample_indices, class_labels)
-    ):
-        test_split = _create_interval_split(intervals, test_indices)
-
-        train_val_labels = class_labels[train_val_indices]
-        inner_splitter = StratifiedShuffleSplit(
-            n_splits=1, test_size=val_ratio, random_state=seed + fold_idx
+    if use_stratify:
+        outer_splitter = StratifiedKFold(
+            n_splits=n_folds, shuffle=True, random_state=seed
         )
-
-        for train_indices, val_indices in inner_splitter.split(
-            train_val_indices, train_val_labels
+        for fold_idx, (train_val_indices, test_indices) in enumerate(
+            outer_splitter.split(sample_indices, class_labels)
         ):
-            train_original_indices = train_val_indices[train_indices]
-            val_original_indices = train_val_indices[val_indices]
-
-            train_split = _create_interval_split(intervals, train_original_indices)
-            val_split = _create_interval_split(intervals, val_original_indices)
-
-            combined_domain = train_split | val_split | test_split
-
-            fold_data = Data(
-                train=train_split,
-                valid=val_split,
-                test=test_split,
-                domain=combined_domain,
+            test_split = _create_interval_split(intervals, test_indices)
+            train_val_labels = class_labels[train_val_indices]
+            inner_splitter = StratifiedShuffleSplit(
+                n_splits=1, test_size=val_ratio, random_state=seed + fold_idx
             )
-
-            folds.append(fold_data)
+            for train_indices, val_indices in inner_splitter.split(
+                train_val_indices, train_val_labels
+            ):
+                train_original_indices = train_val_indices[train_indices]
+                val_original_indices = train_val_indices[val_indices]
+                train_split = _create_interval_split(intervals, train_original_indices)
+                val_split = _create_interval_split(intervals, val_original_indices)
+                combined_domain = train_split | val_split | test_split
+                fold_data = Data(
+                    train=train_split,
+                    valid=val_split,
+                    test=test_split,
+                    domain=combined_domain,
+                )
+                folds.append(fold_data)
+    else:
+        outer_splitter = KFold(n_splits=n_folds, shuffle=True, random_state=seed)
+        for fold_idx, (train_val_indices, test_indices) in enumerate(
+            outer_splitter.split(sample_indices)
+        ):
+            test_split = _create_interval_split(intervals, test_indices)
+            inner_splitter = ShuffleSplit(
+                n_splits=1, test_size=val_ratio, random_state=seed + fold_idx
+            )
+            for train_indices, val_indices in inner_splitter.split(train_val_indices):
+                train_original_indices = train_val_indices[train_indices]
+                val_original_indices = train_val_indices[val_indices]
+                train_split = _create_interval_split(intervals, train_original_indices)
+                val_split = _create_interval_split(intervals, val_original_indices)
+                combined_domain = train_split | val_split | test_split
+                fold_data = Data(
+                    train=train_split,
+                    valid=val_split,
+                    test=test_split,
+                    domain=combined_domain,
+                )
+                folds.append(fold_data)
 
     return folds
 
