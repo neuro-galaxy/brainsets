@@ -28,7 +28,7 @@ from brainsets.descriptions import (
 from brainsets.taxonomy import RecordingTech, Species, Sex
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.utils.split import (
-    generate_stratified_folds,
+    generate_folds,
     generate_string_kfold_assignment,
 )
 from brainsets.utils.s3_utils import get_cached_s3_client
@@ -362,7 +362,7 @@ def create_splits(
     if len(filtered) == 0:
         raise ValueError("No valid epochs remaining after filtering")
 
-    folds = generate_stratified_folds(
+    folds = generate_folds(
         filtered,
         stratify_by="id",
         n_folds=n_folds,
