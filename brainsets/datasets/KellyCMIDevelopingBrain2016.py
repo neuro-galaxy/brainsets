@@ -54,7 +54,11 @@ class KellyCMIDevelopingBrain2016(Dataset):
 
         self.uniquify_channel_ids = uniquify_channel_ids
 
-        if fold_number is None or not (0 <= fold_number < 3):
+        if not (isinstance(fold_number, int) and not isinstance(fold_number, bool)):
+            raise ValueError(
+                f"fold_number must be an int, got {type(fold_number).__name__}: {fold_number!r}"
+            )
+        if not (0 <= fold_number < 3):
             raise ValueError(
                 f"Fold number must be an integer between 0 and 2, got {fold_number}"
             )

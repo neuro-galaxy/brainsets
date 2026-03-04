@@ -205,7 +205,10 @@ class Pipeline(BrainsetPipeline):
             et_keys = et_keys_by_participant.get(row["participant_id"], [])
             row["et_s3_keys"] = json.dumps(et_keys)
 
-        manifest = pd.DataFrame(manifest_rows).set_index("session_id")
+        manifest = pd.DataFrame(
+            manifest_rows,
+            columns=["session_id", "participant_id", "s3_key", "et_s3_keys"],
+        ).set_index("session_id")
         return manifest
 
     def download(self, manifest_item) -> dict:
@@ -299,8 +302,17 @@ class Pipeline(BrainsetPipeline):
         paradigm_code = None
         paradigm_name = None
         if len(annotations) > 0:
-            first_code = int(annotations.description[0])
-            paradigm_entry = PARADIGM_MAP.get(first_code)
+            first_label = str(annotations.description[0]).strip()
+            try:
+                first_code = int(float(first_label))
+            except ValueError:
+                logging.warning(
+                    "Unexpected annotation label '%s'; using raw label", first_label
+                )
+                first_code = None
+
+            paradigm_entry = PARADIGM_MAP.get(first_code, None)
+
             if paradigm_entry is not None:
                 paradigm_name, task = paradigm_entry
                 session_description.task = task
