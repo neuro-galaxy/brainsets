@@ -260,7 +260,7 @@ def extract_ecog_from_nwb(
         grp = str(group_names[i]) if i < len(group_names) else ""
         channel_meta.append(
             {
-                "ids": f"channel_{i}",
+                "id": f"electrode_{i}",
                 "index": i,
                 "hemisphere": int(hemisphere),
                 "group": grp,
