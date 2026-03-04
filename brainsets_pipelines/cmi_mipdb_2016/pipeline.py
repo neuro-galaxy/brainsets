@@ -15,6 +15,7 @@ import sys
 from urllib.request import urlopen
 
 import json
+import re
 import logging
 
 import mne
@@ -44,13 +45,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from constants import PARADIGM_MAP  # noqa: E402
 import eyetracking  # noqa: E402
 
+# Metadata files are not hosted in the same s3 bucket as the public data
+# Public data on the 126 subjects
+SUBJECTS_METADATA_URL = (
+    "https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/_static/MIPDB_PublicFile.csv"
+)
+# EEG Channel location file
+CHANNEL_LOCATION_URL = (
+    "https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/_static/GSN_HydroCel_129.sfp"
+)
+
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
 parser.add_argument("--reprocess", action="store_true")
 
 
 class Pipeline(BrainsetPipeline):
-    brainset_id = "kelly_CMI_developingbrain_2016"
+    brainset_id = "cmi_mipdb_2016"
     bucket = "fcp-indi"
     prefix = "data/Projects/EEG_Eyetracking_CMI_data/"
     parser = parser
@@ -60,9 +71,7 @@ class Pipeline(BrainsetPipeline):
 
         Returns the local path to the downloaded CSV file.
         """
-        # the metadata file is not hosted in the same s3 bucket
         local_path = self.raw_dir / "MIPDB_PublicFile.csv"
-        metadata_url = "https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/_static/MIPDB_PublicFile.csv"
 
         if not local_path.exists() or self.args.redownload:
             self.update_status("Downloading subject metadata CSV")
@@ -71,38 +80,12 @@ class Pipeline(BrainsetPipeline):
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
-            with urlopen(metadata_url, context=ctx) as response:
+            with urlopen(SUBJECTS_METADATA_URL, context=ctx) as response:
                 local_path.write_bytes(response.read())
         else:
             self.update_status("Subject metadata CSV already cached")
 
         return local_path
-
-    def _get_subject_metadata(self, participant_id: str) -> dict:
-        """Look up subject metadata (age, sex) from the MIPDB public metadata.
-
-        Args:
-            participant_id: Subject identifier (e.g., "A00054400").
-
-        Returns:
-            Dict with 'age' and 'sex' keys.
-        """
-        csv_path = self._download_subject_metadata()
-        df = pd.read_csv(csv_path, index_col="ID")
-
-        if participant_id not in df.index:
-            self.update_status(
-                f"Warning: no metadata found for subject {participant_id}"
-            )
-            return {"age": 0.0, "sex": 0}
-
-        subject = df.loc[participant_id]
-
-        age = subject.get("Age", None)
-        sex = subject.get("Sex", None)
-        sex = int(sex) if pd.notna(sex) else 0
-
-        return {"age": age, "sex": sex}
 
     def _download_channel_location(self) -> Path:
         """Download the GSN HydroCel 129 channel location SFP file.
@@ -110,7 +93,6 @@ class Pipeline(BrainsetPipeline):
         Returns the local path to the downloaded file.
         """
         local_path = self.raw_dir / "GSN_HydroCel_129.sfp"
-        metadata_url = "https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/_static/GSN_HydroCel_129.sfp"
 
         if not local_path.exists() or self.args.redownload:
             self.update_status("Downloading channel location file")
@@ -118,47 +100,19 @@ class Pipeline(BrainsetPipeline):
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
-            with urlopen(metadata_url, context=ctx) as response:
+            with urlopen(CHANNEL_LOCATION_URL, context=ctx) as response:
                 local_path.write_bytes(response.read())
         else:
             self.update_status("Channel location file already cached")
 
         return local_path
 
-    def _add_channel_locations(self, channels: ArrayDict) -> None:
-        """Add 3D EEG electrode positions to *channels* in-place.
-
-        Reads the GSN HydroCel 129 SFP file (label, X, Y, Z in Cartesian
-        head coordinates) and sets ``channels.locations`` to an ``(N, 3)``
-        float array aligned with ``channels.id``.
-        Only channels whose type is ``"eeg"`` are looked up; all others receive NaN
-        coordinates.
-
-        Args:
-            channels: ArrayDict with ``ids`` and ``types``.
-        """
-        sfp_path = self._download_channel_location()
-        loc_df = pd.read_csv(
-            sfp_path,
-            sep=r"\s+",
-            header=None,
-            names=["label", "x", "y", "z"],
-        )
-        loc_map = {row.label: (row.x, row.y, row.z) for _, row in loc_df.iterrows()}
-
-        locations = np.full((len(channels.id), 3), np.nan)
-        for i, (ch, ch_type) in enumerate(zip(channels.id, channels.type)):
-            if ch_type == "eeg" and ch in loc_map:
-                locations[i] = loc_map[ch]
-
-        channels.locations = locations
-
     @classmethod
     def get_manifest(cls, raw_dir: Path, args) -> pd.DataFrame:
         s3 = get_cached_s3_client()
 
         manifest_rows = []
-        et_keys_by_participant: dict[str, list[str]] = {}
+        et_keys_by_subject: dict[str, list[str]] = {}
 
         rel_keys = get_object_list(bucket=cls.bucket, prefix=cls.prefix, s3_client=s3)
 
@@ -171,49 +125,53 @@ class Pipeline(BrainsetPipeline):
 
             rel_parts = rel_path.parts
 
-            # EEG: participant_id/EEG/raw/raw_format/*.raw
+            # EEG: subject_id/EEG/raw/raw_format/*.raw
             if (
                 len(rel_parts) >= 4
                 and rel_parts[1] == "EEG"
                 and rel_parts[2] == "raw"
                 and rel_parts[3] == "raw_format"
             ) and filename.endswith(".raw"):
-                participant_id = rel_parts[0]
+                subject_id = rel_parts[0]
                 session_id = f"{Path(filename).stem}"
 
                 manifest_rows.append(
                     {
                         "session_id": session_id,
-                        "participant_id": participant_id,
+                        "subject_id": subject_id,
                         "s3_key": cls.prefix + rel_key,
                     }
                 )
 
-            # ET: participant_id/Eyetracking/txt/*.txt
+            # ET: subject_id/Eyetracking/txt/*.txt
             if (
                 len(rel_parts) >= 3
                 and rel_parts[1] == "Eyetracking"
                 and rel_parts[2] == "txt"
                 and filename.endswith(".txt")
             ):
-                participant_id = rel_parts[0]
-                et_keys_by_participant.setdefault(participant_id, []).append(
+                subject_id = rel_parts[0]
+                et_keys_by_subject.setdefault(subject_id, []).append(
                     cls.prefix + rel_key
                 )
 
         for row in manifest_rows:
-            et_keys = et_keys_by_participant.get(row["participant_id"], [])
+            et_keys = et_keys_by_subject.get(row["subject_id"], [])
             row["et_s3_keys"] = json.dumps(et_keys)
 
         manifest = pd.DataFrame(
             manifest_rows,
-            columns=["session_id", "participant_id", "s3_key", "et_s3_keys"],
+            columns=["session_id", "subject_id", "s3_key", "et_s3_keys"],
         ).set_index("session_id")
         return manifest
 
     def download(self, manifest_item) -> dict:
         self.update_status("DOWNLOADING")
         s3 = get_cached_s3_client()
+
+        # Ensure dataset-level metadata is cached (downloaded once per dataset)
+        self._download_subject_metadata()
+        self._download_channel_location()
 
         # --- EEG file ---
         s3_key = manifest_item.s3_key
@@ -226,12 +184,12 @@ class Pipeline(BrainsetPipeline):
         else:
             self.update_status(f"Skipping EEG download, exists: {eeg_path}")
 
-        # --- ET files (shared across sessions for a participant, cached) ---
+        # --- ET files (shared across sessions for a subject, cached) ---
         et_dir = None
         et_s3_keys = json.loads(manifest_item.et_s3_keys)
         if et_s3_keys:
-            participant_id = manifest_item.participant_id
-            et_dir = self.raw_dir / participant_id / "Eyetracking" / "txt"
+            subject_id = manifest_item.subject_id
+            et_dir = self.raw_dir / subject_id / "Eyetracking" / "txt"
             for et_key in et_s3_keys:
                 et_path = self.raw_dir / Path(et_key).relative_to(self.prefix)
                 et_path.parent.mkdir(parents=True, exist_ok=True)
@@ -240,8 +198,7 @@ class Pipeline(BrainsetPipeline):
                     s3.download_file(self.bucket, et_key, str(et_path))
         else:
             logging.warning(
-                f"No ET files available for participant "
-                f"{manifest_item.participant_id}"
+                f"No ET files available for subject " f"{manifest_item.subject_id}"
             )
 
         return {"eeg": eeg_path, "et_dir": et_dir}
@@ -254,19 +211,19 @@ class Pipeline(BrainsetPipeline):
 
         recording_id = raw_path.stem
 
-        output_path = self.processed_dir / "EEG" / f"{recording_id}.h5"
+        output_path = self.processed_dir / f"{recording_id}.h5"
         if output_path.exists() and not self.args.reprocess:
             self.update_status(f"Skipping processing, file exists: {output_path}")
             return
 
         brainset_description = BrainsetDescription(
-            id="kelly_CMI_developingbrain_2016",
+            id="cmi_mipdb_2016",
             origin_version="1.0.0",
             derived_version="1.0.0",
             source="https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/",
             description="The Child Mind Institute - MIPDB provides EEG,"
             "eye-tracking, and behavioral data across multiple paradigms from"
-            "126 psychiatric and healthy participants aged 6 - 44 years old.",
+            "126 psychiatric and healthy subjects aged 6 - 44 years old.",
         )
 
         self.update_status("Loading EEG file")
@@ -278,12 +235,14 @@ class Pipeline(BrainsetPipeline):
         )
 
         subject_id = recording_id[:9]
+        validate_subject_id(subject_id)
         device_description = DeviceDescription(
             id=f"GSN_HydroCel_129_{subject_id}",
             recording_tech=RecordingTech.SCALP_EEG,
         )
 
-        subject_info = self._get_subject_metadata(subject_id)
+        csv_path = self.raw_dir / "MIPDB_PublicFile.csv"
+        subject_info = parse_subject_metadata(csv_path, subject_id)
 
         subject_description = SubjectDescription(
             id=subject_id,
@@ -295,7 +254,8 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Extracting EEG signal and channels")
         eeg_signal = extract_eeg_signal(raw)
         channels = extract_channels(raw)
-        self._add_channel_locations(channels)
+        sfp_path = self.raw_dir / "GSN_HydroCel_129.sfp"
+        channels.locations = extract_channel_locations(sfp_path, channels)
 
         self.update_status("Extracting annotations")
         annotations = extract_annotations(raw)
@@ -366,6 +326,106 @@ class Pipeline(BrainsetPipeline):
 
         with h5py.File(output_path, "w") as file:
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
+
+
+def validate_subject_id(subject_id: str) -> None:
+    """Validate that subject_id matches the CMI MIPDB convention: A000xxxxx.
+
+    Raises:
+        ValueError: If subject_id does not match A000xxxxx format.
+    """
+    SUBJECT_ID_PATTERN = re.compile(r"^A000\d{5}$")
+    if not SUBJECT_ID_PATTERN.match(subject_id):
+        raise ValueError(
+            f"Invalid subject_id for CMI MIPDB: {subject_id!r}. "
+            "Expected format: A000xxxxx where x are digits (e.g. A00054400)."
+        )
+
+
+def parse_subject_metadata(csv_path: Path, subject_id: str) -> dict:
+    """Look up subject metadata (age, sex) from the MIPDB public metadata.
+
+    Args:
+        csv_path: Path to the MIPDB public metadata CSV file.
+        subject_id: Subject identifier (e.g., "A00054400").
+
+    Returns:
+        Dict with 'age' and 'sex' keys.
+    """
+    if not csv_path.exists():
+        raise FileNotFoundError(
+            f"Subject metadata not found at {csv_path}. Run download() first."
+        )
+    df = pd.read_csv(csv_path, index_col="ID")
+
+    if subject_id not in df.index:
+        logging.warning("No metadata found for subject %s", subject_id)
+        return {"age": 0.0, "sex": 0}
+
+    subject = df.loc[subject_id]
+
+    age = subject.get("Age", None)
+    sex = subject.get("Sex", None)
+    sex = int(sex) if pd.notna(sex) else 0
+
+    return {"age": age, "sex": sex}
+
+
+def extract_channel_locations(sfp_path: Path, channels: ArrayDict) -> np.ndarray:
+    """Build 3D EEG electrode positions aligned with the given channel list.
+
+    Reads the GSN HydroCel 129 SFP file (label, X, Y, Z in Cartesian
+    head coordinates) and returns an ``(N, 3)`` float array of positions
+    in the same order as ``channels.id``. Only channels whose type is
+    ``"eeg"`` are looked up in the SFP file; all others receive NaN
+    coordinates.
+
+    Args:
+        sfp_path: Path to the GSN HydroCel 129 SFP file.
+        channels: ArrayDict with ``id`` and ``type``.
+
+    Returns:
+        Array of shape ``(N, 3)`` with XYZ coordinates in head space.
+        Non-EEG channels and missing labels are filled with NaN.
+
+    Raises:
+        FileNotFoundError: If ``sfp_path`` does not exist.
+        ValueError: If the SFP file does not have the expected format
+            (four whitespace-separated columns: label, x, y, z).
+    """
+    if not sfp_path.exists():
+        raise FileNotFoundError(
+            f"Channel location file not found at {sfp_path}. Run download() first."
+        )
+    try:
+        loc_df = pd.read_csv(
+            sfp_path,
+            sep=r"\s+",
+            header=None,
+            names=["label", "x", "y", "z"],
+        )
+    except pd.errors.ParserError as e:
+        raise ValueError(
+            f"Failed to parse channel location file at {sfp_path}: {e}"
+        ) from e
+
+    try:
+        loc_df[["x", "y", "z"]] = loc_df[["x", "y", "z"]].astype(float)
+    except (ValueError, TypeError) as e:
+        raise ValueError(
+            f"Channel location file at {sfp_path} must have four "
+            f"whitespace-separated columns (label, x, y, z) with numeric "
+            f"coordinates: {e}"
+        ) from e
+
+    loc_map = {row.label: (row.x, row.y, row.z) for _, row in loc_df.iterrows()}
+
+    locations = np.full((len(channels.id), 3), np.nan)
+    for i, (ch, ch_type) in enumerate(zip(channels.id, channels.type)):
+        if ch_type == "eeg" and ch in loc_map:
+            locations[i] = loc_map[ch]
+
+    return locations
 
 
 def create_splits(
