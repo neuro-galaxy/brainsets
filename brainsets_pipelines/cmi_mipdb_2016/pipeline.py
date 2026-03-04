@@ -13,6 +13,7 @@ from pathlib import Path
 import ssl
 from urllib.request import urlopen
 
+import re
 import logging
 import mne
 import h5py
@@ -134,27 +135,27 @@ class Pipeline(BrainsetPipeline):
 
             rel_parts = rel_path.parts
 
-            # Pattern should be: participant_id/EEG/raw/raw_format/filename
+            # Pattern should be: subject_id/EEG/raw/raw_format/filename
             if (
                 len(rel_parts) >= 4
                 and rel_parts[1] == "EEG"
                 and rel_parts[2] == "raw"
                 and rel_parts[3] == "raw_format"
             ) and filename.endswith(".raw"):
-                participant_id = rel_parts[0]
+                subject_id = rel_parts[0]
                 session_id = f"{Path(filename).stem}"
 
                 manifest_rows.append(
                     {
                         "session_id": session_id,
-                        "participant_id": participant_id,
+                        "subject_id": subject_id,
                         "s3_key": cls.prefix + rel_key,
                     }
                 )
 
         manifest = pd.DataFrame(
             manifest_rows,
-            columns=["session_id", "participant_id", "s3_key"],
+            columns=["session_id", "subject_id", "s3_key"],
         ).set_index("session_id")
         return manifest
 
@@ -198,7 +199,7 @@ class Pipeline(BrainsetPipeline):
             source="https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/",
             description="The Child Mind Institute - MIPDB provides EEG,"
             "eye-tracking, and behavioral data across multiple paradigms from"
-            "126 psychiatric and healthy participants aged 6 - 44 years old.",
+            "126 psychiatric and healthy subjects aged 6 - 44 years old.",
         )
 
         self.update_status("Loading EEG file")
@@ -210,6 +211,7 @@ class Pipeline(BrainsetPipeline):
         )
 
         subject_id = recording_id[:9]
+        validate_subject_id(subject_id)
         device_description = DeviceDescription(
             id=f"GSN_HydroCel_129_{subject_id}",
             recording_tech=RecordingTech.SCALP_EEG,
@@ -283,12 +285,26 @@ class Pipeline(BrainsetPipeline):
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
 
 
-def parse_subject_metadata(csv_path: Path, participant_id: str) -> dict:
+def validate_subject_id(subject_id: str) -> None:
+    """Validate that subject_id matches the CMI MIPDB convention: A000xxxxx.
+
+    Raises:
+        ValueError: If subject_id does not match A000xxxxx format.
+    """
+    SUBJECT_ID_PATTERN = re.compile(r"^A000\d{5}$")
+    if not SUBJECT_ID_PATTERN.match(subject_id):
+        raise ValueError(
+            f"Invalid subject_id for CMI MIPDB: {subject_id!r}. "
+            "Expected format: A000xxxxx where x are digits (e.g. A00054400)."
+        )
+
+
+def parse_subject_metadata(csv_path: Path, subject_id: str) -> dict:
     """Look up subject metadata (age, sex) from the MIPDB public metadata.
 
     Args:
         csv_path: Path to the MIPDB public metadata CSV file.
-        participant_id: Subject identifier (e.g., "A00054400").
+        subject_id: Subject identifier (e.g., "A00054400").
 
     Returns:
         Dict with 'age' and 'sex' keys.
@@ -299,11 +315,11 @@ def parse_subject_metadata(csv_path: Path, participant_id: str) -> dict:
         )
     df = pd.read_csv(csv_path, index_col="ID")
 
-    if participant_id not in df.index:
-        logging.warning("No metadata found for subject %s", participant_id)
+    if subject_id not in df.index:
+        logging.warning("No metadata found for subject %s", subject_id)
         return {"age": 0.0, "sex": 0}
 
-    subject = df.loc[participant_id]
+    subject = df.loc[subject_id]
 
     age = subject.get("Age", None)
     sex = subject.get("Sex", None)
