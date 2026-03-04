@@ -229,7 +229,7 @@ class Pipeline(BrainsetPipeline):
 
         recording_id = raw_path.stem
 
-        output_path = self.processed_dir / "EEG" / f"{recording_id}.h5"
+        output_path = self.processed_dir / f"{recording_id}.h5"
         if output_path.exists() and not self.args.reprocess:
             self.update_status(f"Skipping processing, file exists: {output_path}")
             return
