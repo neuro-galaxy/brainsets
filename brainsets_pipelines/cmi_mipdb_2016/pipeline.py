@@ -251,7 +251,7 @@ class Pipeline(BrainsetPipeline):
                 paradigm_name, task = paradigm_entry
                 session_description.task = task
             else:
-                paradigm_name = first_code
+                paradigm_name = str(first_code)
 
         self.update_status("Creating splits")
         splits = create_splits(
@@ -328,29 +328,53 @@ def parse_subject_metadata(csv_path: Path, subject_id: str) -> dict:
     return {"age": age, "sex": sex}
 
 
-def extract_channel_locations(sfp_path: Path, channels: ArrayDict) -> None:
-    """Add 3D EEG electrode positions to *channels* in-place.
+def extract_channel_locations(sfp_path: Path, channels: ArrayDict) -> np.ndarray:
+    """Build 3D EEG electrode positions aligned with the given channel list.
 
     Reads the GSN HydroCel 129 SFP file (label, X, Y, Z in Cartesian
-    head coordinates) and sets ``channels.locations`` to an ``(N, 3)``
-    float array aligned with ``channels.id``.
-    Only channels whose type is ``"eeg"`` are looked up; all others receive NaN
+    head coordinates) and returns an ``(N, 3)`` float array of positions
+    in the same order as ``channels.id``. Only channels whose type is
+    ``"eeg"`` are looked up in the SFP file; all others receive NaN
     coordinates.
 
     Args:
         sfp_path: Path to the GSN HydroCel 129 SFP file.
-        channels: ArrayDict with ``ids`` and ``types``.
+        channels: ArrayDict with ``id`` and ``type``.
+
+    Returns:
+        Array of shape ``(N, 3)`` with XYZ coordinates in head space.
+        Non-EEG channels and missing labels are filled with NaN.
+
+    Raises:
+        FileNotFoundError: If ``sfp_path`` does not exist.
+        ValueError: If the SFP file does not have the expected format
+            (four whitespace-separated columns: label, x, y, z).
     """
     if not sfp_path.exists():
         raise FileNotFoundError(
             f"Channel location file not found at {sfp_path}. Run download() first."
         )
-    loc_df = pd.read_csv(
-        sfp_path,
-        sep=r"\s+",
-        header=None,
-        names=["label", "x", "y", "z"],
-    )
+    try:
+        loc_df = pd.read_csv(
+            sfp_path,
+            sep=r"\s+",
+            header=None,
+            names=["label", "x", "y", "z"],
+        )
+    except pd.errors.ParserError as e:
+        raise ValueError(
+            f"Failed to parse channel location file at {sfp_path}: {e}"
+        ) from e
+
+    try:
+        loc_df[["x", "y", "z"]] = loc_df[["x", "y", "z"]].astype(float)
+    except (ValueError, TypeError) as e:
+        raise ValueError(
+            f"Channel location file at {sfp_path} must have four "
+            f"whitespace-separated columns (label, x, y, z) with numeric "
+            f"coordinates: {e}"
+        ) from e
+
     loc_map = {row.label: (row.x, row.y, row.z) for _, row in loc_df.iterrows()}
 
     locations = np.full((len(channels.id), 3), np.nan)
