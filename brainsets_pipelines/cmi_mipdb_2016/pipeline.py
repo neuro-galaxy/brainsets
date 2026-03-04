@@ -97,32 +97,6 @@ class Pipeline(BrainsetPipeline):
 
         return local_path
 
-    def _get_subject_metadata(self, participant_id: str) -> dict:
-        """Look up subject metadata (age, sex) from the MIPDB public metadata.
-
-        Args:
-            participant_id: Subject identifier (e.g., "A00054400").
-
-        Returns:
-            Dict with 'age' and 'sex' keys.
-        """
-        csv_path = self._download_subject_metadata()
-        df = pd.read_csv(csv_path, index_col="ID")
-
-        if participant_id not in df.index:
-            self.update_status(
-                f"Warning: no metadata found for subject {participant_id}"
-            )
-            return {"age": 0.0, "sex": 0}
-
-        subject = df.loc[participant_id]
-
-        age = subject.get("Age", None)
-        sex = subject.get("Sex", None)
-        sex = int(sex) if pd.notna(sex) else 0
-
-        return {"age": age, "sex": sex}
-
     def _download_channel_location(self) -> Path:
         """Download the GSN HydroCel 129 channel location SFP file.
 
@@ -142,34 +116,6 @@ class Pipeline(BrainsetPipeline):
             self.update_status("Channel location file already cached")
 
         return local_path
-
-    def _add_channel_locations(self, channels: ArrayDict) -> None:
-        """Add 3D EEG electrode positions to *channels* in-place.
-
-        Reads the GSN HydroCel 129 SFP file (label, X, Y, Z in Cartesian
-        head coordinates) and sets ``channels.locations`` to an ``(N, 3)``
-        float array aligned with ``channels.id``.
-        Only channels whose type is ``"eeg"`` are looked up; all others receive NaN
-        coordinates.
-
-        Args:
-            channels: ArrayDict with ``ids`` and ``types``.
-        """
-        sfp_path = self._download_channel_location()
-        loc_df = pd.read_csv(
-            sfp_path,
-            sep=r"\s+",
-            header=None,
-            names=["label", "x", "y", "z"],
-        )
-        loc_map = {row.label: (row.x, row.y, row.z) for _, row in loc_df.iterrows()}
-
-        locations = np.full((len(channels.id), 3), np.nan)
-        for i, (ch, ch_type) in enumerate(zip(channels.id, channels.type)):
-            if ch_type == "eeg" and ch in loc_map:
-                locations[i] = loc_map[ch]
-
-        channels.locations = locations
 
     @classmethod
     def get_manifest(cls, raw_dir: Path, args) -> pd.DataFrame:
@@ -215,6 +161,10 @@ class Pipeline(BrainsetPipeline):
     def download(self, manifest_item) -> Path:
         self.update_status("DOWNLOADING")
         s3 = get_cached_s3_client()
+
+        # Ensure dataset-level metadata is cached (downloaded once per dataset)
+        self._download_subject_metadata()
+        self._download_channel_location()
 
         s3_key = manifest_item.s3_key
 
@@ -265,7 +215,8 @@ class Pipeline(BrainsetPipeline):
             recording_tech=RecordingTech.SCALP_EEG,
         )
 
-        subject_info = self._get_subject_metadata(subject_id)
+        csv_path = self.raw_dir / "MIPDB_PublicFile.csv"
+        subject_info = parse_subject_metadata(csv_path, subject_id)
 
         subject_description = SubjectDescription(
             id=subject_id,
@@ -277,7 +228,8 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Extracting EEG signal and channels")
         eeg_signal = extract_eeg_signal(raw)
         channels = extract_channels(raw)
-        self._add_channel_locations(channels)
+        sfp_path = self.raw_dir / "GSN_HydroCel_129.sfp"
+        channels.locations = extract_channel_locations(sfp_path, channels)
 
         self.update_status("Extracting annotations")
         annotations = extract_annotations(raw)
@@ -329,6 +281,68 @@ class Pipeline(BrainsetPipeline):
 
         with h5py.File(output_path, "w") as file:
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
+
+
+def parse_subject_metadata(csv_path: Path, participant_id: str) -> dict:
+    """Look up subject metadata (age, sex) from the MIPDB public metadata.
+
+    Args:
+        csv_path: Path to the MIPDB public metadata CSV file.
+        participant_id: Subject identifier (e.g., "A00054400").
+
+    Returns:
+        Dict with 'age' and 'sex' keys.
+    """
+    if not csv_path.exists():
+        raise FileNotFoundError(
+            f"Subject metadata not found at {csv_path}. Run download() first."
+        )
+    df = pd.read_csv(csv_path, index_col="ID")
+
+    if participant_id not in df.index:
+        logging.warning("No metadata found for subject %s", participant_id)
+        return {"age": 0.0, "sex": 0}
+
+    subject = df.loc[participant_id]
+
+    age = subject.get("Age", None)
+    sex = subject.get("Sex", None)
+    sex = int(sex) if pd.notna(sex) else 0
+
+    return {"age": age, "sex": sex}
+
+
+def extract_channel_locations(sfp_path: Path, channels: ArrayDict) -> None:
+    """Add 3D EEG electrode positions to *channels* in-place.
+
+    Reads the GSN HydroCel 129 SFP file (label, X, Y, Z in Cartesian
+    head coordinates) and sets ``channels.locations`` to an ``(N, 3)``
+    float array aligned with ``channels.id``.
+    Only channels whose type is ``"eeg"`` are looked up; all others receive NaN
+    coordinates.
+
+    Args:
+        sfp_path: Path to the GSN HydroCel 129 SFP file.
+        channels: ArrayDict with ``ids`` and ``types``.
+    """
+    if not sfp_path.exists():
+        raise FileNotFoundError(
+            f"Channel location file not found at {sfp_path}. Run download() first."
+        )
+    loc_df = pd.read_csv(
+        sfp_path,
+        sep=r"\s+",
+        header=None,
+        names=["label", "x", "y", "z"],
+    )
+    loc_map = {row.label: (row.x, row.y, row.z) for _, row in loc_df.iterrows()}
+
+    locations = np.full((len(channels.id), 3), np.nan)
+    for i, (ch, ch_type) in enumerate(zip(channels.id, channels.type)):
+        if ch_type == "eeg" and ch in loc_map:
+            locations[i] = loc_map[ch]
+
+    return locations
 
 
 def create_splits(
