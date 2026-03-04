@@ -55,6 +55,16 @@ PARADIGM_MAP = {
     86: ("Naturalistic Viewing Paradigm Video 6", Task.NATURALISTIC_VIEWING),
 }
 
+# Metadata files are not hosted in the same s3 bucket as the public data
+# Public data on the 126 subjects
+SUBJECTS_METADATA_URL = (
+    "https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/_static/MIPDB_PublicFile.csv"
+)
+# EEG Channel location file
+CHANNEL_LOCATION_URL = (
+    "https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/_static/GSN_HydroCel_129.sfp"
+)
+
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
 parser.add_argument("--reprocess", action="store_true")
@@ -71,9 +81,7 @@ class Pipeline(BrainsetPipeline):
 
         Returns the local path to the downloaded CSV file.
         """
-        # the metadata file is not hosted in the same s3 bucket
         local_path = self.raw_dir / "MIPDB_PublicFile.csv"
-        metadata_url = "https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/_static/MIPDB_PublicFile.csv"
 
         if not local_path.exists() or self.args.redownload:
             self.update_status("Downloading subject metadata CSV")
@@ -82,7 +90,7 @@ class Pipeline(BrainsetPipeline):
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
-            with urlopen(metadata_url, context=ctx) as response:
+            with urlopen(SUBJECTS_METADATA_URL, context=ctx) as response:
                 local_path.write_bytes(response.read())
         else:
             self.update_status("Subject metadata CSV already cached")
@@ -121,7 +129,6 @@ class Pipeline(BrainsetPipeline):
         Returns the local path to the downloaded file.
         """
         local_path = self.raw_dir / "GSN_HydroCel_129.sfp"
-        metadata_url = "https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/_static/GSN_HydroCel_129.sfp"
 
         if not local_path.exists() or self.args.redownload:
             self.update_status("Downloading channel location file")
@@ -129,7 +136,7 @@ class Pipeline(BrainsetPipeline):
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
-            with urlopen(metadata_url, context=ctx) as response:
+            with urlopen(CHANNEL_LOCATION_URL, context=ctx) as response:
                 local_path.write_bytes(response.read())
         else:
             self.update_status("Channel location file already cached")
