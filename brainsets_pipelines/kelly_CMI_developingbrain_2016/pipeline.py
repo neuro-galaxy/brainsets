@@ -61,7 +61,7 @@ parser.add_argument("--reprocess", action="store_true")
 
 
 class Pipeline(BrainsetPipeline):
-    brainset_id = "kelly_CMI_developingbrain_2016"
+    brainset_id = "cmi_mipdb_2016"
     bucket = "fcp-indi"
     prefix = "data/Projects/EEG_Eyetracking_CMI_data/"
     parser = parser
@@ -235,7 +235,7 @@ class Pipeline(BrainsetPipeline):
             return
 
         brainset_description = BrainsetDescription(
-            id="kelly_CMI_developingbrain_2016",
+            id="cmi_mipdb_2016",
             origin_version="1.0.0",
             derived_version="1.0.0",
             source="https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/",

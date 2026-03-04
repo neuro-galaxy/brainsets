@@ -9,7 +9,7 @@ FoldType = Literal["intrasession", "intersubject", "intersession"]
 VALID_FOLD_TYPES = get_args(FoldType)
 
 
-class KellyCMIDevelopingBrain2016(Dataset):
+class CmiMIPDB2016(Dataset):
     """CMI Multimodal Resource for Studying Information Processing in the
     Developing Brain (MIPDB) — EEG recordings across multiple paradigms from
     126 psychiatric and healthy participants aged 6–44 years.
@@ -30,7 +30,7 @@ class KellyCMIDevelopingBrain2016(Dataset):
               assigned to train/valid/test).
             Defaults to \"intrasession\".
         dirname (str, optional): Subdirectory for the dataset.
-            Defaults to "kelly_CMI_developingbrain_2016".
+            Defaults to "cmi_mipdb_2016".
     """
 
     def __init__(
@@ -41,7 +41,7 @@ class KellyCMIDevelopingBrain2016(Dataset):
         uniquify_channel_ids: bool = True,
         fold_number: int = 0,
         fold_type: FoldType = "intrasession",
-        dirname: str = "kelly_CMI_developingbrain_2016",
+        dirname: str = "cmi_mipdb_2016",
         **kwargs,
     ):
         super().__init__(
