@@ -125,6 +125,9 @@ def _make_dataset(tmp_path: Path, **overrides) -> Neuroprobe2025:
 def _disable_prewarm(monkeypatch):
     # Keep tests lightweight and independent of full temporaldata recording schema.
     monkeypatch.setattr(
+        Neuroprobe2025, "_initialize_seeg_mixin_caches", lambda self: None
+    )
+    monkeypatch.setattr(
         Neuroprobe2025, "_prime_selected_recording_caches", lambda self: None
     )
 

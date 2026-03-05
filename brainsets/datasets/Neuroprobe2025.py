@@ -212,15 +212,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
 
         self._split_recording_ids = self._recording_ids_for_split()
         self._validate_selection_compatibility()
-        self.seeg_dataset_mixin_domain_intervals = {
-            rid: self.get_recording(rid).seeg_data.domain for rid in self.recording_ids
-        }
-        self.seeg_dataset_mixin_channel_views = self._build_channel_view_cache(
-            self.recording_ids
-        )
-        self.seeg_dataset_mixin_recording_infos = self._build_recording_info_cache(
-            self.recording_ids
-        )
+        self._initialize_seeg_mixin_caches()
 
         self._prime_selected_recording_caches()
 
@@ -650,6 +642,18 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
                 ids=ids, names=names, included_mask=included_mask, lip=lip
             )
         return views
+
+    def _initialize_seeg_mixin_caches(self) -> None:
+        """Initialize SEEG mixin cache contracts from dataset recordings."""
+        self.seeg_dataset_mixin_domain_intervals = {
+            rid: self.get_recording(rid).seeg_data.domain for rid in self.recording_ids
+        }
+        self.seeg_dataset_mixin_channel_views = self._build_channel_view_cache(
+            self.recording_ids
+        )
+        self.seeg_dataset_mixin_recording_infos = self._build_recording_info_cache(
+            self.recording_ids
+        )
 
     def _build_recording_info_cache(
         self, recording_ids: list[str]
