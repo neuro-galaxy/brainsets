@@ -208,9 +208,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         self.split = split
         self.fold = self._resolve_fold(fold)
 
-        self._interval_base_path = (
-            f"splits.{self.version}.{self.label_mode}.{self.h5_regime}.{self.task}.fold{self.fold}"
-        )
+        self._interval_base_path = f"splits.{self.version}.{self.label_mode}.{self.h5_regime}.{self.task}.fold{self.fold}"
 
         self._split_recording_ids = self._recording_ids_for_split()
         self._validate_selection_compatibility()
@@ -474,7 +472,9 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             )
 
         # Ensure every recording needed by this split is present in recording_ids.
-        missing_recordings = [rid for rid in self._split_recording_ids if rid not in self.recording_ids]
+        missing_recordings = [
+            rid for rid in self._split_recording_ids if rid not in self.recording_ids
+        ]
         if missing_recordings:
             raise ValueError(
                 self._format_compatibility_error(
@@ -538,7 +538,9 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             elif self.h5_regime not in h5["splits"][self.version][self.label_mode]:
                 issue = f"h5 regime '{self.h5_regime}' unavailable"
             else:
-                regime_group = h5["splits"][self.version][self.label_mode][self.h5_regime]
+                regime_group = h5["splits"][self.version][self.label_mode][
+                    self.h5_regime
+                ]
                 if self.task not in regime_group:
                     issue = f"task '{self.task}' unavailable"
                 elif f"fold{self.fold}" not in regime_group[self.task]:
@@ -547,8 +549,12 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
                 elif split_interval_h5_path not in h5:
                     issue = f"missing split interval path '{split_interval_attr_path}'"
                 # Channel mask key must exist for this exact split/version/task setting.
-                elif "channels" not in h5 or split_channel_mask_key not in h5["channels"]:
-                    issue = f"missing channel mask key 'channels.{split_channel_mask_key}'"
+                elif (
+                    "channels" not in h5 or split_channel_mask_key not in h5["channels"]
+                ):
+                    issue = (
+                        f"missing channel mask key 'channels.{split_channel_mask_key}'"
+                    )
 
         self._RECORDING_COMPAT_ISSUE_CACHE[cache_key] = issue
         return issue
@@ -557,16 +563,24 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         """Validate benchmark-default subject/session eligibility constraints."""
         # Enforce benchmark-allowed target subject/session pairs per version/regime.
         requested_pair = (self.test_subject, self.test_session)
-        if self.version == "lite" and requested_pair not in NEUROPROBE_LITE_SUBJECT_TRIALS:
+        if (
+            self.version == "lite"
+            and requested_pair not in NEUROPROBE_LITE_SUBJECT_TRIALS
+        ):
             raise ValueError(
                 f"Target pair {requested_pair} is not in NEUROPROBE_LITE_SUBJECT_TRIALS."
             )
-        if self.version == "nano" and requested_pair not in NEUROPROBE_NANO_SUBJECT_TRIALS:
+        if (
+            self.version == "nano"
+            and requested_pair not in NEUROPROBE_NANO_SUBJECT_TRIALS
+        ):
             raise ValueError(
                 f"Target pair {requested_pair} is not in NEUROPROBE_NANO_SUBJECT_TRIALS."
             )
         if self.regime == "SS-DM" and self.version == "full":
-            longest_trials = NEUROPROBE_LONGEST_TRIALS_FOR_SUBJECT.get(self.test_subject, [])
+            longest_trials = NEUROPROBE_LONGEST_TRIALS_FOR_SUBJECT.get(
+                self.test_subject, []
+            )
             if len(longest_trials) < 2:
                 raise ValueError(
                     "SS-DM full benchmark-default requires at least two longest trials "
