@@ -520,33 +520,37 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             return self._RECORDING_COMPAT_ISSUE_CACHE[cache_key]
 
         issue: str | None = None
-        with h5py.File(self._dataset_dir / f"{recording_id}.h5", "r") as h5:
-            if "splits" not in h5:
-                issue = "missing 'splits' group"
-            elif self.version not in h5["splits"]:
-                issue = f"version '{self.version}' unavailable"
-            elif self.label_mode not in h5["splits"][self.version]:
-                issue = f"label_mode '{self.label_mode}' unavailable"
-            elif self.h5_regime not in h5["splits"][self.version][self.label_mode]:
-                issue = f"h5 regime '{self.h5_regime}' unavailable"
-            else:
-                regime_group = h5["splits"][self.version][self.label_mode][
-                    self.h5_regime
-                ]
-                if self.task not in regime_group:
-                    issue = f"task '{self.task}' unavailable"
-                elif f"fold{self.fold}" not in regime_group[self.task]:
-                    issue = f"fold{self.fold} unavailable"
-                # Interval path is checked in H5 slash form, but reported in attribute form.
-                elif split_interval_h5_path not in h5:
-                    issue = f"missing split interval path '{split_interval_attr_path}'"
-                # Channel mask key must exist for this exact split/version/task setting.
-                elif (
-                    "channels" not in h5 or split_channel_mask_key not in h5["channels"]
-                ):
-                    issue = (
-                        f"missing channel mask key 'channels.{split_channel_mask_key}'"
-                    )
+        try:
+            with h5py.File(self._dataset_dir / f"{recording_id}.h5", "r") as h5:
+                if "splits" not in h5:
+                    issue = "missing 'splits' group"
+                elif self.version not in h5["splits"]:
+                    issue = f"version '{self.version}' unavailable"
+                elif self.label_mode not in h5["splits"][self.version]:
+                    issue = f"label_mode '{self.label_mode}' unavailable"
+                elif self.h5_regime not in h5["splits"][self.version][self.label_mode]:
+                    issue = f"h5 regime '{self.h5_regime}' unavailable"
+                else:
+                    regime_group = h5["splits"][self.version][self.label_mode][
+                        self.h5_regime
+                    ]
+                    if self.task not in regime_group:
+                        issue = f"task '{self.task}' unavailable"
+                    elif f"fold{self.fold}" not in regime_group[self.task]:
+                        issue = f"fold{self.fold} unavailable"
+                    # Interval path is checked in H5 slash form, but reported in attribute form.
+                    elif split_interval_h5_path not in h5:
+                        issue = (
+                            f"missing split interval path '{split_interval_attr_path}'"
+                        )
+                    # Channel mask key must exist for this exact split/version/task setting.
+                    elif (
+                        "channels" not in h5
+                        or split_channel_mask_key not in h5["channels"]
+                    ):
+                        issue = f"missing channel mask key 'channels.{split_channel_mask_key}'"
+        except (FileNotFoundError, OSError) as exc:
+            issue = f"unable to open H5 file: {exc}"
 
         self._RECORDING_COMPAT_ISSUE_CACHE[cache_key] = issue
         return issue
