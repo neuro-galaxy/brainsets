@@ -9,6 +9,13 @@ on:
 permissions:
   contents: read
 
+env:
+  # Temporary CI override: install torch_brain from this commit because
+  # SEEGDatasetMixin is not yet available on torch_brain main. Revert by
+  # removing TORCH_BRAIN_SHA and the "Override torch_brain to SEEG mixin SHA" step
+  # after torch_brain main includes commit 8aa2335ce76c895d681148c22ef3dc01a2bc6fcc.
+  TORCH_BRAIN_SHA: "8aa2335ce76c895d681148c22ef3dc01a2bc6fcc"
+
 jobs:
   pipeline-testing-matrix:
     runs-on: ubuntu-latest
@@ -32,6 +39,9 @@ jobs:
 
     - name: Install the project
       run: uv sync --all-extras
+
+    - name: Override torch_brain to SEEG mixin SHA
+      run: uv pip install --upgrade "torch_brain @ git+https://github.com/neuro-galaxy/torch_brain.git@${TORCH_BRAIN_SHA}"
 
     - name: Download pei_pandarinath_nlb_2021
       run: |
