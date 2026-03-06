@@ -11,10 +11,13 @@
 from argparse import ArgumentParser
 from pathlib import Path
 import ssl
+import sys
 from urllib.request import urlopen
 
+import json
 import re
 import logging
+
 import mne
 import h5py
 import numpy as np
@@ -22,7 +25,7 @@ import pandas as pd
 from temporaldata import ArrayDict, Data, Interval
 from brainsets import serialize_fn_map
 from brainsets.pipeline import BrainsetPipeline
-from brainsets.taxonomy import RecordingTech, Task
+from brainsets.taxonomy import RecordingTech
 from brainsets.utils.s3_utils import get_cached_s3_client, get_object_list
 from brainsets.utils.split import generate_folds, generate_string_kfold_assignment
 from brainsets.utils.mne_utils import (
@@ -38,23 +41,9 @@ from brainsets.descriptions import (
     DeviceDescription,
 )
 
-PARADIGM_MAP = {
-    # annotation_code: (paradigm_name, task)
-    90: ("Resting Paradigm", Task.RESTING_STATE),
-    91: ("Sequence Learning Paradigm", Task.SEQUENCE_LEARNING),
-    92: ("Symbol Search Paradigm", Task.VISUAL_SEARCH),
-    93: ("Surround Suppression Paradigm Block 1", Task.SURROUND_SUPPRESSION),
-    94: ("Contrast Change Paradigm Block 1", Task.CONTRAST_CHANGE_DETECTION),
-    95: ("Contrast Change Paradigm Block 2", Task.CONTRAST_CHANGE_DETECTION),
-    96: ("Contrast Change Paradigm Block 3", Task.CONTRAST_CHANGE_DETECTION),
-    97: ("Surround Suppression Paradigm Block 2", Task.SURROUND_SUPPRESSION),
-    81: ("Naturalistic Viewing Paradigm Video 1", Task.NATURALISTIC_VIEWING),
-    82: ("Naturalistic Viewing Paradigm Video 2", Task.NATURALISTIC_VIEWING),
-    83: ("Naturalistic Viewing Paradigm Video 3", Task.NATURALISTIC_VIEWING),
-    84: ("Naturalistic Viewing Paradigm Video 4", Task.NATURALISTIC_VIEWING),
-    85: ("Naturalistic Viewing Paradigm Video 5", Task.NATURALISTIC_VIEWING),
-    86: ("Naturalistic Viewing Paradigm Video 6", Task.NATURALISTIC_VIEWING),
-}
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from constants import PARADIGM_MAP  # noqa: E402
+import eyetracking  # noqa: E402
 
 # Metadata files are not hosted in the same s3 bucket as the public data
 # Public data on the 126 subjects
@@ -123,6 +112,7 @@ class Pipeline(BrainsetPipeline):
         s3 = get_cached_s3_client()
 
         manifest_rows = []
+        et_keys_by_subject: dict[str, list[str]] = {}
 
         rel_keys = get_object_list(bucket=cls.bucket, prefix=cls.prefix, s3_client=s3)
 
@@ -135,7 +125,7 @@ class Pipeline(BrainsetPipeline):
 
             rel_parts = rel_path.parts
 
-            # Pattern should be: subject_id/EEG/raw/raw_format/filename
+            # EEG: subject_id/EEG/raw/raw_format/*.raw
             if (
                 len(rel_parts) >= 4
                 and rel_parts[1] == "EEG"
@@ -153,13 +143,29 @@ class Pipeline(BrainsetPipeline):
                     }
                 )
 
+            # ET: subject_id/Eyetracking/txt/*.txt
+            if (
+                len(rel_parts) >= 3
+                and rel_parts[1] == "Eyetracking"
+                and rel_parts[2] == "txt"
+                and filename.endswith(".txt")
+            ):
+                subject_id = rel_parts[0]
+                et_keys_by_subject.setdefault(subject_id, []).append(
+                    cls.prefix + rel_key
+                )
+
+        for row in manifest_rows:
+            et_keys = et_keys_by_subject.get(row["subject_id"], [])
+            row["et_s3_keys"] = json.dumps(et_keys)
+
         manifest = pd.DataFrame(
             manifest_rows,
-            columns=["session_id", "subject_id", "s3_key"],
+            columns=["session_id", "subject_id", "s3_key", "et_s3_keys"],
         ).set_index("session_id")
         return manifest
 
-    def download(self, manifest_item) -> Path:
+    def download(self, manifest_item) -> dict:
         self.update_status("DOWNLOADING")
         s3 = get_cached_s3_client()
 
@@ -167,21 +173,39 @@ class Pipeline(BrainsetPipeline):
         self._download_subject_metadata()
         self._download_channel_location()
 
+        # --- EEG file ---
         s3_key = manifest_item.s3_key
+        eeg_path = self.raw_dir / Path(s3_key).relative_to(self.prefix)
+        eeg_path.parent.mkdir(parents=True, exist_ok=True)
 
-        local_path = self.raw_dir / Path(s3_key).relative_to(self.prefix)
-        local_path.parent.mkdir(parents=True, exist_ok=True)
-
-        if not local_path.exists() or self.args.redownload:
-            self.update_status(f"Downloading: {Path(s3_key).name}")
-            s3.download_file(self.bucket, s3_key, str(local_path))
+        if not eeg_path.exists() or self.args.redownload:
+            self.update_status(f"Downloading EEG: {Path(s3_key).name}")
+            s3.download_file(self.bucket, s3_key, str(eeg_path))
         else:
-            self.update_status(f"Skipping download, file exists: {local_path}")
+            self.update_status(f"Skipping EEG download, exists: {eeg_path}")
 
-        return local_path
+        # --- ET files (shared across sessions for a subject, cached) ---
+        et_dir = None
+        et_s3_keys = json.loads(manifest_item.et_s3_keys)
+        if et_s3_keys:
+            subject_id = manifest_item.subject_id
+            et_dir = self.raw_dir / subject_id / "Eyetracking" / "txt"
+            for et_key in et_s3_keys:
+                et_path = self.raw_dir / Path(et_key).relative_to(self.prefix)
+                et_path.parent.mkdir(parents=True, exist_ok=True)
+                if not et_path.exists() or self.args.redownload:
+                    self.update_status(f"Downloading ET: {Path(et_key).name}")
+                    s3.download_file(self.bucket, et_key, str(et_path))
+        else:
+            logging.warning(
+                f"No ET files available for subject " f"{manifest_item.subject_id}"
+            )
 
-    def process(self, download_output: Path) -> None:
-        raw_path = download_output
+        return {"eeg": eeg_path, "et_dir": et_dir}
+
+    def process(self, download_output: dict) -> None:
+        raw_path = download_output["eeg"]
+        et_dir = download_output.get("et_dir")
 
         self.update_status("PROCESSING")
 
@@ -203,7 +227,7 @@ class Pipeline(BrainsetPipeline):
         )
 
         self.update_status("Loading EEG file")
-        raw = mne.io.read_raw_egi(str(download_output), preload=True, verbose=True)
+        raw = mne.io.read_raw_egi(str(raw_path), preload=True, verbose=True)
         meas_date = extract_measurement_date(raw)
 
         session_description = SessionDescription(
@@ -235,6 +259,8 @@ class Pipeline(BrainsetPipeline):
 
         self.update_status("Extracting annotations")
         annotations = extract_annotations(raw)
+        paradigm_code = None
+        paradigm_name = None
         if len(annotations) > 0:
             first_label = str(annotations.description[0]).strip()
             try:
@@ -250,8 +276,23 @@ class Pipeline(BrainsetPipeline):
             if paradigm_entry is not None:
                 paradigm_name, task = paradigm_entry
                 session_description.task = task
+                paradigm_code = first_code
             else:
                 paradigm_name = str(first_code)
+
+        # --- Eyetracking ---
+        et_data = None
+        if et_dir is not None and paradigm_code is not None:
+            self.update_status(f"Processing eyetracking for paradigm {paradigm_code}")
+            eeg_paradigm_onset_s = float(annotations.start[0])
+            et_data = eyetracking.process(et_dir, paradigm_code, eeg_paradigm_onset_s)
+            if et_data is None:
+                logging.warning(
+                    f"No matching ET data found for paradigm "
+                    f"{paradigm_code} in session {recording_id}"
+                )
+        elif et_dir is None:
+            logging.warning(f"No ET directory for session {recording_id}")
 
         self.update_status("Creating splits")
         splits = create_splits(
@@ -275,6 +316,8 @@ class Pipeline(BrainsetPipeline):
         if len(annotations) > 0:
             data_kwargs["paradigm"] = paradigm_name
             data_kwargs["annotations"] = annotations
+        if et_data is not None:
+            data_kwargs["eyetracking"] = et_data
 
         data = Data(**data_kwargs)
 
