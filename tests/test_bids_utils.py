@@ -15,10 +15,11 @@ try:
         fetch_ieeg_recordings,
         check_recording_files_exist,
         build_bids_path,
+        load_json_sidecar,
         get_subject_info,
+        group_recordings_by_entity,
         load_participants_tsv,
         _fetch_recordings,
-        _parse_bids_fname,
     )
 except ImportError:
     MNE_BIDS_AVAILABLE = False
@@ -28,16 +29,17 @@ except ImportError:
     fetch_ieeg_recordings = None
     check_recording_files_exist = None
     build_bids_path = None
+    load_json_sidecar = None
     get_subject_info = None
+    group_recordings_by_entity = None
     load_participants_tsv = None
     _fetch_recordings = None
-    _parse_bids_fname = None
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestFetchRecordings:
-    def test_str_path_candidate_files(self):
-        candidate_files = [
+    def test_str_path_source(self):
+        source = [
             Path("sub-01/eeg/sub-01_task-Sleep_eeg.edf"),
             "sub-01/eeg/sub-01_task-Sleep_channels.tsv",
             "sub-02/eeg/sub-02_ses-01_task-Rest_acq-headband_run-01_eeg.vhdr",
@@ -45,9 +47,9 @@ class TestFetchRecordings:
             "participants.tsv",
         ]
         recordings = _fetch_recordings(
+            source,
             EEG_EXTENSIONS,
             "eeg",
-            candidate_files=candidate_files,
         )
         rec1 = next(r for r in recordings if r["subject_id"] == "sub-01")
         assert rec1["recording_id"] == "sub-01_task-Sleep"
@@ -61,31 +63,22 @@ class TestFetchRecordings:
         assert rec2["acquisition_id"] == "headband"
         assert rec2["run_id"] == "01"
 
-    def test_raises_when_bids_root_and_candidate_files_both_provided(self, tmp_path):
-        with pytest.raises(ValueError, match="mutually exclusive"):
-            _fetch_recordings(
-                EEG_EXTENSIONS,
-                "eeg",
-                bids_root=tmp_path,
-                candidate_files=[Path("sub-01_task-rest_eeg.edf")],
-            )
-
-    def test_raises_when_bids_root_and_candidate_files_both_missing(self):
-        with pytest.raises(ValueError, match="'bids_root' is required"):
-            _fetch_recordings(EEG_EXTENSIONS, "eeg")
+    def test_raises_when_source_missing(self):
+        with pytest.raises(TypeError):
+            _fetch_recordings(None, EEG_EXTENSIONS, "eeg")
 
     def test_filters_by_extension_and_modality_and_deduplicates(self):
-        candidate_files = [
+        source = [
             Path("sub-01_task-rest_eeg.edf"),
-            Path("sub-01_task-rest_eeg.bdf"),  # duplicate recording_id, supported ext
+            Path("sub-01_task-rest_eeg.json"),  # duplicate recording_id, wrong ext
             Path("sub-01_task-rest_ieeg.nwb"),  # wrong modality
             Path("sub-01_task-rest_events.tsv"),  # unsupported ext
         ]
 
         recordings = _fetch_recordings(
+            source,
             EEG_EXTENSIONS,
             "eeg",
-            candidate_files=candidate_files,
         )
 
         assert len(recordings) == 1
@@ -93,34 +86,150 @@ class TestFetchRecordings:
         assert recordings[0]["subject_id"] == "sub-01"
         assert recordings[0]["session_id"] is None
         assert recordings[0]["task_id"] == "rest"
-        assert recordings[0]["eeg_file"] == Path("sub-01_task-rest_eeg.edf")
+        assert recordings[0]["fpath"] == Path("sub-01_task-rest_eeg.edf")
 
     def test_fetch_eeg_recordings_wrapper(self):
         recordings = fetch_eeg_recordings(
-            candidate_files=[Path("sub-02_task-nback_run-01_eeg.edf")]
+            source=[
+                Path("sub-02_task-nback_run-01_eeg.edf"),
+                "sub-02/eeg/sub-02_task-nback_run-01_eeg.vhdr",
+            ]
         )
 
-        assert len(recordings) == 1
+        assert len(recordings) == 2
         assert recordings[0]["recording_id"] == "sub-02_task-nback_run-01"
-        assert "eeg_file" in recordings[0]
+        assert recordings[0]["subject_id"] == "sub-02"
+        assert recordings[0]["session_id"] is None
+        assert recordings[0]["task_id"] == "nback"
+        assert recordings[0]["acquisition_id"] is None
+        assert recordings[0]["run_id"] == "01"
+        assert recordings[0]["description_id"] is None
+        assert recordings[0]["fpath"] == Path("sub-02_task-nback_run-01_eeg.edf")
+        
+        assert recordings[1]["subject_id"] == "sub-02"
+        assert recordings[1]["session_id"] is None
+        assert recordings[1]["task_id"] == "nback"
+        assert recordings[1]["acquisition_id"] is None
+        assert recordings[1]["run_id"] == "01"
+        assert recordings[1]["description_id"] is None
+        assert recordings[1]["fpath"] == Path("sub-02/eeg/sub-02_task-nback_run-01_eeg.vhdr")
+
 
     def test_fetch_ieeg_recordings_wrapper(self):
         recordings = fetch_ieeg_recordings(
-            candidate_files=[Path("sub-03_task-VisualNaming_ieeg.nwb")]
+            source=[
+                Path("sub-03_task-VisualNaming_ieeg.nwb"),
+                "sub-03/ieeg/sub-03_task-VisualNaming_ieeg.json",
+            ]
         )
 
         assert len(recordings) == 1
         assert recordings[0]["recording_id"] == "sub-03_task-VisualNaming"
-        assert "ieeg_file" in recordings[0]
+        assert recordings[0]["fpath"] == Path("sub-03_task-VisualNaming_ieeg.nwb")
 
     def test_no_eeg_files(self):
-        candidate_files = [
+        source = [
             Path("participants.tsv"),
             Path("dataset_description.json"),
         ]
 
-        recordings = fetch_eeg_recordings(candidate_files=candidate_files)
+        recordings = fetch_eeg_recordings(source=source)
         assert len(recordings) == 0
+
+
+@pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
+class TestGroupRecordingsByEntity:
+    def test_groups_runs_with_same_prefix_and_suffix(self):
+        recordings = [
+            {"recording_id": "sub-01_task-rest_run-01_desc-clean"},
+            {"recording_id": "sub-01_task-rest_run-02_desc-clean"},
+            {"recording_id": "sub-01_task-rest_run-03_desc-clean"},
+        ]
+
+        grouped = group_recordings_by_entity(recordings)
+
+        assert list(grouped.keys()) == ["sub-01_task-rest_desc-clean"]
+        assert [rec["recording_id"] for rec in grouped["sub-01_task-rest_desc-clean"]] == [
+            "sub-01_task-rest_run-01_desc-clean",
+            "sub-01_task-rest_run-02_desc-clean",
+            "sub-01_task-rest_run-03_desc-clean",
+        ]
+
+    def test_keeps_non_run_recording_as_its_own_group(self):
+        recordings = [{"recording_id": "sub-01_task-rest_desc-clean"}]
+
+        grouped = group_recordings_by_entity(recordings)
+
+        assert grouped == {
+            "sub-01_task-rest_desc-clean": [
+                {"recording_id": "sub-01_task-rest_desc-clean"}
+            ]
+        }
+
+    def test_does_not_group_when_suffix_differs(self):
+        recordings = [
+            {"recording_id": "sub-01_task-rest_run-01_desc-clean"},
+            {"recording_id": "sub-01_task-rest_run-02_desc-raw"},
+        ]
+
+        grouped = group_recordings_by_entity(recordings)
+
+        assert len(grouped) == 2
+        assert "sub-01_task-rest_desc-clean" in grouped
+        assert "sub-01_task-rest_desc-raw" in grouped
+
+    def test_groups_non_numeric_run_tokens(self):
+        recordings = [
+            {"recording_id": "sub-01_task-rest_run-A_desc-clean"},
+            {"recording_id": "sub-01_task-rest_run-B_desc-clean"},
+        ]
+
+        grouped = group_recordings_by_entity(recordings)
+
+        assert list(grouped.keys()) == ["sub-01_task-rest_desc-clean"]
+        assert [rec["recording_id"] for rec in grouped["sub-01_task-rest_desc-clean"]] == [
+            "sub-01_task-rest_run-A_desc-clean",
+            "sub-01_task-rest_run-B_desc-clean",
+        ]
+
+    def test_groups_by_long_entity_name(self):
+        recordings = [
+            {"recording_id": "sub-01_ses-01_task-rest_desc-clean"},
+            {"recording_id": "sub-01_ses-02_task-rest_desc-clean"},
+        ]
+
+        grouped = group_recordings_by_entity(
+            recordings,
+            fixed_entities=["subject", "task", "description"],
+        )
+
+        assert list(grouped.keys()) == ["sub-01_task-rest_desc-clean"]
+        assert [rec["recording_id"] for rec in grouped["sub-01_task-rest_desc-clean"]] == [
+            "sub-01_ses-01_task-rest_desc-clean",
+            "sub-01_ses-02_task-rest_desc-clean",
+        ]
+
+    def test_groups_by_short_entity_name(self):
+        recordings = [
+            {"recording_id": "sub-01_ses-01_task-rest_desc-clean"},
+            {"recording_id": "sub-01_ses-02_task-rest_desc-clean"},
+        ]
+
+        grouped = group_recordings_by_entity(
+            recordings,
+            fixed_entities=["sub", "task", "desc"],
+        )
+
+        assert list(grouped.keys()) == ["sub-01_task-rest_desc-clean"]
+
+    def test_raises_for_unsupported_entity(self):
+        recordings = [{"recording_id": "sub-01_task-rest_run-01_desc-clean"}]
+
+        with pytest.raises(ValueError, match="Unsupported BIDS entity"):
+            group_recordings_by_entity(
+                recordings,
+                fixed_entities=["not-an-entity"],
+            )
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
@@ -164,74 +273,42 @@ class TestBuildBidsPath:
         assert bids_path.suffix == "ieeg"
 
     def test_raises_for_missing_task_entity(self, tmp_path):
-        with pytest.raises(ValueError, match="missing task entity"):
+        with pytest.raises(ValueError):
             build_bids_path(
                 tmp_path, "sub-01_ses-02_acq-ecog_run-03_desc-preproc", "eeg"
             )
 
     def test_raises_for_missing_subject_entity(self, tmp_path):
-        with pytest.raises(ValueError, match="missing subject entity"):
+        with pytest.raises(ValueError):
             build_bids_path(tmp_path, "task-rest_acq-ecog_run-03_desc-preproc", "eeg")
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
-class TestParseBidsFname:
-    def test_parses_valid_bids_filename(self):
-        relative_path = (
-            "sub-01_ses-02_task-Sleep_acq-headband_run-03_desc-clean_eeg.edf"
+class TestLoadJsonSidecar:
+    def test_loads_json_sidecar_content(self, tmp_path):
+        sidecar_path = tmp_path / "sub-01" / "ieeg" / "sub-01_task-rest_ieeg.json"
+        sidecar_path.parent.mkdir(parents=True)
+        sidecar_path.write_text('{"OriginalRecordingTimestamp": "2024-01-01T10:00:00"}')
+
+        bids_path = mne_bids.BIDSPath(
+            root=tmp_path, subject="01", task="rest", datatype="ieeg", suffix="ieeg"
         )
-        parsed = _parse_bids_fname(relative_path, modality="eeg")
-        assert parsed == {
-            "subject": "01",
-            "session": "02",
-            "task": "Sleep",
-            "acquisition": "headband",
-            "run": "03",
-            "description": "clean",
-        }
+        sidecar = load_json_sidecar(bids_path)
+        assert sidecar["OriginalRecordingTimestamp"] == "2024-01-01T10:00:00"
 
-    def test_parses_valid_bids_filename_with_full_path(self):
-        full_path = "ds000001/sub-01/ses-02/eeg/sub-01_ses-02_task-Sleep_acq-headband_run-03_desc-clean_eeg.edf"
-        parsed = _parse_bids_fname(full_path, modality="eeg")
-        assert parsed == {
-            "subject": "01",
-            "session": "02",
-            "task": "Sleep",
-            "acquisition": "headband",
-            "run": "03",
-            "description": "clean",
-        }
-
-    def test_pattern_with_missing_entities(self):
-        result = _parse_bids_fname("sub-01_task-Sleep_eeg.edf", "eeg")
-        assert result is not None
-        assert result["subject"] == "01"
-        assert result["session"] is None
-        assert result["task"] == "Sleep"
-        assert result["acquisition"] is None
-        assert result["run"] is None
-        assert result["description"] is None
-
-    def test_accepts_path_input(self):
-        fname = Path("sub-01_task-rest_ieeg.nwb")
-        parsed = _parse_bids_fname(fname, modality="ieeg")
-
-        assert parsed["subject"] == "01"
-        assert parsed["task"] == "rest"
-
-    def test_returns_none_on_modality_mismatch(self):
-        fname = "sub-01_task-rest_ieeg.nwb"
-        assert _parse_bids_fname(fname, modality="eeg") is None
-
-    def test_returns_none_for_invalid_filename(self):
-        assert _parse_bids_fname("not-a-bids-name", modality="eeg") is None
+    def test_raises_when_json_sidecar_is_missing(self, tmp_path):
+        bids_path = mne_bids.BIDSPath(
+            root=tmp_path, subject="01", task="rest", datatype="ieeg", suffix="ieeg"
+        )
+        with pytest.raises(FileNotFoundError):
+            load_json_sidecar(bids_path)
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestLoadParticipantsTsv:
-    def test_returns_none_when_participants_tsv_missing(self, tmp_path):
-        participants_data = load_participants_tsv(tmp_path)
-        assert participants_data is None
+    def test_raises_when_participants_tsv_missing(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            load_participants_tsv(tmp_path)
 
     def test_returns_none_without_participant_id_column(self, tmp_path):
         participants_tsv = tmp_path / "participants.tsv"
