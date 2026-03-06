@@ -7,8 +7,12 @@ MNE Raw objects and convert them to brainsets data structures.
 import datetime
 import warnings
 import numpy as np
-from typing import Tuple
-from temporaldata import ArrayDict, Interval, RegularTimeSeries
+from typing import Tuple, Literal
+from temporaldata import (
+    ArrayDict,
+    Interval,
+    RegularTimeSeries,
+)
 from pathlib import Path
 import logging
 
@@ -51,38 +55,188 @@ def extract_measurement_date(
     return datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 
 
-def extract_eeg_signal(
-    recording_data: "mne.io.Raw",
-) -> RegularTimeSeries:
-    """Extract the EEG signal as a RegularTimeSeries from MNE Raw data.
+def concatenate_recordings(
+    recordings: list["mne.io.Raw"],
+    on_mismatch: Literal["ignore", "warn", "raise"] = "raise",
+) -> "mne.io.Raw":
+    """Concatenate a list of MNE Raw objects into a single MNE Raw object.
+
+    This function concatenates multiple MNE Raw recordings in temporal order (sorted by
+    measurement date). Before concatenation, it validates that all recordings have:
+    - identical measurement dates (raw.info["meas_date"]),
+    - identical channel names and order.
+
+    The function then normalizes each recording's timeline so that its first sample
+    corresponds to its measurement date, then concatenates them chronologically.
 
     Args:
-        recording_data: The MNE Raw object containing EEG data
+        recordings: A list of MNE Raw objects to concatenate.
+        on_mismatch: How to handle mismatches in measurement date or channels.
+            - "raise": raise ValueError on any mismatch (default),
+            - "warn": issue a warning and continue,
+            - "ignore": silently continue with mismatches.
 
     Returns:
-        RegularTimeSeries object with the EEG signal
+        A single MNE Raw object containing the concatenated recordings in temporal order.
+
+    Raises:
+        ImportError: If MNE is not installed.
+        ValueError: If recordings list is empty, contains non-Raw objects, on_mismatch
+            is invalid, or (if on_mismatch="raise") mismatches are detected.
+    """
+    _check_mne_available("concatenate_recordings")
+
+    if not recordings:
+        raise ValueError("Recordings list cannot be empty")
+
+    if not isinstance(recordings, list):
+        raise ValueError("Recordings must be a list")
+
+    valid_policies = {"ignore", "warn", "raise"}
+    if on_mismatch not in valid_policies:
+        raise ValueError(
+            f"on_mismatch must be one of {valid_policies}, got '{on_mismatch}'"
+        )
+
+    for idx, rec in enumerate(recordings):
+        if not hasattr(rec, "info") or not hasattr(rec, "ch_names"):
+            raise ValueError(
+                f"Recordings[{idx}] is not an MNE Raw-like object "
+                "(missing 'info' or 'ch_names' attributes)"
+            )
+
+    # Validate that all recordings have the same measurement date
+    mismatch_messages = []
+    meas_dates = [rec.info["meas_date"] for rec in recordings]
+    meas_days = [
+        d.date() if hasattr(d, "date") and d is not None else None
+        for d in meas_dates
+    ]
+    if len(set(meas_days)) > 1:
+        mismatch_messages.append(
+            f"Measurement days are not uniform: {meas_days} (full datetimes: {meas_dates})"
+        )
+
+    # Validate that all recordings have the same channel names and order
+    ch_names_list = [tuple(rec.ch_names) for rec in recordings]
+    if len(set(ch_names_list)) > 1:
+        mismatch_details = []
+        for idx, ch_names in enumerate(ch_names_list):
+            mismatch_details.append(f"Recording {idx}: {ch_names}")
+        mismatch_message = (
+            "Mismatch in channel names and/or order across recordings.\n"
+            "Each tuple below shows the channel names for one recording in the given order:\n"
+            + "\n".join(mismatch_details) +
+            "\n"
+            "All recordings must have identical channel lists and order for concatenation."
+        )
+        mismatch_messages.append(mismatch_message)
+
+    if mismatch_messages:
+        full_message = "; ".join(mismatch_messages)
+        if on_mismatch == "raise":
+            raise ValueError(full_message)
+        elif on_mismatch == "warn":
+            warnings.warn(full_message)
+
+    # Sort recordings by measurement date
+    indexed_recordings = [
+        (idx, rec, meas_dates[idx]) for idx, rec in enumerate(recordings)
+    ]
+    sorted_recordings = sorted(
+        indexed_recordings, key=lambda x: x[2] if x[2] is not None else datetime.datetime.min
+    )
+
+    copies = []
+    for _, rec, _ in sorted_recordings:
+        copies.append(rec.copy())
+
+    concatenated = mne.concatenate_raws(copies)
+    
+    return concatenated
+
+
+def extract_signal(
+    recording_data: "mne.io.Raw",
+) -> RegularTimeSeries:
+    """Extract signal from MNE Raw data as a RegularTimeSeries.
+
+    Args:
+        recording_data: The MNE Raw object containing signal data
+
+    Returns:
+        RegularTimeSeries object with the signal data
 
     Raises:
         ImportError: If MNE is not installed.
     """
-    _check_mne_available("extract_eeg_signal")
+    _check_mne_available("extract_signal")
+        
     sfreq = recording_data.info["sfreq"]
-    eeg_signal = recording_data.get_data().T
-    if len(eeg_signal) == 0:
+    signal = recording_data.get_data().T
+    if len(signal) == 0:
         raise ValueError("Recording contains no samples")
 
     return RegularTimeSeries(
-        signal=eeg_signal,
+        signal=signal,
         sampling_rate=sfreq,
         domain=Interval(
             start=np.array([0.0]),
-            end=np.array([(len(eeg_signal) - 1) / sfreq]),
+            end=np.array([(len(signal) - 1) / sfreq]),
         ),
     )
 
 
+def has_consecutive_time_points(
+    raw: "mne.io.Raw",
+    tolerance: float = 1e-6,
+) -> bool:
+    """Verify whether a raw object has consecutive time points based on sampling frequency.
+
+    This function checks if the time points in a recording are evenly spaced according to
+    the sampling frequency. It detects gaps, duplicates, or irregularities in the temporal
+    sampling by comparing expected time intervals (based on sampling rate) with actual intervals.
+
+    Args:
+        raw: The MNE Raw object to verify
+        tolerance: Relative tolerance for comparing time intervals. The expected interval
+            (1/sfreq) is compared to actual intervals, and they are considered equal if:
+            |actual - expected| / expected <= tolerance. Defaults to 1e-6 (0.0001% tolerance).
+
+    Returns:
+        True if all time points are consecutive with uniform spacing according to sampling
+        frequency; False if gaps, duplicates, or irregular spacing are detected.
+
+    Raises:
+        ImportError: If MNE is not installed.
+        ValueError: If the recording contains fewer than 2 samples.
+
+    Examples:
+        >>> raw = mne.io.read_raw_edf('recording.edf')
+        >>> is_consecutive = has_consecutive_time_points(raw)
+        >>> if not is_consecutive:
+        ...     print("Recording has gaps or irregular sampling")
+    """
+    _check_mne_available("has_consecutive_time_points")
+
+    n_samples = raw.n_times
+    if n_samples < 2:
+        raise ValueError("Recording must contain at least 2 samples to verify consecutiveness")
+
+    sfreq = raw.info["sfreq"]
+    expected_interval = 1.0 / sfreq
+
+    times = raw.times
+    actual_intervals = np.diff(times)
+
+    max_deviation = np.max(np.abs(actual_intervals - expected_interval))
+    relative_max_deviation = max_deviation / expected_interval
+
+    return relative_max_deviation <= tolerance
+
+
 def extract_channels(
-    recording_data: mne.io.Raw,
+    recording_data: "mne.io.Raw",
     channels_name_mapping: dict[str, str] | None = None,
     channels_type_mapping: dict[str, list[str]] | None = None,
 ) -> ArrayDict:
@@ -151,10 +305,7 @@ def extract_channels(
             status[idx] = "bad"
 
     # coordinate extraction from montage (x, y, z in meters)
-    x_coords = np.full(channel_count, np.nan)
-    y_coords = np.full(channel_count, np.nan)
-    z_coords = np.full(channel_count, np.nan)
-
+    coords_arr = np.full((channel_count, 3), np.nan)
     try:
         montage = recording_data.get_montage()
         if montage is not None:
@@ -164,9 +315,9 @@ def extract_channels(
                 for idx, ch_name in enumerate(channel_ids):
                     if ch_name in ch_pos:
                         coords = ch_pos[ch_name]
-                        x_coords[idx] = float(coords[0])
-                        y_coords[idx] = float(coords[1])
-                        z_coords[idx] = float(coords[2])
+                        coords_arr[idx, 0] = float(coords[0])
+                        coords_arr[idx, 1] = float(coords[1])
+                        coords_arr[idx, 2] = float(coords[2])
     except Exception as e:
         logging.warning(f"Could not extract channel coordinates: {e}")
 
@@ -175,12 +326,8 @@ def extract_channels(
         "type": channel_types,
         "status": status,
     }
-    if not np.all(np.isnan(x_coords)):
-        channel_fields["x"] = x_coords
-    if not np.all(np.isnan(y_coords)):
-        channel_fields["y"] = y_coords
-    if not np.all(np.isnan(z_coords)):
-        channel_fields["z"] = z_coords
+    if not np.all(np.isnan(coords_arr)):
+        channel_fields["coords"] = coords_arr
 
     return ArrayDict(**channel_fields)
 

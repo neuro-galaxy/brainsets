@@ -12,6 +12,7 @@ try:
         extract_eeg_signal,
         extract_channels,
         extract_psg_signal,
+        concatenate_recordings,
     )
     from temporaldata import ArrayDict
 except ImportError:
@@ -21,6 +22,7 @@ except ImportError:
     extract_eeg_signal = None
     extract_channels = None
     extract_psg_signal = None
+    concatenate_recordings = None
 
 
 def create_mock_raw(
@@ -342,6 +344,177 @@ class TestExtractPSGSignal:
         assert np.isclose(signals.domain.end, times[-1])
 
 
+@pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
+class TestConcatenateRecordings:
+    def test_empty_list_raises_error(self):
+        with pytest.raises(ValueError, match="recordings list cannot be empty"):
+            concatenate_recordings([])
+
+    def test_invalid_policy_raises_error(self):
+        mock_raw = create_mock_raw()
+        with pytest.raises(ValueError, match="on_mismatch must be one of"):
+            concatenate_recordings([mock_raw], on_mismatch="invalid")
+
+    def test_non_list_input_raises_error(self):
+        mock_raw = create_mock_raw()
+        with pytest.raises(ValueError, match="recordings must be a list"):
+            concatenate_recordings(mock_raw)
+
+    def test_non_raw_object_raises_error(self):
+        with pytest.raises(ValueError, match="is not an MNE Raw-like object"):
+            concatenate_recordings([{"not": "raw"}])
+
+    def test_single_recording_concatenates(self):
+        meas_date = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        mock_raw = create_mock_raw(n_channels=3, n_samples=1000, meas_date=meas_date)
+        mock_raw.copy.return_value = mock_raw
+
+        with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
+            mock_concat.return_value = mock_raw
+            result = concatenate_recordings([mock_raw])
+            mock_concat.assert_called_once()
+            assert result == mock_raw
+
+    def test_multiple_recordings_same_meas_date_concatenates(self):
+        meas_date = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        mock_raw1 = create_mock_raw(n_channels=3, n_samples=1000, meas_date=meas_date)
+        mock_raw2 = create_mock_raw(n_channels=3, n_samples=1000, meas_date=meas_date)
+        mock_raw1.copy.return_value = mock_raw1
+        mock_raw2.copy.return_value = mock_raw2
+
+        with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
+            mock_result = MagicMock()
+            mock_concat.return_value = mock_result
+            result = concatenate_recordings([mock_raw1, mock_raw2])
+            mock_concat.assert_called_once()
+            # Verify copies were passed to concatenate_raws
+            call_args = mock_concat.call_args[0][0]
+            assert len(call_args) == 2
+            assert result == mock_result
+
+    def test_recordings_sorted_by_meas_date(self):
+        date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        date2 = datetime.datetime(2023, 6, 15, 11, 0, 0, tzinfo=datetime.timezone.utc)
+        date3 = datetime.datetime(2023, 6, 15, 9, 30, 0, tzinfo=datetime.timezone.utc)
+
+        mock_raw1 = create_mock_raw(n_channels=3, n_samples=500, meas_date=date1)
+        mock_raw2 = create_mock_raw(n_channels=3, n_samples=500, meas_date=date2)
+        mock_raw3 = create_mock_raw(n_channels=3, n_samples=500, meas_date=date3)
+
+        mock_raw1.copy.return_value = mock_raw1
+        mock_raw2.copy.return_value = mock_raw2
+        mock_raw3.copy.return_value = mock_raw3
+
+        with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
+            mock_result = MagicMock()
+            mock_concat.return_value = mock_result
+            # Pass them in non-chronological order: date1, date2, date3
+            result = concatenate_recordings([mock_raw1, mock_raw2, mock_raw3])
+
+            # Verify they were sorted before concatenation: date3, date1, date2
+            call_args = mock_concat.call_args[0][0]
+            assert call_args[0] == mock_raw3
+            assert call_args[1] == mock_raw1
+            assert call_args[2] == mock_raw2
+
+    def test_different_meas_dates_raise_with_raise_policy(self):
+        date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        date2 = datetime.datetime(2023, 6, 15, 11, 0, 0, tzinfo=datetime.timezone.utc)
+
+        mock_raw1 = create_mock_raw(meas_date=date1)
+        mock_raw2 = create_mock_raw(meas_date=date2)
+
+        with pytest.raises(ValueError, match="Measurement dates are not uniform"):
+            concatenate_recordings([mock_raw1, mock_raw2], on_mismatch="raise")
+
+    def test_different_meas_dates_warn_with_warn_policy(self):
+        date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        date2 = datetime.datetime(2023, 6, 15, 11, 0, 0, tzinfo=datetime.timezone.utc)
+
+        mock_raw1 = create_mock_raw(meas_date=date1)
+        mock_raw2 = create_mock_raw(meas_date=date2)
+        mock_raw1.copy.return_value = mock_raw1
+        mock_raw2.copy.return_value = mock_raw2
+
+        with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
+            mock_concat.return_value = MagicMock()
+            with pytest.warns(UserWarning, match="Measurement dates are not uniform"):
+                concatenate_recordings([mock_raw1, mock_raw2], on_mismatch="warn")
+
+    def test_different_meas_dates_ignore_with_ignore_policy(self):
+        date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        date2 = datetime.datetime(2023, 6, 15, 11, 0, 0, tzinfo=datetime.timezone.utc)
+
+        mock_raw1 = create_mock_raw(meas_date=date1)
+        mock_raw2 = create_mock_raw(meas_date=date2)
+        mock_raw1.copy.return_value = mock_raw1
+        mock_raw2.copy.return_value = mock_raw2
+
+        with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
+            mock_concat.return_value = MagicMock()
+            concatenate_recordings([mock_raw1, mock_raw2], on_mismatch="ignore")
+            mock_concat.assert_called_once()
+
+    def test_different_channel_names_raise_with_raise_policy(self):
+        meas_date = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        mock_raw1 = create_mock_raw(ch_names=["CH0", "CH1", "CH2"], meas_date=meas_date)
+        mock_raw2 = create_mock_raw(ch_names=["CH0", "CH1", "CH3"], meas_date=meas_date)
+
+        with pytest.raises(ValueError, match="Channel names/order differ"):
+            concatenate_recordings([mock_raw1, mock_raw2], on_mismatch="raise")
+
+    def test_different_channel_names_warn_with_warn_policy(self):
+        meas_date = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        mock_raw1 = create_mock_raw(ch_names=["CH0", "CH1", "CH2"], meas_date=meas_date)
+        mock_raw2 = create_mock_raw(ch_names=["CH0", "CH1", "CH3"], meas_date=meas_date)
+        mock_raw1.copy.return_value = mock_raw1
+        mock_raw2.copy.return_value = mock_raw2
+
+        with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
+            mock_concat.return_value = MagicMock()
+            with pytest.warns(UserWarning, match="Channel names/order differ"):
+                concatenate_recordings([mock_raw1, mock_raw2], on_mismatch="warn")
+
+    def test_different_channel_names_ignore_with_ignore_policy(self):
+        meas_date = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        mock_raw1 = create_mock_raw(ch_names=["CH0", "CH1", "CH2"], meas_date=meas_date)
+        mock_raw2 = create_mock_raw(ch_names=["CH0", "CH1", "CH3"], meas_date=meas_date)
+        mock_raw1.copy.return_value = mock_raw1
+        mock_raw2.copy.return_value = mock_raw2
+
+        with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
+            mock_concat.return_value = MagicMock()
+            concatenate_recordings([mock_raw1, mock_raw2], on_mismatch="ignore")
+            mock_concat.assert_called_once()
+
+    def test_default_policy_is_raise(self):
+        date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        date2 = datetime.datetime(2023, 6, 15, 11, 0, 0, tzinfo=datetime.timezone.utc)
+        mock_raw1 = create_mock_raw(meas_date=date1)
+        mock_raw2 = create_mock_raw(meas_date=date2)
+
+        with pytest.raises(ValueError):
+            concatenate_recordings([mock_raw1, mock_raw2])
+
+    def test_concatenate_raws_called_with_copies(self):
+        meas_date = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        mock_raw1 = create_mock_raw(meas_date=meas_date)
+        mock_raw2 = create_mock_raw(meas_date=meas_date)
+
+        mock_copy1 = MagicMock()
+        mock_copy2 = MagicMock()
+        mock_raw1.copy.return_value = mock_copy1
+        mock_raw2.copy.return_value = mock_copy2
+
+        with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
+            mock_concat.return_value = MagicMock()
+            concatenate_recordings([mock_raw1, mock_raw2])
+
+            call_args = mock_concat.call_args[0][0]
+            assert mock_copy1 in call_args
+            assert mock_copy2 in call_args
+
+
 class TestCheckMneAvailable:
     """Test the _check_mne_available function when MNE is not available."""
 
@@ -384,3 +557,13 @@ class TestCheckMneAvailable:
             ImportError, match="extract_psg_signal requires the MNE library"
         ):
             extract_psg_signal(mock_raw)
+
+    @patch("brainsets.utils.mne_utils.MNE_AVAILABLE", False)
+    def test_concatenate_recordings_raises_mne_import_error(self):
+        from brainsets.utils.mne_utils import concatenate_recordings
+
+        mock_raw = MagicMock()
+        with pytest.raises(
+            ImportError, match="concatenate_recordings requires the MNE library"
+        ):
+            concatenate_recordings([mock_raw])
