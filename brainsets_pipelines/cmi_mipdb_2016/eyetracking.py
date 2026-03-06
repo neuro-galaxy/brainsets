@@ -17,13 +17,13 @@ from temporaldata import Data, IrregularTimeSeries
 from constants import PARADIGM_MAP, SAMPLES_COLUMNS
 
 
-def _parse_user_events(events_path: Path) -> list[tuple[int, str]]:
-    """Read all UserEvent lines from an ET Events file.
+def _parse_user_events_from_file(path: Path) -> list[tuple[int, str]]:
+    """Read all UserEvent lines from an ET file (Events or Samples).
 
     Returns list of (timestamp_µs, description) tuples.
     """
     user_events = []
-    with open(events_path, errors="replace") as f:
+    with open(path, errors="replace") as f:
         for line in f:
             if line.startswith("UserEvent"):
                 parts = line.strip().split("\t")
@@ -74,59 +74,88 @@ def _identify_segments(user_events: list[tuple[int, str]]) -> list[dict]:
     return segments
 
 
-def _find_resting_in_vis_learn(et_dir: Path) -> dict | None:
-    """Locate the resting-paradigm ET segment in ``*_vis_learn`` files.
-
-    The eye-tracking data for the resting paradigm are stored in the eye-tracking
-    data files of the Sequence Learning paradigm (code 90).
-    """
-    for events_path in sorted(et_dir.glob("*vis_learn Events.txt")):
-        samples_path = events_path.parent / events_path.name.replace(
-            " Events.txt", " Samples.txt"
-        )
-        if not samples_path.exists():
-            continue
-
-        user_events = _parse_user_events(events_path)
-        recording_starts = [
-            ts for ts, desc in user_events if "start_eye_recording" in desc
-        ]
-
-        if len(recording_starts) >= 2:
-            return {
-                "events_path": events_path,
-                "samples_path": samples_path,
-                "code": 90,
-                "paradigm_ts": recording_starts[0],
-                "start_ts": recording_starts[0],
-                "end_ts": recording_starts[1],
-            }
-    return None
+def _et_file_base(path: Path) -> str:
+    """Return the base name of an ET file (without ' Events.txt' or ' Samples.txt')."""
+    name = path.name
+    for suffix in (" Events.txt", " Samples.txt"):
+        if name.endswith(suffix):
+            return name[: -len(suffix)]
+    return path.stem
 
 
-def find_paradigm_segment(et_dir: Path, paradigm_code: int) -> dict | None:
-    """Scan ET Events files in *et_dir* for a segment matching *paradigm_code*.
+def build_et_index(et_dir: Path) -> list[dict]:
+    """Build a unified index of all eyetracking data from all files (Samples and Events).
 
-    Returns a dict with keys ``events_path``, ``samples_path``, ``code``,
-    ``paradigm_ts``, ``start_ts``, ``end_ts`` — or ``None``.
+    Returns a list of dicts, one per ET "base" (logical file pair). Each dict has:
+    - ``base_id``: str
+    - ``samples_path``: Path | None
+    - ``events_path``: Path | None
+    - ``segments``: list of segment dicts (code, paradigm_ts, start_ts, end_ts)
     """
     if not et_dir or not et_dir.exists():
-        return None
+        return []
 
-    events_files = sorted(et_dir.glob("* Events.txt"))
+    bases: dict[str, dict[str, Path | None]] = {}
+    for path in et_dir.glob("* Samples.txt"):
+        base = _et_file_base(path)
+        bases.setdefault(base, {"samples_path": None, "events_path": None})
+        bases[base]["samples_path"] = path
+    for path in et_dir.glob("* Events.txt"):
+        base = _et_file_base(path)
+        bases.setdefault(base, {"samples_path": None, "events_path": None})
+        bases[base]["events_path"] = path
 
-    for events_path in events_files:
-        samples_path = events_path.parent / events_path.name.replace(
-            " Events.txt", " Samples.txt"
-        )
-        if not samples_path.exists():
-            logging.warning(f"Missing Samples file for {events_path.name}")
+    index: list[dict] = []
+    for base_id in sorted(bases.keys()):
+        entry = bases[base_id]
+        samples_path = entry["samples_path"]
+        events_path = entry["events_path"]
+
+        if events_path is not None and events_path.exists():
+            user_events = _parse_user_events_from_file(events_path)
+        elif samples_path is not None and samples_path.exists():
+            user_events = _parse_user_events_from_file(samples_path)
+        else:
             continue
 
-        user_events = _parse_user_events(events_path)
-        segments = _identify_segments(user_events)
+        if not user_events:
+            continue
 
-        for seg in segments:
+        segments = _identify_segments(user_events)
+        index.append(
+            {
+                "base_id": base_id,
+                "samples_path": (
+                    samples_path if samples_path and samples_path.exists() else None
+                ),
+                "events_path": (
+                    events_path if events_path and events_path.exists() else None
+                ),
+                "segments": segments,
+            }
+        )
+
+    return index
+
+
+def find_paradigm_segment(
+    et_dir: Path,
+    paradigm_code: int,
+    index: list[dict] | None = None,
+) -> dict | None:
+    """Find an ET segment for *paradigm_code* from the unified ET index.
+
+    Returns a dict with keys ``events_path`` (optional), ``samples_path`` (optional),
+    ``code``, ``paradigm_ts``, ``start_ts``, ``end_ts``. Paths are None when that
+    file is not present for this segment.
+    """
+    if index is None:
+        index = build_et_index(et_dir)
+
+    for entry in index:
+        samples_path = entry["samples_path"]
+        events_path = entry["events_path"]
+        for seg in entry["segments"]:
             if seg["code"] == paradigm_code:
                 return {
                     "events_path": events_path,
@@ -134,15 +163,7 @@ def find_paradigm_segment(et_dir: Path, paradigm_code: int) -> dict | None:
                     **seg,
                 }
 
-    if paradigm_code == 90:
-        return _find_resting_in_vis_learn(et_dir)
-
     return None
-
-
-# ======================================================================
-# Timestamp conversion
-# ======================================================================
 
 
 def _convert_timestamp(
@@ -154,11 +175,6 @@ def _convert_timestamp(
     return (
         np.asarray(t_us, dtype=np.float64) - paradigm_ts_us
     ) / 1_000_000.0 + eeg_paradigm_onset_s
-
-
-# ======================================================================
-# File parsers
-# ======================================================================
 
 
 def parse_samples(
@@ -349,24 +365,18 @@ def parse_events(
     return result
 
 
-# ======================================================================
-# Public entry point
-# ======================================================================
-
-
 def process(
     et_dir: Path,
     paradigm_code: int,
     eeg_paradigm_onset_s: float,
 ) -> Data | None:
-    """Build an eyetracking ``Data`` for a single paradigm.
+    """Build an eyetracking ``Data`` for a single paradigm from the unified ET index.
 
     Returns a ``Data`` with up to four ``IrregularTimeSeries``
-    (``samples``, ``fixations``, ``saccades``, ``blinks``), all
-    time-aligned to the EEG recording, or ``None`` if no matching
-    ET data is found.
+    (``samples``, ``fixations``, ``saccades``, ``blinks``), or ``None``.
     """
-    segment = find_paradigm_segment(et_dir, paradigm_code)
+    index = build_et_index(et_dir)
+    segment = find_paradigm_segment(et_dir, paradigm_code, index=index)
     if segment is None:
         return None
 
@@ -376,25 +386,27 @@ def process(
 
     et_kwargs: dict = {}
 
-    samples = parse_samples(
-        segment["samples_path"],
-        start_ts,
-        end_ts,
-        paradigm_ts,
-        eeg_paradigm_onset_s,
-    )
-    if samples is not None:
-        et_kwargs["samples"] = samples
+    if segment.get("samples_path") is not None:
+        samples = parse_samples(
+            segment["samples_path"],
+            start_ts,
+            end_ts,
+            paradigm_ts,
+            eeg_paradigm_onset_s,
+        )
+        if samples is not None:
+            et_kwargs["samples"] = samples
 
-    events = parse_events(
-        segment["events_path"],
-        start_ts,
-        end_ts,
-        paradigm_ts,
-        eeg_paradigm_onset_s,
-    )
-    et_kwargs.update(events)
+    if segment.get("events_path") is not None:
+        events = parse_events(
+            segment["events_path"],
+            start_ts,
+            end_ts,
+            paradigm_ts,
+            eeg_paradigm_onset_s,
+        )
+        et_kwargs.update(events)
 
     if not et_kwargs:
         return None
-    return Data(**et_kwargs)
+    return Data(domain="auto", **et_kwargs)
