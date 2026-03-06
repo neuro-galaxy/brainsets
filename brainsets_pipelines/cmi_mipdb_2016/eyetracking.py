@@ -4,6 +4,19 @@ The public entry point is :func:`process`, which returns a
 ``temporaldata.Data`` object containing up to four
 ``IrregularTimeSeries``: *samples*, *fixations*, *saccades*, *blinks*.
 All timestamps are aligned to the EEG time base via the shared paradigm onset marker.
+
+Eye tracking data are based on two separate files:
+- Samples.txt: contains eye tracking data (Dia, POR, pupil dilation, etc.).
+- Events.txt: contains annotations (Fixation, Saccade, Blink).
+
+Not all EEG paradigms have simultaneous Eye Tracking data.
+Some Eye tracking recordings contain multiple paradigms. 
+Matching of EEG and Eye tracking data is done by matching the paradigm codes
+according to the UserEvent messages in the eye tracking Samples.txt files.
+
+We build a single unified index from all ET files (Samples and Events), then
+identify paradigms and parse from that index. See :func:`build_et_index` and
+:func:`find_paradigm_segment`.
 """
 
 import logging
@@ -19,6 +32,8 @@ from constants import PARADIGM_MAP, SAMPLES_COLUMNS
 
 def _parse_user_events_from_file(path: Path) -> list[tuple[int, str]]:
     """Read all UserEvent lines from an ET file (Events or Samples).
+
+    UserEvent lines are used to match ET data to EEG paradigms.
 
     Returns list of (timestamp_µs, description) tuples.
     """
@@ -86,6 +101,10 @@ def _et_file_base(path: Path) -> str:
 def build_et_index(et_dir: Path) -> list[dict]:
     """Build a unified index of all eyetracking data from all files (Samples and Events).
 
+    Scans all ET data files and groups them.
+    Reads UserEvents from each group and identifies all paradigm segments.
+    Returns an index with all paradigm segments found.
+
     Returns a list of dicts, one per ET "base" (logical file pair). Each dict has:
     - ``base_id``: str
     - ``samples_path``: Path | None
@@ -144,6 +163,7 @@ def find_paradigm_segment(
     index: list[dict] | None = None,
 ) -> dict | None:
     """Find an ET segment for *paradigm_code* from the unified ET index.
+    If no index is provided, builds the index from `et_dir` and searches it.
 
     Returns a dict with keys ``events_path`` (optional), ``samples_path`` (optional),
     ``code``, ``paradigm_ts``, ``start_ts``, ``end_ts``. Paths are None when that
