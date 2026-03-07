@@ -143,6 +143,11 @@ def test_recording_id_invalid_format_raises():
         _from_recording_id("subject2_trial4")
 
 
+def test_recording_id_requires_zero_padded_session():
+    with pytest.raises(ValueError, match="zero-padded 3-digit session"):
+        _from_recording_id("sub_1_trial4")
+
+
 def test_nano_cross_x_rejected_fast(tmp_path):
     with pytest.raises(ValueError, match="not compatible with cross_x"):
         Neuroprobe2025(
@@ -175,6 +180,18 @@ def test_cross_x_fold_must_be_zero(tmp_path):
             split="test",
             fold=1,
         )
+
+
+def test_fold_bool_rejected_fast(tmp_path):
+    _write_mock_recordings(
+        tmp_path,
+        ("sub_1_trial001",),
+        version="full",
+        h5_regime="within_session",
+    )
+
+    with pytest.raises(TypeError, match="fold must be an int"):
+        _make_dataset(tmp_path, fold=True)
 
 
 def test_ss_dm_lite_train_selects_other_trial(tmp_path):
@@ -281,3 +298,40 @@ def test_get_channel_view_included_only_filters_channels(tmp_path):
     assert included_view.names.tolist() == ["A"]
     assert included_view.lip is not None
     assert included_view.lip.shape == (1, 3)
+
+
+def test_compatibility_cache_invalidation_on_file_change(tmp_path):
+    recording_id = "sub_1_trial001"
+    h5_path = _mock_dataset_dir(tmp_path) / f"{recording_id}.h5"
+    _write_mock_h5(
+        h5_path,
+        version="full",
+        label_mode="binary",
+        h5_regime="within_session",
+        compatible=True,
+    )
+
+    ds = _make_dataset(tmp_path)
+    issue = ds._recording_compatibility_issue(
+        recording_id,
+        split_interval_attr_path=ds._interval_attr_path(ds.split),
+        split_interval_h5_path=ds._interval_h5_path(ds.split),
+        split_channel_mask_key=ds._make_channel_mask_key(ds.split),
+    )
+    assert issue is None
+
+    _write_mock_h5(
+        h5_path,
+        version="full",
+        label_mode="binary",
+        h5_regime="within_session",
+        compatible=False,
+    )
+
+    issue = ds._recording_compatibility_issue(
+        recording_id,
+        split_interval_attr_path=ds._interval_attr_path(ds.split),
+        split_interval_h5_path=ds._interval_h5_path(ds.split),
+        split_channel_mask_key=ds._make_channel_mask_key(ds.split),
+    )
+    assert issue == "missing 'splits' group"

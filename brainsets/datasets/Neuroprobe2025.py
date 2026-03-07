@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from numbers import Integral
 from pathlib import Path
 import re
 from typing import Callable, ClassVar, Literal, Optional, get_args
@@ -106,7 +107,7 @@ NEUROPROBE_LONGEST_TRIALS_FOR_SUBJECT: dict[int, list[int]] = {
 }
 
 # Strict parser for canonical recording ids like "sub_1_trial004".
-_RECORDING_ID_RE = re.compile(r"^sub_(\d+)_trial(\d+)$")
+_RECORDING_ID_RE = re.compile(r"^sub_(\d+)_trial(\d{3})$")
 
 # Backwards-compatible aliases for callers importing these symbols directly.
 ChannelView = SEEGDatasetMixin.ChannelView
@@ -123,7 +124,8 @@ def _from_recording_id(recording_id: str) -> tuple[int, int]:
     match = _RECORDING_ID_RE.match(recording_id)
     if match is None:
         raise ValueError(
-            f"Invalid recording_id '{recording_id}'. Expected 'sub_<subject>_trial<session>'."
+            f"Invalid recording_id '{recording_id}'. Expected 'sub_<subject>_trial<session>' "
+            "with a zero-padded 3-digit session."
         )
     return int(match.group(1)), int(match.group(2))
 
@@ -138,7 +140,9 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
 
     Args:
         root: Root directory containing processed Neuroprobe artifacts.
-        recording_ids: Optional recording-id subset to expose from disk.
+        recording_ids: Optional recording-id subset to expose from disk. If omitted,
+            the dataset auto-prunes to the minimal benchmark-required recording ids
+            for the selected ``regime/split/test_subject/test_session``.
         transform: Optional sample transform.
         version: One of ``"full"``, ``"lite"``, ``"nano"``.
         test_subject: Target test subject id (Neuroprobe semantics).
@@ -150,6 +154,9 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         fold: Fold index. Defaults depend on regime:
             - ``within_session``: default 0, valid {0, 1}
             - ``cross_x``: forced to 0
+        prune_to_split: If ``True``, only split-required recording ids are loaded into
+            the dataset at construction time (i.e., ``recording_ids`` is resolved to the
+            split selection). If ``False``, keep the caller-provided recording subset.
         dirname: Subdirectory under ``root`` containing recording H5 files.
     """
 
@@ -173,13 +180,12 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         task: str = "speech",
         regime: Regime = "SS-SM",
         fold: Optional[int] = None,
+        prune_to_split: bool = False,
         dirname: str = "neuroprobe_2025",
         **kwargs,
     ):
         # Resolve and validate constructor inputs before touching dataset records.
         self._dataset_dir = Path(root) / dirname
-        requested_recording_ids = self._resolve_requested_recording_ids(recording_ids)
-
         self._validate_constructor_args(
             version=version,
             label_mode=label_mode,
@@ -189,10 +195,23 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             test_subject=test_subject,
             test_session=test_session,
         )
+        split_recording_ids = self._recording_ids_for_selection(
+            version=version,
+            regime=regime,
+            split=split,
+            test_subject=test_subject,
+            test_session=test_session,
+        )
+        if recording_ids is None:
+            recording_ids = split_recording_ids
+        requested_recording_ids = self._resolve_requested_recording_ids(recording_ids)
+        active_recording_ids = (
+            split_recording_ids if prune_to_split else requested_recording_ids
+        )
 
         super().__init__(
             dataset_dir=self._dataset_dir,
-            recording_ids=requested_recording_ids,
+            recording_ids=active_recording_ids,
             transform=transform,
             namespace_attributes=["subject.id", "channels.id"],
             **kwargs,
@@ -207,10 +226,10 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         self.test_session = test_session
         self.split = split
         self.fold = self._resolve_fold(fold)
+        self.prune_to_split = prune_to_split
 
         self._interval_base_path = f"splits.{self.version}.{self.label_mode}.{self.h5_regime}.{self.task}.fold{self.fold}"
 
-        self._split_recording_ids = self._recording_ids_for_split()
         self._validate_selection_compatibility()
         self._initialize_seeg_mixin_caches()
 
@@ -222,13 +241,16 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         interval_path = self._interval_attr_path(self.split)
         return {
             rid: self.get_recording(rid).get_nested_attribute(interval_path)
-            for rid in self._split_recording_ids
+            for rid in self._selected_recording_ids()
         }
 
-    def get_domain_intervals(self) -> dict[str, Interval]:
-        """Return full-domain intervals for the selected split recordings."""
-        # Restrict domain queries to split-selected recordings for this dataset instance.
-        return super().get_domain_intervals(recording_ids=self._split_recording_ids)
+    def get_domain_intervals(
+        self, recording_ids: Optional[list[str]] = None
+    ) -> dict[str, Interval]:
+        """Return full-domain intervals."""
+        if recording_ids is None:
+            recording_ids = self.recording_ids
+        return super().get_domain_intervals(recording_ids=recording_ids)
 
     def get_recording_hook(self, data: Data):
         """Apply split-specific channel inclusion mask when available."""
@@ -257,9 +279,11 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             "test_subject": self.test_subject,
             "test_session": self.test_session,
             "test_recording_id": self._test_recording_id(),
-            "selected_recording_ids": list(self._split_recording_ids),
+            "selected_recording_ids": list(self._selected_recording_ids()),
+            "active_recording_ids": list(self.recording_ids),
             "interval_path": self._interval_attr_path(self.split),
             "channel_mask_key": self._make_channel_mask_key(self.split),
+            "prune_to_split": self.prune_to_split,
         }
 
     def _validate_constructor_args(
@@ -291,11 +315,11 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         if split not in VALID_SPLITS:
             raise ValueError(f"Invalid split '{split}'. Must be one of {VALID_SPLITS}.")
 
-        if type(test_subject) is not int:
+        if not isinstance(test_subject, Integral) or isinstance(test_subject, bool):
             raise TypeError(
                 f"test_subject must be an int, got {type(test_subject).__name__}."
             )
-        if type(test_session) is not int:
+        if not isinstance(test_session, Integral) or isinstance(test_session, bool):
             raise TypeError(
                 f"test_session must be an int, got {type(test_session).__name__}."
             )
@@ -311,6 +335,13 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
 
     def _resolve_fold(self, fold: Optional[int]) -> int:
         # within_session exposes two folds; cross_x is fixed to fold0 only.
+        if fold is not None and (
+            not isinstance(fold, Integral) or isinstance(fold, bool)
+        ):
+            raise TypeError(
+                f"fold must be an int when provided, got {type(fold).__name__}."
+            )
+
         if self.h5_regime == "within_session":
             resolved = 0 if fold is None else fold
             if resolved not in (0, 1):
@@ -331,18 +362,56 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         self, recording_ids: Optional[list[str]]
     ) -> list[str]:
         # Default to all H5 files in dataset_dir unless a subset is provided.
-        if recording_ids is None:
-            ids = [x.stem for x in self._dataset_dir.glob("*.h5")]
-            if not ids:
-                raise ValueError(f"No recordings found in {self._dataset_dir}")
-            ids = sorted(ids)
-        else:
-            ids = sorted(set(recording_ids))
+        ids = (
+            [x.stem for x in self._dataset_dir.glob("*.h5")]
+            if recording_ids is None
+            else recording_ids
+        )
+        ids = sorted(set(ids))
+        if not ids:
+            raise ValueError(f"No recordings found in {self._dataset_dir}")
 
         # Parse each id once so errors are raised consistently at construction.
         for rid in ids:
             _from_recording_id(rid)
         return ids
+
+    @classmethod
+    def _recording_ids_for_selection(
+        cls,
+        *,
+        version: Version,
+        regime: Regime,
+        split: Split,
+        test_subject: int,
+        test_session: int,
+    ) -> list[str]:
+        """Resolve split-participating recording ids for constructor inputs."""
+        test_recording_id = _to_recording_id(test_subject, test_session)
+
+        if regime == "SS-SM":
+            # Within-session uses a single target recording for all splits.
+            return [test_recording_id]
+
+        if regime == "SS-DM":
+            # Cross-session trains on a different session from the same subject.
+            if split == "train":
+                return [
+                    cls._ss_dm_train_recording_id_for_selection(
+                        version=version,
+                        test_subject=test_subject,
+                        test_session=test_session,
+                    )
+                ]
+            # Val/test evaluate on the requested target recording.
+            return [test_recording_id]
+
+        # DS-DM
+        if split == "train":
+            # Cross-subject benchmark-default uses a fixed train anchor recording.
+            return [_to_recording_id(DS_DM_TRAIN_SUBJECT_ID, DS_DM_TRAIN_TRIAL_ID)]
+        # Val/test evaluate on the requested held-out target recording.
+        return [test_recording_id]
 
     # Path/key builders.
     def _interval_attr_path(self, split: Split) -> str:
@@ -366,75 +435,57 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             f"{self.h5_regime}${self.task}$fold{self.fold}${split}"
         )
 
-    def _recording_ids_for_split(self) -> list[str]:
-        # Resolve which physical recording(s) participate in the configured split.
-        test_recording_id = self._test_recording_id()
-
-        if self.regime == "SS-SM":
-            # Within-session uses a single target recording for all splits.
-            return [test_recording_id]
-
-        if self.regime == "SS-DM":
-            # Cross-session trains on a different session from the same subject.
-            if self.split == "train":
-                # Train recording is selected by benchmark-default SS-DM rules.
-                return [self._ss_dm_train_recording_id()]
-            # Val/test evaluate on the requested target recording.
-            return [test_recording_id]
-
-        # DS-DM
-        if self.split == "train":
-            # Cross-subject benchmark-default uses a fixed train anchor recording.
-            return [_to_recording_id(DS_DM_TRAIN_SUBJECT_ID, DS_DM_TRAIN_TRIAL_ID)]
-        # Val/test evaluate on the requested held-out target recording.
-        return [test_recording_id]
-
-    def _ss_dm_train_recording_id(self) -> str:
+    @classmethod
+    def _ss_dm_train_recording_id_for_selection(
+        cls,
+        *,
+        version: Version,
+        test_subject: int,
+        test_session: int,
+    ) -> str:
         # Compute SS-DM train recording using benchmark-default selection rules.
-        if self.version == "lite":
+        if version == "lite":
             # Lite mode always defines exactly two eligible trials per subject.
             # Training should use "the other lite trial" relative to the test trial.
             subject_trials = sorted(
                 trial
                 for subject, trial in NEUROPROBE_LITE_SUBJECT_TRIALS
-                if subject == self.test_subject
+                if subject == test_subject
             )
             if len(subject_trials) != 2:
                 raise ValueError(
                     "SS-DM lite benchmark-default expects exactly two lite trials "
-                    f"for subject {self.test_subject}, found {subject_trials}."
+                    f"for subject {test_subject}, found {subject_trials}."
                 )
-            if self.test_session not in subject_trials:
+            if test_session not in subject_trials:
                 raise ValueError(
-                    f"Target (test_subject={self.test_subject}, test_session={self.test_session}) "
+                    f"Target (test_subject={test_subject}, test_session={test_session}) "
                     "is not eligible for lite SS-DM benchmark-default."
                 )
             # Start with the first lite trial; if that is the test trial, swap to the second.
             train_session = subject_trials[0]
-            if train_session == self.test_session:
+            if train_session == test_session:
                 train_session = subject_trials[1]
-            return _to_recording_id(self.test_subject, train_session)
+            return _to_recording_id(test_subject, train_session)
 
-        if self.version == "full":
+        if version == "full":
             # Full mode uses the longest-trial ordering table from the benchmark.
             # Normally pick the longest trial for training.
-            longest_trials = NEUROPROBE_LONGEST_TRIALS_FOR_SUBJECT.get(
-                self.test_subject, []
-            )
+            longest_trials = NEUROPROBE_LONGEST_TRIALS_FOR_SUBJECT.get(test_subject, [])
             if len(longest_trials) < 2:
                 raise ValueError(
                     "SS-DM full benchmark-default requires at least two longest trials "
-                    f"for subject {self.test_subject}, found {longest_trials}."
+                    f"for subject {test_subject}, found {longest_trials}."
                 )
             # If the longest trial is already the test target, fall back to second-longest
             # to keep train/test recordings distinct.
             train_session = longest_trials[0]
-            if train_session == self.test_session:
+            if train_session == test_session:
                 train_session = longest_trials[1]
-            return _to_recording_id(self.test_subject, train_session)
+            return _to_recording_id(test_subject, train_session)
 
         raise ValueError(
-            f"Version '{self.version}' is not supported for SS-DM train selection."
+            f"Version '{version}' is not supported for SS-DM train selection."
         )
 
     def _validate_selection_compatibility(self) -> None:
@@ -456,16 +507,11 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             )
 
     def _validate_required_recordings_present(self) -> None:
-        # Ensure both target and split-required recordings exist in recording_ids.
-        test_recording_id = self._test_recording_id()
-        if test_recording_id not in self.recording_ids:
-            raise ValueError(
-                f"Target recording '{test_recording_id}' is not available in this dataset selection."
-            )
-
         # Ensure every recording needed by this split is present in recording_ids.
         missing_recordings = [
-            rid for rid in self._split_recording_ids if rid not in self.recording_ids
+            rid
+            for rid in self._selected_recording_ids()
+            if rid not in self.recording_ids
         ]
         if missing_recordings:
             raise ValueError(
@@ -484,7 +530,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         split_interval_h5_path = self._interval_h5_path(self.split)
         split_channel_mask_key = self._make_channel_mask_key(self.split)
         incompatible: dict[str, str] = {}
-        for rid in self._split_recording_ids:
+        for rid in self._selected_recording_ids():
             issue = self._recording_compatibility_issue(
                 rid,
                 split_interval_attr_path=split_interval_attr_path,
@@ -504,9 +550,20 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         split_channel_mask_key: str,
     ) -> str | None:
         # Return None if compatible, otherwise a concise reason string.
+        h5_path = self._dataset_dir / f"{recording_id}.h5"
+        try:
+            stat = h5_path.stat()
+            file_fingerprint: tuple[int, int] | tuple[None, None] = (
+                stat.st_mtime_ns,
+                stat.st_size,
+            )
+        except FileNotFoundError:
+            file_fingerprint = (None, None)
+
         cache_key = (
             str(self._dataset_dir),
             recording_id,
+            file_fingerprint,
             self.version,
             self.label_mode,
             self.h5_regime,
@@ -521,7 +578,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
 
         issue: str | None = None
         try:
-            with h5py.File(self._dataset_dir / f"{recording_id}.h5", "r") as h5:
+            with h5py.File(h5_path, "r") as h5:
                 if "splits" not in h5:
                     issue = "missing 'splits' group"
                 elif self.version not in h5["splits"]:
@@ -581,6 +638,12 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
                 raise ValueError(
                     "SS-DM full benchmark-default requires at least two longest trials "
                     f"for subject {self.test_subject}, found {longest_trials}."
+                )
+            if self.test_session not in longest_trials:
+                raise ValueError(
+                    "SS-DM full benchmark-default only supports target sessions present "
+                    f"in NEUROPROBE_LONGEST_TRIALS_FOR_SUBJECT for subject {self.test_subject}: "
+                    f"{longest_trials}."
                 )
 
     def _test_recording_id(self) -> str:
@@ -681,7 +744,18 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
     def _prime_selected_recording_caches(self) -> None:
         """Prewarm caches for currently selected split recordings."""
         # Prime hot paths used immediately by samplers/evaluators for this split.
-        for rid in self._split_recording_ids:
+        for rid in self._selected_recording_ids():
             self.get_recording_info(rid)
             self.get_channel_view(rid, included_only=False)
             self.get_channel_view(rid, included_only=True)
+
+    def _selected_recording_ids(self) -> list[str]:
+        if self.prune_to_split:
+            return list(self.recording_ids)
+        return self._recording_ids_for_selection(
+            version=self.version,
+            regime=self.regime,
+            split=self.split,
+            test_subject=self.test_subject,
+            test_session=self.test_session,
+        )
