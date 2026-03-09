@@ -58,29 +58,28 @@ parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
 parser.add_argument("--reprocess", action="store_true")
 
-STIM_VS_REST_TO_ID = {
-    "rest": 0,
-    "stim": 1,
+ON_VS_OFF_TO_ID = {
+    "off": 0,
+    "on": 1,
 }
 
 STIM_FREQUENCY_TO_ID = {
-    'rest': 0,
-    'stim_100Hz': 1,
-    'stim_200Hz': 2,
-    'stim_300Hz': 3,
-    'stim_400Hz': 4,
-    'stim_500Hz': 5,
-    'stim_800Hz': 6,
-    'stim_1000Hz': 7,
-    'stim_2000Hz': 8,
-    'stim_5000Hz': 9,
-    'stim_8000Hz': 10,
-    'stim_10000Hz': 11,
-    'stim_15000Hz': 12,
-    'stim_16000Hz': 13,
-    'stim_20000Hz': 14,
-    'stim_30000Hz': 15,
-    'stim_40000Hz': 16,
+    'stim_100Hz': 100,
+    'stim_200Hz': 200,
+    'stim_300Hz': 300,
+    'stim_400Hz': 400,
+    'stim_500Hz': 500,
+    'stim_800Hz': 800,
+    'stim_1000Hz': 1000,
+    'stim_2000Hz': 2000,
+    'stim_5000Hz': 5000,
+    'stim_8000Hz': 8000,
+    'stim_10000Hz': 10000,
+    'stim_15000Hz': 15000,
+    'stim_16000Hz': 16000,
+    'stim_20000Hz': 20000,
+    'stim_30000Hz': 30000,
+    'stim_40000Hz': 40000,
 }
 
 
@@ -91,23 +90,22 @@ class Pipeline(BrainsetPipeline):
 
     @classmethod
     def get_manifest(cls, raw_dir: Path, args: Optional[Namespace]) -> pd.DataFrame:
-        """Generates a manifest DataFrame of recordings discovered within a BIDS root directory.
+        """
+        Generate a manifest DataFrame for iEEG recordings found in a BIDS raw directory.
 
         Args:
-            raw_dir: Raw data directory assigned to this brainset
-            args: Pipeline-specific arguments parsed from the command line. Expects 'bids_root'
-            (path to the BIDS dataset root) as a required argument.
+            raw_dir (Path): Path to the root directory containing BIDS-formatted raw data for this brainset.
+            args (Optional[Namespace]): Pipeline arguments (may include 'bids_root' or other CLI options).
 
         Returns:
-            DataFrame indexed by 'recording_id' with columns:
-                - subject_id  : (str) BIDS subject identifier, e.g., 'sub-01'
-                - session_id  : (str or None) BIDS session identifier, e.g., 'ses-01', or None if not present
-                - task_id     : (str) BIDS task identifier (e.g., 'Sleep')
-                - data_file   : (str) Relative path or filename of the iEEG data
-                - fpath       : (pathlib.Path) Local directory or filepath for the subject's raw data
+            pd.DataFrame: DataFrame with one row per grouped session/hemisphere. Contains:
+                - session_id: (str) Unique session (with hemisphere suffix, e.g. 'sub-01_ses-01_task-acoustic_desc-run1_LH')
+                - recording_ids: (List[str]) List of BIDS recording IDs within the session/hemisphere group.
+
         Raises:
-            ValueError: If no iEEG recordings are found within the provided BIDS root directory.
-        """        
+            FileNotFoundError: If the specified BIDS root directory does not exist.
+            ValueError: If any recording group contains an unknown or missing hemisphere acquisition.
+        """
         if not raw_dir.exists():
             raise FileNotFoundError(
                 f"BIDS root directory '{raw_dir}' does not exist."
@@ -120,8 +118,8 @@ class Pipeline(BrainsetPipeline):
         )
                 
         # TODO: This is a hack to group by hemisphere. It should be done in a more elegant way.
-        # The right way to do this is to use a different run number for each stimulation frequency
-        # and use acq to denote hemisphere
+        # The right way to do this would be to use a different run number for each stimulation frequency
+        # and use acq to denote hemisphere. Stimulation frequency values are included in the *events.tsv file.
         new_grouped_recordings = {}
         for group_id, recordings in grouped_recordings.items():
             hemispheres = {}
@@ -161,10 +159,22 @@ class Pipeline(BrainsetPipeline):
             raise ValueError(f"No iEEG recordings found in BODS root {raw_dir}")
         
         manifest = pd.DataFrame(manifest_list).set_index("session_id")
-        manifest.to_csv("manifest.csv")
         return manifest
     
     def download(self, manifest_item: pd.Series):
+        """
+        Download step for dataset pipeline.
+
+        Given a manifest_item, checks whether each recording in `recording_ids`
+        has already been downloaded to the raw_dir. If `self.args.redownload` is False and all files exist,
+        returns session_id and recording_ids. Otherwise, raises FileNotFoundError if any recording is missing.
+
+        Args:
+            manifest_item: Contains at least "session_id" and "recording_ids" describing the group.
+
+        Returns:
+            dict: Contains session_id and recording_ids.
+        """
         self.update_status("DOWNLOADING")
 
         recording_ids = manifest_item.recording_ids
@@ -182,21 +192,28 @@ class Pipeline(BrainsetPipeline):
         }
 
     def process(self, download_output: dict) -> Optional[tuple[Data, Path]]:
-        """Process a group of recordings and create a Data object.
+        """
+        Processes a group of recordings for a given session_id and creates a Data object.
 
-        This method handles common OpenNeuro processing tasks:
-        1. Loads data files using MNE
-        2. Extracts metadata (subject, session, device, brainset descriptions)
-        3. Extracts signal and channel information
-        4. Applies modality-specific channel handling via _build_channels()
-        5. Creates a Data object
+        The processing involves:
+            1. Loading one or more iEEG recordings from disk using MNE.
+            2. Extracting comprehensive metadata including subject, session, and device information.
+            3. Extracting channel and signal information per recording.
+            4. Applying modality-specific channel selection and formatting.
+            5. Extracting behavior intervals for on_vs_off and acoustic_stim tasks.
+            6. Generating train-valid-test splits for the on_vs_off and acoustic_stim tasks.
+            7. Creating a Data object.
 
         Args:
-            download_output: Dictionary returned by download()
+            download_output (dict): Output from the `download` step containing keys:
+                - "session_id" (str): Unique identifier for the session/group.
+                - "recording_ids" (list[str]): Recording IDs to process.
 
         Returns:
-            Tuple of (Data object, store_path), or None if already processed and skipped
+            Optional[Data]: Data object if processing is performed,
+                or None if the group was already processed and processing is skipped.
         """
+        print("\nProcessing session: ", download_output.get("session_id"))
         self.processed_dir.mkdir(exist_ok=True, parents=True)
 
         session_id = download_output.get("session_id")
@@ -224,7 +241,7 @@ class Pipeline(BrainsetPipeline):
             # check if the recording has annotations
             if not raw.annotations or len(raw.annotations) == 0:
                 if 'Baseline' in recording_id:
-                    # warnings.warn(f"No annotations found in recording {recording_id}, adding baseline annotations")
+                    warnings.warn(f"No annotations found in baseline recording {recording_id}. Adding baseline annotations.")
                     _add_baseline_annotations(raw)
                 else:
                     raise ValueError(f"No annotations found in recording {recording_id}")
@@ -241,6 +258,8 @@ class Pipeline(BrainsetPipeline):
 
             session[recording_id] = raw
         raw = concatenate_recordings(list(session.values()))
+        
+        # delete boundary annotations after concatenating the recordings
         _delete_boundary_annotations(raw)
 
         self.update_status("Extracting Metadata")
@@ -279,12 +298,14 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Building Channels")
         channels = extract_channels(raw)
                 
-        self.update_status("Extracting behavior intervals")   
-        stim_vs_rest_trials = extract_stim_vs_rest_trials(raw)  
+        self.update_status("Extracting behavior intervals")
+        on_vs_off_trials = extract_on_vs_off_trials(raw)  
         acoustic_stim_trials = extract_acoustic_stim_trials(raw)
         
+        
+        
         self.update_status("Generating splits")
-        splits = generate_splits(subject_id, session_id, stim_vs_rest_trials, acoustic_stim_trials)
+        splits = generate_splits(subject_id, session_id, on_vs_off_trials, acoustic_stim_trials)
         
         self.update_status("Creating Data Object")
         data = Data(
@@ -294,7 +315,7 @@ class Pipeline(BrainsetPipeline):
             device=device_description,
             ecog=signal,
             channels=channels,
-            stim_vs_rest_trials=stim_vs_rest_trials,
+            on_vs_off_trials=on_vs_off_trials,
             acoustic_stim_trials=acoustic_stim_trials,
             splits=splits,
             domain=signal.domain,
@@ -311,7 +332,6 @@ def generate_splits(
     stim_vs_rest_trials: Interval,
     acoustic_stim_trials: Interval,
 ) -> Data:
-    
     subject_assignments = generate_string_kfold_assignment(
         string_id=subject_id, n_folds=3, val_ratio=0.2, seed=42
     )
@@ -343,9 +363,9 @@ def generate_splits(
         )
         
         for k, fold_data in enumerate(stim_vs_rest_folds):
-            stim_vs_rest_splits[f"stim_vs_rest_fold_{k}_train"] = fold_data.train
-            stim_vs_rest_splits[f"stim_vs_rest_fold_{k}_valid"] = fold_data.valid
-            stim_vs_rest_splits[f"stim_vs_rest_fold_{k}_test"] = fold_data.test
+            stim_vs_rest_splits[f"on_vs_off_fold_{k}_train"] = fold_data.train
+            stim_vs_rest_splits[f"on_vs_off_fold_{k}_valid"] = fold_data.valid
+            stim_vs_rest_splits[f"on_vs_off_fold_{k}_test"] = fold_data.test
 
     acoustic_stim_splits = {}
     if len(acoustic_stim_trials) > 0:
@@ -369,14 +389,14 @@ def generate_splits(
         domain=stim_vs_rest_trials | acoustic_stim_trials,
     )
 
-def extract_stim_vs_rest_trials(raw: mne.io.Raw) -> Interval:
-    """Extracts rest and stimulation trials from a raw object.
+def extract_on_vs_off_trials(raw: mne.io.Raw) -> Interval:
+    """Extracts on (stimulation) and off (rest and baseline) trials from a raw object.
 
     Args:
-        raw (mne.io.Raw): The raw object to extract the rest and stimulation trials from.
+        raw (mne.io.Raw): The raw object to extract the on and off trials from.
 
     Returns:
-        Interval: The rest and stim trials.
+        Interval: The on and off trials.
     """
     annotations = raw.annotations
     onset = annotations.onset
@@ -399,17 +419,20 @@ def extract_stim_vs_rest_trials(raw: mne.io.Raw) -> Interval:
             # we can clip the end time of the last trial
             end_times[-1] = start_time
 
-        if description != "baseline":
-            start_times.append(start_time)
-            end_times.append(end_time)
+        # skip white-noise stimulation trials
+        if 'stim' in description and 'white-noise' in description:
+            continue
+        
+        start_times.append(start_time)
+        end_times.append(end_time)
 
-            if description == "rest":
-                labels.append(description)
-            else:
-                labels.append("stim")
+        if description == "rest" or description == "baseline":
+            labels.append("off")
+        elif 'stim' in description and 'Hz' in description:
+            labels.append("on")
 
     # Map each unique label to an integer (in increasing order)
-    label_ids = [STIM_VS_REST_TO_ID[label] for label in labels]
+    label_ids = [ON_VS_OFF_TO_ID[label] for label in labels]
 
     return Interval(
         start=np.array(start_times),
@@ -451,15 +474,13 @@ def extract_acoustic_stim_trials(raw: mne.io.Raw) -> Interval:
             # we can clip the end time of the last trial
             end_times[-1] = start_time
 
-        if description != "baseline":
+        if 'stim' in description and 'Hz' in description:
             start_times.append(start_time)
             end_times.append(end_time)
             
-            if 'Hz' in description:
-                frequency = _extract_stim_frequency(description)
-                labels.append(f"stim_{frequency}Hz")
-            else:
-                labels.append(description)
+            #extract the stimulation frequency
+            frequency = _extract_stim_frequency(description)
+            labels.append(f"stim_{frequency}Hz")
 
     # Map each unique label to an integer (in increasing order)
     label_ids = [STIM_FREQUENCY_TO_ID[label] for label in labels]
