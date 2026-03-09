@@ -32,7 +32,12 @@ RELEASES = {
 MODALITY_CHANNELS = {"EEG": [f"E{i}" for i in range(1, 129)] + ["Cz"]}
 
 parser = ArgumentParser(parents=[_openneuro_parser], add_help=False)
-parser.add_argument("--release", type=int, choices=range(1, 12), default=None)
+parser.add_argument(
+    "--release",
+    type=int,
+    default=None,
+    help="Prepare only this release (1-11). Omit to prepare all releases.",
+)
 
 
 class Pipeline(OpenNeuroEEGPipeline):
@@ -50,7 +55,12 @@ class Pipeline(OpenNeuroEEGPipeline):
     @classmethod
     def get_manifest(cls, raw_dir, args):
         if args and args.release is not None:
-            releases = {args.release: RELEASES[args.release]}
+            if args.release not in RELEASES:
+                raise ValueError(
+                    f"Invalid choice: release must be one of 1-11, got {args.release}."
+                )
+            # Always build full manifest so --single can find any recording;
+            releases = RELEASES
         else:
             releases = RELEASES
 
@@ -65,6 +75,15 @@ class Pipeline(OpenNeuroEEGPipeline):
         return pd.concat(all_manifests)
 
     def _run_item(self, manifest_item):
+        if self.args is not None and self.args.release is not None:
+            if manifest_item.release_id != self.args.release:
+                self.update_status(
+                    "SKIPPED: session is not part of the selected release "
+                    f"(you used --release {self.args.release}, "
+                    f"this session is from release {manifest_item.release_id})"
+                )
+                return
+
         release_id = manifest_item.release_id
         original_raw_dir = self.raw_dir
         original_processed_dir = self.processed_dir
