@@ -54,8 +54,10 @@ FILENAME_MAP = lambda sub_id, trial_id: f"sub_{sub_id}_trial{trial_id:03d}"
 ASSET_PATH_MAP = lambda sub_id, trial_id: f"data/subject_data/sub_{sub_id}/trial{trial_id:03d}/{FILENAME_MAP(sub_id, trial_id)}.h5.zip"
 FILENAME_PATTERN = r"sub_(\d+)_trial(\d{3})"
 
+SUBSET_TIER_KEY_MAP = lambda lite, nano: "lite" if lite else ("nano" if nano else "full")
+LABEL_MODE_KEY_MAP = lambda binary_tasks: "binary" if binary_tasks else "multiclass"
 INCL_CHANNEL_KEY_PREFIX_MAP = lambda lite, nano, binary_tasks, eval_setting, eval_name, fold_idx: \
-    f"included$lite{int(lite)}$nano{int(nano)}$binary_tasks{int(binary_tasks)}${eval_setting}${eval_name}$fold{fold_idx}"
+    f"included${SUBSET_TIER_KEY_MAP(lite, nano)}${LABEL_MODE_KEY_MAP(binary_tasks)}${eval_setting}${eval_name}$fold{fold_idx}"
 EvalSettingOption = Literal["within_session", "cross_x"]
 ALL_EVAL_SETTINGS = {
     "lite": [True, False],
@@ -64,7 +66,7 @@ ALL_EVAL_SETTINGS = {
     "eval_setting": get_args(EvalSettingOption),
 }
 SETTING_SPLIT_KEY_MAP = lambda lite, nano, binary_tasks, eval_setting, key: \
-    f"{'lite' if lite else ('nano' if nano else 'full')}${'binary' if binary_tasks else 'multiclass'}${eval_setting}${key}"
+    f"{SUBSET_TIER_KEY_MAP(lite, nano)}${LABEL_MODE_KEY_MAP(binary_tasks)}${eval_setting}${key}"
 SPLIT_KEY_MAP = lambda eval_name, fold_idx, split_type: f"{eval_name}$fold{fold_idx}${split_type}_intervals"
 
 parser = ArgumentParser()
