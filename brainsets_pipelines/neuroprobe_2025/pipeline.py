@@ -56,8 +56,6 @@ FILENAME_PATTERN = r"sub_(\d+)_trial(\d{3})"
 
 SUBSET_TIER_KEY_MAP = lambda lite, nano: "lite" if lite else ("nano" if nano else "full")
 LABEL_MODE_KEY_MAP = lambda binary_tasks: "binary" if binary_tasks else "multiclass"
-INCL_CHANNEL_KEY_PREFIX_MAP = lambda lite, nano, binary_tasks, eval_setting, eval_name, fold_idx: \
-    f"included${SUBSET_TIER_KEY_MAP(lite, nano)}${LABEL_MODE_KEY_MAP(binary_tasks)}${eval_setting}${eval_name}$fold{fold_idx}"
 EvalSettingOption = Literal["within_session", "cross_x"]
 ALL_EVAL_SETTINGS = {
     "lite": [True, False],
@@ -65,9 +63,44 @@ ALL_EVAL_SETTINGS = {
     "binary_tasks": [True, False],
     "eval_setting": get_args(EvalSettingOption),
 }
-SETTING_SPLIT_KEY_MAP = lambda lite, nano, binary_tasks, eval_setting, key: \
-    f"{SUBSET_TIER_KEY_MAP(lite, nano)}${LABEL_MODE_KEY_MAP(binary_tasks)}${eval_setting}${key}"
-SPLIT_KEY_MAP = lambda eval_name, fold_idx, split_type: f"{eval_name}$fold{fold_idx}${split_type}_intervals"
+SPLIT_SELECTOR_KEY_MAP = (
+    lambda lite, nano, binary_tasks, eval_setting, eval_name, fold_idx, split_type: (
+        f"{SUBSET_TIER_KEY_MAP(lite, nano)}${LABEL_MODE_KEY_MAP(binary_tasks)}$"
+        f"{eval_setting}${eval_name}$fold{fold_idx}${split_type}"
+    )
+)
+
+
+def split_interval_key(
+    *,
+    lite: bool,
+    nano: bool,
+    binary_tasks: bool,
+    eval_setting: str,
+    eval_name: str,
+    fold_idx: int,
+    split_type: str,
+) -> str:
+    return (
+        f"{SPLIT_SELECTOR_KEY_MAP(lite, nano, binary_tasks, eval_setting, eval_name, fold_idx, split_type)}"
+        "_intervals"
+    )
+
+
+def channel_mask_key(
+    *,
+    lite: bool,
+    nano: bool,
+    binary_tasks: bool,
+    eval_setting: str,
+    eval_name: str,
+    fold_idx: int,
+    split_type: str,
+) -> str:
+    return (
+        "included$"
+        f"{SPLIT_SELECTOR_KEY_MAP(lite, nano, binary_tasks, eval_setting, eval_name, fold_idx, split_type)}"
+    )
 
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
@@ -209,7 +242,7 @@ class Pipeline(BrainsetPipeline):
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
         logging.info(f"Saved data to {path}")
     
-    def iterate_extract_splits(self, subject_id: int, trial_id: int) -> Tuple[Dict, ArrayDict]:
+    def iterate_extract_splits(self, subject_id: int, trial_id: int) -> Dict[str, Interval]:
         if not hasattr(self, "all_subjects"):
             # load all subjects and channels once
             # channels will be populated with subsets for each fold
@@ -229,7 +262,7 @@ class Pipeline(BrainsetPipeline):
             }
 
         all_combinations = product(*ALL_EVAL_SETTINGS.values())
-        split_indices = {}
+        split_indices: Dict[str, Interval] = {}
         for setting_combination in all_combinations:
             lite, nano, binary_tasks, eval_setting = setting_combination
             if lite and nano:  # lite and nano cannot be True at the same time
@@ -253,7 +286,7 @@ class Pipeline(BrainsetPipeline):
                 eval_setting=eval_setting,
             )
             for key, value in _split_indices.items():
-                split_indices[SETTING_SPLIT_KEY_MAP(lite, nano, binary_tasks, eval_setting, key)] = value
+                split_indices[key] = value
         
         return split_indices
 
@@ -348,8 +381,8 @@ def _extract_and_structure_splits(
     nano: bool,
     binary_tasks: bool,
     eval_setting: EvalSettingOption,
-) -> Tuple[Dict, ArrayDict]:
-    split_indices = {}
+) -> Dict[str, Interval]:
+    split_indices: Dict[str, Interval] = {}
 
     assert (
         len(neuroprobe_config.NEUROPROBE_TASKS_MAPPING) > 0
@@ -371,45 +404,40 @@ def _extract_and_structure_splits(
         assert len(folds) > 0, "No folds to extract splits for"
         channels = all_channels[subject_id]
         for fold_idx, fold in enumerate(folds):
-            # register included channels for the current fold
-            key_prefix = INCL_CHANNEL_KEY_PREFIX_MAP(
-                lite=lite,
-                nano=nano,
-                binary_tasks=binary_tasks,
-                eval_setting=eval_setting,
-                eval_name=eval_name,
-                fold_idx=fold_idx,
-            )
-            setattr(
-                channels,
-                f"{key_prefix}$train",
-                np.isin(
-                    channels.name, _get_electrode_labels(fold["train_dataset"])
-                ).astype(bool),
-            )
-            setattr(
-                channels,
-                f"{key_prefix}$val",
-                np.isin(
-                    channels.name, _get_electrode_labels(fold["val_dataset"])
-                ).astype(bool),
-            )
-            setattr(
-                channels,
-                f"{key_prefix}$test",
-                np.isin(
-                    channels.name, _get_electrode_labels(fold["test_dataset"])
-                ).astype(bool),
-            )
+            for split_type, dataset_key in (
+                ("train", "train_dataset"),
+                ("val", "val_dataset"),
+                ("test", "test_dataset"),
+            ):
+                # Register split-specific channel mask for this fold.
+                setattr(
+                    channels,
+                    channel_mask_key(
+                        lite=lite,
+                        nano=nano,
+                        binary_tasks=binary_tasks,
+                        eval_setting=eval_setting,
+                        eval_name=eval_name,
+                        fold_idx=fold_idx,
+                        split_type=split_type,
+                    ),
+                    np.isin(
+                        channels.name, _get_electrode_labels(fold[dataset_key])
+                    ).astype(bool),
+                )
 
-            # Derive intervals from balanced dataset items.
-            train_intervals = _intervals_from_dataset(fold["train_dataset"])
-            val_intervals = _intervals_from_dataset(fold["val_dataset"])
-            test_intervals = _intervals_from_dataset(fold["test_dataset"])
-
-            split_indices[SPLIT_KEY_MAP(eval_name, fold_idx, "train")] = train_intervals
-            split_indices[SPLIT_KEY_MAP(eval_name, fold_idx, "val")] = val_intervals
-            split_indices[SPLIT_KEY_MAP(eval_name, fold_idx, "test")] = test_intervals
+                # Store split interval indices using the same selector key semantics.
+                split_indices[
+                    split_interval_key(
+                        lite=lite,
+                        nano=nano,
+                        binary_tasks=binary_tasks,
+                        eval_setting=eval_setting,
+                        eval_name=eval_name,
+                        fold_idx=fold_idx,
+                        split_type=split_type,
+                    )
+                ] = _intervals_from_dataset(fold[dataset_key])
 
     return split_indices
 
