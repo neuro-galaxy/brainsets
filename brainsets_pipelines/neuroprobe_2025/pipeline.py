@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from argparse import ArgumentParser, BooleanOptionalAction, Namespace
-from typing import Any, Dict, List, Literal, Tuple, Optional, get_args
+from typing import Dict, List, Literal, Tuple, Optional, get_args
 
 from brainsets.pipeline import BrainsetPipeline
 from temporaldata import ArrayDict, Data, Interval, IrregularTimeSeries
@@ -64,8 +64,8 @@ ALL_EVAL_SETTINGS = {
     "eval_setting": get_args(EvalSettingOption),
 }
 SETTING_SPLIT_KEY_MAP = lambda lite, nano, binary_tasks, eval_setting, key: \
-    f"{'lite' if lite else ('nano' if nano else 'full')}.{'binary' if binary_tasks else 'multiclass'}.{eval_setting}.{key}"
-SPLIT_KEY_MAP = lambda eval_name, fold_idx, split_type: f"{eval_name}.fold{fold_idx}.{split_type}_intervals"
+    f"{'lite' if lite else ('nano' if nano else 'full')}${'binary' if binary_tasks else 'multiclass'}${eval_setting}${key}"
+SPLIT_KEY_MAP = lambda eval_name, fold_idx, split_type: f"{eval_name}$fold{fold_idx}${split_type}_intervals"
 
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
@@ -198,7 +198,7 @@ class Pipeline(BrainsetPipeline):
         if not self.args.no_splits:
             self.update_status("Registering splits")
             for split_key, intervals in split_indices.items():
-                _data_set_nested_attribute(data.splits, split_key, intervals)
+                setattr(data.splits, split_key, intervals)
 
         # save data to disk
         self.update_status("Storing")
@@ -302,20 +302,6 @@ def _prepare_neuroprobe_lib(raw_dir: Path) -> None:
     import neuroprobe
     import neuroprobe.config as neuroprobe_config
     import neuroprobe.train_test_splits as neuroprobe_train_test_splits
-
-
-def _data_set_nested_attribute(data: Data, path: str, value: Any) -> None:
-    # Split key by dots, resolve using getattr
-    components = path.split(".")
-    obj = data
-    for c in components[:-1]:
-        try:
-            obj = getattr(obj, c)
-        except AttributeError:
-            setattr(obj, c, Data(domain=data.domain))
-            obj = getattr(obj, c)
-
-    setattr(obj, components[-1], value)
 
 
 # subject is neuroprobe.BrainTreebankSubject object
