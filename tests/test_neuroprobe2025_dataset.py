@@ -26,7 +26,37 @@ def _channel_mask_key(
     fold: int,
     split: str,
 ) -> str:
-    return f"included${subset_tier}${label_mode}${h5_regime}${task}$fold{fold}${split}"
+    return (
+        "included$"
+        f"{_split_selector_key(subset_tier=subset_tier, label_mode=label_mode, h5_regime=h5_regime, task=task, fold=fold, split=split)}"
+    )
+
+
+def _split_selector_key(
+    *,
+    subset_tier: str,
+    label_mode: str,
+    h5_regime: str,
+    task: str,
+    fold: int,
+    split: str,
+) -> str:
+    return f"{subset_tier}${label_mode}${h5_regime}${task}$fold{fold}${split}"
+
+
+def _interval_flat_key(
+    *,
+    subset_tier: str,
+    label_mode: str,
+    h5_regime: str,
+    task: str,
+    fold: int,
+    split: str,
+) -> str:
+    return (
+        f"{_split_selector_key(subset_tier=subset_tier, label_mode=label_mode, h5_regime=h5_regime, task=task, fold=fold, split=split)}"
+        "_intervals"
+    )
 
 
 def _write_mock_h5(
@@ -60,9 +90,13 @@ def _write_mock_h5(
 
         splits_group = h5.create_group("splits")
         for split in splits:
-            interval_key = (
-                f"{subset_tier}${label_mode}${h5_regime}${task}$"
-                f"fold{fold}${split}_intervals"
+            interval_key = _interval_flat_key(
+                subset_tier=subset_tier,
+                label_mode=label_mode,
+                h5_regime=h5_regime,
+                task=task,
+                fold=fold,
+                split=split,
             )
             interval_group = splits_group.create_group(interval_key)
             interval_group.create_dataset("start", data=np.array([0.0], dtype=float))

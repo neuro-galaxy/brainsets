@@ -407,12 +407,16 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         return [test_recording_id]
 
     # Path/key builders.
-    def _interval_flat_key(self) -> str:
-        # Match neuroprobe_2025 flat split key format written by pipeline.py.
+    def _split_selector_key(self) -> str:
+        """Return the canonical semantic split selector shared across key types."""
         return (
             f"{self.subset_tier}${self.label_mode}${self.h5_regime}${self.task}$"
-            f"fold{self.fold}${self.split}_intervals"
+            f"fold{self.fold}${self.split}"
         )
+
+    def _interval_flat_key(self) -> str:
+        # Match neuroprobe_2025 flat split key format written by pipeline.py.
+        return f"{self._split_selector_key()}_intervals"
 
     def _interval_attr_path(self) -> str:
         # Primary split interval path (flat key under data.splits).
@@ -424,10 +428,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
 
     def _make_channel_mask_key(self) -> str:
         # Match the key naming convention used by the neuroprobe preprocessing pipeline.
-        return (
-            f"included${self.subset_tier}${self.label_mode}$"
-            f"{self.h5_regime}${self.task}$fold{self.fold}${self.split}"
-        )
+        return f"included${self._split_selector_key()}"
 
     @classmethod
     def _ss_dm_train_recording_id_for_selection(
