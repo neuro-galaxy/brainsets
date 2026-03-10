@@ -6,24 +6,29 @@ from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
 class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
     """
-    A dataset class for the O'Doherty and Sabes (2017) recordings,
-    sourced from Zenodo 3854034.
+    Dataset class for the O'Doherty and Sabes recordings from the
+    `Zenodo archive <https://zenodo.org/records/3854034>`_.
 
-    ### Stats
-    * Subjects: 2
-    * Tasks: Random Target
-    * Total Sessions: 47
-    * Total Units: 16,566
-    * Event Counts: ~105.2M spikes and ~12.4M behavioral timestamps
+    **Dataset Statistics**
 
-    ### Links
-    * Paper: [O'Doherty and Sabes (2018) - J Neural Eng](https://pubmed.ncbi.nlm.nih.gov/29192609/)
-    * Data (Zenodo): (https://zenodo.org/records/3854034)
+    - **Subjects:** 2
+    - **Tasks:** Random Target
+    - **Total Sessions:** 47
+    - **Total Units:** 16,566
+    - **Events:** ~105.2M spikes, ~12.4M behavioral timestamps
 
-    ### Reference:
+    **Links**
+
+    - Paper: `O'Doherty and Sabes (2018) – Journal of Neural Engineering <https://pubmed.ncbi.nlm.nih.gov/29192609/>`_
+    - Dataset: `Zenodo Record 3854034 <https://zenodo.org/records/3854034>`_
+
+    **Reference**
+
     O'Doherty, J. E., Cardoso, M. M. B., Makin, J. G., & Sabes, P. N. (2020).
-    Nonhuman Primate Reaching with Multichannel Sensorimotor Cortex Electrophysiology
-    [Data set]. Zenodo. https://doi.org/10.5281/zenodo.788569
+
+    *Nonhuman Primate Reaching with Multichannel Sensorimotor Cortex Electrophysiology.*
+
+    `Zenodo Dataset <https://doi.org/10.5281/zenodo.788569>`_.
     """
 
     def __init__(

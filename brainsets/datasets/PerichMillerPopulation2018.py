@@ -6,24 +6,24 @@ from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
 class PerichMillerPopulation2018(SpikingDatasetMixin, Dataset):
     """
-    A dataset class for the Perich and Miller (2018) recordings,
-    sourced from Dandiset 000688.
+    Dataset class for the Perich and Miller (2018) motor cortex recordings
+    from the `DANDI Archive <https://dandiarchive.org/dandiset/000688>`_.
 
-    ### Stats
-    * Subjects: 4
-    * Tasks: Center-Out and Random Target
-    * Total Sessions: 111 (84 Center-Out, 27 Random Target)
-    * Total Units: 10,410
-    * Event Counts: ~11.1M spikes and ~15.5M behavioral timestamps
+    **Dataset Statistics**
 
-    ### Links
-    * Paper: [Perich et al. (2018) - Neuron](https://doi.org/10.1016/j.neuron.2018.09.030)
-    * Data (DANDI): [Dandiset 000688](https://dandiarchive.org/dandiset/000688)
+    - **Subjects:** 4
+    - **Tasks:** Center-Out and Random Target
+    - **Total Sessions:** 111 (84 Center-Out, 27 Random Target)
+    - **Total Units:** 10,410
+    - **Events:** ~11.1M spikes, ~15.5M behavioral timestamps
 
-    ### Reference:
-    Perich, M. G., Miller, L. E., Azabou, M., & Dyer, E. L..
-    Long-term recordings of motor and premotor cortical spiking activity during reaching in monkeys (Version 0.250122.1735)
-    [Data set]. DANDI Archive. https://doi.org/10.48324/dandi.000688/0.250122.1735
+    **References**
+
+    Perich, M. G., Miller, L. E., Azabou, M., & Dyer, E. L.
+    *Long-term recordings of motor and premotor cortical spiking activity during reaching in monkeys.*
+    `Neuron <https://doi.org/10.1016/j.neuron.2018.09.030>`_.
+
+    Dataset: `Dandiset 000688 <https://doi.org/10.48324/dandi.000688/0.250122.1735>`_.
     """
 
     def __init__(

@@ -6,24 +6,31 @@ from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
 class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
     """
-    A dataset class for the Churchland and Shenoy (2012) recordings,
-    sourced from Dandiset 000070.
+    Dataset class for the Churchland and Shenoy (2012) motor cortex recordings
+    from the `DANDI Archive <https://dandiarchive.org/dandiset/000070>`_.
 
-    ### Stats
-    * Subjects: 2
-    * Tasks: Center-Out
-    * Total Sessions: 10
-    * Total Units: 1,911
-    * Event Counts: ~739M spikes and ~85M behavioral timestamps
+    **Dataset Statistics**
 
-    ### Links
-    * Paper: [Churchland et al. (2012) - Nature](https://www.nature.com/articles/nature11129)
-    * Data (DANDI): [Dandiset 000070](https://dandiarchive.org/dandiset/000070)
+    - **Subjects:** 2
+    - **Tasks:** Center-Out
+    - **Total Sessions:** 10
+    - **Total Units:** 1,911
+    - **Events:** ~739M spikes, ~85M behavioral timestamps
 
-    ### Reference
-    Churchland, M., Cunningham, J. P., Kaufman, M. T., Foster, J. D., Nuyujukian, P., Ryu, S. I., & Shenoy, K. V..
-    Neural population dynamics during reaching (Version 0.251218.1714)
-    [Data set]. DANDI Archive. https://doi.org/10.48324/dandi.000070/0.251218.1714
+    **Links**
+
+    - Paper: `Churchland et al. (2012) – Nature <https://www.nature.com/articles/nature11129>`_
+    - Dataset: `Dandiset 000070 <https://dandiarchive.org/dandiset/000070>`_
+
+    **Reference**
+
+    Churchland, M., Cunningham, J. P., Kaufman, M. T., Foster, J. D.,
+    Nuyujukian, P., Ryu, S. I., & Shenoy, K. V.
+
+    *Neural population dynamics during reaching.*
+
+    `DANDI Archive Dataset <https://doi.org/10.48324/dandi.000070/0.251218.1714>`_,
+    Version 0.251218.1714.
     """
 
     def __init__(
