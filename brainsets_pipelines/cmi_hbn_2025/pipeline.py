@@ -91,7 +91,9 @@ class Pipeline(OpenNeuroEEGPipeline):
         self.dataset_id = manifest_item.release_dataset_id
         self.brainset_id = f"cmi_hbn_r{release_id}_2025"
         self.raw_dir = original_raw_dir / f"R{release_id}"
-        self.processed_dir = original_processed_dir / f"R{release_id}"
+        self.processed_dir = original_processed_dir.with_name(
+            f"{original_processed_dir.name}_r{release_id}"
+        )
         self.__dict__.pop("_participants_data", None)
 
         try:
