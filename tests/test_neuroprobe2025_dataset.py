@@ -118,9 +118,6 @@ def _make_dataset(tmp_path: Path, **overrides) -> Neuroprobe2025:
 def _disable_prewarm(monkeypatch):
     # Keep tests lightweight and independent of full temporaldata recording schema.
     monkeypatch.setattr(
-        Neuroprobe2025, "_initialize_seeg_mixin_caches", lambda self: None
-    )
-    monkeypatch.setattr(
         Neuroprobe2025, "_prime_selected_recording_caches", lambda self: None
     )
 
@@ -231,7 +228,7 @@ def test_get_sampling_rate_is_fixed_constant(tmp_path):
     )
 
     ds = _make_dataset(tmp_path)
-    assert ds.get_sampling_rate() == Neuroprobe2025.DEFAULT_SAMPLING_RATE_HZ
+    assert ds.get_sampling_rate() == 2048.0
 
 
 def test_uniquify_channel_ids_option_sets_seeg_mixin_components(tmp_path):
@@ -289,7 +286,7 @@ def test_get_sampling_intervals_uses_instance_split_path(tmp_path, monkeypatch):
     ]
 
 
-def test_get_channel_view_included_only_filters_channels(tmp_path):
+def test_get_channel_arrays_included_only_filters_channels(tmp_path, monkeypatch):
     _write_mock_recordings(
         tmp_path,
         ("sub_1_trial001",),
@@ -299,22 +296,29 @@ def test_get_channel_view_included_only_filters_channels(tmp_path):
 
     ds = _make_dataset(tmp_path)
 
-    ds.seeg_dataset_mixin_channel_views = {
-        "sub_1_trial001": ds.ChannelView(
-            ids=np.array(["c0", "c1"]),
-            names=np.array(["A", "B"]),
-            included_mask=np.array([True, False]),
-            lip=np.array([[1.0, 3.0, 5.0], [2.0, 4.0, 6.0]], dtype=float),
-        )
-    }
+    class _FakeChannels:
+        id = np.array(["c0", "c1"])
+        name = np.array(["A", "B"])
+        included = np.array([True, False])
+        localization_L = np.array([1.0, 2.0], dtype=float)
+        localization_I = np.array([3.0, 4.0], dtype=float)
+        localization_P = np.array([5.0, 6.0], dtype=float)
 
-    full_view = ds.get_channel_view("sub_1_trial001", included_only=False)
-    included_view = ds.get_channel_view("sub_1_trial001", included_only=True)
-    assert full_view.ids.tolist() == ["c0", "c1"]
-    assert included_view.ids.tolist() == ["c0"]
-    assert included_view.names.tolist() == ["A"]
-    assert included_view.lip is not None
-    assert included_view.lip.shape == (1, 3)
+    class _FakeRecording:
+        channels = _FakeChannels()
+
+    monkeypatch.setattr(ds, "get_recording", lambda _rid: _FakeRecording())
+
+    full_arrays = ds.get_channel_arrays("sub_1_trial001", included_only=False)
+    included_arrays = ds.get_channel_arrays("sub_1_trial001", included_only=True)
+    assert full_arrays["ids"].tolist() == ["c0", "c1"]
+    assert full_arrays["indices"].tolist() == [0, 1]
+    assert included_arrays["ids"].tolist() == ["c0"]
+    assert included_arrays["names"].tolist() == ["A"]
+    assert included_arrays["included_mask"].tolist() == [True]
+    assert included_arrays["indices"].tolist() == [0]
+    assert included_arrays["lip"] is not None
+    assert included_arrays["lip"].shape == (1, 3)
 
 
 def test_compatibility_cache_invalidation_on_file_change(tmp_path):

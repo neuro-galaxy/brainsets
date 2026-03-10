@@ -6,7 +6,6 @@ import re
 from typing import Callable, ClassVar, Literal, Optional, get_args
 
 import h5py
-import numpy as np
 from temporaldata import Data, Interval
 
 from torch_brain.dataset import Dataset, SEEGDatasetMixin
@@ -99,10 +98,6 @@ NEUROPROBE_LONGEST_TRIALS_FOR_SUBJECT: dict[int, list[int]] = {
 # Strict parser for canonical recording ids like "sub_1_trial004".
 _RECORDING_ID_RE = re.compile(r"^sub_(\d+)_trial(\d{3})$")
 
-# Backwards-compatible aliases for callers importing these symbols directly.
-ChannelView = SEEGDatasetMixin.ChannelView
-RecordingInfo = SEEGDatasetMixin.RecordingInfo
-
 
 def _to_recording_id(subject: int, session: int) -> str:
     # Normalize integer subject/session into the canonical H5 recording id.
@@ -154,9 +149,6 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         dirname: Subdirectory under ``root`` containing recording H5 files.
     """
 
-    # Fixed sampling rate for Neuroprobe2025 processed recordings.
-    DEFAULT_SAMPLING_RATE_HZ = 2048.0
-    seeg_dataset_mixin_sampling_rate_hz = DEFAULT_SAMPLING_RATE_HZ
     # Process-wide memo cache for recording compatibility checks.
     _RECORDING_COMPAT_ISSUE_CACHE: ClassVar[dict[tuple[object, ...], str | None]] = {}
 
@@ -234,8 +226,6 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         self.prune_to_split = prune_to_split
 
         self._validate_selection_compatibility()
-        self._initialize_seeg_mixin_caches()
-
         self._prime_selected_recording_caches()
 
     def get_sampling_intervals(self) -> dict[str, Interval]:
@@ -246,13 +236,9 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             for rid in self._selected_recording_ids()
         }
 
-    def get_domain_intervals(
-        self, recording_ids: Optional[list[str]] = None
-    ) -> dict[str, Interval]:
-        """Return full-domain intervals."""
-        if recording_ids is None:
-            recording_ids = self.recording_ids
-        return super().get_domain_intervals(recording_ids=recording_ids)
+    def get_sampling_rate(self, recording_id: str | None = None) -> float:
+        """Return recording sampling rate in Hz."""
+        return 2048.0
 
     def get_recording_hook(self, data: Data):
         """Apply split-specific channel inclusion mask when available."""
@@ -643,86 +629,12 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             lines.append(f"  ... and {len(issues) - max_examples} more")
         return "\n".join(lines)
 
-    def _build_channel_view_cache(
-        self, recording_ids: list[str]
-    ) -> dict[str, SEEGDatasetMixin.ChannelView]:
-        """Build full channel views for the provided recordings."""
-        views: dict[str, SEEGDatasetMixin.ChannelView] = {}
-        for rid in recording_ids:
-            rec = self.get_recording(rid)
-            channels = rec.channels
-
-            ids = np.asarray(channels.id)
-            names = np.asarray(getattr(channels, "name", ids))
-            included_mask = np.asarray(
-                getattr(channels, "included", np.ones(len(ids), dtype=bool)),
-                dtype=bool,
-            )
-
-            if len(included_mask) != len(ids):
-                raise ValueError(
-                    f"Channel mask length mismatch for recording '{rid}': "
-                    f"len(mask)={len(included_mask)} vs len(ids)={len(ids)}"
-                )
-
-            lip: np.ndarray | None = None
-            if (
-                hasattr(channels, "localization_L")
-                and hasattr(channels, "localization_I")
-                and hasattr(channels, "localization_P")
-            ):
-                lip = np.stack(
-                    (
-                        np.asarray(channels.localization_L, dtype=float),
-                        np.asarray(channels.localization_I, dtype=float),
-                        np.asarray(channels.localization_P, dtype=float),
-                    ),
-                    axis=1,
-                )
-
-            views[rid] = self.ChannelView(
-                ids=ids, names=names, included_mask=included_mask, lip=lip
-            )
-        return views
-
-    def _initialize_seeg_mixin_caches(self) -> None:
-        """Initialize SEEG mixin cache contracts from dataset recordings."""
-        self.seeg_dataset_mixin_domain_intervals = {
-            rid: self.get_recording(rid).seeg_data.domain for rid in self.recording_ids
-        }
-        self.seeg_dataset_mixin_channel_views = self._build_channel_view_cache(
-            self.recording_ids
-        )
-        self.seeg_dataset_mixin_recording_infos = self._build_recording_info_cache(
-            self.recording_ids
-        )
-
-    def _build_recording_info_cache(
-        self, recording_ids: list[str]
-    ) -> dict[str, SEEGDatasetMixin.RecordingInfo]:
-        """Build compact recording metadata for the provided recordings."""
-        infos: dict[str, SEEGDatasetMixin.RecordingInfo] = {}
-        for rid in recording_ids:
-            subject_id, session_id = _from_recording_id(rid)
-            channel_view = self.seeg_dataset_mixin_channel_views[rid]
-            infos[rid] = self.RecordingInfo(
-                recording_id=rid,
-                subject_id=subject_id,
-                session_id=session_id,
-                sampling_rate_hz=self.get_sampling_rate(rid),
-                domain=self.seeg_dataset_mixin_domain_intervals[rid],
-                n_channels=int(len(channel_view.ids)),
-                n_included_channels=int(np.sum(channel_view.included_mask)),
-            )
-        return infos
-
     def _prime_selected_recording_caches(self) -> None:
         """Prewarm caches for currently selected split recordings."""
-        # Prime hot paths used immediately by samplers/evaluators for this split.
+        # Prime hot metadata paths used immediately by samplers/evaluators.
         for rid in self._selected_recording_ids():
-            self.get_recording_info(rid)
-            self.get_channel_view(rid, included_only=False)
-            self.get_channel_view(rid, included_only=True)
+            self.get_channel_arrays(rid, included_only=False)
+            self.get_channel_arrays(rid, included_only=True)
 
     def _selected_recording_ids(self) -> list[str]:
         if self.prune_to_split:
