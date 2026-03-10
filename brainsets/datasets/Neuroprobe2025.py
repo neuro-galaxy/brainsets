@@ -182,13 +182,17 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             test_subject=test_subject,
             test_session=test_session,
         )
-        split_recording_ids = self._recording_ids_for_selection(
-            subset_tier=subset_tier,
-            regime=regime,
-            split=split,
-            test_subject=test_subject,
-            test_session=test_session,
-        )
+        self.subset_tier = subset_tier
+        self.label_mode = label_mode
+        self.task = task
+        self.regime = regime
+        self.h5_regime = H5_REGIME_BY_REGIME[regime]
+        self.test_subject = test_subject
+        self.test_session = test_session
+        self.split = split
+        self.fold = self._resolve_fold(fold)
+
+        split_recording_ids = self._recording_ids_for_selection()
         if recording_ids is None:
             recording_ids = split_recording_ids
         requested_recording_ids = self._resolve_requested_recording_ids(recording_ids)
@@ -204,15 +208,6 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             **kwargs,
         )
 
-        self.subset_tier = subset_tier
-        self.label_mode = label_mode
-        self.task = task
-        self.regime = regime
-        self.h5_regime = H5_REGIME_BY_REGIME[regime]
-        self.test_subject = test_subject
-        self.test_session = test_session
-        self.split = split
-        self.fold = self._resolve_fold(fold)
         # Opt-in hook behavior: keep default channel IDs unchanged unless a caller
         # explicitly asks for recording-disambiguated IDs in returned recordings.
         if not isinstance(uniquify_channel_ids, (set, frozenset)):
@@ -366,38 +361,25 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             _from_recording_id(rid)
         return ids
 
-    @classmethod
     def _recording_ids_for_selection(
-        cls,
-        *,
-        subset_tier: SubsetTier,
-        regime: Regime,
-        split: Split,
-        test_subject: int,
-        test_session: int,
+        self,
     ) -> list[str]:
         """Resolve split-participating recording ids for constructor inputs."""
-        test_recording_id = _to_recording_id(test_subject, test_session)
+        test_recording_id = _to_recording_id(self.test_subject, self.test_session)
 
-        if regime == "SS-SM":
+        if self.regime == "SS-SM":
             # Within-session uses a single target recording for all splits.
             return [test_recording_id]
 
-        if regime == "SS-DM":
+        if self.regime == "SS-DM":
             # Cross-session trains on a different session from the same subject.
-            if split == "train":
-                return [
-                    cls._ss_dm_train_recording_id_for_selection(
-                        subset_tier=subset_tier,
-                        test_subject=test_subject,
-                        test_session=test_session,
-                    )
-                ]
+            if self.split == "train":
+                return [self._ss_dm_train_recording_id_for_selection()]
             # Val/test evaluate on the requested target recording.
             return [test_recording_id]
 
         # DS-DM
-        if split == "train":
+        if self.split == "train":
             # Cross-subject benchmark-default uses a fixed train anchor recording.
             return [_to_recording_id(DS_DM_TRAIN_SUBJECT_ID, DS_DM_TRAIN_TRIAL_ID)]
         # Val/test evaluate on the requested held-out target recording.
@@ -419,57 +401,54 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         # Return the nested attribute path for the split-specific channel mask.
         return f"channels.{self._split_key()}"
 
-    @classmethod
     def _ss_dm_train_recording_id_for_selection(
-        cls,
-        *,
-        subset_tier: SubsetTier,
-        test_subject: int,
-        test_session: int,
+        self,
     ) -> str:
         # Compute SS-DM train recording using benchmark-default selection rules.
-        if subset_tier == "lite":
+        if self.subset_tier == "lite":
             # Lite mode always defines exactly two eligible trials per subject.
             # Training should use "the other lite trial" relative to the test trial.
             subject_trials = sorted(
                 trial
                 for subject, trial in NEUROPROBE_LITE_SUBJECT_TRIALS
-                if subject == test_subject
+                if subject == self.test_subject
             )
             if len(subject_trials) != 2:
                 raise ValueError(
                     "SS-DM lite benchmark-default expects exactly two lite trials "
-                    f"for subject {test_subject}, found {subject_trials}."
+                    f"for subject {self.test_subject}, found {subject_trials}."
                 )
-            if test_session not in subject_trials:
+            if self.test_session not in subject_trials:
                 raise ValueError(
-                    f"Target (test_subject={test_subject}, test_session={test_session}) "
+                    f"Target (test_subject={self.test_subject}, test_session={self.test_session}) "
                     "is not eligible for lite SS-DM benchmark-default."
                 )
             # Start with the first lite trial; if that is the test trial, swap to the second.
             train_session = subject_trials[0]
-            if train_session == test_session:
+            if train_session == self.test_session:
                 train_session = subject_trials[1]
-            return _to_recording_id(test_subject, train_session)
+            return _to_recording_id(self.test_subject, train_session)
 
-        if subset_tier == "full":
+        if self.subset_tier == "full":
             # Full mode uses the longest-trial ordering table from the benchmark.
             # Normally pick the longest trial for training.
-            longest_trials = NEUROPROBE_LONGEST_TRIALS_FOR_SUBJECT.get(test_subject, [])
+            longest_trials = NEUROPROBE_LONGEST_TRIALS_FOR_SUBJECT.get(
+                self.test_subject, []
+            )
             if len(longest_trials) < 2:
                 raise ValueError(
                     "SS-DM full benchmark-default requires at least two longest trials "
-                    f"for subject {test_subject}, found {longest_trials}."
+                    f"for subject {self.test_subject}, found {longest_trials}."
                 )
             # If the longest trial is already the test target, fall back to second-longest
             # to keep train/test recordings distinct.
             train_session = longest_trials[0]
-            if train_session == test_session:
+            if train_session == self.test_session:
                 train_session = longest_trials[1]
-            return _to_recording_id(test_subject, train_session)
+            return _to_recording_id(self.test_subject, train_session)
 
         raise ValueError(
-            f"subset_tier '{subset_tier}' is not supported for SS-DM train selection."
+            f"subset_tier '{self.subset_tier}' is not supported for SS-DM train selection."
         )
 
     def _validate_selection_compatibility(self) -> None:
@@ -639,10 +618,4 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
     def _selected_recording_ids(self) -> list[str]:
         if self.prune_to_split:
             return list(self.recording_ids)
-        return self._recording_ids_for_selection(
-            subset_tier=self.subset_tier,
-            regime=self.regime,
-            split=self.split,
-            test_subject=self.test_subject,
-            test_session=self.test_session,
-        )
+        return self._recording_ids_for_selection()
