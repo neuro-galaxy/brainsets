@@ -109,8 +109,7 @@ def concatenate_recordings(
     mismatch_messages = []
     meas_dates = [rec.info["meas_date"] for rec in recordings]
     meas_days = [
-        d.date() if hasattr(d, "date") and d is not None else None
-        for d in meas_dates
+        d.date() if hasattr(d, "date") and d is not None else None for d in meas_dates
     ]
     if len(set(meas_days)) > 1:
         mismatch_messages.append(
@@ -126,8 +125,8 @@ def concatenate_recordings(
         mismatch_message = (
             "Mismatch in channel names and/or order across recordings.\n"
             "Each tuple below shows the channel names for one recording in the given order:\n"
-            + "\n".join(mismatch_details) +
-            "\n"
+            + "\n".join(mismatch_details)
+            + "\n"
             "All recordings must have identical channel lists and order for concatenation."
         )
         mismatch_messages.append(mismatch_message)
@@ -144,7 +143,8 @@ def concatenate_recordings(
         (idx, rec, meas_dates[idx]) for idx, rec in enumerate(recordings)
     ]
     sorted_recordings = sorted(
-        indexed_recordings, key=lambda x: x[2] if x[2] is not None else datetime.datetime.min
+        indexed_recordings,
+        key=lambda x: x[2] if x[2] is not None else datetime.datetime.min,
     )
 
     copies = []
@@ -152,7 +152,7 @@ def concatenate_recordings(
         copies.append(rec.copy())
 
     concatenated = mne.concatenate_raws(copies)
-    
+
     return concatenated
 
 
@@ -171,7 +171,7 @@ def extract_signal(
         ImportError: If MNE is not installed.
     """
     _check_mne_available("extract_signal")
-        
+
     sfreq = recording_data.info["sfreq"]
     signal = recording_data.get_data().T
     if len(signal) == 0:
@@ -221,7 +221,9 @@ def has_consecutive_time_points(
 
     n_samples = raw.n_times
     if n_samples < 2:
-        raise ValueError("Recording must contain at least 2 samples to verify consecutiveness")
+        raise ValueError(
+            "Recording must contain at least 2 samples to verify consecutiveness"
+        )
 
     sfreq = raw.info["sfreq"]
     expected_interval = 1.0 / sfreq
@@ -404,3 +406,4 @@ def extract_psg_signal(raw_psg: "mne.io.Raw") -> Tuple[RegularTimeSeries, ArrayD
     )
 
     return signals, channels
+

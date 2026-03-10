@@ -115,6 +115,7 @@ def group_recordings_by_entity(
     Raises:
         ValueError: If an entity name is unsupported.
     """
+
     def _normalize_entity_list(entities: list[str], arg_name: str) -> list[str]:
         normalized = []
         for entity in entities:
@@ -164,7 +165,7 @@ def group_recordings_by_entity(
 
 
 def check_eeg_recording_files_exist(
-    bids_root: str | Path,    
+    bids_root: str | Path,
     recording_id: str,
 ) -> bool:
     """Check if EEG recording files matching the recording_id pattern exist locally.
@@ -192,7 +193,9 @@ def check_ieeg_recording_files_exist(
     Returns:
         True if at least one iEEG data file is found, False otherwise
     """
-    return _check_recording_files_exist(bids_root, recording_id, "ieeg", IEEG_EXTENSIONS)
+    return _check_recording_files_exist(
+        bids_root, recording_id, "ieeg", IEEG_EXTENSIONS
+    )
 
 
 def build_bids_path(
@@ -212,7 +215,7 @@ def build_bids_path(
         ValueError: If recording_id cannot be parsed
     """
     entities = get_entities_from_fname(recording_id, on_error="raise")
-    
+
     return BIDSPath(
         root=bids_root,
         subject=entities.get("subject"),
@@ -224,11 +227,9 @@ def build_bids_path(
         datatype=modality,
         suffix=modality,
     )
-   
 
-def load_json_sidecar(
-    bids_path: str | Path | BIDSPath
-) -> dict:
+
+def load_json_sidecar(bids_path: str | Path | BIDSPath) -> dict:
     """Load a JSON sidecar file from a BIDS path.
 
     Args:
@@ -239,7 +240,7 @@ def load_json_sidecar(
     """
     if not isinstance(bids_path, BIDSPath):
         bids_path = BIDSPath(bids_path)
-    
+
     sidecar_path = bids_path.find_matching_sidecar(extension=".json")
     if sidecar_path is None:
         raise FileNotFoundError(f"No JSON sidecar file found for {bids_path}.")
@@ -253,7 +254,7 @@ def load_participants_tsv(bids_root: Path | str) -> Optional[pd.DataFrame]:
     Returns:
         DataFrame with participant information indexed by participant_id,
         or None if participants.tsv doesn't exist.
-    """    
+    """
     df = pd.read_csv(
         Path(bids_root) / "participants.tsv",
         sep="\t",
@@ -359,7 +360,7 @@ def _fetch_recordings(
     if isinstance(source, (str, BIDSPath, Path)):
         bids_path = BIDSPath(root=source, datatype=modality)
         source = bids_path.match()
-    
+
     if len(source) == 0:
         return []
 
@@ -369,11 +370,11 @@ def _fetch_recordings(
     for filepath in source:
         if not isinstance(filepath, BIDSPath):
             filepath = get_bids_path_from_fname(filepath, check=False)
-        
+
         ext = Path(filepath).suffix.lower()
         if ext not in extensions:
             continue
-        
+
         if filepath.datatype != modality:
             continue
 
@@ -400,17 +401,26 @@ def _fetch_recordings(
         recordings.append(
             {
                 "recording_id": recording_id,
-                "subject_id": f"sub-{entities['subject']}" if entities["subject"] else None,
-                "session_id": f"ses-{entities['session']}" if entities["session"] else None,
+                "subject_id": (
+                    f"sub-{entities['subject']}" if entities["subject"] else None
+                ),
+                "session_id": (
+                    f"ses-{entities['session']}" if entities["session"] else None
+                ),
                 "task_id": entities["task"] if entities["task"] else None,
-                "acquisition_id": entities["acquisition"] if entities["acquisition"] else None,
+                "acquisition_id": (
+                    entities["acquisition"] if entities["acquisition"] else None
+                ),
                 "run_id": entities["run"] if entities["run"] else None,
-                "description_id": entities["description"] if entities["description"] else None,
+                "description_id": (
+                    entities["description"] if entities["description"] else None
+                ),
                 "fpath": filepath,
             }
         )
 
     return recordings
+
 
 def _check_recording_files_exist(
     bids_root: str | Path,
@@ -436,8 +446,9 @@ def _check_recording_files_exist(
     bids_path = build_bids_path(bids_root, recording_id, modality)
     subject_id = f"sub-{bids_path.entities['subject']}"
     subject_dir = bids_path.root / subject_id
-    
+
     for file in subject_dir.rglob(f"{recording_id}_*"):
         if file.suffix.lower() in extensions:
             return True
     return False
+
