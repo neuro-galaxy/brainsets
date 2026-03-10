@@ -59,8 +59,7 @@ class Pipeline(OpenNeuroEEGPipeline):
                 raise ValueError(
                     f"Invalid choice: release must be one of 1-11, got {args.release}."
                 )
-            # Always build full manifest so --single can find any recording;
-            releases = RELEASES
+            releases = {args.release: RELEASES[args.release]}
         else:
             releases = RELEASES
 
@@ -75,14 +74,6 @@ class Pipeline(OpenNeuroEEGPipeline):
         return pd.concat(all_manifests)
 
     def _run_item(self, manifest_item):
-        if self.args is not None and self.args.release is not None:
-            if manifest_item.release_id != self.args.release:
-                self.update_status(
-                    "SKIPPED: session is not part of the selected release "
-                    f"(you used --release {self.args.release}, "
-                    f"this session is from release {manifest_item.release_id})"
-                )
-                return
 
         release_id = manifest_item.release_id
         original_raw_dir = self.raw_dir
