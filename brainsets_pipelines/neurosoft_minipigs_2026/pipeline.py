@@ -64,22 +64,22 @@ ON_VS_OFF_TO_ID = {
 }
 
 STIM_FREQUENCY_TO_ID = {
-    'stim_100Hz': 100,
-    'stim_200Hz': 200,
-    'stim_300Hz': 300,
-    'stim_400Hz': 400,
-    'stim_500Hz': 500,
-    'stim_800Hz': 800,
-    'stim_1000Hz': 1000,
-    'stim_2000Hz': 2000,
-    'stim_5000Hz': 5000,
-    'stim_8000Hz': 8000,
-    'stim_10000Hz': 10000,
-    'stim_15000Hz': 15000,
-    'stim_16000Hz': 16000,
-    'stim_20000Hz': 20000,
-    'stim_30000Hz': 30000,
-    'stim_40000Hz': 40000,
+    "stim_100Hz": 100,
+    "stim_200Hz": 200,
+    "stim_300Hz": 300,
+    "stim_400Hz": 400,
+    "stim_500Hz": 500,
+    "stim_800Hz": 800,
+    "stim_1000Hz": 1000,
+    "stim_2000Hz": 2000,
+    "stim_5000Hz": 5000,
+    "stim_8000Hz": 8000,
+    "stim_10000Hz": 10000,
+    "stim_15000Hz": 15000,
+    "stim_16000Hz": 16000,
+    "stim_20000Hz": 20000,
+    "stim_30000Hz": 30000,
+    "stim_40000Hz": 40000,
 }
 
 
@@ -107,16 +107,14 @@ class Pipeline(BrainsetPipeline):
             ValueError: If any recording group contains an unknown or missing hemisphere acquisition.
         """
         if not raw_dir.exists():
-            raise FileNotFoundError(
-                f"BIDS root directory '{raw_dir}' does not exist."
-            )
-    
+            raise FileNotFoundError(f"BIDS root directory '{raw_dir}' does not exist.")
+
         recordings = fetch_ieeg_recordings(raw_dir)
         grouped_recordings = group_recordings_by_entity(
             recordings,
             fixed_entities=["subject", "session", "task", "description"],
         )
-                
+
         # TODO: This is a hack to group by hemisphere. It should be done in a more elegant way.
         # The right way to do this would be to use a different run number for each stimulation frequency
         # and use acq to denote hemisphere. Stimulation frequency values are included in the *events.tsv file.
@@ -124,43 +122,45 @@ class Pipeline(BrainsetPipeline):
         for group_id, recordings in grouped_recordings.items():
             hemispheres = {}
             for recording in recordings:
-                recording_id = recording['recording_id']
+                recording_id = recording["recording_id"]
                 entities = get_entities_from_fname(recording_id, on_error="raise")
-                acquisition = entities.get('acquisition', '')
+                acquisition = entities.get("acquisition", "")
                 hemi = None
-                if acquisition and 'L' in acquisition:
-                    hemi = 'L'
-                elif acquisition and 'R' in acquisition:
-                    hemi = 'R'
+                if acquisition and "L" in acquisition:
+                    hemi = "L"
+                elif acquisition and "R" in acquisition:
+                    hemi = "R"
                 else:
-                    hemi = 'UNKNOWN'
+                    hemi = "UNKNOWN"
                 hemispheres.setdefault(hemi, []).append(recording)
-                        
-            if 'UNKNOWN' in hemispheres:
+
+            if "UNKNOWN" in hemispheres:
                 raise ValueError(f"Unknown hemisphere found for group {group_id}")
-            
+
             # If there's more than one hemisphere in this group, split up
             if len(hemispheres) > 0:
                 for hemi, hemi_recordings in hemispheres.items():
                     new_group_id = f"{group_id}_{hemi}H"
                     new_grouped_recordings[new_group_id] = hemi_recordings
         grouped_recordings = new_grouped_recordings
-                
+
         manifest_list = []
         for session_id, recordings in grouped_recordings.items():
             manifest_list.append(
                 {
                     "session_id": session_id,
-                    "recording_ids": [recording['recording_id'] for recording in recordings],
+                    "recording_ids": [
+                        recording["recording_id"] for recording in recordings
+                    ],
                 }
             )
 
         if not manifest_list:
             raise ValueError(f"No iEEG recordings found in BODS root {raw_dir}")
-        
+
         manifest = pd.DataFrame(manifest_list).set_index("session_id")
         return manifest
-    
+
     def download(self, manifest_item: pd.Series):
         """
         Download step for dataset pipeline.
@@ -178,14 +178,14 @@ class Pipeline(BrainsetPipeline):
         self.update_status("DOWNLOADING")
 
         recording_ids = manifest_item.recording_ids
-        
+
         if not getattr(self.args, "redownload", False):
             for recording_id in recording_ids:
                 if check_ieeg_recording_files_exist(self.raw_dir, recording_id):
                     self.update_status(f"Already Downloaded")
                 else:
                     raise FileNotFoundError(f"Recording {recording_id} not found.")
-        
+
         return {
             "session_id": manifest_item.Index,
             "recording_ids": recording_ids,
@@ -230,7 +230,7 @@ class Pipeline(BrainsetPipeline):
         # Load all recordings from the same session into a dictionary of raw objects
         self.update_status(f"Loading {self.modality.upper()} recordings")
         recordings = load_recordings(self.raw_dir, recording_ids, self.modality)
-       
+
         # concatenate the recordings
         raw = concatenate_recordings(list(recordings.values()))
         # delete boundary annotations after concatenating the recordings
@@ -269,17 +269,19 @@ class Pipeline(BrainsetPipeline):
 
         self.update_status(f"Extracting {self.modality.upper()} Signal")
         signal = extract_signal(recordings)
-                
+
         self.update_status("Building Channels")
         channels = extract_channels(raw)
-                
+
         self.update_status("Extracting behavior intervals")
         on_vs_off_trials = extract_on_vs_off_trials(recordings)
         acoustic_stim_trials = extract_acoustic_stim_trials(recordings)
-        
+
         self.update_status("Generating splits")
-        splits = generate_splits(subject_id, session_id, on_vs_off_trials, acoustic_stim_trials)
-        
+        splits = generate_splits(
+            subject_id, session_id, on_vs_off_trials, acoustic_stim_trials
+        )
+
         self.update_status("Creating Data Object")
         data = Data(
             brainset=brainset_description,
@@ -323,8 +325,8 @@ def generate_splits(
             f"intersession_fold_{fold_idx}_assignment": assignment
             for fold_idx, assignment in enumerate(session_assignments)
         }
-    )    
-    
+    )
+
     stim_vs_rest_splits = {}
     if len(stim_vs_rest_trials) > 0:
         stim_vs_rest_folds = generate_stratified_folds(
@@ -334,7 +336,7 @@ def generate_splits(
             val_ratio=0.2,
             seed=42,
         )
-        
+
         for k, fold_data in enumerate(stim_vs_rest_folds):
             stim_vs_rest_splits[f"on_vs_off_fold_{k}_train"] = fold_data.train
             stim_vs_rest_splits[f"on_vs_off_fold_{k}_valid"] = fold_data.valid
@@ -349,12 +351,12 @@ def generate_splits(
             val_ratio=0.2,
             seed=42,
         )
-    
+
         for k, fold_data in enumerate(acoustic_stim_folds):
             acoustic_stim_splits[f"acoustic_stim_fold_{k}_train"] = fold_data.train
             acoustic_stim_splits[f"acoustic_stim_fold_{k}_valid"] = fold_data.valid
             acoustic_stim_splits[f"acoustic_stim_fold_{k}_test"] = fold_data.test
-            
+
     return Data(
         **namespaced_assignments,
         **stim_vs_rest_splits,
@@ -378,16 +380,16 @@ def extract_on_vs_off_trials(recordings: dict[str, mne.io.Raw]) -> Interval:
     first_meas_date = None
     for _, raw in recordings.items():
         meas_date = raw.info["meas_date"]
-        
+
         if first_meas_date is None:
             first_meas_date = meas_date
-        
+
         offset = (meas_date - first_meas_date).total_seconds()
-        
+
         for annotation in raw.annotations:
             start_time = annotation["onset"] + offset
             end_time = start_time + annotation["duration"]
-                        
+
             if len(end_times) > 0 and start_time < end_times[-1]:
                 # the previous trial goes into the next one
                 # this happens because of numerical precision issues
@@ -399,15 +401,24 @@ def extract_on_vs_off_trials(recordings: dict[str, mne.io.Raw]) -> Interval:
                 end_times[-1] = start_time
 
             # skip white-noise stimulation trials
-            if 'stim' in annotation["description"] and 'white-noise' in annotation["description"]:
+            if (
+                "stim" in annotation["description"]
+                and "white-noise" in annotation["description"]
+            ):
                 continue
-            
+
             start_times.append(start_time)
             end_times.append(end_time)
 
-            if annotation["description"] == "rest" or annotation["description"] == "baseline":
+            if (
+                annotation["description"] == "rest"
+                or annotation["description"] == "baseline"
+            ):
                 labels.append("off")
-            elif 'stim' in annotation["description"] and 'Hz' in annotation["description"]:
+            elif (
+                "stim" in annotation["description"]
+                and "Hz" in annotation["description"]
+            ):
                 labels.append("on")
 
     # Map each unique label to an integer (in increasing order)
@@ -438,16 +449,16 @@ def extract_acoustic_stim_trials(recordings: dict[str, mne.io.Raw]) -> Interval:
     first_meas_date = None
     for _, raw in recordings.items():
         meas_date = raw.info["meas_date"]
-        
+
         if first_meas_date is None:
             first_meas_date = meas_date
-        
+
         offset = (meas_date - first_meas_date).total_seconds()
-        
+
         for annotation in raw.annotations:
             start_time = annotation["onset"] + offset
             end_time = start_time + annotation["duration"]
-            
+
             if len(end_times) > 0 and start_time < end_times[-1]:
                 # the previous trial goes into the next one
                 # this happens because of numerical precision issues
@@ -458,17 +469,20 @@ def extract_acoustic_stim_trials(recordings: dict[str, mne.io.Raw]) -> Interval:
                 # we can clip the end time of the last trial
                 end_times[-1] = start_time
 
-            if 'stim' in annotation["description"] and 'Hz' in annotation["description"]:
+            if (
+                "stim" in annotation["description"]
+                and "Hz" in annotation["description"]
+            ):
                 start_times.append(start_time)
                 end_times.append(end_time)
-                
-                #extract the stimulation frequency
+
+                # extract the stimulation frequency
                 frequency = _extract_stim_frequency(annotation["description"])
                 labels.append(f"stim_{frequency}Hz")
 
     # Map each unique label to an integer (in increasing order)
     label_ids = [STIM_FREQUENCY_TO_ID[label] for label in labels]
-        
+
     return Interval(
         start=np.array(start_times),
         end=np.array(end_times),
@@ -497,18 +511,18 @@ def extract_signal(recordings: dict[str, mne.io.Raw]) -> IrregularTimeSeries:
     signal = []
     timestamps = []
     first_meas_date = None
-    
+
     for _, raw in recordings.items():
         signal.append(raw.get_data())
         meas_date = raw.info["meas_date"]
-        
+
         if first_meas_date is None:
             first_meas_date = meas_date
-        
+
         offset = (meas_date - first_meas_date).total_seconds()
         ts = raw.times.astype(np.float64) + offset
         timestamps.append(ts[:, np.newaxis])
-       
+
     return IrregularTimeSeries(
         signal=np.hstack(signal).T,
         timestamps=np.vstack(timestamps).squeeze(),
@@ -532,36 +546,40 @@ def load_recordings(
         dict[str, mne.io.Raw]: The dictionary of loaded recordings.
     """
     session = {}
-    for recording_id in (recording_ids):
+    for recording_id in recording_ids:
         bids_path = build_bids_path(raw_dir, recording_id, modality)
         raw = read_raw_bids(
             bids_path,
-            on_ch_mismatch='reorder',
-            verbose='CRITICAL',
+            on_ch_mismatch="reorder",
+            verbose="CRITICAL",
         )
-                    
+
         # check if the recording has annotations
         if not raw.annotations or len(raw.annotations) == 0:
-            if 'Baseline' in recording_id:
-                warnings.warn(f"No annotations found in baseline recording {recording_id}. Adding baseline annotations.")
+            if "Baseline" in recording_id:
+                warnings.warn(
+                    f"No annotations found in baseline recording {recording_id}. Adding baseline annotations."
+                )
                 _add_baseline_annotations(raw)
             else:
                 raise ValueError(f"No annotations found in recording {recording_id}")
         else:
             # add rest annotations if not present
-            if 'rest' not in np.unique(raw.annotations.description):
+            if "rest" not in np.unique(raw.annotations.description):
                 _add_rest_annotations(raw)
-        
+
         # update meas_date to the original recording timestamp
-        meas_date = datetime.fromisoformat(load_json_sidecar(bids_path)['OriginalRecordingTimestamp'])
+        meas_date = datetime.fromisoformat(
+            load_json_sidecar(bids_path)["OriginalRecordingTimestamp"]
+        )
         if meas_date.tzinfo is None:
             meas_date = meas_date.replace(tzinfo=timezone.utc)
         raw.set_meas_date(meas_date)
-        
+
         session[recording_id] = raw
-    
+
     session = _sort_recordings(session)
-    
+
     return session
 
 
@@ -574,14 +592,14 @@ def _add_baseline_annotations(raw: mne.io.Raw):
     onsets = np.array(raw.times[0])
     durations = np.array(raw.times[-1] - raw.times[0])
     descriptions = np.array(["baseline"])
-    
+
     baseline_annot = mne.Annotations(
         onset=onsets,
         duration=durations,
         description=descriptions,
-        orig_time=raw.annotations.orig_time
+        orig_time=raw.annotations.orig_time,
     )
-    
+
     raw.set_annotations(raw.annotations + baseline_annot)
 
 
@@ -602,16 +620,16 @@ def _add_rest_annotations(raw: mne.io.Raw):
 
     mask = rest_durations > 0
     rest_onsets, rest_durations = rest_onsets[mask], rest_durations[mask]
-    
+
     rest_annot = mne.Annotations(
         onset=rest_onsets,
         duration=rest_durations,
         description=["rest"] * len(rest_onsets),
-        orig_time=raw.annotations.orig_time
+        orig_time=raw.annotations.orig_time,
     )
-    
+
     raw.set_annotations(raw.annotations + rest_annot)
-    
+
 
 def _sort_recordings(recordings: dict[str, mne.io.Raw]) -> dict[str, mne.io.Raw]:
     """Sorts the recordings by their measurement date.
@@ -634,11 +652,15 @@ def _delete_boundary_annotations(raw: mne.io.Raw):
     """
     boundary_annotations = ["BAD boundary", "EDGE boundary"]
     annot = raw.annotations
-    
+
     # get the indices of boundary annotations to be deleted
-    idx_to_be_deleted = [i for i, description in enumerate(annot.description) if description in boundary_annotations]
-    
-    # delete the boundary annotations    
+    idx_to_be_deleted = [
+        i
+        for i, description in enumerate(annot.description)
+        if description in boundary_annotations
+    ]
+
+    # delete the boundary annotations
     raw.annotations.delete(idx_to_be_deleted)
 
 
@@ -655,11 +677,12 @@ def _extract_stim_frequency(description: str) -> int:
         ValueError: If no frequency is found before 'Hz' or 'kHz'.
     """
     import re
-    match = re.search(r'(\d+(?:\.\d+)?)\s*Hz', description, re.IGNORECASE)
+
+    match = re.search(r"(\d+(?:\.\d+)?)\s*Hz", description, re.IGNORECASE)
     if match:
         return int(match.group(1))
-    
-    match = re.search(r'(\d+(?:\.\d+)?)\s*kHz', description, re.IGNORECASE)
+
+    match = re.search(r"(\d+(?:\.\d+)?)\s*kHz", description, re.IGNORECASE)
     if match:
         return int(match.group(1)) * 1000
 

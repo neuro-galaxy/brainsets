@@ -16,9 +16,7 @@ class NeurosoftMinipigs2026(Dataset):
         split_type: Optional[
             Literal["intersubject", "intersession", "intrasession"]
         ] = None,
-        task_type: Optional[
-            Literal["on_vs_off", "acoustic_stim"]
-        ] = "on_vs_off",
+        task_type: Optional[Literal["on_vs_off", "acoustic_stim"]] = "on_vs_off",
         dirname: str = "neurosoft_minipigs_2026",
         **kwargs,
     ):
@@ -91,8 +89,7 @@ class NeurosoftMinipigs2026(Dataset):
             else:
                 result[rid] = _empty_interval()
         return result
-    
-    
+
+
 def _empty_interval() -> Interval:
     return Interval(start=np.array([]), end=np.array([]))
-
