@@ -5,6 +5,27 @@ from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
 
 class PerichMillerPopulation2018(SpikingDatasetMixin, Dataset):
+    """
+    A dataset class for the Perich and Miller (2018) recordings,
+    sourced from Dandiset 000688.
+
+    ### Stats
+    * Subjects: 4
+    * Tasks: Center-Out and Random Target
+    * Total Sessions: 111 (84 Center-Out, 27 Random Target)
+    * Total Units: 10,410
+    * Event Counts: ~11.1M spikes and ~15.5M behavioral timestamps
+
+    ### Links
+    * Paper: [Perich et al. (2018) - Neuron](https://doi.org/10.1016/j.neuron.2018.09.030)
+    * Data (DANDI): [Dandiset 000688](https://dandiarchive.org/dandiset/000688)
+
+    ### Reference:
+    Perich, M. G., Miller, L. E., Azabou, M., & Dyer, E. L..
+    Long-term recordings of motor and premotor cortical spiking activity during reaching in monkeys (Version 0.250122.1735)
+    [Data set]. DANDI Archive. https://doi.org/10.48324/dandi.000688/0.250122.1735
+    """
+
     def __init__(
         self,
         root: str,

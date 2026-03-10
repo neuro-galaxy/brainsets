@@ -5,6 +5,27 @@ from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
 
 class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
+    """
+    A dataset class for the Churchland and Shenoy (2012) recordings,
+    sourced from Dandiset 000070.
+
+    ### Stats
+    * Subjects: 2
+    * Tasks: Center-Out
+    * Total Sessions: 10
+    * Total Units: 1,911
+    * Event Counts: ~739M spikes and ~85M behavioral timestamps
+
+    ### Links
+    * Paper: [Churchland et al. (2012) - Nature](https://www.nature.com/articles/nature11129)
+    * Data (DANDI): [Dandiset 000070](https://dandiarchive.org/dandiset/000070)
+
+    ### Reference
+    Churchland, M., Cunningham, J. P., Kaufman, M. T., Foster, J. D., Nuyujukian, P., Ryu, S. I., & Shenoy, K. V..
+    Neural population dynamics during reaching (Version 0.251218.1714)
+    [Data set]. DANDI Archive. https://doi.org/10.48324/dandi.000070/0.251218.1714
+    """
+
     def __init__(
         self,
         root: str,

@@ -5,6 +5,27 @@ from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
 
 class FlintSlutzkyAccurate2012(SpikingDatasetMixin, Dataset):
+    """
+    A dataset class for the Flint and Slutzky (2012) recordings,
+    sourced from CRCNS.
+
+    ### Stats
+    * Subjects: 1
+    * Tasks: Center-Out
+    * Total Sessions: 5
+    * Total Units: 957
+    * Event Counts: ~7.9M spikes and ~319k behavioral timestamps
+
+    ### Links
+    * Paper: [Flint et al. (2012) - J Neural Eng](https://doi.org/10.1088/1741-2560/9/4/046006)
+    * Data (CRCNS): (https://portal.nersc.gov/project/crcns/download/dream/data_sets/Flint_2012)
+
+    ### Reference:
+    Flint, R. D., Lindberg, E. W., Jordan, L. R., Miller, L. E., & Slutzky, M. W. (2012).
+    Accurate decoding of reaching movements from field potentials in the absence of spikes.
+    Journal of neural engineering, 9(4), 046006.
+    """
+
     def __init__(
         self,
         root: str,
