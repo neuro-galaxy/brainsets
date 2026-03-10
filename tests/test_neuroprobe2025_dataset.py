@@ -17,22 +17,7 @@ def _mock_dataset_dir(tmp_path: Path) -> Path:
     return tmp_path / "neuroprobe_2025"
 
 
-def _channel_mask_key(
-    *,
-    subset_tier: str,
-    label_mode: str,
-    h5_regime: str,
-    task: str,
-    fold: int,
-    split: str,
-) -> str:
-    return (
-        "included$"
-        f"{_split_selector_key(subset_tier=subset_tier, label_mode=label_mode, h5_regime=h5_regime, task=task, fold=fold, split=split)}"
-    )
-
-
-def _split_selector_key(
+def _split_key(
     *,
     subset_tier: str,
     label_mode: str,
@@ -42,21 +27,6 @@ def _split_selector_key(
     split: str,
 ) -> str:
     return f"{subset_tier}${label_mode}${h5_regime}${task}$fold{fold}${split}"
-
-
-def _interval_flat_key(
-    *,
-    subset_tier: str,
-    label_mode: str,
-    h5_regime: str,
-    task: str,
-    fold: int,
-    split: str,
-) -> str:
-    return (
-        f"{_split_selector_key(subset_tier=subset_tier, label_mode=label_mode, h5_regime=h5_regime, task=task, fold=fold, split=split)}"
-        "_intervals"
-    )
 
 
 def _write_mock_h5(
@@ -78,7 +48,7 @@ def _write_mock_h5(
         channels = h5.create_group("channels")
         channels.create_dataset("id", data=np.array(["ch0"], dtype="S8"))
         for split in splits:
-            key = _channel_mask_key(
+            key = _split_key(
                 subset_tier=subset_tier,
                 label_mode=label_mode,
                 h5_regime=h5_regime,
@@ -90,7 +60,7 @@ def _write_mock_h5(
 
         splits_group = h5.create_group("splits")
         for split in splits:
-            interval_key = _interval_flat_key(
+            interval_key = _split_key(
                 subset_tier=subset_tier,
                 label_mode=label_mode,
                 h5_regime=h5_regime,
@@ -264,7 +234,7 @@ def test_get_sampling_rate_is_fixed_constant(tmp_path):
     assert ds.get_sampling_rate() == Neuroprobe2025.DEFAULT_SAMPLING_RATE_HZ
 
 
-def test_uniquify_channel_ids_option_sets_seeg_mixin_flag(tmp_path):
+def test_uniquify_channel_ids_option_sets_seeg_mixin_components(tmp_path):
     _write_mock_recordings(
         tmp_path,
         ("sub_1_trial001",),
@@ -272,8 +242,20 @@ def test_uniquify_channel_ids_option_sets_seeg_mixin_flag(tmp_path):
         h5_regime="within_session",
     )
 
-    ds = _make_dataset(tmp_path, uniquify_channel_ids=True)
-    assert ds.seeg_dataset_mixin_uniquify_channel_ids is True
+    ds = _make_dataset(tmp_path, uniquify_channel_ids={"subject_id"})
+    assert ds.seeg_dataset_mixin_uniquify_channel_ids == frozenset({"subject_id"})
+
+
+def test_uniquify_channel_ids_option_rejects_non_set(tmp_path):
+    _write_mock_recordings(
+        tmp_path,
+        ("sub_1_trial001",),
+        subset_tier="full",
+        h5_regime="within_session",
+    )
+
+    with pytest.raises(TypeError, match="must be a set/frozenset"):
+        _make_dataset(tmp_path, uniquify_channel_ids=True)
 
 
 def test_get_sampling_intervals_uses_instance_split_path(tmp_path, monkeypatch):
@@ -303,7 +285,7 @@ def test_get_sampling_intervals_uses_instance_split_path(tmp_path, monkeypatch):
     assert list(intervals.keys()) == ["sub_1_trial001"]
     assert isinstance(intervals["sub_1_trial001"], Interval)
     assert fake_recording.paths == [
-        "splits.full$binary$within_session$speech$fold0$train_intervals"
+        "splits.full$binary$within_session$speech$fold0$train"
     ]
 
 
@@ -347,12 +329,7 @@ def test_compatibility_cache_invalidation_on_file_change(tmp_path):
     )
 
     ds = _make_dataset(tmp_path)
-    issue = ds._recording_compatibility_issue(
-        recording_id,
-        split_interval_attr_path=ds._interval_attr_path(),
-        split_interval_flat_key=ds._interval_flat_key(),
-        split_channel_mask_key=ds._make_channel_mask_key(),
-    )
+    issue = ds._recording_compatibility_issue(recording_id)
     assert issue is None
 
     _write_mock_h5(
@@ -363,10 +340,5 @@ def test_compatibility_cache_invalidation_on_file_change(tmp_path):
         compatible=False,
     )
 
-    issue = ds._recording_compatibility_issue(
-        recording_id,
-        split_interval_attr_path=ds._interval_attr_path(),
-        split_interval_flat_key=ds._interval_flat_key(),
-        split_channel_mask_key=ds._make_channel_mask_key(),
-    )
-    assert issue == "missing 'splits' group"
+    issue = ds._recording_compatibility_issue(recording_id)
+    assert issue == "missing 'splits' group; missing 'channels' group"

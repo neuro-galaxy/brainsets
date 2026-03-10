@@ -47,8 +47,8 @@ H5_REGIME_BY_REGIME: dict[Regime, str] = {
     "DS-DM": "cross_x",
 }
 
-# Channel mask keys now mirror split-key semantics:
-# included$<subset_tier>$<label_mode>$<eval_setting>$<task>$fold<k>$<split>
+# Split interval and channel-mask keys share one selector key:
+# <subset_tier>$<label_mode>$<eval_setting>$<task>$fold<k>$<split>
 
 # Neuroprobe benchmark constants (mirrors neuroprobe.config)
 # Fixed train subject id for benchmark-default DS-DM configuration.
@@ -144,8 +144,10 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         fold: Fold index. Defaults depend on regime:
             - ``within_session``: default 0, valid {0, 1}
             - ``cross_x``: forced to 0
-        uniquify_channel_ids: If ``True``, prefix returned channel IDs with
-            subject/session context via ``SEEGDatasetMixin``.
+        uniquify_channel_ids: Set of channel-ID components used for prefixing
+            via ``SEEGDatasetMixin``. Supported values:
+            ``{"subject_id"}``, ``{"session_id"}``, or both.
+            Defaults to empty set (no prefixing).
         prune_to_split: If ``True``, only split-required recording ids are loaded into
             the dataset at construction time (i.e., ``recording_ids`` is resolved to the
             split selection). If ``False``, keep the caller-provided recording subset.
@@ -172,7 +174,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         task: str = "speech",
         regime: Regime = "SS-SM",
         fold: Optional[int] = None,
-        uniquify_channel_ids: bool = False,
+        uniquify_channel_ids: set[str] | frozenset[str] = frozenset(),
         prune_to_split: bool = False,
         dirname: str = "neuroprobe_2025",
         **kwargs,
@@ -221,7 +223,14 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         self.fold = self._resolve_fold(fold)
         # Opt-in hook behavior: keep default channel IDs unchanged unless a caller
         # explicitly asks for recording-disambiguated IDs in returned recordings.
-        self.seeg_dataset_mixin_uniquify_channel_ids = bool(uniquify_channel_ids)
+        if not isinstance(uniquify_channel_ids, (set, frozenset)):
+            raise TypeError(
+                "uniquify_channel_ids must be a set/frozenset containing "
+                "'subject_id' and/or 'session_id'."
+            )
+        self.seeg_dataset_mixin_uniquify_channel_ids = frozenset(uniquify_channel_ids)
+        # Validate components eagerly so config errors fail at construction time.
+        self._normalize_channel_uniquify_components()
         self.prune_to_split = prune_to_split
 
         self._validate_selection_compatibility()
@@ -249,7 +258,9 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         """Apply split-specific channel inclusion mask when available."""
         # Override generic channel masks with the split-specific inclusion mask.
         try:
-            data.channels.included = data.get_nested_attribute(self._channel_mask_attr_path())
+            data.channels.included = data.get_nested_attribute(
+                self._channel_mask_attr_path()
+            )
         except (AttributeError, KeyError):
             # Compatibility is validated at init for selected split recordings.
             # If users manually access an out-of-split recording, keep default mask.
@@ -273,7 +284,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             "selected_recording_ids": list(self._selected_recording_ids()),
             "active_recording_ids": list(self.recording_ids),
             "interval_path": self._interval_attr_path(),
-            "channel_mask_key": self._make_channel_mask_key(),
+            "channel_mask_key": self._split_key(),
             "prune_to_split": self.prune_to_split,
         }
 
@@ -407,28 +418,20 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         return [test_recording_id]
 
     # Path/key builders.
-    def _split_selector_key(self) -> str:
-        """Return the canonical semantic split selector shared across key types."""
+    def _split_key(self) -> str:
+        """Return the canonical key shared under both `splits` and `channels`."""
         return (
             f"{self.subset_tier}${self.label_mode}${self.h5_regime}${self.task}$"
             f"fold{self.fold}${self.split}"
         )
 
-    def _interval_flat_key(self) -> str:
-        # Match neuroprobe_2025 flat split key format written by pipeline.py.
-        return f"{self._split_selector_key()}_intervals"
-
     def _interval_attr_path(self) -> str:
-        # Primary split interval path (flat key under data.splits).
-        return f"splits.{self._interval_flat_key()}"
+        # Primary split interval path under data.splits.
+        return f"splits.{self._split_key()}"
 
     def _channel_mask_attr_path(self) -> str:
         # Return the nested attribute path for the split-specific channel mask.
-        return f"channels.{self._make_channel_mask_key()}"
-
-    def _make_channel_mask_key(self) -> str:
-        # Match the key naming convention used by the neuroprobe preprocessing pipeline.
-        return f"included${self._split_selector_key()}"
+        return f"channels.{self._split_key()}"
 
     @classmethod
     def _ss_dm_train_recording_id_for_selection(
@@ -521,30 +524,16 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
 
     def _collect_incompatible_recordings(self) -> dict[str, str]:
         # Check each selected recording for exact split compatibility and collect failures.
-        split_interval_attr_path = self._interval_attr_path()
-        split_interval_flat_key = self._interval_flat_key()
-        split_channel_mask_key = self._make_channel_mask_key()
         incompatible: dict[str, str] = {}
         for rid in self._selected_recording_ids():
-            issue = self._recording_compatibility_issue(
-                rid,
-                split_interval_attr_path=split_interval_attr_path,
-                split_interval_flat_key=split_interval_flat_key,
-                split_channel_mask_key=split_channel_mask_key,
-            )
+            issue = self._recording_compatibility_issue(rid)
             if issue is not None:
                 incompatible[rid] = issue
         return incompatible
 
-    def _recording_compatibility_issue(
-        self,
-        recording_id: str,
-        *,
-        split_interval_attr_path: str,
-        split_interval_flat_key: str,
-        split_channel_mask_key: str,
-    ) -> str | None:
+    def _recording_compatibility_issue(self, recording_id: str) -> str | None:
         # Return None if compatible, otherwise a concise reason string.
+        split_key = self._split_key()
         h5_path = self._dataset_dir / f"{recording_id}.h5"
         try:
             stat = h5_path.stat()
@@ -565,8 +554,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             self.task,
             self.fold,
             self.split,
-            split_interval_flat_key,
-            split_channel_mask_key,
+            split_key,
         )
         if cache_key in self._RECORDING_COMPAT_ISSUE_CACHE:
             return self._RECORDING_COMPAT_ISSUE_CACHE[cache_key]
@@ -574,14 +562,25 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         issue: str | None = None
         try:
             with h5py.File(h5_path, "r") as h5:
+                missing: list[str] = []
                 if "splits" not in h5:
-                    issue = "missing 'splits' group"
-                # Flat split key should exist directly under the top-level `splits` group.
-                elif split_interval_flat_key not in h5["splits"]:
-                    issue = f"missing split interval path '{split_interval_attr_path}'"
+                    missing.append("missing 'splits' group")
+                # Split key should exist directly under the top-level `splits` group.
+                elif split_key not in h5["splits"]:
+                    missing.append(
+                        f"missing split interval path '{self._interval_attr_path()}'"
+                    )
+
+                if "channels" not in h5:
+                    missing.append("missing 'channels' group")
                 # Channel mask key must exist for this exact split/subset-tier/task setting.
-                elif "channels" not in h5 or split_channel_mask_key not in h5["channels"]:
-                    issue = f"missing channel mask key 'channels.{split_channel_mask_key}'"
+                elif split_key not in h5["channels"]:
+                    missing.append(
+                        f"missing channel mask key '{self._channel_mask_attr_path()}'"
+                    )
+
+                if missing:
+                    issue = "; ".join(missing)
         except (FileNotFoundError, OSError) as exc:
             issue = f"unable to open H5 file: {exc}"
 
