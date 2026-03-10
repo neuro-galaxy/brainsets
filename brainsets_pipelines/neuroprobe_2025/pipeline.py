@@ -33,6 +33,7 @@ from brainsets import serialize_fn_map
 
 
 import logging
+
 logging.basicConfig(level=logging.INFO)
 
 
@@ -51,10 +52,14 @@ COMMON_ASSETS = [
 ]
 
 FILENAME_MAP = lambda sub_id, trial_id: f"sub_{sub_id}_trial{trial_id:03d}"
-ASSET_PATH_MAP = lambda sub_id, trial_id: f"data/subject_data/sub_{sub_id}/trial{trial_id:03d}/{FILENAME_MAP(sub_id, trial_id)}.h5.zip"
+ASSET_PATH_MAP = (
+    lambda sub_id, trial_id: f"data/subject_data/sub_{sub_id}/trial{trial_id:03d}/{FILENAME_MAP(sub_id, trial_id)}.h5.zip"
+)
 FILENAME_PATTERN = r"sub_(\d+)_trial(\d{3})"
 
-SUBSET_TIER_KEY_MAP = lambda lite, nano: "lite" if lite else ("nano" if nano else "full")
+SUBSET_TIER_KEY_MAP = lambda lite, nano: (
+    "lite" if lite else ("nano" if nano else "full")
+)
 LABEL_MODE_KEY_MAP = lambda binary_tasks: "binary" if binary_tasks else "multiclass"
 EvalSettingOption = Literal["within_session", "cross_x"]
 ALL_EVAL_SETTINGS = {
@@ -63,44 +68,24 @@ ALL_EVAL_SETTINGS = {
     "binary_tasks": [True, False],
     "eval_setting": get_args(EvalSettingOption),
 }
-SPLIT_SELECTOR_KEY_MAP = (
-    lambda lite, nano, binary_tasks, eval_setting, eval_name, fold_idx, split_type: (
+
+
+def split_selector_key(
+    *,
+    lite: bool,
+    nano: bool,
+    binary_tasks: bool,
+    eval_setting: str,
+    eval_name: str,
+    fold_idx: int,
+    split_type: str,
+) -> str:
+    # Shared selector key used for both splits.<key> and channels.<key>.
+    return (
         f"{SUBSET_TIER_KEY_MAP(lite, nano)}${LABEL_MODE_KEY_MAP(binary_tasks)}$"
         f"{eval_setting}${eval_name}$fold{fold_idx}${split_type}"
     )
-)
 
-
-def split_interval_key(
-    *,
-    lite: bool,
-    nano: bool,
-    binary_tasks: bool,
-    eval_setting: str,
-    eval_name: str,
-    fold_idx: int,
-    split_type: str,
-) -> str:
-    return (
-        f"{SPLIT_SELECTOR_KEY_MAP(lite, nano, binary_tasks, eval_setting, eval_name, fold_idx, split_type)}"
-        "_intervals"
-    )
-
-
-def channel_mask_key(
-    *,
-    lite: bool,
-    nano: bool,
-    binary_tasks: bool,
-    eval_setting: str,
-    eval_name: str,
-    fold_idx: int,
-    split_type: str,
-) -> str:
-    return (
-        "included$"
-        f"{SPLIT_SELECTOR_KEY_MAP(lite, nano, binary_tasks, eval_setting, eval_name, fold_idx, split_type)}"
-    )
 
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
@@ -190,7 +175,7 @@ class Pipeline(BrainsetPipeline):
         # subject metadata
         self.update_status("Extracting subject metadata")
         subject = _get_subject_metadata(subject_id)
-        
+
         # extract channel data & splits (if not disabled)
         if self.args.no_splits:
             self.update_status("Extracting channel data")
@@ -229,7 +214,7 @@ class Pipeline(BrainsetPipeline):
             domain=seeg_data.domain,
         )
 
-        # register all splits as root-level Intervals
+        # Register all split intervals under data.splits using shared selector keys.
         if not self.args.no_splits:
             self.update_status("Registering splits")
             for split_key, intervals in split_indices.items():
@@ -241,8 +226,10 @@ class Pipeline(BrainsetPipeline):
         with h5py.File(path, "w") as file:
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
         logging.info(f"Saved data to {path}")
-    
-    def iterate_extract_splits(self, subject_id: int, trial_id: int) -> Dict[str, Interval]:
+
+    def iterate_extract_splits(
+        self, subject_id: int, trial_id: int
+    ) -> Dict[str, Interval]:
         if not hasattr(self, "all_subjects"):
             # load all subjects and channels once
             # channels will be populated with subsets for each fold
@@ -267,14 +254,26 @@ class Pipeline(BrainsetPipeline):
             lite, nano, binary_tasks, eval_setting = setting_combination
             if lite and nano:  # lite and nano cannot be True at the same time
                 continue
-            if eval_setting == "cross_x" and nano:  # keep benchmark parity with cross-session support
+            if (
+                eval_setting == "cross_x" and nano
+            ):  # keep benchmark parity with cross-session support
                 continue
-            if lite and (subject_id, trial_id) not in neuroprobe_config.NEUROPROBE_LITE_SUBJECT_TRIALS:
+            if (
+                lite
+                and (subject_id, trial_id)
+                not in neuroprobe_config.NEUROPROBE_LITE_SUBJECT_TRIALS
+            ):
                 continue
-            if nano and (subject_id, trial_id) not in neuroprobe_config.NEUROPROBE_NANO_SUBJECT_TRIALS:
+            if (
+                nano
+                and (subject_id, trial_id)
+                not in neuroprobe_config.NEUROPROBE_NANO_SUBJECT_TRIALS
+            ):
                 continue
 
-            self.update_status(f"Extracting splits (lite={lite}, nano={nano}, binary_tasks={binary_tasks}, eval_setting={eval_setting})")
+            self.update_status(
+                f"Extracting splits (lite={lite}, nano={nano}, binary_tasks={binary_tasks}, eval_setting={eval_setting})"
+            )
             _split_indices = _extract_and_structure_splits(
                 all_subjects=self.all_subjects,
                 all_channels=self.all_channels,
@@ -287,7 +286,7 @@ class Pipeline(BrainsetPipeline):
             )
             for key, value in _split_indices.items():
                 split_indices[key] = value
-        
+
         return split_indices
 
 
@@ -409,35 +408,26 @@ def _extract_and_structure_splits(
                 ("val", "val_dataset"),
                 ("test", "test_dataset"),
             ):
+                selector_key = split_selector_key(
+                    lite=lite,
+                    nano=nano,
+                    binary_tasks=binary_tasks,
+                    eval_setting=eval_setting,
+                    eval_name=eval_name,
+                    fold_idx=fold_idx,
+                    split_type=split_type,
+                )
                 # Register split-specific channel mask for this fold.
                 setattr(
                     channels,
-                    channel_mask_key(
-                        lite=lite,
-                        nano=nano,
-                        binary_tasks=binary_tasks,
-                        eval_setting=eval_setting,
-                        eval_name=eval_name,
-                        fold_idx=fold_idx,
-                        split_type=split_type,
-                    ),
+                    selector_key,
                     np.isin(
                         channels.name, _get_electrode_labels(fold[dataset_key])
                     ).astype(bool),
                 )
 
                 # Store split interval indices using the same selector key semantics.
-                split_indices[
-                    split_interval_key(
-                        lite=lite,
-                        nano=nano,
-                        binary_tasks=binary_tasks,
-                        eval_setting=eval_setting,
-                        eval_name=eval_name,
-                        fold_idx=fold_idx,
-                        split_type=split_type,
-                    )
-                ] = _intervals_from_dataset(fold[dataset_key])
+                split_indices[selector_key] = _intervals_from_dataset(fold[dataset_key])
 
     return split_indices
 
@@ -457,7 +447,7 @@ def _extract_splits(
     start_neural_data_before_word_onset = 0
     end_neural_data_after_word_onset = neuroprobe_config.SAMPLING_RATE * 1
 
-    if eval_setting == "within_session":   
+    if eval_setting == "within_session":
         folds = neuroprobe_train_test_splits.generate_splits_within_session(
             test_subject=all_subjects[subject_id],
             test_trial_id=trial_id,
@@ -480,7 +470,7 @@ def _extract_splits(
             eval_name=eval_name,
             dtype=dtype,
             lite=lite,
-            nano=nano, # NOTE: We add nano here for completeness 
+            nano=nano,  # NOTE: We add nano here for completeness
             binary_tasks=binary_tasks,
             output_indices=True,
             output_dict=True,
