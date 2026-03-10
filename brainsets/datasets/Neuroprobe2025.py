@@ -6,6 +6,7 @@ import re
 from typing import Callable, ClassVar, Literal, Optional, get_args
 
 import h5py
+import numpy as np
 from temporaldata import Data, Interval
 
 from torch_brain.dataset import Dataset, SEEGDatasetMixin
@@ -233,7 +234,83 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
 
     def get_sampling_rate(self, recording_id: str | None = None) -> float:
         """Return recording sampling rate in Hz."""
+        _ = recording_id
         return 2048.0
+
+    def get_channel_arrays(
+        self, recording_id: str, *, included_only: bool = False
+    ) -> dict[str, np.ndarray | None]:
+        """Return normalized channel metadata arrays for one recording."""
+        full_arrays = self._get_full_channel_arrays(recording_id)
+        included_mask = full_arrays["included_mask"]
+        if included_only:
+            indices = np.flatnonzero(included_mask)
+            ids = full_arrays["ids"][indices]
+            names = full_arrays["names"][indices]
+            lip = None if full_arrays["lip"] is None else full_arrays["lip"][indices]
+            return {
+                "ids": ids,
+                "names": names,
+                "included_mask": np.ones(len(indices), dtype=bool),
+                "lip": lip,
+                "indices": indices,
+            }
+
+        return {
+            "ids": full_arrays["ids"],
+            "names": full_arrays["names"],
+            "included_mask": included_mask,
+            "lip": full_arrays["lip"],
+            "indices": np.arange(len(full_arrays["ids"]), dtype=int),
+        }
+
+    def _get_full_channel_arrays(self, recording_id: str) -> dict[str, np.ndarray | None]:
+        rec = self.get_recording(recording_id)
+        channels = rec.channels
+
+        ids = np.asarray(channels.id).astype(str)
+        names = np.asarray(getattr(channels, "name", ids)).astype(str)
+        included_mask = np.asarray(
+            getattr(channels, "included", np.ones(len(ids), dtype=bool)),
+            dtype=bool,
+        )
+
+        if len(names) != len(ids):
+            raise ValueError(
+                f"Channel name length mismatch for recording '{recording_id}': "
+                f"len(names)={len(names)} vs len(ids)={len(ids)}"
+            )
+        if len(included_mask) != len(ids):
+            raise ValueError(
+                f"Channel mask length mismatch for recording '{recording_id}': "
+                f"len(mask)={len(included_mask)} vs len(ids)={len(ids)}"
+            )
+
+        lip: np.ndarray | None = None
+        if all(
+            hasattr(channels, attr)
+            for attr in ("localization_L", "localization_I", "localization_P")
+        ):
+            lip = np.stack(
+                (
+                    np.asarray(channels.localization_L, dtype=float),
+                    np.asarray(channels.localization_I, dtype=float),
+                    np.asarray(channels.localization_P, dtype=float),
+                ),
+                axis=1,
+            )
+            if len(lip) != len(ids):
+                raise ValueError(
+                    f"Channel localization length mismatch for recording '{recording_id}': "
+                    f"len(lip)={len(lip)} vs len(ids)={len(ids)}"
+                )
+
+        return {
+            "ids": ids,
+            "names": names,
+            "included_mask": included_mask,
+            "lip": lip,
+        }
 
     def get_recording_hook(self, data: Data):
         """Apply split-specific channel inclusion mask when available."""
@@ -268,6 +345,27 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             "channel_mask_key": self._split_key(),
             "prune_to_split": self.prune_to_split,
         }
+
+    # Path/key builders.
+    def _split_key(self) -> str:
+        """Return the canonical key shared under both `splits` and `channels`."""
+        return (
+            f"{self.subset_tier}${self.label_mode}${self.h5_regime}${self.task}$"
+            f"fold{self.fold}${self.split}"
+        )
+
+    def _interval_attr_path(self) -> str:
+        # Primary split interval path under data.splits.
+        return f"splits.{self._split_key()}"
+
+    def _channel_mask_attr_path(self) -> str:
+        # Return the nested attribute path for the split-specific channel mask.
+        return f"channels.{self._split_key()}"
+    
+    def _test_recording_id(self) -> str:
+        # Centralize canonical test recording-id construction to avoid drift.
+        return _to_recording_id(self.test_subject, self.test_session)
+
 
     def _validate_constructor_args(
         self,
@@ -384,22 +482,6 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             return [_to_recording_id(DS_DM_TRAIN_SUBJECT_ID, DS_DM_TRAIN_TRIAL_ID)]
         # Val/test evaluate on the requested held-out target recording.
         return [test_recording_id]
-
-    # Path/key builders.
-    def _split_key(self) -> str:
-        """Return the canonical key shared under both `splits` and `channels`."""
-        return (
-            f"{self.subset_tier}${self.label_mode}${self.h5_regime}${self.task}$"
-            f"fold{self.fold}${self.split}"
-        )
-
-    def _interval_attr_path(self) -> str:
-        # Primary split interval path under data.splits.
-        return f"splits.{self._split_key()}"
-
-    def _channel_mask_attr_path(self) -> str:
-        # Return the nested attribute path for the split-specific channel mask.
-        return f"channels.{self._split_key()}"
 
     def _ss_dm_train_recording_id_for_selection(
         self,
@@ -585,10 +667,6 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
                     f"in NEUROPROBE_LONGEST_TRIALS_FOR_SUBJECT for subject {self.test_subject}: "
                     f"{longest_trials}."
                 )
-
-    def _test_recording_id(self) -> str:
-        # Centralize canonical test recording-id construction to avoid drift.
-        return _to_recording_id(self.test_subject, self.test_session)
 
     def _format_compatibility_error(
         self, header: str, issues: dict[str, str], max_examples: int = 6
