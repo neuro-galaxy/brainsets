@@ -42,7 +42,7 @@ from brainsets.utils.mne_utils import (
     concatenate_recordings,
 )
 
-from temporaldata import Data, Interval
+from temporaldata import Data, Interval, IrregularTimeSeries
 from brainsets.descriptions import (
     BrainsetDescription,
     SessionDescription,
@@ -227,38 +227,12 @@ class Pipeline(BrainsetPipeline):
                 self.update_status("Already Processed")
                 return None
 
-        # Load all recordings from the same session into a single raw object
+        # Load all recordings from the same session into a dictionary of raw objects
         self.update_status(f"Loading {self.modality.upper()} recordings")
-        session = {}
-        for recording_id in (recording_ids):
-            bids_path = build_bids_path(self.raw_dir, recording_id, self.modality)
-            raw = read_raw_bids(
-                bids_path,
-                on_ch_mismatch='reorder',
-                verbose='CRITICAL',
-            )
-                        
-            # check if the recording has annotations
-            if not raw.annotations or len(raw.annotations) == 0:
-                if 'Baseline' in recording_id:
-                    warnings.warn(f"No annotations found in baseline recording {recording_id}. Adding baseline annotations.")
-                    _add_baseline_annotations(raw)
-                else:
-                    raise ValueError(f"No annotations found in recording {recording_id}")
-            else:
-                # add rest annotations if not present
-                if 'rest' not in np.unique(raw.annotations.description):
-                    _add_rest_annotations(raw)
-            
-            # update meas_date to the original recording timestamp
-            meas_date = datetime.fromisoformat(load_json_sidecar(bids_path)['OriginalRecordingTimestamp'])
-            if meas_date.tzinfo is None:
-                meas_date = meas_date.replace(tzinfo=timezone.utc)
-            raw.set_meas_date(meas_date)
-
-            session[recording_id] = raw
-        raw = concatenate_recordings(list(session.values()))
-        
+        recordings = load_recordings(self.raw_dir, recording_ids, self.modality)
+       
+        # concatenate the recordings
+        raw = concatenate_recordings(list(recordings.values()))
         # delete boundary annotations after concatenating the recordings
         _delete_boundary_annotations(raw)
 
@@ -285,7 +259,8 @@ class Pipeline(BrainsetPipeline):
             sex=subject_info["sex"],
         )
 
-        meas_date = extract_measurement_date(raw)
+        # extract the measurement date from the first recording in the session
+        meas_date = extract_measurement_date(list(recordings.values())[0])
         session_description = SessionDescription(
             id=session_id, recording_date=meas_date
         )
@@ -293,16 +268,14 @@ class Pipeline(BrainsetPipeline):
         device_description = DeviceDescription(id=session_id)
 
         self.update_status(f"Extracting {self.modality.upper()} Signal")
-        signal = extract_signal(raw)
-        
+        signal = extract_signal(recordings)
+                
         self.update_status("Building Channels")
         channels = extract_channels(raw)
                 
         self.update_status("Extracting behavior intervals")
-        on_vs_off_trials = extract_on_vs_off_trials(raw)  
-        acoustic_stim_trials = extract_acoustic_stim_trials(raw)
-        
-        
+        on_vs_off_trials = extract_on_vs_off_trials(recordings)
+        acoustic_stim_trials = extract_acoustic_stim_trials(recordings)
         
         self.update_status("Generating splits")
         splits = generate_splits(subject_id, session_id, on_vs_off_trials, acoustic_stim_trials)
@@ -320,7 +293,7 @@ class Pipeline(BrainsetPipeline):
             splits=splits,
             domain=signal.domain,
         )
-        
+
         self.update_status("Storing")
         with h5py.File(store_path, "w") as file:
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
@@ -389,7 +362,8 @@ def generate_splits(
         domain=stim_vs_rest_trials | acoustic_stim_trials,
     )
 
-def extract_on_vs_off_trials(raw: mne.io.Raw) -> Interval:
+
+def extract_on_vs_off_trials(recordings: dict[str, mne.io.Raw]) -> Interval:
     """Extracts on (stimulation) and off (rest and baseline) trials from a raw object.
 
     Args:
@@ -398,38 +372,43 @@ def extract_on_vs_off_trials(raw: mne.io.Raw) -> Interval:
     Returns:
         Interval: The on and off trials.
     """
-    annotations = raw.annotations
-    onset = annotations.onset
-    duration = annotations.duration
-    description = annotations.description
-    
     start_times = []
     end_times = []
     labels = []
-    for onset, duration, description in zip(onset, duration, description):
-        start_time = onset
-        end_time = onset + duration
-        if len(end_times) > 0 and start_time < end_times[-1]:
-            # the previous trial goes into the next one
-            # this happens because of numerical precision issues
-            assert (
-                end_times[-1] - start_time < 0.1
-            ), f"found overlap between trials: start time of trial i: {start_time}, end time of trial i-1: {end_times[-1]}"
-
-            # we can clip the end time of the last trial
-            end_times[-1] = start_time
-
-        # skip white-noise stimulation trials
-        if 'stim' in description and 'white-noise' in description:
-            continue
+    first_meas_date = None
+    for _, raw in recordings.items():
+        meas_date = raw.info["meas_date"]
         
-        start_times.append(start_time)
-        end_times.append(end_time)
+        if first_meas_date is None:
+            first_meas_date = meas_date
+        
+        offset = (meas_date - first_meas_date).total_seconds()
+        
+        for annotation in raw.annotations:
+            start_time = annotation["onset"] + offset
+            end_time = start_time + annotation["duration"]
+                        
+            if len(end_times) > 0 and start_time < end_times[-1]:
+                # the previous trial goes into the next one
+                # this happens because of numerical precision issues
+                assert (
+                    end_times[-1] - start_time < 0.1
+                ), f"found overlap between trials: start time of trial i: {start_time}, end time of trial i-1: {end_times[-1]}"
 
-        if description == "rest" or description == "baseline":
-            labels.append("off")
-        elif 'stim' in description and 'Hz' in description:
-            labels.append("on")
+                # we can clip the end time of the last trial
+                end_times[-1] = start_time
+
+            # skip white-noise stimulation trials
+            if 'stim' in annotation["description"] and 'white-noise' in annotation["description"]:
+                continue
+            
+            start_times.append(start_time)
+            end_times.append(end_time)
+
+            if annotation["description"] == "rest" or annotation["description"] == "baseline":
+                labels.append("off")
+            elif 'stim' in annotation["description"] and 'Hz' in annotation["description"]:
+                labels.append("on")
 
     # Map each unique label to an integer (in increasing order)
     label_ids = [ON_VS_OFF_TO_ID[label] for label in labels]
@@ -444,7 +423,7 @@ def extract_on_vs_off_trials(raw: mne.io.Raw) -> Interval:
     )
 
 
-def extract_acoustic_stim_trials(raw: mne.io.Raw) -> Interval:
+def extract_acoustic_stim_trials(recordings: dict[str, mne.io.Raw]) -> Interval:
     """Extracts the acoustic stimulation trials from a raw object.
 
     Args:
@@ -453,34 +432,39 @@ def extract_acoustic_stim_trials(raw: mne.io.Raw) -> Interval:
     Returns:
         Interval: The acoustic stimulation trials.
     """
-    annotations = raw.annotations
-    onset = annotations.onset
-    duration = annotations.duration
-    description = annotations.description
-
     start_times = []
     end_times = []
     labels = []
-    for onset, duration, description in zip(onset, duration, description):
-        start_time = onset
-        end_time = onset + duration
-        if len(end_times) > 0 and start_time < end_times[-1]:
-            # the previous trial goes into the next one
-            # this happens because of numerical precision issues
-            assert (
-                end_times[-1] - start_time < 0.1
-            ), f"found overlap between trials: start time of trial i: {start_time}, end time of trial i-1: {end_times[-1]}"
-
-            # we can clip the end time of the last trial
-            end_times[-1] = start_time
-
-        if 'stim' in description and 'Hz' in description:
-            start_times.append(start_time)
-            end_times.append(end_time)
+    first_meas_date = None
+    for _, raw in recordings.items():
+        meas_date = raw.info["meas_date"]
+        
+        if first_meas_date is None:
+            first_meas_date = meas_date
+        
+        offset = (meas_date - first_meas_date).total_seconds()
+        
+        for annotation in raw.annotations:
+            start_time = annotation["onset"] + offset
+            end_time = start_time + annotation["duration"]
             
-            #extract the stimulation frequency
-            frequency = _extract_stim_frequency(description)
-            labels.append(f"stim_{frequency}Hz")
+            if len(end_times) > 0 and start_time < end_times[-1]:
+                # the previous trial goes into the next one
+                # this happens because of numerical precision issues
+                assert (
+                    end_times[-1] - start_time < 0.1
+                ), f"found overlap between trials: start time of trial i: {start_time}, end time of trial i-1: {end_times[-1]}"
+
+                # we can clip the end time of the last trial
+                end_times[-1] = start_time
+
+            if 'stim' in annotation["description"] and 'Hz' in annotation["description"]:
+                start_times.append(start_time)
+                end_times.append(end_time)
+                
+                #extract the stimulation frequency
+                frequency = _extract_stim_frequency(annotation["description"])
+                labels.append(f"stim_{frequency}Hz")
 
     # Map each unique label to an integer (in increasing order)
     label_ids = [STIM_FREQUENCY_TO_ID[label] for label in labels]
@@ -493,6 +477,92 @@ def extract_acoustic_stim_trials(raw: mne.io.Raw) -> Interval:
         behavior_ids=np.array(label_ids),
         timekeys=["start", "end", "timestamps"],
     )
+
+
+def extract_signal(recordings: dict[str, mne.io.Raw]) -> IrregularTimeSeries:
+    """Extracts the signal from a session of recordings.
+
+    Timestamps are computed relative to the start of the first recording (0),
+    with each subsequent recording offset by the actual wall-clock elapsed time
+    since the first recording started (via meas_date). This preserves gaps
+    between recordings in the timeline.
+
+    Args:
+        session (dict[str, mne.io.Raw]): The session of recordings to extract the signal from.
+            Expected to be sorted by meas_date (via _sort_recordings).
+
+    Returns:
+        IrregularTimeSeries: The extracted signal with relative timestamps.
+    """
+    signal = []
+    timestamps = []
+    first_meas_date = None
+    
+    for _, raw in recordings.items():
+        signal.append(raw.get_data())
+        meas_date = raw.info["meas_date"]
+        
+        if first_meas_date is None:
+            first_meas_date = meas_date
+        
+        offset = (meas_date - first_meas_date).total_seconds()
+        ts = raw.times.astype(np.float64) + offset
+        timestamps.append(ts[:, np.newaxis])
+       
+    return IrregularTimeSeries(
+        signal=np.hstack(signal).T,
+        timestamps=np.vstack(timestamps).squeeze(),
+        domain="auto",
+    )
+
+
+def load_recordings(
+    raw_dir: Path,
+    recording_ids: list[str],
+    modality: str,
+) -> dict[str, mne.io.Raw]:
+    """Load recordings belonging to a given session from the raw directory.
+
+    Args:
+        raw_dir (Path): The raw directory to load the recordings from.
+        session_id (str): The session ID to load the recordings for.
+        recording_ids (list[str]): The list of recording IDs to load.
+        modality (str): The modality of the recordings to load (e.g. 'ieeg').
+    Returns:
+        dict[str, mne.io.Raw]: The dictionary of loaded recordings.
+    """
+    session = {}
+    for recording_id in (recording_ids):
+        bids_path = build_bids_path(raw_dir, recording_id, modality)
+        raw = read_raw_bids(
+            bids_path,
+            on_ch_mismatch='reorder',
+            verbose='CRITICAL',
+        )
+                    
+        # check if the recording has annotations
+        if not raw.annotations or len(raw.annotations) == 0:
+            if 'Baseline' in recording_id:
+                warnings.warn(f"No annotations found in baseline recording {recording_id}. Adding baseline annotations.")
+                _add_baseline_annotations(raw)
+            else:
+                raise ValueError(f"No annotations found in recording {recording_id}")
+        else:
+            # add rest annotations if not present
+            if 'rest' not in np.unique(raw.annotations.description):
+                _add_rest_annotations(raw)
+        
+        # update meas_date to the original recording timestamp
+        meas_date = datetime.fromisoformat(load_json_sidecar(bids_path)['OriginalRecordingTimestamp'])
+        if meas_date.tzinfo is None:
+            meas_date = meas_date.replace(tzinfo=timezone.utc)
+        raw.set_meas_date(meas_date)
+        
+        session[recording_id] = raw
+    
+    session = _sort_recordings(session)
+    
+    return session
 
 
 def _add_baseline_annotations(raw: mne.io.Raw):
@@ -542,6 +612,19 @@ def _add_rest_annotations(raw: mne.io.Raw):
     
     raw.set_annotations(raw.annotations + rest_annot)
     
+
+def _sort_recordings(recordings: dict[str, mne.io.Raw]) -> dict[str, mne.io.Raw]:
+    """Sorts the recordings by their measurement date.
+
+    Args:
+        recordings (dict[str, mne.io.Raw]): The recordings to sort.
+
+    Returns:
+        dict[str, mne.io.Raw]: Recordings as a dictionary, sorted by measurement date.
+    """
+    sorted_items = sorted(recordings.items(), key=lambda x: x[1].info["meas_date"])
+    return dict(sorted_items)
+
 
 def _delete_boundary_annotations(raw: mne.io.Raw):
     """Deletes the boundary annotations from a raw object.
