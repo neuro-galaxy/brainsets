@@ -25,7 +25,6 @@ class PerichMillerPopulation2018(SpikingDatasetMixin, Dataset):
     Perich, M. G., Miller, L. E., Azabou, M., & Dyer, E. L.
     *Long-term recordings of motor and premotor cortical spiking activity during reaching in monkeys.*
     `Neuron <https://doi.org/10.1016/j.neuron.2018.09.030>`_.
-
     Dataset: `Dandiset 000688 <https://doi.org/10.48324/dandi.000688/0.250122.1735>`_.
     """
 

@@ -28,9 +28,7 @@ class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
 
     Churchland, M., Cunningham, J. P., Kaufman, M. T., Foster, J. D.,
     Nuyujukian, P., Ryu, S. I., & Shenoy, K. V.
-
     *Neural population dynamics during reaching.*
-
     `DANDI Archive Dataset <https://doi.org/10.48324/dandi.000070/0.251218.1714>`_,
     Version 0.251218.1714.
     """
