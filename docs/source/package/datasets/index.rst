@@ -3,7 +3,7 @@
 Datasets
 ==================
 
-Neural Population Datasets
+Ephys Datasets
 --------------------------
 .. autosummary::
    :nosignatures:
@@ -16,7 +16,7 @@ Neural Population Datasets
    ChurchlandShenoyNeural2012
    OdohertySabesNonhuman2017
 
-Visual & Sensory Datasets
+Calcium Imaging Datasets
 -------------------------
 .. autosummary::
    :nosignatures:
@@ -25,7 +25,7 @@ Visual & Sensory Datasets
 
    AllenVisualCodingOphys2016
 
-Sleep & Physiological Datasets
+PSG Datasets
 ------------------------------
 .. autosummary::
    :nosignatures:
