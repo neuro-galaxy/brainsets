@@ -3,7 +3,7 @@
 Datasets
 ==================
 
-Ephys Datasets
+Electrophysiology Datasets
 --------------------------
 .. autosummary::
    :nosignatures:
