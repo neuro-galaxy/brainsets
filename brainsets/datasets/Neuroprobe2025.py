@@ -137,8 +137,8 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         label_mode: One of ``"binary"``, ``"multiclass"``.
         task: Neuroprobe task name.
         regime: One of ``"SS-SM"``, ``"SS-DM"``, ``"DS-DM"``.
-        fold: Fold index. Defaults depend on regime:
-            - ``within_session``: default 0, valid {0, 1}
+        fold: Fold index (default ``0``). Valid values depend on regime:
+            - ``within_session``: valid {0, 1}
             - ``cross_x``: forced to 0
         uniquify_channel_ids: Set of channel-ID components used for prefixing
             via ``SEEGDatasetMixin``. Supported values:
@@ -166,7 +166,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         label_mode: LabelMode = "binary",
         task: str = "speech",
         regime: Regime = "SS-SM",
-        fold: Optional[int] = None,
+        fold: int = 0,
         uniquify_channel_ids: set[str] | frozenset[str] = frozenset(),
         prune_to_split: bool = False,
         dirname: str = "neuroprobe_2025",
@@ -191,7 +191,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         self.test_subject = test_subject
         self.test_session = test_session
         self.split = split
-        self.fold = self._resolve_fold(fold)
+        self.fold = self.resolve_fold(fold=fold, regime=regime)
 
         split_recording_ids = self._recording_ids_for_selection()
         if recording_ids is None:
@@ -423,30 +423,26 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
                 "test_subject cannot be 2."
             )
 
-    def _resolve_fold(self, fold: Optional[int]) -> int:
+    @classmethod
+    def resolve_fold(cls, fold: int, regime: str) -> int:
         # within_session exposes two folds; cross_x is fixed to fold0 only.
-        if fold is not None and (
-            not isinstance(fold, Integral) or isinstance(fold, bool)
-        ):
-            raise TypeError(
-                f"fold must be an int when provided, got {type(fold).__name__}."
-            )
+        if not isinstance(fold, Integral) or isinstance(fold, bool):
+            raise TypeError(f"fold must be an int, got {type(fold).__name__}.")
 
-        if self.h5_regime == "within_session":
-            resolved = 0 if fold is None else fold
-            if resolved not in (0, 1):
+        h5_regime = H5_REGIME_BY_REGIME[regime]
+        if h5_regime == "within_session":
+            if fold not in (0, 1):
                 raise ValueError(
-                    f"Fold for regime '{self.regime}' must be 0 or 1, got {resolved}."
+                    f"Fold for regime '{regime}' must be 0 or 1, got {fold}."
                 )
-            return resolved
+            return fold
 
         # cross_x
-        resolved = 0 if fold is None else fold
-        if resolved != 0:
+        if fold != 0:
             raise ValueError(
-                f"Fold for regime '{self.regime}' must be 0 (cross_x has only fold0), got {resolved}."
+                f"Fold for regime '{regime}' must be 0 (cross_x has only fold0), got {fold}."
             )
-        return resolved
+        return fold
 
     def _resolve_requested_recording_ids(
         self, recording_ids: Optional[list[str]]
