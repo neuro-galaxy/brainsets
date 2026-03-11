@@ -6,8 +6,8 @@ from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
 class FlintSlutzkyAccurate2012(SpikingDatasetMixin, Dataset):
     """
-    Dataset class for the Flint and Slutzky (2012) motor cortex recordings
-    from the `CRCNS data archive <https://portal.nersc.gov/project/crcns/download/dream/data_sets/Flint_2012>`_.
+    Motor cortex (M1) spiking activity and reaching kinematics from 1 monkey
+    performing center-out reaching tasks.
 
     **Tasks:** Center-Out
 

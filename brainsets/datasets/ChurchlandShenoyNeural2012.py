@@ -6,8 +6,8 @@ from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
 class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
     """
-    Dataset class for the Churchland and Shenoy (2012) motor cortex recordings
-    from the `DANDI Archive <https://dandiarchive.org/dandiset/000070>`_.
+    Motor cortex (M1 and PMd) spiking activity and reaching kinematics from 1 monkey
+    performing center-out reaching tasks with right hand.
 
     **Tasks:** Center-Out
     **Brain Regions:** M1, PMd
