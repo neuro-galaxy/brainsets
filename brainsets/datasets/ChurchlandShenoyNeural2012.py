@@ -6,7 +6,7 @@ from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
 class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
     """
-    Motor cortex (M1 and PMd) spiking activity and reaching kinematics from 1 monkey
+    Motor cortex (M1 and PMd) spiking activity and reaching kinematics from 2 monkeys
     performing center-out reaching tasks with right hand.
 
     **Tasks:** Center-Out
