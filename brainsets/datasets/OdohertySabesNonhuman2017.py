@@ -9,10 +9,11 @@ class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
     Dataset class for the O'Doherty and Sabes recordings from the
     `Zenodo archive <https://zenodo.org/records/3854034>`_.
 
+    **Tasks:** Random Target
+
     **Dataset Statistics**
 
     - **Subjects:** 2
-    - **Tasks:** Random Target
     - **Total Sessions:** 47
     - **Total Units:** 16,566
     - **Events:** ~105.2M spikes, ~12.4M behavioral timestamps

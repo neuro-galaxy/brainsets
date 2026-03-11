@@ -9,10 +9,11 @@ class FlintSlutzkyAccurate2012(SpikingDatasetMixin, Dataset):
     Dataset class for the Flint and Slutzky (2012) motor cortex recordings
     from the `CRCNS data archive <https://portal.nersc.gov/project/crcns/download/dream/data_sets/Flint_2012>`_.
 
+    **Tasks:** Center-Out
+
     **Dataset Statistics**
 
     - **Subjects:** 1
-    - **Tasks:** Center-Out
     - **Total Sessions:** 5
     - **Total Units:** 957
     - **Events:** ~7.9M spikes, ~319k behavioral timestamps

@@ -9,10 +9,11 @@ class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
     Dataset class for the Churchland and Shenoy (2012) motor cortex recordings
     from the `DANDI Archive <https://dandiarchive.org/dandiset/000070>`_.
 
+    **Tasks:** Center-Out
+
     **Dataset Statistics**
 
     - **Subjects:** 2
-    - **Tasks:** Center-Out
     - **Total Sessions:** 10
     - **Total Units:** 1,911
     - **Events:** ~739M spikes, ~85M behavioral timestamps

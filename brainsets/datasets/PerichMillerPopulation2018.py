@@ -9,10 +9,11 @@ class PerichMillerPopulation2018(SpikingDatasetMixin, Dataset):
     Dataset class for the Perich and Miller (2018) motor cortex recordings
     from the `DANDI Archive <https://dandiarchive.org/dandiset/000688>`_.
 
+    **Tasks:** Center-Out and Random Target
+
     **Dataset Statistics**
 
     - **Subjects:** 4
-    - **Tasks:** Center-Out and Random Target
     - **Total Sessions:** 111 (84 Center-Out, 27 Random Target)
     - **Total Units:** 10,410
     - **Events:** ~11.1M spikes, ~15.5M behavioral timestamps
