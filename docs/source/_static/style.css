@@ -195,3 +195,15 @@ table th[colspan="2"] i {
     font-size: 0.9em;
     border: 1px solid var(--color-foreground-border);
 }
+
+.pst-autosummary-column p, 
+table.autosummary td p,
+table.autosummary td {
+    font-weight: 400 !important;
+    color: var(--color-content-foreground);
+}
+
+table.autosummary {
+    width: 100% !important;
+    table-layout: auto !important; /* Allows columns to adjust to content */
+}
