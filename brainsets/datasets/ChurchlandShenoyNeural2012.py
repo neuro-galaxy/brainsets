@@ -10,6 +10,7 @@ class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
     performing center-out reaching tasks with right hand.
 
     **Tasks:** Center-Out
+    
     **Brain Regions:** M1, PMd
 
     **Dataset Statistics**
