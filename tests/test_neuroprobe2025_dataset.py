@@ -38,13 +38,9 @@ def _write_mock_h5(
     task: str = "speech",
     fold: int = 0,
     splits: tuple[str, ...] = ("train", "val", "test"),
-    compatible: bool = True,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with h5py.File(path, "w") as h5:
-        if not compatible:
-            return
-
         channels = h5.create_group("channels")
         channels.create_dataset("id", data=np.array(["ch0"], dtype="S8"))
         for split in splits:
@@ -97,30 +93,40 @@ def _write_mock_recordings(
         )
 
 
+def _write_default_recordings(
+    tmp_path: Path, recording_ids: tuple[str, ...] = ("sub_1_trial001",)
+) -> None:
+    _write_mock_recordings(
+        tmp_path,
+        recording_ids,
+        subset_tier="full",
+        h5_regime="within_session",
+    )
+
+
 def _make_dataset(tmp_path: Path, **overrides) -> Neuroprobe2025:
     """Build a Neuroprobe2025 instance with concise defaults for tests."""
     kwargs = {
         "root": str(tmp_path),
-        "subset_tier": "full",
-        "label_mode": "binary",
-        "task": "speech",
-        "regime": "SS-SM",
-        "test_subject": 1,
-        "test_session": 1,
-        "split": "train",
         "keep_files_open": False,
     }
+    use_explicit_ids = (
+        "recording_ids" in overrides and overrides["recording_ids"] is not None
+    )
+    if not use_explicit_ids:
+        kwargs.update(
+            {
+                "subset_tier": "full",
+                "label_mode": "binary",
+                "task": "speech",
+                "regime": "SS-SM",
+                "test_subject": 1,
+                "test_session": 1,
+                "split": "train",
+            }
+        )
     kwargs.update(overrides)
     return Neuroprobe2025(**kwargs)
-
-
-@pytest.fixture(autouse=True)
-def _disable_prewarm(monkeypatch):
-    # Keep tests lightweight and independent of full temporaldata recording schema.
-    monkeypatch.setattr(
-        Neuroprobe2025, "_prime_selected_recording_caches", lambda self: None
-    )
-
 
 def test_recording_id_roundtrip():
     recording_id = _to_recording_id(2, 4)
@@ -128,21 +134,22 @@ def test_recording_id_roundtrip():
     assert _from_recording_id(recording_id) == (2, 4)
 
 
-def test_recording_id_invalid_format_raises():
-    with pytest.raises(ValueError, match="Invalid recording_id"):
-        _from_recording_id("subject2_trial4")
-
-
-def test_recording_id_requires_zero_padded_session():
-    with pytest.raises(ValueError, match="zero-padded 3-digit session"):
-        _from_recording_id("sub_1_trial4")
+@pytest.mark.parametrize(
+    ("recording_id", "error_fragment"),
+    [
+        ("subject2_trial4", "Invalid recording_id"),
+        ("sub_1_trial4", "zero-padded 3-digit session"),
+    ],
+)
+def test_recording_id_invalid_inputs_raise(recording_id: str, error_fragment: str):
+    with pytest.raises(ValueError, match=error_fragment):
+        _from_recording_id(recording_id)
 
 
 def test_nano_cross_x_rejected_fast(tmp_path):
     with pytest.raises(ValueError, match="not compatible with cross_x"):
         Neuroprobe2025(
             root=str(tmp_path),
-            recording_ids=["sub_1_trial001"],
             subset_tier="nano",
             label_mode="binary",
             task="speech",
@@ -173,15 +180,15 @@ def test_cross_x_fold_must_be_zero(tmp_path):
 
 
 def test_fold_bool_rejected_fast(tmp_path):
-    _write_mock_recordings(
-        tmp_path,
-        ("sub_1_trial001",),
-        subset_tier="full",
-        h5_regime="within_session",
-    )
+    _write_default_recordings(tmp_path)
 
     with pytest.raises(TypeError, match="fold must be an int"):
         _make_dataset(tmp_path, fold=True)
+
+
+def test_resolve_fold_rejects_invalid_regime():
+    with pytest.raises(ValueError, match="Invalid regime"):
+        Neuroprobe2025.resolve_fold(fold=0, regime="BAD")
 
 
 def test_ss_dm_lite_train_selects_other_trial(tmp_path):
@@ -198,7 +205,7 @@ def test_ss_dm_lite_train_selects_other_trial(tmp_path):
         regime="SS-DM",
         split="train",
     )
-    assert ds.describe_selection()["selected_recording_ids"] == ["sub_1_trial002"]
+    assert ds.recording_ids == ["sub_1_trial002"]
 
 
 def test_ds_dm_train_selects_fixed_anchor(tmp_path):
@@ -216,52 +223,92 @@ def test_ds_dm_train_selects_fixed_anchor(tmp_path):
         test_session=1,
         split="train",
     )
-    assert ds.describe_selection()["selected_recording_ids"] == ["sub_2_trial004"]
+    assert ds.recording_ids == ["sub_2_trial004"]
 
 
-def test_get_sampling_rate_is_fixed_constant(tmp_path):
+def test_active_recording_ids_default_to_split_selection(tmp_path):
+    _write_default_recordings(tmp_path)
+
+    ds = _make_dataset(tmp_path)
+    selection = ds.describe_selection()
+    assert selection["active_recording_ids"] == ["sub_1_trial001"]
+
+
+def test_active_recording_ids_use_explicit_recording_ids(tmp_path):
+    _write_default_recordings(tmp_path, ("sub_1_trial001", "sub_2_trial004"))
+
+    ds = _make_dataset(
+        tmp_path,
+        recording_ids=["sub_2_trial004", "sub_1_trial001"],
+    )
+    selection = ds.describe_selection()
+    assert selection["active_recording_ids"] == ["sub_1_trial001", "sub_2_trial004"]
+
+
+def test_explicit_recording_ids_allow_construction_without_split_args(tmp_path):
     _write_mock_recordings(
         tmp_path,
         ("sub_1_trial001",),
-        subset_tier="full",
-        h5_regime="within_session",
+        subset_tier="nano",
+        h5_regime="cross_x",
     )
+
+    ds = _make_dataset(
+        tmp_path,
+        recording_ids=["sub_1_trial001"],
+    )
+    assert ds.recording_ids == ["sub_1_trial001"]
+
+
+def test_explicit_recording_ids_reject_split_selection_args(tmp_path):
+    _write_default_recordings(tmp_path)
+
+    with pytest.raises(ValueError, match="Unexpected args: split"):
+        _make_dataset(
+            tmp_path,
+            recording_ids=["sub_1_trial001"],
+            split="train",
+        )
+
+
+def test_describe_selection_excludes_selected_recording_ids(tmp_path):
+    _write_default_recordings(tmp_path)
+
+    ds = _make_dataset(tmp_path)
+    selection = ds.describe_selection()
+    assert "selected_recording_ids" not in selection
+
+
+def test_prune_to_split_is_no_longer_supported(tmp_path):
+    _write_default_recordings(tmp_path)
+
+    with pytest.raises(TypeError, match="unexpected keyword argument 'prune_to_split'"):
+        _make_dataset(tmp_path, prune_to_split=True)
+
+
+def test_get_sampling_rate_is_fixed_constant(tmp_path):
+    _write_default_recordings(tmp_path)
 
     ds = _make_dataset(tmp_path)
     assert ds.get_sampling_rate() == 2048.0
 
 
 def test_uniquify_channel_ids_option_sets_seeg_mixin_components(tmp_path):
-    _write_mock_recordings(
-        tmp_path,
-        ("sub_1_trial001",),
-        subset_tier="full",
-        h5_regime="within_session",
-    )
+    _write_default_recordings(tmp_path)
 
     ds = _make_dataset(tmp_path, uniquify_channel_ids={"subject_id"})
     assert ds.seeg_dataset_mixin_uniquify_channel_ids == frozenset({"subject_id"})
 
 
 def test_uniquify_channel_ids_option_rejects_non_set(tmp_path):
-    _write_mock_recordings(
-        tmp_path,
-        ("sub_1_trial001",),
-        subset_tier="full",
-        h5_regime="within_session",
-    )
+    _write_default_recordings(tmp_path)
 
     with pytest.raises(TypeError, match="must be a set/frozenset"):
         _make_dataset(tmp_path, uniquify_channel_ids=True)
 
 
 def test_get_sampling_intervals_uses_instance_split_path(tmp_path, monkeypatch):
-    _write_mock_recordings(
-        tmp_path,
-        ("sub_1_trial001",),
-        subset_tier="full",
-        h5_regime="within_session",
-    )
+    _write_default_recordings(tmp_path)
 
     ds = _make_dataset(tmp_path)
 
@@ -287,12 +334,7 @@ def test_get_sampling_intervals_uses_instance_split_path(tmp_path, monkeypatch):
 
 
 def test_get_domain_intervals_uses_selected_recording_domains(tmp_path, monkeypatch):
-    _write_mock_recordings(
-        tmp_path,
-        ("sub_1_trial001",),
-        subset_tier="full",
-        h5_regime="within_session",
-    )
+    _write_default_recordings(tmp_path)
 
     ds = _make_dataset(tmp_path)
 
@@ -318,13 +360,46 @@ def test_get_domain_intervals_uses_selected_recording_domains(tmp_path, monkeypa
     assert seen_recording_ids == ["sub_1_trial001"]
 
 
-def test_get_channel_arrays_included_only_filters_channels(tmp_path, monkeypatch):
-    _write_mock_recordings(
+def test_domain_intervals_use_active_recording_ids_and_sampling_requires_split_mode(
+    tmp_path, monkeypatch
+):
+    _write_default_recordings(tmp_path, ("sub_1_trial001", "sub_2_trial004"))
+    ds = _make_dataset(
         tmp_path,
-        ("sub_1_trial001",),
-        subset_tier="full",
-        h5_regime="within_session",
+        recording_ids=["sub_2_trial004", "sub_1_trial001"],
     )
+
+    class _FakeRecording:
+        def __init__(self, recording_id: str):
+            self.recording_id = recording_id
+
+        def get_nested_attribute(self, _path: str):
+            return Interval(
+                start=np.array([0.0]),
+                end=np.array([1.0]),
+                label=np.array([1]),
+            )
+
+        @property
+        def domain(self):
+            rid_value = int(self.recording_id.split("_trial")[1])
+            return Interval(
+                start=np.array([float(rid_value)]),
+                end=np.array([float(rid_value + 1)]),
+                label=np.array([1]),
+            )
+
+    monkeypatch.setattr(ds, "get_recording", lambda rid: _FakeRecording(rid))
+
+    with pytest.raises(RuntimeError, match="split-selection mode"):
+        ds.get_sampling_intervals()
+
+    domain_intervals = ds.get_domain_intervals()
+    assert list(domain_intervals.keys()) == ["sub_1_trial001", "sub_2_trial004"]
+
+
+def test_get_channel_arrays_included_only_filters_channels(tmp_path, monkeypatch):
+    _write_default_recordings(tmp_path)
 
     ds = _make_dataset(tmp_path)
 
@@ -351,30 +426,3 @@ def test_get_channel_arrays_included_only_filters_channels(tmp_path, monkeypatch
     assert included_arrays["indices"].tolist() == [0]
     assert included_arrays["lip"] is not None
     assert included_arrays["lip"].shape == (1, 3)
-
-
-def test_compatibility_cache_invalidation_on_file_change(tmp_path):
-    recording_id = "sub_1_trial001"
-    h5_path = _mock_dataset_dir(tmp_path) / f"{recording_id}.h5"
-    _write_mock_h5(
-        h5_path,
-        subset_tier="full",
-        label_mode="binary",
-        h5_regime="within_session",
-        compatible=True,
-    )
-
-    ds = _make_dataset(tmp_path)
-    issue = ds._recording_compatibility_issue(recording_id)
-    assert issue is None
-
-    _write_mock_h5(
-        h5_path,
-        subset_tier="full",
-        label_mode="binary",
-        h5_regime="within_session",
-        compatible=False,
-    )
-
-    issue = ds._recording_compatibility_issue(recording_id)
-    assert issue == "missing 'splits' group; missing 'channels' group"
