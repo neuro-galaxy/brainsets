@@ -10,6 +10,7 @@ class PerichMillerPopulation2018(SpikingDatasetMixin, Dataset):
     performing center-out and random target reaching tasks.
 
     **Tasks:** Center-Out and Random Target
+
     **Brain Regions:** M1, PMd
 
     **Dataset Statistics**
