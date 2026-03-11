@@ -286,6 +286,38 @@ def test_get_sampling_intervals_uses_instance_split_path(tmp_path, monkeypatch):
     ]
 
 
+def test_get_domain_intervals_uses_selected_recording_domains(tmp_path, monkeypatch):
+    _write_mock_recordings(
+        tmp_path,
+        ("sub_1_trial001",),
+        subset_tier="full",
+        h5_regime="within_session",
+    )
+
+    ds = _make_dataset(tmp_path)
+
+    class _FakeRecording:
+        domain = Interval(
+            start=np.array([10.0]),
+            end=np.array([20.0]),
+            label=np.array([1]),
+        )
+
+    seen_recording_ids = []
+    fake_recording = _FakeRecording()
+
+    def _fake_get_recording(recording_id: str):
+        seen_recording_ids.append(recording_id)
+        return fake_recording
+
+    monkeypatch.setattr(ds, "get_recording", _fake_get_recording)
+
+    intervals = ds.get_domain_intervals()
+    assert list(intervals.keys()) == ["sub_1_trial001"]
+    assert intervals["sub_1_trial001"] is fake_recording.domain
+    assert seen_recording_ids == ["sub_1_trial001"]
+
+
 def test_get_channel_arrays_included_only_filters_channels(tmp_path, monkeypatch):
     _write_mock_recordings(
         tmp_path,

@@ -232,6 +232,13 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             for rid in self._selected_recording_ids()
         }
 
+    def get_domain_intervals(self) -> dict[str, Interval]:
+        """Return full-domain intervals for selected recordings."""
+        return {
+            rid: self.get_recording(rid).domain
+            for rid in self._selected_recording_ids()
+        }
+
     def get_sampling_rate(self, recording_id: str | None = None) -> float:
         """Return recording sampling rate in Hz."""
         _ = recording_id
