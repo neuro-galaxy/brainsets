@@ -10,7 +10,7 @@ class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
     performing random target reaching tasks with right hand.
 
     **Tasks:** Random Target
-    
+
     **Brain Regions:** M1, S1
 
     **Dataset Statistics**
