@@ -3,6 +3,34 @@ Preparing a new Dataset
 
 This tutorial walks through how to prepare a new neural dataset using **brainsets**. 
 
+A. Defining the BrainsetPipeline
+--------------------------------
+
+The first step is to create a directory for your dataset and add a ``pipeline.py`` 
+file. This file acts as the "container" for your processing logic:
+
+.. code-block:: python
+
+    from brainsets.pipeline import BrainsetPipeline
+    import pandas as pd
+
+    class MyPipeline(BrainsetPipeline):
+        brainset_id = "author_study_2026"
+
+        @classmethod
+        def get_manifest(cls, raw_dir, args) -> pd.DataFrame:
+            # Step 1: List the sessions to process
+            pass
+
+        def download(self, manifest_item):
+            # Step 2: Download the raw data
+            pass
+
+        def process(self, download_output):
+            # Step 3: All extraction steps below live here!
+            pass
+
+-----------------------
 
 **1. Pick a `brainset_id`**
 
@@ -327,3 +355,39 @@ Tips
     - Interval for trials or other data segments
 
 For more examples, check out the example pipelines in the brainsets repository.
+
+B. Full End-to-End Example
+--------------------------
+
+When everything is put together, your ``pipeline.py`` should look like this:
+
+.. code-block:: python
+
+    import pandas as pd
+    import h5py
+    from brainsets.pipeline import BrainsetPipeline
+    from brainsets import serialize_fn_map
+    from temporaldata import Data, IrregularTimeSeries
+
+    class SimplePipeline(BrainsetPipeline):
+        brainset_id = "example_dataset_2026"
+
+        @classmethod
+        def get_manifest(cls, raw_dir, args):
+            # We have one session to process
+            return pd.DataFrame([{"session": "01"}]).set_index("session")
+
+        def download(self, item):
+            # Returns a dummy file path
+            return "raw_file.npy"
+
+        def process(self, fpath):
+            # Note: The BrainsetPipeline automatically creates self.processed_dir for you
+            # Create neural activity
+            spikes = IrregularTimeSeries(timestamps=[0.1, 0.5], unit_index=[0, 0])
+            data = Data(spikes=spikes, domain="auto")
+            
+            # Save the result to the processed directory
+            save_path = self.processed_dir / f"{self.brainset_id}.h5"
+            with h5py.File(save_path, "w") as file:
+                data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
