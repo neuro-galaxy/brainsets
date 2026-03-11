@@ -196,14 +196,20 @@ table th[colspan="2"] i {
     border: 1px solid var(--color-foreground-border);
 }
 
-.pst-autosummary-column p, 
-table.autosummary td p,
-table.autosummary td {
-    font-weight: 400 !important;
-    color: var(--color-content-foreground);
+/* 2. Force alignment to the far left */
+table.autosummary td:first-child {
+    white-space: nowrap !important;
+    vertical-align: top !important;    /* "top" aligns better with multi-line descriptions */
+    padding-left: 0 !important;        /* Ensures it hits the left edge */
 }
 
+/* 3. Keep description text clean and normal weight */
+table.autosummary td p {
+    font-weight: 400 !important;
+}
+
+/* 4. Table width scaling */
 table.autosummary {
     width: 100% !important;
-    table-layout: auto !important; /* Allows columns to adjust to content */
+    table-layout: auto !important;
 }
