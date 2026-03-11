@@ -1,39 +1,35 @@
-.. currentmodule:: brainsets
+.. currentmodule:: brainsets.datasets
 
 Datasets
---------
+==================
 
-.. autoclass:: brainsets.datasets.PerichMillerPopulation2018
-    :members:
-    :show-inheritance:
-    :undoc-members:
+Neural Population Datasets
+--------------------------
+.. autosummary::
+   :nosignatures:
+   :toctree: ../generated
+   :template: autosummary/only_class.rst
 
-.. autoclass:: brainsets.datasets.PeiPandarinathNLB2021
-    :members:
-    :show-inheritance:
-    :undoc-members:
+   PerichMillerPopulation2018
+   PeiPandarinathNLB2021
+   FlintSlutzkyAccurate2012
+   ChurchlandShenoyNeural2012
+   OdohertySabesNonhuman2017
 
-.. autoclass:: brainsets.datasets.FlintSlutzkyAccurate2012
-    :members:
-    :show-inheritance:
-    :undoc-members:
+Visual & Sensory Datasets
+-------------------------
+.. autosummary::
+   :nosignatures:
+   :toctree: ../generated
+   :template: autosummary/only_class.rst
 
-.. autoclass:: brainsets.datasets.ChurchlandShenoyNeural2012
-    :members:
-    :show-inheritance:
-    :undoc-members:
+   AllenVisualCodingOphys2016
 
-.. autoclass:: brainsets.datasets.OdohertySabesNonhuman2017
-    :members:
-    :show-inheritance:
-    :undoc-members:
+Sleep & Physiological Datasets
+------------------------------
+.. autosummary::
+   :nosignatures:
+   :toctree: ../generated
+   :template: autosummary/only_class.rst
 
-.. autoclass:: brainsets.datasets.AllenVisualCodingOphys2016
-    :members:
-    :show-inheritance:
-    :undoc-members:
-
-.. autoclass:: brainsets.datasets.KempSleepEDF2013
-    :members:
-    :show-inheritance:
-    :undoc-members:
+   KempSleepEDF2013
