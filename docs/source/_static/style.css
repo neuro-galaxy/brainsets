@@ -196,16 +196,7 @@ th:last-child {
     border: 1px solid var(--color-foreground-border);
 }
 
-
 /* Autosummary table styling */
-table.autosummary td:first-child {
-    white-space: nowrap !important;
-    vertical-align: top !important;    
-    padding-left: 0 !important;
-}
-table.autosummary td p {
-    font-weight: 400 !important;
-}
 table.autosummary {
     width: 100% !important;
     table-layout: auto !important;
