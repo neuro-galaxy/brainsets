@@ -10,6 +10,7 @@ class PerichMillerPopulation2018(SpikingDatasetMixin, Dataset):
     from the `DANDI Archive <https://dandiarchive.org/dandiset/000688>`_.
 
     **Tasks:** Center-Out and Random Target
+    **Brain Regions:** M1, PMd
 
     **Dataset Statistics**
 

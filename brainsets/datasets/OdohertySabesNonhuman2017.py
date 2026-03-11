@@ -10,6 +10,7 @@ class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
     `Zenodo archive <https://zenodo.org/records/3854034>`_.
 
     **Tasks:** Random Target
+    **Brain Regions:** M1, S1
 
     **Dataset Statistics**
 

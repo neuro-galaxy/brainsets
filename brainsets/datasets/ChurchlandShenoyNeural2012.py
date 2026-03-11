@@ -10,6 +10,7 @@ class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
     from the `DANDI Archive <https://dandiarchive.org/dandiset/000070>`_.
 
     **Tasks:** Center-Out
+    **Brain Regions:** M1, PMd
 
     **Dataset Statistics**
 

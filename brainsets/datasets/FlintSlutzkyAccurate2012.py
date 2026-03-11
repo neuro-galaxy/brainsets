@@ -11,6 +11,8 @@ class FlintSlutzkyAccurate2012(SpikingDatasetMixin, Dataset):
 
     **Tasks:** Center-Out
 
+    **Brain Regions:** M1
+
     **Dataset Statistics**
 
     - **Subjects:** 1
