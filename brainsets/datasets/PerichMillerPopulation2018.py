@@ -6,8 +6,8 @@ from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
 class PerichMillerPopulation2018(SpikingDatasetMixin, Dataset):
     """
-    Dataset class for the Perich and Miller (2018) motor cortex recordings
-    from the `DANDI Archive <https://dandiarchive.org/dandiset/000688>`_.
+    Motor cortex (M1 and PMd) spiking activity and reaching kinematics from four macaques
+    performing center-out and random target reaching tasks.
 
     **Tasks:** Center-Out and Random Target
     **Brain Regions:** M1, PMd
