@@ -6,8 +6,8 @@ from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
 class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
     """
-    Dataset class for the O'Doherty and Sabes recordings from the
-    `Zenodo archive <https://zenodo.org/records/3854034>`_.
+    Motor cortex (M1 and S1) spiking activity and reaching kinematics from 2 monkeys
+    performing random target reaching tasks with right hand.
 
     **Tasks:** Random Target
     **Brain Regions:** M1, S1

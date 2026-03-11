@@ -7,7 +7,7 @@ from torch_brain.dataset import Dataset, SpikingDatasetMixin
 class PerichMillerPopulation2018(SpikingDatasetMixin, Dataset):
     """
     Motor cortex (M1 and PMd) spiking activity and reaching kinematics from four macaques
-    performing center-out and random target reaching tasks.
+    performing center-out and random target reaching tasks. The monkeys were trained to move a cursor from a central target to one of eight peripheral targets arranged in a circle.
 
     **Tasks:** Center-Out and Random Target
 
