@@ -272,6 +272,25 @@ def test_explicit_recording_ids_reject_split_selection_args(tmp_path):
         )
 
 
+def test_explicit_recording_ids_reject_fold_arg(tmp_path):
+    _write_default_recordings(tmp_path)
+
+    with pytest.raises(ValueError, match="Unexpected args: fold"):
+        _make_dataset(
+            tmp_path,
+            recording_ids=["sub_1_trial001"],
+            fold=0,
+        )
+
+
+def test_split_selection_defaults_fold_to_zero(tmp_path):
+    _write_default_recordings(tmp_path)
+
+    ds = _make_dataset(tmp_path)
+    assert ds.fold == 0
+    assert ds.describe_selection()["fold"] == 0
+
+
 def test_describe_selection_excludes_selected_recording_ids(tmp_path):
     _write_default_recordings(tmp_path)
 
@@ -427,3 +446,50 @@ def test_get_channel_arrays_included_only_filters_channels(tmp_path, monkeypatch
     assert included_arrays["indices"].tolist() == [0]
     assert included_arrays["lip"] is not None
     assert included_arrays["lip"].shape == (1, 3)
+
+
+def test_get_channel_ids_use_recording_view_ids_without_suffix(tmp_path, monkeypatch):
+    _write_default_recordings(tmp_path, ("sub_1_trial001", "sub_2_trial004"))
+
+    ds = _make_dataset(
+        tmp_path,
+        recording_ids=["sub_2_trial004", "sub_1_trial001"],
+    )
+
+    class _FakeRecording:
+        class channels:
+            id = np.array(["ch0", "ch1"])
+            included = np.array([True, False])
+
+    monkeypatch.setattr(ds, "get_recording", lambda _rid: _FakeRecording())
+
+    assert ds.get_channel_ids() == ["ch0", "ch0", "ch1", "ch1"]
+    assert ds.get_channel_ids(included_only=True) == ["ch0", "ch0"]
+
+
+def test_get_channel_ids_return_prefixed_ids_from_recording_view(tmp_path, monkeypatch):
+    _write_default_recordings(tmp_path, ("sub_1_trial001", "sub_2_trial004"))
+
+    ds = _make_dataset(
+        tmp_path,
+        recording_ids=["sub_2_trial004", "sub_1_trial001"],
+        uniquify_channel_ids={"subject_id", "session_id"},
+    )
+
+    class _Recording1:
+        class channels:
+            id = np.array(["1/001/ch0"])
+            included = np.array([True])
+
+    class _Recording2:
+        class channels:
+            id = np.array(["2/004/ch0"])
+            included = np.array([True])
+
+    views = {
+        "sub_1_trial001": _Recording1(),
+        "sub_2_trial004": _Recording2(),
+    }
+    monkeypatch.setattr(ds, "get_recording", lambda rid: views[rid])
+
+    assert ds.get_channel_ids() == ["1/001/ch0", "2/004/ch0"]

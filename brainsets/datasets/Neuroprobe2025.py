@@ -143,13 +143,18 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         task: Neuroprobe task name. Defaults to ``"speech"`` in split-selection mode.
         regime: One of ``"SS-SM"``, ``"SS-DM"``, ``"DS-DM"``. Defaults to
             ``"SS-SM"`` in split-selection mode.
-        fold: Fold index (default ``0``). Valid values depend on regime:
+        fold: Fold index used only in split-selection mode. Defaults to ``0`` in
+            split-selection mode and must be omitted in explicit-recording mode.
+            Valid values depend on regime:
             - ``within_session``: valid {0, 1}
             - ``cross_x``: forced to 0
         uniquify_channel_ids: Set of channel-ID components used for prefixing
             via ``SEEGDatasetMixin``. Supported values:
             ``{"subject_id"}``, ``{"session_id"}``, or both.
-            Defaults to empty set (no prefixing).
+            Defaults to empty set (no prefixing). This affects IDs returned by
+            ``get_recording(...)`` and therefore ``get_channel_ids(...)``.
+            With no prefixing, channel IDs are returned as stored and may
+            repeat across recordings.
         dirname: Subdirectory under ``root`` containing recording H5 files.
     """
 
@@ -166,7 +171,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         label_mode: LabelMode | None = None,
         task: str | None = None,
         regime: Regime | None = None,
-        fold: int = 0,
+        fold: int | None = None,
         uniquify_channel_ids: set[str] | frozenset[str] = frozenset(),
         dirname: str = "neuroprobe_2025",
         **kwargs,
@@ -186,6 +191,8 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
                 task = "speech"
             if regime is None:
                 regime = "SS-SM"
+            if fold is None:
+                fold = 0
 
             self.subset_tier = subset_tier
             self.label_mode = label_mode
@@ -210,11 +217,10 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
                     ("label_mode", label_mode),
                     ("task", task),
                     ("regime", regime),
+                    ("fold", fold),
                 )
                 if value is not None
             ]
-            if fold != 0:
-                unexpected_split_args.append("fold")
             if unexpected_split_args:
                 raise ValueError(
                     "When recording_ids is provided (explicit-recording mode), split-selection args "
@@ -235,8 +241,8 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             **kwargs,
         )
 
-        # Opt-in hook behavior: keep default channel IDs unchanged unless a caller
-        # explicitly asks for recording-disambiguated IDs in returned recordings.
+        # Opt-in hook behavior: keep channel IDs as stored unless caller enables
+        # subject/session-based prefixing via `uniquify_channel_ids`.
         if not isinstance(uniquify_channel_ids, (set, frozenset)):
             raise TypeError(
                 "uniquify_channel_ids must be a set/frozenset containing "
