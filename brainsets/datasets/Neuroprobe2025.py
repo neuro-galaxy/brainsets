@@ -173,7 +173,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
     ):
         # Resolve and validate constructor inputs before touching dataset records.
         self._dataset_dir = Path(root) / dirname
-        
+
         # XOR recording-source behavior:
         # - no recording_ids => use split-resolved benchmark recordings
         # - recording_ids provided => use the explicit subset as active recordings
@@ -260,10 +260,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
 
     def get_domain_intervals(self) -> dict[str, Interval]:
         """Return full-domain intervals for active recordings."""
-        return {
-            rid: self.get_recording(rid).domain
-            for rid in self.recording_ids
-        }
+        return {rid: self.get_recording(rid).domain for rid in self.recording_ids}
 
     def get_sampling_rate(self, recording_id: str | None = None) -> float:
         """Return recording sampling rate in Hz."""
@@ -297,7 +294,9 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             "indices": np.arange(len(full_arrays["ids"]), dtype=int),
         }
 
-    def _get_full_channel_arrays(self, recording_id: str) -> dict[str, np.ndarray | None]:
+    def _get_full_channel_arrays(
+        self, recording_id: str
+    ) -> dict[str, np.ndarray | None]:
         rec = self.get_recording(recording_id)
         channels = rec.channels
 
@@ -406,7 +405,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
     def _channel_mask_attr_path(self) -> str:
         # Return the nested attribute path for the split-specific channel mask.
         return f"channels.{self._split_key()}"
-    
+
     def _validate_split_args(self) -> None:
         # Keep constructor strict so invalid benchmark configs fail immediately.
         if self.subset_tier not in VALID_SUBSET_TIERS:
@@ -509,9 +508,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
 
         # SS-DM / DS-DM
         if fold != 0:
-            raise ValueError(
-                f"Fold for regime '{regime}' must be 0, got {fold}."
-            )
+            raise ValueError(f"Fold for regime '{regime}' must be 0, got {fold}.")
         return fold
 
     def _resolve_requested_recording_ids(self, recording_ids: list[str]) -> list[str]:

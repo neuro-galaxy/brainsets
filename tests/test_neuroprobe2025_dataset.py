@@ -128,6 +128,7 @@ def _make_dataset(tmp_path: Path, **overrides) -> Neuroprobe2025:
     kwargs.update(overrides)
     return Neuroprobe2025(**kwargs)
 
+
 def test_recording_id_roundtrip():
     recording_id = _to_recording_id(2, 4)
     assert recording_id == "sub_2_trial004"
