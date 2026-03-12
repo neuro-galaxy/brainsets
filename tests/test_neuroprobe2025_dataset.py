@@ -136,6 +136,26 @@ def test_recording_id_roundtrip():
 
 
 @pytest.mark.parametrize(
+    ("subject", "session"),
+    [
+        (-1, 0),
+        (1, 1000),
+        ("1", 1),
+        (1, "1"),
+        (True, 1),
+        (1, False),
+    ],
+)
+def test_to_recording_id_invalid_subject_session_raise(subject, session):
+    with pytest.raises(ValueError, match="_to_recording_id") as excinfo:
+        _to_recording_id(subject, session)
+
+    message = str(excinfo.value)
+    assert f"subject={subject!r}" in message
+    assert f"session={session!r}" in message
+
+
+@pytest.mark.parametrize(
     ("recording_id", "error_fragment"),
     [
         ("subject2_trial4", "Invalid recording_id"),

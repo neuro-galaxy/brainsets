@@ -101,6 +101,19 @@ _RECORDING_ID_RE = re.compile(r"^sub_(\d+)_trial(\d{3})$")
 
 def _to_recording_id(subject: int, session: int) -> str:
     # Normalize integer subject/session into the canonical H5 recording id.
+    if (
+        isinstance(subject, bool)
+        or not isinstance(subject, int)
+        or subject < 0
+        or isinstance(session, bool)
+        or not isinstance(session, int)
+        or not (0 <= session <= 999)
+    ):
+        raise ValueError(
+            "_to_recording_id received invalid subject/session values: "
+            f"subject={subject!r}, session={session!r}. Expected subject to be a "
+            "non-negative integer and session to be an integer in 0..999."
+        )
     return f"sub_{subject}_trial{session:03d}"
 
 
