@@ -43,48 +43,26 @@ would be ``perich_miller_population_2018``.
 
 Download the raw data from the source and place it in a directory, e.g. ``./data/raw/{brainset_id}``.
 
-**3. Start with the prepare_data.py template**
+**3. Implement the process() logic**
 
-Write a ``prepare_data.py`` script to load the raw data from a single recording, extract all relevant data and save it as a :obj:`temporaldata.Data` object.
-
-The following is an example ``prepare_data.py`` script that can serve as a template:
+The ``process()`` method of your pipeline is where you load the raw data, 
+extract metadata, and package it into a :obj:`temporaldata.Data` object.
 
 .. code-block:: python
-    :emphasize-lines: 15, 16, 18, 19, 21, 22, 23, 24
-    
-    import argparse
-    import os
-    import h5py
 
-    from temporaldata import Data
-    from brainsets import serialize_fn_map
-
-    def main():
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--input_file", type=str)
-        parser.add_argument("--output_dir", type=str, default="./processed")
-
-        args = parser.parse_args()
-        
-        # load data, extract metadata and process any relevant variables
-        ...
-        
-        # create data object
+    def process(self, fpath):
+        # 1. Load data from the provided path
+        # 2. Extract metadata and neural variables
+        # 3. Create data object
         data = Data(...)
 
-        # split data into train, validation and test
+        # 4. Split data into train, validation and test
         data.set_train_domain(...)
-        data.set_valid_domain(...)
-        data.set_test_domain(...)
-
-        # save data to disk
-        path = os.path.join(args.output_dir, f"{session_id}.h5")
-        with h5py.File(path, "w") as file:
-            data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
+        
+        # Note: The pipeline handles saving automatically!
+        return data
 
 
-    if __name__ == "__main__":
-        main()
 
 
 The highlighted sections are where you will need to add code to load the raw data, extract metadata and process any relevant variables.
@@ -391,3 +369,6 @@ When everything is put together, your ``pipeline.py`` should look like this:
             save_path = self.processed_dir / f"{self.brainset_id}.h5"
             with h5py.File(save_path, "w") as file:
                 data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
+                
+if __name__ == "__main__":
+    SimplePipeline().run(raw_dir="data/raw", processed_dir="data/processed")
