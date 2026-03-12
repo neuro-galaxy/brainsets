@@ -213,7 +213,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
 
             self._validate_split_args()
             self.h5_regime = H5_REGIME_BY_REGIME[self.regime]
-            self.fold = self.resolve_fold(fold=fold, regime=self.regime)
+            self.fold = self._resolve_fold(fold=fold)
             active_recording_ids = self._split_recording_ids()
         else:
             unexpected_split_args = [
@@ -503,9 +503,9 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
                     f"{longest_trials}."
                 )
 
-    @classmethod
-    def resolve_fold(cls, fold: int, regime: str) -> int:
+    def _resolve_fold(self, fold: int) -> int:
         # SS-SM exposes two folds; SS-DM/DS-DM are fixed to fold0 only.
+        regime = self.regime
         if not isinstance(fold, Integral) or isinstance(fold, bool):
             raise TypeError(f"fold must be an int, got {type(fold).__name__}.")
 

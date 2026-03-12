@@ -208,9 +208,11 @@ def test_split_selection_defaults_falsy_fold_to_zero(tmp_path, fold):
     assert ds.fold == 0
 
 
-def test_resolve_fold_rejects_invalid_regime():
+def test_split_selection_rejects_invalid_regime(tmp_path):
+    _write_default_recordings(tmp_path)
+
     with pytest.raises(ValueError, match="Invalid regime"):
-        Neuroprobe2025.resolve_fold(fold=0, regime="BAD")
+        _make_dataset(tmp_path, regime="BAD")
 
 
 def test_ss_dm_lite_train_selects_other_trial(tmp_path):
