@@ -200,11 +200,12 @@ def test_cross_x_fold_must_be_zero(tmp_path):
         )
 
 
-def test_fold_bool_rejected_fast(tmp_path):
+@pytest.mark.parametrize("fold", [False, ""])
+def test_split_selection_defaults_falsy_fold_to_zero(tmp_path, fold):
     _write_default_recordings(tmp_path)
 
-    with pytest.raises(TypeError, match="fold must be an int"):
-        _make_dataset(tmp_path, fold=True)
+    ds = _make_dataset(tmp_path, fold=fold)
+    assert ds.fold == 0
 
 
 def test_resolve_fold_rejects_invalid_regime():
@@ -309,6 +310,30 @@ def test_split_selection_defaults_fold_to_zero(tmp_path):
     ds = _make_dataset(tmp_path)
     assert ds.fold == 0
     assert ds.describe_selection()["fold"] == 0
+
+
+@pytest.mark.parametrize("label_mode", ["", False])
+def test_split_selection_defaults_falsy_label_mode_to_binary(tmp_path, label_mode):
+    _write_default_recordings(tmp_path)
+
+    ds = _make_dataset(tmp_path, label_mode=label_mode)
+    assert ds.label_mode == "binary"
+
+
+@pytest.mark.parametrize("task", ["", False])
+def test_split_selection_defaults_falsy_task_to_speech(tmp_path, task):
+    _write_default_recordings(tmp_path)
+
+    ds = _make_dataset(tmp_path, task=task)
+    assert ds.task == "speech"
+
+
+@pytest.mark.parametrize("regime", ["", False])
+def test_split_selection_defaults_falsy_regime_to_ss_sm(tmp_path, regime):
+    _write_default_recordings(tmp_path)
+
+    ds = _make_dataset(tmp_path, regime=regime)
+    assert ds.regime == "SS-SM"
 
 
 def test_describe_selection_excludes_selected_recording_ids(tmp_path):

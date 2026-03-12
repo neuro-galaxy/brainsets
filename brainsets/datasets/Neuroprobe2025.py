@@ -198,14 +198,10 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         use_split_selection = recording_ids is None
         self._use_split_selection = use_split_selection
         if use_split_selection:
-            if label_mode is None:
-                label_mode = "binary"
-            if task is None:
-                task = "speech"
-            if regime is None:
-                regime = "SS-SM"
-            if fold is None:
-                fold = 0
+            label_mode = label_mode or "binary"
+            task = task or "speech"
+            regime = regime or "SS-SM"
+            fold = fold or 0
 
             self.subset_tier = subset_tier
             self.label_mode = label_mode
