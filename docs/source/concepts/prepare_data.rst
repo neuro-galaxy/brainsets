@@ -51,16 +51,16 @@ extract metadata, and package it into a :obj:`temporaldata.Data` object.
 .. code-block:: python
 
     def process(self, fpath):
-        # 1. Load data from the provided path
-        # 2. Extract metadata and neural variables
-        # 3. Create data object
+        # 1. Load, extract, and create your data object
         data = Data(...)
 
-        # 4. Split data into train, validation and test
+        # 2. Split data into train, validation and test
         data.set_train_domain(...)
         
-        # Note: The pipeline handles saving automatically!
-        return data
+        # 3. Save manually to the directory provided by the pipeline
+        save_path = self.processed_dir / f"{self.brainset_id}.h5"
+        with h5py.File(save_path, "w") as file:
+            data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
 
 
 
@@ -283,6 +283,9 @@ Add all the metadata and data objects to a :obj:`temporaldata.Data` object:
 
 Split the data into train, validation and test sets, you can do this in any way that makes sense for your dataset.
 
+.. note::
+   The ``set_train_domain()``, ``set_valid_domain()``, and ``set_test_domain()`` methods are provided by the :obj:`temporaldata.Data` class.
+
 .. tab:: Split by Trials
 
     .. code-block:: python
@@ -317,6 +320,7 @@ Split the data into train, validation and test sets, you can do this in any way 
         data.set_train_domain(train_interval)
         data.set_valid_domain(valid_interval)
         data.set_test_domain(test_interval)
+    
 
 Tips
 ----
