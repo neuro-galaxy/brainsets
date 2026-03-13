@@ -8,7 +8,7 @@ from typing import Callable, Literal, Optional, get_args
 import numpy as np
 from temporaldata import Data, Interval
 
-from torch_brain.dataset import Dataset, SEEGDatasetMixin
+from torch_brain.dataset import Dataset, MultiChannelDatasetMixin
 
 
 SubsetTier = Literal["full", "lite", "nano"]
@@ -128,7 +128,7 @@ def _from_recording_id(recording_id: str) -> tuple[int, int]:
     return int(match.group(1)), int(match.group(2))
 
 
-class Neuroprobe2025(SEEGDatasetMixin, Dataset):
+class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
     """Neuroprobe 2025 iEEG benchmark dataset.
 
     Each instance operates in exactly one of two mutually-exclusive modes:
@@ -161,13 +161,12 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             Valid values depend on regime:
             - ``within_session``: valid {0, 1}
             - ``cross_x``: forced to 0
-        uniquify_channel_ids: Set of channel-ID components used for prefixing
-            via ``SEEGDatasetMixin``. Supported values:
-            ``{"subject_id"}``, ``{"session_id"}``, or both.
-            Defaults to empty set (no prefixing). This affects IDs returned by
-            ``get_recording(...)`` and therefore ``get_channel_ids(...)``.
-            With no prefixing, channel IDs are returned as stored and may
-            repeat across recordings.
+        uniquify_channel_ids_with_subject: Whether to prefix channel IDs with
+            ``subject.id`` via ``MultiChannelDatasetMixin``.
+            Defaults to ``True``.
+        uniquify_channel_ids_with_session: Whether to prefix channel IDs with
+            ``session.id`` via ``MultiChannelDatasetMixin``.
+            Defaults to ``False``.
         dirname: Subdirectory under ``root`` containing recording H5 files.
     """
 
@@ -185,7 +184,8 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         task: str | None = None,
         regime: Regime | None = None,
         fold: int | None = None,
-        uniquify_channel_ids: set[str] | frozenset[str] = frozenset(),
+        uniquify_channel_ids_with_subject: bool = True,
+        uniquify_channel_ids_with_session: bool = False,
         dirname: str = "neuroprobe_2025",
         **kwargs,
     ):
@@ -250,15 +250,24 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             **kwargs,
         )
 
-        # Opt-in hook behavior: keep channel IDs as stored unless caller enables
-        # subject/session-based prefixing via `uniquify_channel_ids`.
-        if not isinstance(uniquify_channel_ids, (set, frozenset)):
+        # Configure subject/session-based channel-id prefixing behavior.
+        if not isinstance(uniquify_channel_ids_with_subject, bool):
             raise TypeError(
-                "uniquify_channel_ids must be a set/frozenset containing "
-                "'subject_id' and/or 'session_id'."
+                "uniquify_channel_ids_with_subject must be bool; got "
+                f"{type(uniquify_channel_ids_with_subject).__name__}."
             )
-        self.seeg_dataset_mixin_uniquify_channel_ids = frozenset(uniquify_channel_ids)
-        # Validate components eagerly so config errors fail at construction time.
+        if not isinstance(uniquify_channel_ids_with_session, bool):
+            raise TypeError(
+                "uniquify_channel_ids_with_session must be bool; got "
+                f"{type(uniquify_channel_ids_with_session).__name__}."
+            )
+        self.seeg_dataset_mixin_uniquify_channel_ids_with_subject = (
+            uniquify_channel_ids_with_subject
+        )
+        self.seeg_dataset_mixin_uniquify_channel_ids_with_session = (
+            uniquify_channel_ids_with_session
+        )
+        # Validate flags eagerly so config errors fail at construction time.
         self._normalize_channel_uniquify_components()
 
     def get_sampling_intervals(self) -> dict[str, Interval]:
@@ -267,11 +276,11 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
             raise RuntimeError(
                 "get_sampling_intervals is only available in split-selection mode."
             )
-        interval_path = self._interval_attr_path()
-        return {
-            rid: self.get_recording(rid).get_nested_attribute(interval_path)
-            for rid in self.recording_ids
-        }
+        intervals: dict[str, Interval] = {}
+        for rid in self.recording_ids:
+            rec = self.get_recording(rid)
+            intervals[rid] = rec.splits
+        return intervals
 
     def get_domain_intervals(self) -> dict[str, Interval]:
         """Return full-domain intervals for active recordings."""
@@ -316,11 +325,8 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
         channels = rec.channels
 
         ids = np.asarray(channels.id).astype(str)
-        names = np.asarray(getattr(channels, "name", ids)).astype(str)
-        included_mask = np.asarray(
-            getattr(channels, "included", np.ones(len(ids), dtype=bool)),
-            dtype=bool,
-        )
+        names = np.asarray(channels.name).astype(str)
+        included_mask = np.asarray(channels.included, dtype=bool)
 
         if len(names) != len(ids):
             raise ValueError(
@@ -333,11 +339,7 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
                 f"len(mask)={len(included_mask)} vs len(ids)={len(ids)}"
             )
 
-        lip: np.ndarray | None = None
-        if all(
-            hasattr(channels, attr)
-            for attr in ("localization_L", "localization_I", "localization_P")
-        ):
+        try:
             lip = np.stack(
                 (
                     np.asarray(channels.localization_L, dtype=float),
@@ -346,11 +348,17 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
                 ),
                 axis=1,
             )
-            if len(lip) != len(ids):
-                raise ValueError(
-                    f"Channel localization length mismatch for recording '{recording_id}': "
-                    f"len(lip)={len(lip)} vs len(ids)={len(ids)}"
-                )
+        except AttributeError as exc:
+            raise AttributeError(
+                "Missing required channel localization fields for Neuroprobe2025 "
+                f"recording '{recording_id}'. Expected channels.localization_L, "
+                "channels.localization_I, and channels.localization_P."
+            ) from exc
+        if len(lip) != len(ids):
+            raise ValueError(
+                f"Channel localization length mismatch for recording '{recording_id}': "
+                f"len(lip)={len(lip)} vs len(ids)={len(ids)}"
+            )
 
         return {
             "ids": ids,
@@ -361,18 +369,27 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
 
     def get_recording_hook(self, data: Data):
         """Apply split-specific channel inclusion mask when available."""
+
+        # If we're not using the split selection, return the original data object
         if not self._use_split_selection:
             super().get_recording_hook(data)
             return
 
-        # Override generic channel masks with the split-specific inclusion mask.
+        recording_id = data.session.id
+        channel_mask_path = self._channel_mask_attr_path()
+        interval_path = self._interval_attr_path()
+
+        # Override generic channel mask and split interval using this dataset instance's
+        # resolved selector key; split-selection mode expects both paths to exist.
         try:
-            data.channels.included = data.get_nested_attribute(
-                self._channel_mask_attr_path()
-            )
-        except (AttributeError, KeyError):
-            # If a recording doesn't expose a split-specific mask, keep default mask.
-            pass
+            data.channels.included = data.get_nested_attribute(channel_mask_path)
+            data.splits = data.get_nested_attribute(interval_path)
+        except (AttributeError, KeyError) as exc:
+            raise KeyError(
+                "Missing required split-selection attributes for Neuroprobe2025 "
+                f"recording '{recording_id}'. Expected both '{channel_mask_path}' "
+                f"and '{interval_path}'."
+            ) from exc
         super().get_recording_hook(data)
 
     def describe_selection(self) -> dict[str, object]:
@@ -399,7 +416,6 @@ class Neuroprobe2025(SEEGDatasetMixin, Dataset):
                 "test_recording_id": _to_recording_id(
                     self.test_subject, self.test_session
                 ),
-                "interval_path": self._interval_attr_path(),
                 "split_key": self._split_key(),
             }
         )

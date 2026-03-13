@@ -363,41 +363,78 @@ def test_get_sampling_rate_is_fixed_constant(tmp_path):
 def test_uniquify_channel_ids_option_sets_seeg_mixin_components(tmp_path):
     _write_default_recordings(tmp_path)
 
-    ds = _make_dataset(tmp_path, uniquify_channel_ids={"subject_id"})
-    assert ds.seeg_dataset_mixin_uniquify_channel_ids == frozenset({"subject_id"})
+    ds = _make_dataset(tmp_path, uniquify_channel_ids_with_subject=True)
+    assert ds.seeg_dataset_mixin_uniquify_channel_ids_with_subject is True
+    assert ds.seeg_dataset_mixin_uniquify_channel_ids_with_session is False
 
 
-def test_uniquify_channel_ids_option_rejects_non_set(tmp_path):
+def test_uniquify_channel_ids_option_rejects_non_boolean(tmp_path):
     _write_default_recordings(tmp_path)
 
-    with pytest.raises(TypeError, match="must be a set/frozenset"):
-        _make_dataset(tmp_path, uniquify_channel_ids=True)
+    with pytest.raises(TypeError, match="uniquify_channel_ids_with_subject"):
+        _make_dataset(tmp_path, uniquify_channel_ids_with_subject="yes")
 
 
-def test_get_sampling_intervals_uses_instance_split_path(tmp_path, monkeypatch):
+def test_get_sampling_intervals_reads_current_splits_field(tmp_path, monkeypatch):
     _write_default_recordings(tmp_path)
 
     ds = _make_dataset(tmp_path)
 
     class _FakeRecording:
-        def __init__(self):
-            self.paths = []
-
-        def get_nested_attribute(self, path: str):
-            self.paths.append(path)
-            return Interval(
-                start=np.array([0.0]), end=np.array([1.0]), label=np.array([1])
-            )
+        splits = Interval(
+            start=np.array([0.0]),
+            end=np.array([1.0]),
+            label=np.array([1]),
+        )
 
     fake_recording = _FakeRecording()
     monkeypatch.setattr(ds, "get_recording", lambda _rid: fake_recording)
 
     intervals = ds.get_sampling_intervals()
     assert list(intervals.keys()) == ["sub_1_trial001"]
-    assert isinstance(intervals["sub_1_trial001"], Interval)
-    assert fake_recording.paths == [
-        "splits.full$binary$within_session$speech$fold0$train"
-    ]
+    assert intervals["sub_1_trial001"] is fake_recording.splits
+
+
+def test_get_recording_hook_sets_active_split_interval_on_data(tmp_path):
+    _write_default_recordings(tmp_path)
+
+    ds = _make_dataset(tmp_path)
+    split_key = ds._split_key()
+
+    class _FakeChannels:
+        id = np.array(["ch0"], dtype=str)
+        included = np.array([False], dtype=bool)
+
+    class _FakeRecording:
+        def __init__(self):
+            self.channels = _FakeChannels()
+            self.splits = object()
+            self.paths = []
+            self.session = type("_Session", (), {"id": "sub_1_trial001"})()
+
+        def get_nested_attribute(self, path: str):
+            self.paths.append(path)
+            if path == "subject.id":
+                return "1"
+            if path == f"channels.{split_key}":
+                return np.array([True], dtype=bool)
+            if path == f"splits.{split_key}":
+                return Interval(
+                    start=np.array([0.0]),
+                    end=np.array([1.0]),
+                    label=np.array([1]),
+                )
+            raise KeyError(path)
+
+    rec = _FakeRecording()
+    ds.get_recording_hook(rec)
+
+    assert isinstance(rec.splits, Interval)
+    assert rec.splits.start.tolist() == [0.0]
+    assert rec.splits.end.tolist() == [1.0]
+    assert rec.splits.label.tolist() == [1]
+    assert rec.channels.included.tolist() == [True]
+    assert rec.paths == [f"channels.{split_key}", f"splits.{split_key}", "subject.id"]
 
 
 def test_get_domain_intervals_uses_selected_recording_domains(tmp_path, monkeypatch):
@@ -520,7 +557,8 @@ def test_get_channel_ids_return_prefixed_ids_from_recording_view(tmp_path, monke
     ds = _make_dataset(
         tmp_path,
         recording_ids=["sub_2_trial004", "sub_1_trial001"],
-        uniquify_channel_ids={"subject_id", "session_id"},
+        uniquify_channel_ids_with_subject=True,
+        uniquify_channel_ids_with_session=True,
     )
 
     class _Recording1:
