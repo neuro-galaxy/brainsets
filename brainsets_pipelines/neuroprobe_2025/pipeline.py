@@ -295,7 +295,7 @@ def get_brainset_description() -> BrainsetDescription:
     return BrainsetDescription(
         id="neuroprobe_2025",
         origin_version="1.0.0",  # btb
-        derived_version=neuroprobe.__version__,
+        derived_version="1.0.0",
         source="https://neuroprobe.dev/",
         description="High-resolution neural datasets enable foundation models for the next generation of "
         "brain-computer interfaces and neurological treatments. The community requires rigorous benchmarks "
