@@ -2,6 +2,7 @@
 # python-version = "3.11"
 # dependencies = [
 #   "neuroprobe==0.1.7",
+#   "numpy==2.2.6",
 # ]
 # ///
 
