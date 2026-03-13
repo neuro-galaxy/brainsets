@@ -18,6 +18,18 @@ PARADIGM_MAP = {
     86: ("Naturalistic Viewing Paradigm Video 6", Task.NATURALISTIC_VIEWING),
 }
 
+# Annotation codes that mark the end of a paradigm (by paradigm start code).
+# Used only for NATURALISTIC_VIEWING paradigms (81-86). Other paradigms end at the
+# last annotation before the next paradigm start (or last annotation in recording).
+PARADIGM_END_CODES: dict[int, list[int]] = {
+    81: [101, 0],
+    82: [102, 0],
+    83: [103, 0],
+    84: [104, 0],
+    85: [105, 0],
+    86: [106, 0],
+}
+
 SAMPLES_COLUMNS = {
     "L Dia X [px]": "l_dia_x",
     "L Dia Y [px]": "l_dia_y",

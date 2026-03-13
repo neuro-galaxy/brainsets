@@ -42,8 +42,8 @@ from brainsets.descriptions import (
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from constants import PARADIGM_MAP  # noqa: E402
 import eyetracking  # noqa: E402
+import paradigm  # noqa: E402
 
 # Metadata files are not hosted in the same s3 bucket as the public data
 # Public data on the 126 subjects
@@ -259,37 +259,26 @@ class Pipeline(BrainsetPipeline):
 
         self.update_status("Extracting annotations")
         annotations = extract_annotations(raw)
-        paradigm_code = None
-        paradigm_name = None
-        if len(annotations) > 0:
-            first_label = str(annotations.description[0]).strip()
-            try:
-                first_code = int(float(first_label))
-            except ValueError:
-                logging.warning(
-                    "Unexpected annotation label '%s'; using raw label", first_label
-                )
-                first_code = None
+        paradigm_intervals = paradigm.get_all_paradigm_intervals(annotations)
 
-            paradigm_entry = PARADIGM_MAP.get(first_code, None)
+        # Could have multiple paradigms/tasks in the same session,
+        # task = paradigm.get_session_task_from_paradigm_intervals(paradigm_intervals)
+        # if task is not None:
+        #     session_description.task = task
 
-            if paradigm_entry is not None:
-                paradigm_name, task = paradigm_entry
-                session_description.task = task
-                paradigm_code = first_code
-            else:
-                paradigm_name = str(first_code)
-
-        # --- Eyetracking ---
+        # --- Eyetracking  ---
         et_data = None
-        if et_dir is not None and paradigm_code is not None:
-            self.update_status(f"Processing eyetracking for paradigm {paradigm_code}")
-            eeg_paradigm_onset_s = float(annotations.start[0])
-            et_data = eyetracking.process(et_dir, paradigm_code, eeg_paradigm_onset_s)
+        if et_dir is not None and len(paradigm_intervals) > 0:
+            # FIXME: parse all paradigms, not only the first
+            # match according to UTC timestamps
+            first_code = int(paradigm_intervals.code[0])
+            eeg_paradigm_onset_s = float(paradigm_intervals.start[0])
+            self.update_status(f"Processing eyetracking for paradigm {first_code}")
+            et_data = eyetracking.process(et_dir, first_code, eeg_paradigm_onset_s)
             if et_data is None:
                 logging.warning(
                     f"No matching ET data found for paradigm "
-                    f"{paradigm_code} in session {recording_id}"
+                    f"{first_code} in session {recording_id}"
                 )
         elif et_dir is None:
             logging.warning(f"No ET directory for session {recording_id}")
@@ -300,6 +289,7 @@ class Pipeline(BrainsetPipeline):
             annotations=annotations,
             subject_id=subject_description.id,
             session_id=session_description.id,
+            paradigm_intervals=paradigm_intervals,
         )
 
         self.update_status("Creating Data Object")
@@ -314,8 +304,9 @@ class Pipeline(BrainsetPipeline):
             "splits": splits,
         }
         if len(annotations) > 0:
-            data_kwargs["paradigm"] = paradigm_name
             data_kwargs["annotations"] = annotations
+        if len(paradigm_intervals) > 0:
+            data_kwargs["paradigms"] = paradigm_intervals
         if et_data is not None:
             data_kwargs["eyetracking"] = et_data
 
@@ -433,15 +424,12 @@ def create_splits(
     annotations: Interval,
     subject_id: str,
     session_id: str,
+    paradigm_intervals: Interval | None = None,
     epoch_duration: float = 30.0,
     n_folds: int = 3,
     seed: int = 42,
 ) -> Data:
     """Generate train/valid/test splits for one recording.
-
-    When paradigm annotations are available, the valid domain starts at the first
-    annotation (paradigm onset) and extends to the end of the EEG recording.
-    If no annotations are present the full EEG domain is used.
 
     Generates three types of splits:
     - Intrasession (epoch-level): k-fold within each session
@@ -450,14 +438,17 @@ def create_splits(
 
     Args:
         eeg_domain: Full time domain of the EEG recording.
-        annotations: Paradigm annotations extracted from the recording.
+        annotations: Raw annotations extracted from the recording.
         subject_id: Subject identifier for cross-subject splits.
         session_id: Session identifier for cross-session splits.
+        paradigm_intervals: Optional extracted paradigm intervals.
         epoch_duration: Duration of each epoch in seconds.
         n_folds: Number of cross-validation folds.
         seed: Random seed for reproducibility.
     """
-    if len(annotations) > 0:
+    if paradigm_intervals is not None and len(paradigm_intervals) > 0:
+        crop_start = paradigm_intervals.start[0]
+    elif len(annotations) > 0:
         crop_start = annotations.start[0]
     else:
         crop_start = eeg_domain.start[0]
