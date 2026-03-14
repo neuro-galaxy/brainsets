@@ -6,7 +6,6 @@
 # ]
 # ///
 
-from functools import cache
 from itertools import product
 import os
 import re
@@ -20,7 +19,7 @@ from torch.utils.data import Subset
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from argparse import ArgumentParser, BooleanOptionalAction, Namespace
+from argparse import ArgumentParser, Namespace
 from typing import Dict, List, Literal, Tuple, Optional, get_args
 
 from brainsets.pipeline import BrainsetPipeline
@@ -31,9 +30,6 @@ from brainsets.descriptions import (
 )
 from brainsets.taxonomy import RecordingTech, Species, Sex
 from brainsets import serialize_fn_map
-
-
-import logging
 
 logging.basicConfig(level=logging.INFO)
 
