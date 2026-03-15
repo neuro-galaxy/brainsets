@@ -200,9 +200,13 @@ class Pipeline(BrainsetPipeline):
 
         # register session
         self.update_status("Registering session")
+        recording_id = FILENAME_MAP(subject_id, trial_id)
         data = Data(
             brainset=brainset_description,
             subject=subject,
+            # Keep subject/session ids as analogous scalar identifiers while
+            # also storing a canonical globally unique recording id.
+            session=Data(id=str(trial_id), recording_id=recording_id),
             # neural activity
             seeg_data=seeg_data,
             channels=channels,
