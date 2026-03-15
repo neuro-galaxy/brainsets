@@ -410,7 +410,9 @@ def test_get_recording_hook_sets_active_split_interval_on_data(tmp_path):
             self.channels = _FakeChannels()
             self.splits = object()
             self.paths = []
-            self.session = type("_Session", (), {"id": "sub_1_trial001"})()
+            self.session = type(
+                "_Session", (), {"recording_id": "sub_1_trial001"}
+            )()
 
         def get_nested_attribute(self, path: str):
             self.paths.append(path)

@@ -375,7 +375,7 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
             super().get_recording_hook(data)
             return
 
-        recording_id = data.session.id
+        recording_id = data.session.recording_id
         channel_mask_path = self._channel_mask_attr_path()
         interval_path = self._interval_attr_path()
 
