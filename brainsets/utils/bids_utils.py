@@ -53,6 +53,7 @@ BIDS_ENTITY_SHORT_NAMES = {
     "desc": "desc",
 }
 
+
 def _check_mne_bids_available(func_name: str) -> None:
     """Raise ImportError if mne-bids is not available."""
     if not MNE_BIDS_AVAILABLE:
@@ -136,6 +137,7 @@ def group_recordings_by_entity(
         ValueError: If an entity name is unsupported.
     """
     _check_mne_bids_available("group_recordings_by_entity")
+
     def _normalize_entity_list(entities: list[str], arg_name: str) -> list[str]:
         normalized = []
         for entity in entities:
