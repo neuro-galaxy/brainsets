@@ -1,8 +1,8 @@
 """Brain Imaging Data Structure (BIDS) utilities.
 
-This module provides functions to parse BIDS-compliant filenames, discover BIDS recordings, and check if data files exist.
+This module provides utility functions to parse BIDS-compliant filenames, discover BIDS recordings in a dataset, and check for the existence of BIDS-conformant data files.
 
-To know more about BIDS, please refer to the BIDS specification: https://bids-specification.readthedocs.io/en/stable/
+For more information about BIDS, see the BIDS specification: https://bids-specification.readthedocs.io/en/stable/
 """
 
 from collections import defaultdict
@@ -12,7 +12,16 @@ import logging
 import re
 import json
 import pandas as pd
-from mne_bids import get_bids_path_from_fname, get_entities_from_fname, BIDSPath
+
+try:
+    from mne_bids import get_bids_path_from_fname, get_entities_from_fname, BIDSPath
+
+    MNE_BIDS_AVAILABLE = True
+except ImportError:
+    get_bids_path_from_fname = None
+    get_entities_from_fname = None
+    BIDSPath = None
+    MNE_BIDS_AVAILABLE = False
 
 # BIDS EEG supported formats (BIDS v1.10.1):
 # - European Data Format (.edf): Single file per recording. edf+ files permitted.
@@ -44,6 +53,14 @@ BIDS_ENTITY_SHORT_NAMES = {
     "desc": "desc",
 }
 
+def _check_mne_bids_available(func_name: str) -> None:
+    """Raise ImportError if mne-bids is not available."""
+    if not MNE_BIDS_AVAILABLE:
+        raise ImportError(
+            f"{func_name} requires mne-bids, which is not installed. "
+            "Install it with `pip install mne-bids`."
+        )
+
 
 def fetch_eeg_recordings(
     source: Optional[BIDSPath | Path | str | list[BIDSPath | Path | str]],
@@ -51,7 +68,8 @@ def fetch_eeg_recordings(
     """Discover all EEG recordings in a dataset by parsing BIDS filenames.
 
     Args:
-        source: BIDS root directory as a string, BIDSPath, or Path, or list of BIDSPath, Path, or string.
+        source: BIDS root directory as a string, BIDSPath, or Path, or a list of those types.
+
     Returns:
         List of dicts with key/value pairs for BIDS entities:
             - recording_id: Full recording identifier (e.g., 'sub-01_ses-01_task-Sleep')
@@ -63,6 +81,7 @@ def fetch_eeg_recordings(
             - description_id: Description identifier or None (e.g., 'preproc')
             - fpath: Relative path to EEG file
     """
+    _check_mne_bids_available("fetch_eeg_recordings")
     return _fetch_recordings(source, EEG_EXTENSIONS, "eeg")
 
 
@@ -72,7 +91,8 @@ def fetch_ieeg_recordings(
     """Discover all iEEG recordings in a dataset by parsing BIDS filenames.
 
     Args:
-        source: BIDS root directory as a string, BIDSPath, or Path, or list of BIDSPath, Path, or string.
+        source: BIDS root directory as a string, BIDSPath, or Path, or a list of those types.
+
     Returns:
         List of dicts with key/value pairs for BIDS entities:
             - recording_id: Full recording identifier (e.g., 'sub-01_ses-01_task-VisualNaming')
@@ -84,6 +104,7 @@ def fetch_ieeg_recordings(
             - description_id: Description identifier or None (e.g., 'preproc')
             - fpath: Relative path to iEEG file
     """
+    _check_mne_bids_available("fetch_ieeg_recordings")
     return _fetch_recordings(source, IEEG_EXTENSIONS, "ieeg")
 
 
@@ -91,14 +112,13 @@ def group_recordings_by_entity(
     recordings: list[dict],
     fixed_entities: Optional[list[str]] = None,
 ) -> dict[str, list[dict]]:
-    """Group recordings by fixed BIDS entities.
+    """Group BIDS-compliant recordings by specified fixed entities.
 
     Group keys are constructed using only the entities listed in
     `fixed_entities`; all other entities are implicitly allowed to vary within
     a group.
 
-    By default (`fixed_entities=None`), this reproduces the previous "group by
-    all but run" behavior.
+    By default (`fixed_entities=None`), groups are created by all entities except 'run'.
 
     Entities can be provided in long form (e.g., `subject`, `session`) or short
     BIDS form (e.g., `sub`, `ses`).
@@ -115,7 +135,7 @@ def group_recordings_by_entity(
     Raises:
         ValueError: If an entity name is unsupported.
     """
-
+    _check_mne_bids_available("group_recordings_by_entity")
     def _normalize_entity_list(entities: list[str], arg_name: str) -> list[str]:
         normalized = []
         for entity in entities:
@@ -168,15 +188,16 @@ def check_eeg_recording_files_exist(
     bids_root: str | Path,
     recording_id: str,
 ) -> bool:
-    """Check if EEG recording files matching the recording_id pattern exist locally.
+    """Check if EEG data files corresponding to a BIDS recording_id exist in the BIDS root directory.
 
     Args:
         bids_root: BIDS root directory (e.g., '/path/to/bids/root')
         recording_id: Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband')
 
     Returns:
-        True if at least one EEG data file is found, False otherwise
+        True if at least one EEG data file is found, False otherwise.
     """
+    _check_mne_bids_available("check_eeg_recording_files_exist")
     return _check_recording_files_exist(bids_root, recording_id, "eeg", EEG_EXTENSIONS)
 
 
@@ -184,15 +205,16 @@ def check_ieeg_recording_files_exist(
     bids_root: str | Path,
     recording_id: str,
 ) -> bool:
-    """Check if iEEG recording files matching the recording_id pattern exist locally.
+    """Check if iEEG data files corresponding to a BIDS recording_id exist in the BIDS root directory.
 
     Args:
         bids_root: BIDS root directory (e.g., '/path/to/bids/root')
         recording_id: Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband')
 
     Returns:
-        True if at least one iEEG data file is found, False otherwise
+        True if at least one iEEG data file is found, False otherwise.
     """
+    _check_mne_bids_available("check_ieeg_recording_files_exist")
     return _check_recording_files_exist(
         bids_root, recording_id, "ieeg", IEEG_EXTENSIONS
     )
@@ -201,7 +223,7 @@ def check_ieeg_recording_files_exist(
 def build_bids_path(
     bids_root: str | Path, recording_id: str, modality: str
 ) -> BIDSPath:
-    """Build a mne_bids.BIDSPath from recording_id and BIDS root directory for a given modality.
+    """Build a mne_bids.BIDSPath for a given recording_id, modality, and BIDS root directory.
 
     Args:
         bids_root: BIDS root directory (e.g., '/path/to/bids/root')
@@ -209,11 +231,12 @@ def build_bids_path(
         modality: Modality (e.g., 'eeg', 'ieeg', 'meg', 'anat', 'func', 'beh', 'dwi', 'fmap', 'pet')
 
     Returns:
-        BIDSPath configured for reading via mne_bids.read_raw_bids
+        BIDSPath configured for reading via mne_bids.read_raw_bids.
 
     Raises:
-        ValueError: If recording_id cannot be parsed
+        ValueError: If recording_id cannot be parsed.
     """
+    _check_mne_bids_available("build_bids_path")
     entities = get_entities_from_fname(recording_id, on_error="raise")
 
     return BIDSPath(
@@ -230,14 +253,18 @@ def build_bids_path(
 
 
 def load_json_sidecar(bids_path: str | Path | BIDSPath) -> dict:
-    """Load a JSON sidecar file from a BIDS path.
+    """Load the JSON sidecar file for a given BIDS file.
 
     Args:
         bids_path: BIDS path as a string, Path, or BIDSPath.
 
     Returns:
-        Dictionary containing the JSON data.
+        Dictionary containing the JSON sidecar data.
+
+    Raises:
+        FileNotFoundError: If no JSON sidecar file is found for the BIDS path.
     """
+    _check_mne_bids_available("load_json_sidecar")
     if not isinstance(bids_path, BIDSPath):
         bids_path = BIDSPath(bids_path)
 
@@ -249,11 +276,14 @@ def load_json_sidecar(bids_path: str | Path | BIDSPath) -> dict:
 
 
 def load_participants_tsv(bids_root: Path | str) -> Optional[pd.DataFrame]:
-    """Load participants.tsv data from BIDS root directory.
+    """Load participants.tsv data from a BIDS root directory.
+
+    Args:
+        bids_root: The path to the BIDS root directory.
 
     Returns:
         DataFrame with participant information indexed by participant_id,
-        or None if participants.tsv doesn't exist.
+        or None if participants.tsv doesn't exist or is missing 'participant_id' column.
     """
     df = pd.read_csv(
         Path(bids_root) / "participants.tsv",
@@ -269,38 +299,32 @@ def load_participants_tsv(bids_root: Path | str) -> Optional[pd.DataFrame]:
         )
         return None
 
-    return df.set_index("participant_id")
+    df = df.set_index("participant_id")
+    return df
 
 
 def get_subject_info(
     subject_id: str,
     participants_data: Optional[pd.DataFrame] = None,
-    bids_root: Optional[Path | str] = None,
 ) -> dict:
     """
-    Retrieve subject information as a dictionary containing 'age' and 'sex' fields.
+    Retrieve demographic information (age, sex) for a given subject from a participants DataFrame.
 
-    This function attempts to load subject information
-    from the BIDS participants.tsv file. If no data file is found or the subject does not
-    exist in the file, both values will be None.
+    Looks up the subject's 'age' and 'sex' fields in the provided participants DataFrame.
+    Returns a dictionary with those keys. If the data is missing or not found, values will be None.
+    If no DataFrame is provided, returns None for both age and sex.
 
     Args:
-        subject_id (str): BIDS subject identifier (e.g., 'sub-01').
+        subject_id: BIDS subject identifier (e.g., 'sub-01').
+        participants_data: Optional DataFrame of participants.tsv data.
 
     Returns:
-        dict: Dictionary with keys 'age' and 'sex' (values may be None if unavailable).
+        dict: {'age': value or None, 'sex': value or None}
     """
     if participants_data is None:
-        if bids_root is None:
-            raise ValueError(
-                "'bids_root' is required if 'participants_data' is not provided"
-            )
-        participants_data = load_participants_tsv(bids_root)
-
-    if participants_data is None:
         logging.warning(
-            f"No participants.tsv file found in BIDS root directory {bids_root}. "
-            "Setting age and sex to None."
+            "The participants.tsv file was not provided. No subject information can be retrieved. "
+            "Returning None for age and sex. Please provide a valid participants.tsv file."
         )
         return {"age": None, "sex": None}
 
@@ -338,12 +362,12 @@ def _fetch_recordings(
     modality: str,
 ) -> list[dict]:
     """
-    Internal helper to discover BIDS recordings matching file extensions and modality.
+    Internal helper for discovering BIDS recordings that match provided file extensions and modality.
 
     Args:
-        source: BIDS root directory as a string, BIDSPath, or Path, or list of BIDSPath, Path, or string.
+        source: BIDS root directory as a string; BIDSPath, or Path, or a list of those types.
         extensions: Set of allowed file extensions (e.g., EEG_EXTENSIONS).
-        modality: Modality to filter by ('eeg', 'ieeg', etc).
+        modality: Modality to filter by (e.g., 'eeg', 'ieeg').
 
     Returns:
         List of dicts with key/value pairs for BIDS entities:
@@ -368,12 +392,12 @@ def _fetch_recordings(
     seen_recording_ids = set()
 
     for filepath in source:
-        if not isinstance(filepath, BIDSPath):
-            filepath = get_bids_path_from_fname(filepath, check=False)
-
         ext = Path(filepath).suffix.lower()
         if ext not in extensions:
             continue
+
+        if not isinstance(filepath, BIDSPath):
+            filepath = get_bids_path_from_fname(filepath, check=False)
 
         if filepath.datatype != modality:
             continue
@@ -428,10 +452,10 @@ def _check_recording_files_exist(
     modality: str,
     extensions: set[str],
 ) -> bool:
-    """Check if recording files matching the recording_id pattern exist locally.
+    """Check if any data file for a BIDS recording exists in the BIDS root directory.
 
-    Searches for any recording file in the BIDS-structured directory.
-    Supports all BIDS-compliant formats (.edf, .vhdr, .set, .bdf, .eeg, .nwb)
+    This searches for any file belonging to the recording in the proper BIDS directory structure,
+    matching any of the supported file extensions. It supports all BIDS-compliant formats (e.g., .edf, .vhdr, .set, .bdf, .eeg, .nwb)
     plus .fif for MNE-processed files.
 
     Args:
@@ -441,7 +465,7 @@ def _check_recording_files_exist(
         extensions: Set of allowed file extensions (e.g., EEG_EXTENSIONS or IEEG_EXTENSIONS)
 
     Returns:
-        True if at least one data file is found, False otherwise
+        True if at least one data file is found, False otherwise.
     """
     bids_path = build_bids_path(bids_root, recording_id, modality)
     subject_id = f"sub-{bids_path.entities['subject']}"
@@ -451,4 +475,3 @@ def _check_recording_files_exist(
         if file.suffix.lower() in extensions:
             return True
     return False
-
