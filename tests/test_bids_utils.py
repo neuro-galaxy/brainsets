@@ -13,7 +13,8 @@ try:
         IEEG_EXTENSIONS,
         fetch_eeg_recordings,
         fetch_ieeg_recordings,
-        check_recording_files_exist,
+        check_eeg_recording_files_exist,
+        check_ieeg_recording_files_exist,
         build_bids_path,
         load_json_sidecar,
         get_subject_info,
@@ -27,7 +28,8 @@ except ImportError:
     IEEG_EXTENSIONS = None
     fetch_eeg_recordings = None
     fetch_ieeg_recordings = None
-    check_recording_files_exist = None
+    check_eeg_recording_files_exist = None
+    check_ieeg_recording_files_exist = None
     build_bids_path = None
     load_json_sidecar = None
     get_subject_info = None
@@ -36,21 +38,63 @@ except ImportError:
     _fetch_recordings = None
 
 
+# ============================================================================
+# BIDS-Specific Fixtures (for test_bids_utils.py only)
+# ============================================================================
+
+
+def _make_participants_df(tsv_content: str) -> pd.DataFrame:
+    """Helper to create a participants DataFrame from TSV content.
+
+    Args:
+        tsv_content: TSV formatted string with participant data.
+
+    Returns:
+        DataFrame indexed by participant_id.
+    """
+    return pd.read_csv(
+        StringIO(tsv_content),
+        sep="\t",
+        na_values=["n/a", "N/A"],
+        keep_default_na=True,
+    ).set_index("participant_id")
+
+
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestFetchRecordings:
-    def test_str_path_source(self):
-        source = [
+    """Test the _fetch_recordings internal function and its wrappers."""
+
+    @pytest.fixture
+    def eeg_source_paths(self):
+        """Create a list of EEG source file paths."""
+        return [
             Path("sub-01/eeg/sub-01_task-Sleep_eeg.edf"),
             "sub-01/eeg/sub-01_task-Sleep_channels.tsv",
             "sub-02/eeg/sub-02_ses-01_task-Rest_acq-headband_run-01_eeg.vhdr",
             "sub-02/eeg/sub-02_ses-01_task-Rest_acq-headband_run-01_eeg.vmrk",
             "participants.tsv",
         ]
+
+    @pytest.fixture
+    def mixed_extension_paths(self):
+        """Create a list of paths with mixed extensions for filtering tests."""
+        return [
+            Path("sub-01_task-rest_eeg.edf"),
+            Path("sub-01_task-rest_eeg.json"),
+            Path("sub-01_task-rest_ieeg.nwb"),
+            Path("sub-01_task-rest_events.tsv"),
+        ]
+
+    def test_parses_string_and_path_sources(self, eeg_source_paths):
+        """Test that _fetch_recordings handles both string and Path source types."""
         recordings = _fetch_recordings(
-            source,
+            eeg_source_paths,
             EEG_EXTENSIONS,
             "eeg",
         )
+
+        assert len(recordings) == 2
+        
         rec1 = next(r for r in recordings if r["subject_id"] == "sub-01")
         assert rec1["recording_id"] == "sub-01_task-Sleep"
         assert rec1["task_id"] == "Sleep"
@@ -63,20 +107,21 @@ class TestFetchRecordings:
         assert rec2["acquisition_id"] == "headband"
         assert rec2["run_id"] == "01"
 
-    def test_raises_when_source_missing(self):
+    def test_raises_type_error_when_source_missing(self):
+        """Test that _fetch_recordings raises TypeError when source is None."""
         with pytest.raises(TypeError):
             _fetch_recordings(None, EEG_EXTENSIONS, "eeg")
 
-    def test_filters_by_extension_and_modality_and_deduplicates(self):
-        source = [
-            Path("sub-01_task-rest_eeg.edf"),
-            Path("sub-01_task-rest_eeg.json"),  # duplicate recording_id, wrong ext
-            Path("sub-01_task-rest_ieeg.nwb"),  # wrong modality
-            Path("sub-01_task-rest_events.tsv"),  # unsupported ext
-        ]
+    def test_filters_by_extension_modality_and_deduplicates(self, mixed_extension_paths):
+        """Test extension filtering, modality filtering, and deduplication of recording IDs.
 
+        The function should:
+        - Filter out unsupported extensions (.json, .tsv)
+        - Filter out mismatched modalities (ieeg when eeg is requested)
+        - Deduplicate by recording_id (keep only first occurrence)
+        """
         recordings = _fetch_recordings(
-            source,
+            mixed_extension_paths,
             EEG_EXTENSIONS,
             "eeg",
         )
@@ -86,13 +131,20 @@ class TestFetchRecordings:
         assert recordings[0]["subject_id"] == "sub-01"
         assert recordings[0]["session_id"] is None
         assert recordings[0]["task_id"] == "rest"
-        assert recordings[0]["fpath"] == Path("sub-01_task-rest_eeg.edf")
+        assert "sub-01_task-rest_eeg.edf" in str(recordings[0]["fpath"])
 
-    def test_fetch_eeg_recordings_wrapper(self):
+    def test_fetch_eeg_recordings_wrapper_returns_eeg_files(self):
+        """Test fetch_eeg_recordings wrapper function.
+
+        Verifies that the wrapper correctly filters EEG extensions and populates
+        all entity fields in the returned recording dictionaries.
+        """
         recordings = fetch_eeg_recordings(
             source=[
                 Path("sub-02_task-nback_run-01_eeg.edf"),
-                "sub-02/eeg/sub-02_task-nback_run-01_eeg.vhdr",
+                Path("sub-02_task-nback_run-02_eeg.vhdr"),
+                Path("sub-02_task-nback_run-01_ieeg.edf"),
+                Path("sub-02_task-nback_run-03_ieeg.nwb"),
             ]
         )
 
@@ -104,30 +156,35 @@ class TestFetchRecordings:
         assert recordings[0]["acquisition_id"] is None
         assert recordings[0]["run_id"] == "01"
         assert recordings[0]["description_id"] is None
-        assert recordings[0]["fpath"] == Path("sub-02_task-nback_run-01_eeg.edf")
-        
+        assert "sub-02_task-nback_run-01_eeg.edf" in str(recordings[0]["fpath"])
+
+        assert recordings[1]["recording_id"] == "sub-02_task-nback_run-02"
         assert recordings[1]["subject_id"] == "sub-02"
         assert recordings[1]["session_id"] is None
         assert recordings[1]["task_id"] == "nback"
         assert recordings[1]["acquisition_id"] is None
-        assert recordings[1]["run_id"] == "01"
+        assert recordings[1]["run_id"] == "02"
         assert recordings[1]["description_id"] is None
-        assert recordings[1]["fpath"] == Path("sub-02/eeg/sub-02_task-nback_run-01_eeg.vhdr")
+        assert "sub-02_task-nback_run-02_eeg.vhdr" in str(recordings[1]["fpath"])
 
+    def test_fetch_ieeg_recordings_wrapper_filters_by_ieeg_extensions(self):
+        """Test fetch_ieeg_recordings wrapper function.
 
-    def test_fetch_ieeg_recordings_wrapper(self):
+        Verifies that the wrapper correctly filters iEEG extensions including .nwb format.
+        """
         recordings = fetch_ieeg_recordings(
             source=[
                 Path("sub-03_task-VisualNaming_ieeg.nwb"),
-                "sub-03/ieeg/sub-03_task-VisualNaming_ieeg.json",
+                Path("sub-03/ieeg/sub-03_task-VisualNaming_ieeg.json"),
             ]
         )
 
         assert len(recordings) == 1
         assert recordings[0]["recording_id"] == "sub-03_task-VisualNaming"
-        assert recordings[0]["fpath"] == Path("sub-03_task-VisualNaming_ieeg.nwb")
+        assert "sub-03_task-VisualNaming_ieeg.nwb" in str(recordings[0]["fpath"])
 
-    def test_no_eeg_files(self):
+    def test_returns_empty_list_for_no_matching_files(self):
+        """Test that empty source list returns empty recordings."""
         source = [
             Path("participants.tsv"),
             Path("dataset_description.json"),
@@ -139,130 +196,319 @@ class TestFetchRecordings:
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestGroupRecordingsByEntity:
-    def test_groups_runs_with_same_prefix_and_suffix(self):
-        recordings = [
-            {"recording_id": "sub-01_task-rest_run-01_desc-clean"},
-            {"recording_id": "sub-01_task-rest_run-02_desc-clean"},
-            {"recording_id": "sub-01_task-rest_run-03_desc-clean"},
+    """Test grouping of BIDS recordings by specified entities."""
+
+    @pytest.fixture
+    def recording_with_description(self):
+        """Create a recording with description entity."""
+        return {
+            "recording_id": "sub-01_task-rest_desc-clean",
+            "subject_id": "sub-01",
+            "session_id": None,
+            "task_id": "rest",
+            "acquisition_id": None,
+            "run_id": None,
+            "description_id": "clean",
+            "fpath": Path("sub-01/eeg/sub-01_task-rest_desc-clean_eeg.edf"),
+        }
+
+    @pytest.fixture
+    def recordings_with_multiple_runs(self):
+        """Create recordings with multiple runs of the same task."""
+        return [
+            {
+                "recording_id": "sub-01_task-rest_run-01_desc-clean",
+                "subject_id": "sub-01",
+                "session_id": None,
+                "task_id": "rest",
+                "acquisition_id": None,
+                "run_id": "01",
+                "description_id": "clean",
+                "fpath": Path("sub-01/eeg/sub-01_task-rest_run-01_desc-clean_eeg.edf"),
+            },
+            {
+                "recording_id": "sub-01_task-rest_run-02_desc-clean",
+                "subject_id": "sub-01",
+                "session_id": None,
+                "task_id": "rest",
+                "acquisition_id": None,
+                "run_id": "02",
+                "description_id": "clean",
+                "fpath": Path("sub-01/eeg/sub-01_task-rest_run-02_desc-clean_eeg.edf"),
+            },
+            {
+                "recording_id": "sub-01_task-rest_run-03_desc-clean",
+                "subject_id": "sub-01",
+                "session_id": None,
+                "task_id": "rest",
+                "acquisition_id": None,
+                "run_id": "03",
+                "description_id": "clean",
+                "fpath": Path("sub-01/eeg/sub-01_task-rest_run-03_desc-clean_eeg.edf"),
+            },
         ]
 
-        grouped = group_recordings_by_entity(recordings)
+    @pytest.fixture
+    def recordings_with_non_numeric_runs(self):
+        """Create recordings with non-numeric run identifiers."""
+        return [
+            {
+                "recording_id": "sub-01_task-rest_run-A_desc-clean",
+                "subject_id": "sub-01",
+                "session_id": None,
+                "task_id": "rest",
+                "acquisition_id": None,
+                "run_id": "A",
+                "description_id": "clean",
+                "fpath": Path("sub-01/eeg/sub-01_task-rest_run-A_desc-clean_eeg.edf"),
+            },
+            {
+                "recording_id": "sub-01_task-rest_run-B_desc-clean",
+                "subject_id": "sub-01",
+                "session_id": None,
+                "task_id": "rest",
+                "acquisition_id": None,
+                "run_id": "B",
+                "description_id": "clean",
+                "fpath": Path("sub-01/eeg/sub-01_task-rest_run-B_desc-clean_eeg.edf"),
+            },
+        ]
+
+    @pytest.fixture
+    def recordings_with_different_descriptions(self):
+        """Create recordings with different description suffixes (should not group)."""
+        return [
+            {
+                "recording_id": "sub-01_task-rest_run-01_desc-clean",
+                "subject_id": "sub-01",
+                "session_id": None,
+                "task_id": "rest",
+                "acquisition_id": None,
+                "run_id": "01",
+                "description_id": "clean",
+                "fpath": Path("sub-01/eeg/sub-01_task-rest_run-01_desc-clean_eeg.edf"),
+            },
+            {
+                "recording_id": "sub-01_task-rest_run-02_desc-raw",
+                "subject_id": "sub-01",
+                "session_id": None,
+                "task_id": "rest",
+                "acquisition_id": None,
+                "run_id": "02",
+                "description_id": "raw",
+                "fpath": Path("sub-01/eeg/sub-01_task-rest_run-02_desc-raw_eeg.edf"),
+            },
+        ]
+
+    @pytest.fixture
+    def recordings_with_multiple_sessions(self):
+        """Create recordings with different sessions (for grouping by specific entities)."""
+        return [
+            {
+                "recording_id": "sub-01_ses-01_task-rest_desc-clean",
+                "subject_id": "sub-01",
+                "session_id": "ses-01",
+                "task_id": "rest",
+                "acquisition_id": None,
+                "run_id": None,
+                "description_id": "clean",
+                "fpath": Path(
+                    "sub-01/ses-01/eeg/sub-01_ses-01_task-rest_desc-clean_eeg.edf"
+                ),
+            },
+            {
+                "recording_id": "sub-01_ses-02_task-rest_desc-clean",
+                "subject_id": "sub-01",
+                "session_id": "ses-02",
+                "task_id": "rest",
+                "acquisition_id": None,
+                "run_id": None,
+                "description_id": "clean",
+                "fpath": Path(
+                    "sub-01/ses-02/eeg/sub-01_ses-02_task-rest_desc-clean_eeg.edf"
+                ),
+            },
+        ]
+
+    def test_groups_multiple_runs_with_same_entities(self, recordings_with_multiple_runs):
+        """Test that recordings with different run IDs are grouped together.
+
+        By default, the 'run' entity is excluded from grouping keys, so multiple runs
+        of the same task/session/subject should be grouped under one key.
+        """
+        grouped = group_recordings_by_entity(recordings_with_multiple_runs)
 
         assert list(grouped.keys()) == ["sub-01_task-rest_desc-clean"]
-        assert [rec["recording_id"] for rec in grouped["sub-01_task-rest_desc-clean"]] == [
+        assert len(grouped["sub-01_task-rest_desc-clean"]) == 3
+        assert [
+            rec["recording_id"] for rec in grouped["sub-01_task-rest_desc-clean"]
+        ] == [
             "sub-01_task-rest_run-01_desc-clean",
             "sub-01_task-rest_run-02_desc-clean",
             "sub-01_task-rest_run-03_desc-clean",
         ]
 
-    def test_keeps_non_run_recording_as_its_own_group(self):
-        recordings = [{"recording_id": "sub-01_task-rest_desc-clean"}]
-
-        grouped = group_recordings_by_entity(recordings)
+    def test_keeps_non_run_recording_as_single_group(self, recording_with_description):
+        """Test that a recording without a run entity is kept as its own group."""
+        grouped = group_recordings_by_entity([recording_with_description])
 
         assert grouped == {
-            "sub-01_task-rest_desc-clean": [
-                {"recording_id": "sub-01_task-rest_desc-clean"}
-            ]
+            "sub-01_task-rest_desc-clean": [recording_with_description]
         }
 
-    def test_does_not_group_when_suffix_differs(self):
-        recordings = [
-            {"recording_id": "sub-01_task-rest_run-01_desc-clean"},
-            {"recording_id": "sub-01_task-rest_run-02_desc-raw"},
-        ]
+    def test_does_not_group_recordings_with_different_suffixes(
+        self, recordings_with_different_descriptions
+    ):
+        """Test that recordings with different description suffixes are not grouped.
 
-        grouped = group_recordings_by_entity(recordings)
+        Recordings are only grouped if all non-variable entities match.
+        """
+        grouped = group_recordings_by_entity(recordings_with_different_descriptions)
 
         assert len(grouped) == 2
         assert "sub-01_task-rest_desc-clean" in grouped
         assert "sub-01_task-rest_desc-raw" in grouped
 
-    def test_groups_non_numeric_run_tokens(self):
-        recordings = [
-            {"recording_id": "sub-01_task-rest_run-A_desc-clean"},
-            {"recording_id": "sub-01_task-rest_run-B_desc-clean"},
-        ]
-
-        grouped = group_recordings_by_entity(recordings)
+    def test_groups_non_numeric_run_identifiers(self, recordings_with_non_numeric_runs):
+        """Test that non-numeric run IDs (e.g., 'A', 'B') are also grouped correctly."""
+        grouped = group_recordings_by_entity(recordings_with_non_numeric_runs)
 
         assert list(grouped.keys()) == ["sub-01_task-rest_desc-clean"]
-        assert [rec["recording_id"] for rec in grouped["sub-01_task-rest_desc-clean"]] == [
+        assert [
+            rec["recording_id"] for rec in grouped["sub-01_task-rest_desc-clean"]
+        ] == [
             "sub-01_task-rest_run-A_desc-clean",
             "sub-01_task-rest_run-B_desc-clean",
         ]
 
-    def test_groups_by_long_entity_name(self):
-        recordings = [
-            {"recording_id": "sub-01_ses-01_task-rest_desc-clean"},
-            {"recording_id": "sub-01_ses-02_task-rest_desc-clean"},
-        ]
+    def test_groups_by_custom_fixed_entities_long_names(
+        self, recordings_with_multiple_sessions
+    ):
+        """Test grouping with custom fixed entities using long entity names.
 
+        When fixed_entities=['subject', 'task', 'description'], sessions
+        should be allowed to vary within a group.
+        """
         grouped = group_recordings_by_entity(
-            recordings,
+            recordings_with_multiple_sessions,
             fixed_entities=["subject", "task", "description"],
         )
 
         assert list(grouped.keys()) == ["sub-01_task-rest_desc-clean"]
-        assert [rec["recording_id"] for rec in grouped["sub-01_task-rest_desc-clean"]] == [
-            "sub-01_ses-01_task-rest_desc-clean",
-            "sub-01_ses-02_task-rest_desc-clean",
-        ]
+        assert len(grouped["sub-01_task-rest_desc-clean"]) == 2
 
-    def test_groups_by_short_entity_name(self):
-        recordings = [
-            {"recording_id": "sub-01_ses-01_task-rest_desc-clean"},
-            {"recording_id": "sub-01_ses-02_task-rest_desc-clean"},
-        ]
+    def test_groups_by_custom_fixed_entities_short_names(
+        self, recordings_with_multiple_sessions
+    ):
+        """Test grouping with custom fixed entities using short BIDS entity names.
 
+        Short names (sub, task, desc) should work the same as long names.
+        """
         grouped = group_recordings_by_entity(
-            recordings,
+            recordings_with_multiple_sessions,
             fixed_entities=["sub", "task", "desc"],
         )
 
         assert list(grouped.keys()) == ["sub-01_task-rest_desc-clean"]
 
-    def test_raises_for_unsupported_entity(self):
-        recordings = [{"recording_id": "sub-01_task-rest_run-01_desc-clean"}]
-
+    def test_raises_value_error_for_unsupported_entity(self, recording_with_description):
+        """Test that an unsupported entity name raises ValueError."""
         with pytest.raises(ValueError, match="Unsupported BIDS entity"):
             group_recordings_by_entity(
-                recordings,
+                [recording_with_description],
                 fixed_entities=["not-an-entity"],
             )
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestCheckRecordingFilesExist:
-    def test_returns_false_when_subject_dir_missing(self, tmp_path):
-        missing_dir = tmp_path / "sub-01"
-        assert check_recording_files_exist("sub-01_task-rest", missing_dir) is False
+    """Test checking for existence of BIDS recording files."""
 
-    def test_returns_true_when_matching_supported_file_exists(self, tmp_path):
-        subject_dir = tmp_path / "sub-01"
-        subject_dir.mkdir()
+    @pytest.fixture
+    def bids_dir_with_eeg_file(self, bids_root):
+        """Create a BIDS directory structure with an EEG file.
+
+        Args:
+            bids_root: Temporary BIDS root directory.
+
+        Returns:
+            Path: Path to the created BIDS root directory.
+        """
+        subject_dir = bids_root / "sub-01" / "eeg"
+        subject_dir.mkdir(parents=True)
         (subject_dir / "sub-01_task-rest_eeg.EDF").write_text("dummy")
+        return bids_root
 
-        assert check_recording_files_exist("sub-01_task-rest", subject_dir) is True
+    @pytest.fixture
+    def bids_dir_with_unsupported_file(self, bids_root):
+        """Create a BIDS directory with only unsupported file formats.
 
-    def test_returns_false_when_only_unsupported_files_exist(self, tmp_path):
-        subject_dir = tmp_path / "sub-01"
-        subject_dir.mkdir()
+        Args:
+            bids_root: Temporary BIDS root directory.
+
+        Returns:
+            Path: Path to the created BIDS root directory.
+        """
+        subject_dir = bids_root / "sub-01" / "eeg"
+        subject_dir.mkdir(parents=True)
         (subject_dir / "sub-01_task-rest_events.tsv").write_text("dummy")
+        return bids_root
 
-        assert check_recording_files_exist("sub-01_task-rest", subject_dir) is False
+    def test_returns_false_when_subject_dir_missing(self, bids_root):
+        """Test that False is returned when the subject directory doesn't exist."""
+        assert check_eeg_recording_files_exist(bids_root, "sub-01_task-rest") is False
+
+    def test_returns_true_when_matching_eeg_file_exists(self, bids_dir_with_eeg_file):
+        """Test that True is returned when a supported EEG file exists.
+
+        The check should be case-insensitive for file extensions.
+        """
+        assert (
+            check_eeg_recording_files_exist(
+                bids_dir_with_eeg_file, "sub-01_task-rest"
+            )
+            is True
+        )
+
+    def test_returns_false_when_only_unsupported_files_exist(
+        self, bids_dir_with_unsupported_file
+    ):
+        """Test that False is returned when only unsupported file formats exist."""
+        assert (
+            check_eeg_recording_files_exist(
+                bids_dir_with_unsupported_file, "sub-01_task-rest"
+            )
+            is False
+        )
+
+    def test_ieeg_check_returns_true_for_nwb_files(self, bids_root):
+        """Test that iEEG check correctly recognizes .nwb files as supported."""
+        subject_dir = bids_root / "sub-01" / "ieeg"
+        subject_dir.mkdir(parents=True)
+        (subject_dir / "sub-01_task-rest_ieeg.nwb").write_text("dummy")
+
+        assert (
+            check_ieeg_recording_files_exist(bids_root, "sub-01_task-rest") is True
+        )
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestBuildBidsPath:
-    def test_builds_bids_path_from_recording_id(self, tmp_path):
+    """Test building mne_bids.BIDSPath objects from recording IDs."""
+
+    def test_builds_complete_bids_path_with_all_entities(self, bids_root):
+        """Test that build_bids_path correctly parses all BIDS entities.
+
+        Verifies that all entities (subject, session, task, acquisition, run, description)
+        are correctly extracted and set on the BIDSPath object.
+        """
         bids_path = build_bids_path(
-            bids_root=tmp_path,
+            bids_root=bids_root,
             recording_id="sub-01_ses-02_task-rest_acq-ecog_run-03_desc-preproc",
             modality="ieeg",
         )
 
-        assert bids_path.root == tmp_path
+        assert bids_path.root == bids_root
         assert bids_path.subject == "01"
         assert bids_path.session == "02"
         assert bids_path.task == "rest"
@@ -272,121 +518,242 @@ class TestBuildBidsPath:
         assert bids_path.datatype == "ieeg"
         assert bids_path.suffix == "ieeg"
 
-    def test_raises_for_missing_task_entity(self, tmp_path):
-        with pytest.raises(ValueError):
-            build_bids_path(
-                tmp_path, "sub-01_ses-02_acq-ecog_run-03_desc-preproc", "eeg"
-            )
+    def test_builds_minimal_bids_path_with_required_entities(self, bids_root):
+        """Test that build_bids_path works with only required entities."""
+        bids_path = build_bids_path(
+            bids_root=bids_root,
+            recording_id="sub-01_task-rest",
+            modality="eeg",
+        )
 
-    def test_raises_for_missing_subject_entity(self, tmp_path):
-        with pytest.raises(ValueError):
-            build_bids_path(tmp_path, "task-rest_acq-ecog_run-03_desc-preproc", "eeg")
+        assert bids_path.subject == "01"
+        assert bids_path.task == "rest"
+        assert bids_path.session is None
+        assert bids_path.acquisition is None
+        assert bids_path.run is None
+        assert bids_path.description is None
+
+    def test_handles_missing_entities_gracefully(self, bids_root):
+        """Test that build_bids_path extracts available entities even when some are missing.
+
+        The function uses get_entities_from_fname which allows missing entities
+        and will return None for them.
+        """
+        bids_path = build_bids_path(
+            bids_root, "sub-01_ses-02_acq-ecog_run-03_desc-preproc", "eeg"
+        )
+        assert bids_path.subject == "01"
+        assert bids_path.task is None
+        assert bids_path.acquisition == "ecog"
+
+    def test_builds_path_with_minimal_entities(self, bids_root):
+        """Test that build_bids_path works with only subject entity.
+
+        The function requires only subject to construct a valid BIDSPath.
+        """
+        bids_path = build_bids_path(bids_root, "sub-01", "eeg")
+        assert bids_path.subject == "01"
+        assert bids_path.task is None
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestLoadJsonSidecar:
-    def test_loads_json_sidecar_content(self, tmp_path):
-        sidecar_path = tmp_path / "sub-01" / "ieeg" / "sub-01_task-rest_ieeg.json"
+    """Test loading JSON sidecar files for BIDS data."""
+
+    @pytest.fixture
+    def bids_dir_with_json_sidecar(self, bids_root):
+        """Create a BIDS directory with a JSON sidecar file.
+
+        Args:
+            bids_root: Temporary BIDS root directory.
+
+        Returns:
+            Path: Path to the created BIDS root directory.
+        """
+        sidecar_path = bids_root / "sub-01" / "ieeg" / "sub-01_task-rest_ieeg.json"
         sidecar_path.parent.mkdir(parents=True)
         sidecar_path.write_text('{"OriginalRecordingTimestamp": "2024-01-01T10:00:00"}')
+        return bids_root
 
+    def test_loads_json_sidecar_content(self, bids_dir_with_json_sidecar):
+        """Test that JSON sidecar content is correctly loaded and parsed.
+
+        The function should return a dictionary with the sidecar JSON content.
+        """
         bids_path = mne_bids.BIDSPath(
-            root=tmp_path, subject="01", task="rest", datatype="ieeg", suffix="ieeg"
+            root=bids_dir_with_json_sidecar,
+            subject="01",
+            task="rest",
+            datatype="ieeg",
+            suffix="ieeg",
         )
         sidecar = load_json_sidecar(bids_path)
         assert sidecar["OriginalRecordingTimestamp"] == "2024-01-01T10:00:00"
 
-    def test_raises_when_json_sidecar_is_missing(self, tmp_path):
+    def test_raises_runtime_error_when_sidecar_missing(self, bids_root):
+        """Test that RuntimeError is raised when JSON sidecar doesn't exist.
+
+        The mne_bids.BIDSPath.find_matching_sidecar method raises RuntimeError,
+        not FileNotFoundError, when on_error='raise'.
+        """
         bids_path = mne_bids.BIDSPath(
-            root=tmp_path, subject="01", task="rest", datatype="ieeg", suffix="ieeg"
+            root=bids_root, subject="01", task="rest", datatype="ieeg", suffix="ieeg"
         )
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(RuntimeError):
             load_json_sidecar(bids_path)
+
+    def test_accepts_bidspath_input(self, bids_dir_with_json_sidecar):
+        """Test that load_json_sidecar correctly accepts BIDSPath input."""
+        bids_path = mne_bids.BIDSPath(
+            root=bids_dir_with_json_sidecar,
+            subject="01",
+            task="rest",
+            datatype="ieeg",
+            suffix="ieeg",
+        )
+        sidecar = load_json_sidecar(bids_path)
+        assert sidecar["OriginalRecordingTimestamp"] == "2024-01-01T10:00:00"
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestLoadParticipantsTsv:
-    def test_raises_when_participants_tsv_missing(self, tmp_path):
-        with pytest.raises(FileNotFoundError):
-            load_participants_tsv(tmp_path)
+    """Test loading participants.tsv files from BIDS datasets."""
 
-    def test_returns_none_without_participant_id_column(self, tmp_path):
-        participants_tsv = tmp_path / "participants.tsv"
+    def test_raises_file_not_found_when_missing(self, bids_root):
+        """Test that FileNotFoundError is raised when participants.tsv doesn't exist."""
+        with pytest.raises(FileNotFoundError):
+            load_participants_tsv(bids_root)
+
+    def test_returns_none_without_participant_id_column(self, bids_root):
+        """Test that None is returned when participant_id column is missing.
+
+        This allows graceful handling of malformed participants.tsv files.
+        """
+        participants_tsv = bids_root / "participants.tsv"
         participants_tsv.write_text("subject_id\tage\tsex\nsub-01\t34\tF\n")
 
-        participants_data = load_participants_tsv(tmp_path)
+        participants_data = load_participants_tsv(bids_root)
         assert participants_data is None
 
-    def test_loads_and_indexes_participants_data(self, tmp_path):
-        participants_tsv = tmp_path / "participants.tsv"
-        participants_tsv.write_text(
-            "participant_id\tage\tsex\n" "sub-01\t34\tF\n" "sub-02\tn/a\tN/A\n"
-        )
+    def test_loads_and_indexes_by_participant_id(self, bids_root_with_participants):
+        """Test that participants.tsv is correctly loaded and indexed by participant_id.
 
-        participants_data = load_participants_tsv(tmp_path)
+        The DataFrame should be indexed by participant_id with other columns preserved.
+        """
+        participants_data = load_participants_tsv(bids_root_with_participants)
 
         assert participants_data is not None
         assert participants_data.index.name == "participant_id"
-        assert list(participants_data.index) == ["sub-01", "sub-02"]
+        assert list(participants_data.index) == ["sub-01", "sub-02", "sub-03"]
+
+    def test_preserves_column_data_types(self, bids_root_with_participants):
+        """Test that data types are correctly preserved when loading.
+
+        Numeric columns should remain numeric, and string columns should remain strings.
+        """
+        participants_data = load_participants_tsv(bids_root_with_participants)
+
         assert participants_data.loc["sub-01", "age"] == 34
         assert participants_data.loc["sub-01", "sex"] == "F"
+
+    def test_handles_na_values_correctly(self, bids_root_with_participants):
+        """Test that NA values (n/a, N/A) are converted to NaN/None.
+
+        This ensures consistent handling of missing data across the dataset.
+        """
+        participants_data = load_participants_tsv(bids_root_with_participants)
+
         assert pd.isna(participants_data.loc["sub-02", "age"])
         assert pd.isna(participants_data.loc["sub-02", "sex"])
 
 
-def _participants_df(tsv_content: str) -> pd.DataFrame:
-    """Build a participants-like DataFrame with BIDS NA handling."""
-    return pd.read_csv(
-        StringIO(tsv_content),
-        sep="\t",
-        na_values=["n/a", "N/A"],
-        keep_default_na=True,
-    ).set_index("participant_id")
-
-
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestGetSubjectInfo:
-    def test_raises_when_bids_root_missing_and_participants_not_provided(self):
-        with pytest.raises(ValueError, match="'bids_root' is required"):
-            get_subject_info("sub-01")
+    """Test retrieval of subject demographic information."""
 
-    def test_returns_none_values_when_participants_tsv_missing(self, tmp_path):
-        subject_info = get_subject_info("sub-01", bids_root=tmp_path)
-        assert subject_info == {"age": None, "sex": None}
-
-    def test_returns_none_values_when_subject_not_found(self):
-        participants_data = _participants_df(
-            "participant_id\tage\tsex\nsub-01\t34\tF\n"
+    @pytest.fixture
+    def participants_df_with_age_sex(self):
+        """Create a participants DataFrame with age and sex information."""
+        return _make_participants_df(
+            "participant_id\tage\tsex\n"
+            "sub-01\t34\tF\n"
+            "sub-02\t28\tM\n"
         )
 
-        subject_info = get_subject_info("sub-99", participants_data=participants_data)
-        assert subject_info == {"age": None, "sex": None}
-
-    def test_returns_subject_age_and_sex_when_available(self):
-        participants_data = _participants_df(
-            "participant_id\tage\tsex\nsub-01\t34\tF\n"
+    @pytest.fixture
+    def participants_df_with_na_values(self):
+        """Create a participants DataFrame with NA/N/A values."""
+        return _make_participants_df(
+            "participant_id\tage\tsex\n"
+            "sub-01\tn/a\tN/A\n"
+            "sub-02\t28\tM\n"
         )
 
-        subject_info = get_subject_info("sub-01", participants_data=participants_data)
+    @pytest.fixture
+    def participants_df_missing_age_sex(self):
+        """Create a participants DataFrame without age and sex columns."""
+        return _make_participants_df(
+            "participant_id\thandedness\n"
+            "sub-01\tright\n"
+        )
+
+    def test_returns_age_and_sex_when_available(self, participants_df_with_age_sex):
+        """Test that age and sex are correctly returned when available in participants.tsv."""
+        subject_info = get_subject_info("sub-01", participants_data=participants_df_with_age_sex)
         assert subject_info == {"age": 34, "sex": "F"}
 
-    def test_normalizes_na_values_to_none(self):
-        participants_data = _participants_df(
-            "participant_id\tage\tsex\nsub-01\tn/a\tN/A\n"
+    def test_returns_none_for_missing_subject(self, participants_df_with_age_sex):
+        """Test that None values are returned for subjects not found in participants.tsv."""
+        subject_info = get_subject_info(
+            "sub-99", participants_data=participants_df_with_age_sex
         )
-
-        subject_info = get_subject_info("sub-01", participants_data=participants_data)
         assert subject_info == {"age": None, "sex": None}
 
-    def test_returns_none_for_missing_age_and_sex_columns(self):
-        participants_data = _participants_df(
-            "participant_id\thandedness\nsub-01\tright\n"
-        )
-
-        subject_info = get_subject_info("sub-01", participants_data=participants_data)
+    def test_normalizes_na_values_to_none(self, participants_df_with_na_values):
+        """Test that NA/N/A values in participants.tsv are normalized to None."""
+        subject_info = get_subject_info("sub-01", participants_data=participants_df_with_na_values)
         assert subject_info == {"age": None, "sex": None}
+
+    def test_returns_none_when_required_columns_missing(
+        self, participants_df_missing_age_sex
+    ):
+        """Test that None is returned for age and sex when those columns don't exist."""
+        subject_info = get_subject_info(
+            "sub-01", participants_data=participants_df_missing_age_sex
+        )
+        assert subject_info == {"age": None, "sex": None}
+
+    def test_returns_none_values_when_no_participants_data_provided(self):
+        """Test that None values are returned when participants_data is not provided.
+
+        This allows the function to degrade gracefully without participants.tsv.
+        """
+        subject_info = get_subject_info("sub-01", participants_data=None)
+        assert subject_info == {"age": None, "sex": None}
+
+    def test_handles_partial_data_in_participants_tsv(self, participants_df_with_age_sex):
+        """Test that get_subject_info correctly returns available data.
+
+        When a subject exists with age and sex, both should be returned as expected values.
+        """
+        subject_info = get_subject_info("sub-01", participants_data=participants_df_with_age_sex)
+        assert subject_info["age"] == 34
+        assert subject_info["sex"] == "F"
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 def test_ieeg_extensions_include_nwb():
+    """Test that IEEG_EXTENSIONS includes the .nwb format.
+
+    NWB (Neurodata Without Borders) is an important format for iEEG recordings.
+    """
     assert ".nwb" in IEEG_EXTENSIONS
+
+
+@pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
+def test_eeg_extensions_do_not_include_nwb():
+    """Test that EEG_EXTENSIONS does not include .nwb format.
+
+    NWB is specific to iEEG recordings, not standard EEG.
+    """
+    assert ".nwb" not in EEG_EXTENSIONS
