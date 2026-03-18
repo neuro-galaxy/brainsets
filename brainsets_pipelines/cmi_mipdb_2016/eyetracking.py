@@ -356,25 +356,21 @@ def find_paradigm_segment(
     return None
 
 
-def _convert_timestamp(
-    t_us: int | np.ndarray,
-    paradigm_ts_us: int,
-    eeg_paradigm_onset_s: float,
-) -> float | np.ndarray:
-    """Map ET microsecond timestamp(s) to EEG-aligned seconds."""
-    return (
-        np.asarray(t_us, dtype=np.float64) - paradigm_ts_us
-    ) / 1_000_000.0 + eeg_paradigm_onset_s
+def _et_to_eeg_timestamps(
+    t_us: int | np.ndarray, slope: float, intercept: float
+) -> np.ndarray:
+    """Convert ET microsecond timestamps to EEG seconds."""
+    return slope * np.asarray(t_us, dtype=np.float64) / 1_000_000.0 + intercept
 
 
 def parse_samples(
     samples_path: Path,
-    start_ts: int,
-    end_ts: int | None,
-    paradigm_ts: int,
-    eeg_paradigm_onset_s: float,
+    slope: float,
+    intercept: float,
+    eeg_start_s: float,
+    eeg_end_s: float,
 ) -> IrregularTimeSeries | None:
-    """Parse SMP rows from a Samples.txt file within *[start_ts, end_ts)*."""
+    """Parse SMP rows from a Samples.txt file, convert to EEG seconds, clip to EEG domain."""
     header_idx = None
     with open(samples_path, errors="replace") as f:
         for i, line in enumerate(f):
@@ -401,17 +397,14 @@ def parse_samples(
     smp_df = smp_df.dropna(subset=["Time"])
     smp_df["Time"] = smp_df["Time"].astype(np.int64)
 
-    mask = smp_df["Time"] >= start_ts
-    if end_ts is not None:
-        mask &= smp_df["Time"] < end_ts
-    smp_df = smp_df[mask]
+    timestamps = _et_to_eeg_timestamps(smp_df["Time"].values, slope, intercept)
 
-    if smp_df.empty:
+    keep = (timestamps >= eeg_start_s) & (timestamps <= eeg_end_s)
+    smp_df = smp_df[keep]
+    timestamps = timestamps[keep]
+
+    if timestamps.size == 0:
         return None
-
-    timestamps = _convert_timestamp(
-        smp_df["Time"].values, paradigm_ts, eeg_paradigm_onset_s
-    )
 
     kwargs: dict = {}
     for src_col, dst_col in SAMPLES_COLUMNS.items():
@@ -421,7 +414,7 @@ def parse_samples(
             ).values.astype(np.float32)
 
     return IrregularTimeSeries(
-        timestamps=timestamps.astype(np.float64),
+        timestamps=timestamps,
         domain="auto",
         **kwargs,
     )
@@ -429,15 +422,16 @@ def parse_samples(
 
 def parse_events(
     events_path: Path,
-    start_ts: int,
-    end_ts: int | None,
-    paradigm_ts: int,
-    eeg_paradigm_onset_s: float,
+    slope: float,
+    intercept: float,
+    eeg_start_s: float,
+    eeg_end_s: float,
 ) -> dict:
     """Parse fixation / saccade / blink rows from an Events.txt file.
 
+    Converts all timestamps to EEG seconds and clips to ``[eeg_start_s, eeg_end_s]``.
     Returns a dict whose values are ``IrregularTimeSeries`` keyed by
-    ``"fixations"``, ``"saccades"``, ``"blinks"`` (only present keys).
+    ``"fixations"``, ``"saccades"``, ``"blinks"`` (only non-empty keys).
     """
     fixations: list[dict] = []
     saccades: list[dict] = []
@@ -452,12 +446,9 @@ def parse_events(
 
             try:
                 if etype.startswith("Fixation") and len(parts) >= 13:
-                    ev_ts = int(parts[3])
-                    if ev_ts < start_ts or (end_ts and ev_ts >= end_ts):
-                        continue
                     fixations.append(
                         {
-                            "ts": ev_ts,
+                            "ts": int(parts[3]),
                             "eye": etype.split()[-1],
                             "duration": int(parts[5]),
                             "location_x": float(parts[6]),
@@ -469,12 +460,9 @@ def parse_events(
                         }
                     )
                 elif etype.startswith("Saccade") and len(parts) >= 14:
-                    ev_ts = int(parts[3])
-                    if ev_ts < start_ts or (end_ts and ev_ts >= end_ts):
-                        continue
                     saccades.append(
                         {
-                            "ts": ev_ts,
+                            "ts": int(parts[3]),
                             "eye": etype.split()[-1],
                             "duration": int(parts[5]),
                             "start_x": float(parts[6]),
@@ -487,12 +475,9 @@ def parse_events(
                         }
                     )
                 elif etype.startswith("Blink") and len(parts) >= 6:
-                    ev_ts = int(parts[3])
-                    if ev_ts < start_ts or (end_ts and ev_ts >= end_ts):
-                        continue
                     blinks.append(
                         {
-                            "ts": ev_ts,
+                            "ts": int(parts[3]),
                             "eye": etype.split()[-1],
                             "duration": int(parts[5]),
                         }
@@ -504,53 +489,66 @@ def parse_events(
 
     if fixations:
         raw_ts = np.array([f["ts"] for f in fixations])
-        result["fixations"] = IrregularTimeSeries(
-            timestamps=_convert_timestamp(raw_ts, paradigm_ts, eeg_paradigm_onset_s),
-            domain="auto",
-            eye=np.array([f["eye"] for f in fixations], dtype="U1"),
-            duration=np.array([f["duration"] for f in fixations], dtype=np.float64)
-            / 1e6,
-            location_x=np.array([f["location_x"] for f in fixations], dtype=np.float32),
-            location_y=np.array([f["location_y"] for f in fixations], dtype=np.float32),
-            dispersion_x=np.array(
-                [f["dispersion_x"] for f in fixations], dtype=np.float32
-            ),
-            dispersion_y=np.array(
-                [f["dispersion_y"] for f in fixations], dtype=np.float32
-            ),
-            avg_pupil_size_x=np.array(
-                [f["avg_pupil_size_x"] for f in fixations], dtype=np.float32
-            ),
-            avg_pupil_size_y=np.array(
-                [f["avg_pupil_size_y"] for f in fixations], dtype=np.float32
-            ),
-        )
+        eeg_ts = _et_to_eeg_timestamps(raw_ts, slope, intercept)
+        keep = (eeg_ts >= eeg_start_s) & (eeg_ts <= eeg_end_s)
+        if np.any(keep):
+            kept = [fixations[i] for i in np.where(keep)[0]]
+            result["fixations"] = IrregularTimeSeries(
+                timestamps=eeg_ts[keep],
+                domain="auto",
+                eye=np.array([f["eye"] for f in kept], dtype="U1"),
+                duration=np.array([f["duration"] for f in kept], dtype=np.float64)
+                / 1e6,
+                location_x=np.array([f["location_x"] for f in kept], dtype=np.float32),
+                location_y=np.array([f["location_y"] for f in kept], dtype=np.float32),
+                dispersion_x=np.array(
+                    [f["dispersion_x"] for f in kept], dtype=np.float32
+                ),
+                dispersion_y=np.array(
+                    [f["dispersion_y"] for f in kept], dtype=np.float32
+                ),
+                avg_pupil_size_x=np.array(
+                    [f["avg_pupil_size_x"] for f in kept], dtype=np.float32
+                ),
+                avg_pupil_size_y=np.array(
+                    [f["avg_pupil_size_y"] for f in kept], dtype=np.float32
+                ),
+            )
 
     if saccades:
         raw_ts = np.array([s["ts"] for s in saccades])
-        result["saccades"] = IrregularTimeSeries(
-            timestamps=_convert_timestamp(raw_ts, paradigm_ts, eeg_paradigm_onset_s),
-            domain="auto",
-            eye=np.array([s["eye"] for s in saccades], dtype="U1"),
-            duration=np.array([s["duration"] for s in saccades], dtype=np.float64)
-            / 1e6,
-            start_x=np.array([s["start_x"] for s in saccades], dtype=np.float32),
-            start_y=np.array([s["start_y"] for s in saccades], dtype=np.float32),
-            end_x=np.array([s["end_x"] for s in saccades], dtype=np.float32),
-            end_y=np.array([s["end_y"] for s in saccades], dtype=np.float32),
-            amplitude=np.array([s["amplitude"] for s in saccades], dtype=np.float32),
-            peak_speed=np.array([s["peak_speed"] for s in saccades], dtype=np.float32),
-            avg_speed=np.array([s["avg_speed"] for s in saccades], dtype=np.float32),
-        )
+        eeg_ts = _et_to_eeg_timestamps(raw_ts, slope, intercept)
+        keep = (eeg_ts >= eeg_start_s) & (eeg_ts <= eeg_end_s)
+        if np.any(keep):
+            kept = [saccades[i] for i in np.where(keep)[0]]
+            result["saccades"] = IrregularTimeSeries(
+                timestamps=eeg_ts[keep],
+                domain="auto",
+                eye=np.array([s["eye"] for s in kept], dtype="U1"),
+                duration=np.array([s["duration"] for s in kept], dtype=np.float64)
+                / 1e6,
+                start_x=np.array([s["start_x"] for s in kept], dtype=np.float32),
+                start_y=np.array([s["start_y"] for s in kept], dtype=np.float32),
+                end_x=np.array([s["end_x"] for s in kept], dtype=np.float32),
+                end_y=np.array([s["end_y"] for s in kept], dtype=np.float32),
+                amplitude=np.array([s["amplitude"] for s in kept], dtype=np.float32),
+                peak_speed=np.array([s["peak_speed"] for s in kept], dtype=np.float32),
+                avg_speed=np.array([s["avg_speed"] for s in kept], dtype=np.float32),
+            )
 
     if blinks:
         raw_ts = np.array([b["ts"] for b in blinks])
-        result["blinks"] = IrregularTimeSeries(
-            timestamps=_convert_timestamp(raw_ts, paradigm_ts, eeg_paradigm_onset_s),
-            domain="auto",
-            eye=np.array([b["eye"] for b in blinks], dtype="U1"),
-            duration=np.array([b["duration"] for b in blinks], dtype=np.float64) / 1e6,
-        )
+        eeg_ts = _et_to_eeg_timestamps(raw_ts, slope, intercept)
+        keep = (eeg_ts >= eeg_start_s) & (eeg_ts <= eeg_end_s)
+        if np.any(keep):
+            kept = [blinks[i] for i in np.where(keep)[0]]
+            result["blinks"] = IrregularTimeSeries(
+                timestamps=eeg_ts[keep],
+                domain="auto",
+                eye=np.array([b["eye"] for b in kept], dtype="U1"),
+                duration=np.array([b["duration"] for b in kept], dtype=np.float64)
+                / 1e6,
+            )
 
     return result
 
