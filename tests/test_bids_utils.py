@@ -3,6 +3,7 @@ from io import StringIO
 
 import pandas as pd
 import pytest
+from unittest.mock import MagicMock, patch
 
 try:
     import mne_bids
@@ -820,3 +821,89 @@ def test_eeg_extensions_do_not_include_nwb():
     NWB is specific to iEEG recordings, not standard EEG.
     """
     assert ".nwb" not in EEG_EXTENSIONS
+
+
+@pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
+class TestCheckMneAvailable:
+    """Test that functions raise ImportError when MNE_BIDS is not available."""
+
+    @patch("brainsets.utils.bids_utils.MNE_BIDS_AVAILABLE", False)
+    def test_fetch_eeg_recordings_raises_import_error(self):
+        """Test that fetch_eeg_recordings raises ImportError when MNE_BIDS is unavailable."""
+        from brainsets.utils.bids_utils import fetch_eeg_recordings
+
+        source = MagicMock()
+        with pytest.raises(
+            ImportError, match="fetch_eeg_recordings requires mne-bids"
+        ):
+            fetch_eeg_recordings(source)
+
+    @patch("brainsets.utils.bids_utils.MNE_BIDS_AVAILABLE", False)
+    def test_fetch_ieeg_recordings_raises_import_error(self):
+        """Test that fetch_ieeg_recordings raises ImportError when MNE_BIDS is unavailable."""
+        from brainsets.utils.bids_utils import fetch_ieeg_recordings
+
+        source = MagicMock()
+        with pytest.raises(
+            ImportError, match="fetch_ieeg_recordings requires mne-bids"
+        ):
+            fetch_ieeg_recordings(source)
+
+    @patch("brainsets.utils.bids_utils.MNE_BIDS_AVAILABLE", False)
+    def test_group_recordings_by_entity_raises_import_error(self):
+        """Test that group_recordings_by_entity raises ImportError when MNE_BIDS is unavailable."""
+        from brainsets.utils.bids_utils import group_recordings_by_entity
+
+        recordings = MagicMock()
+        with pytest.raises(
+            ImportError, match="group_recordings_by_entity requires mne-bids"
+        ):
+            group_recordings_by_entity(recordings)
+
+    @patch("brainsets.utils.bids_utils.MNE_BIDS_AVAILABLE", False)
+    def test_check_eeg_recording_files_exist_raises_import_error(self):
+        """Test that check_eeg_recording_files_exist raises ImportError when MNE_BIDS is unavailable."""
+        from brainsets.utils.bids_utils import check_eeg_recording_files_exist
+
+        bids_root = MagicMock()
+        recording_id = MagicMock()
+        with pytest.raises(
+            ImportError, match="check_eeg_recording_files_exist requires mne-bids"
+        ):
+            check_eeg_recording_files_exist(bids_root, recording_id)
+
+    @patch("brainsets.utils.bids_utils.MNE_BIDS_AVAILABLE", False)
+    def test_check_ieeg_recording_files_exist_raises_import_error(self):
+        """Test that check_ieeg_recording_files_exist raises ImportError when MNE_BIDS is unavailable."""
+        from brainsets.utils.bids_utils import check_ieeg_recording_files_exist
+
+        bids_root = MagicMock()
+        recording_id = MagicMock()
+        with pytest.raises(
+            ImportError, match="check_ieeg_recording_files_exist requires mne-bids"
+        ):
+            check_ieeg_recording_files_exist(bids_root, recording_id)
+
+    @patch("brainsets.utils.bids_utils.MNE_BIDS_AVAILABLE", False)
+    def test_load_json_sidecar_raises_import_error(self):
+        """Test that load_json_sidecar raises ImportError when MNE_BIDS is unavailable."""
+        from brainsets.utils.bids_utils import load_json_sidecar
+
+        bids_path = MagicMock()
+        with pytest.raises(
+            ImportError, match="load_json_sidecar requires mne-bids"
+        ):
+            load_json_sidecar(bids_path)
+
+    @patch("brainsets.utils.bids_utils.MNE_BIDS_AVAILABLE", False)
+    def test_build_bids_path_raises_import_error(self):
+        """Test that build_bids_path raises ImportError when MNE_BIDS is unavailable."""
+        from brainsets.utils.bids_utils import build_bids_path
+
+        bids_root = MagicMock()
+        recording_id = MagicMock()
+        modality = MagicMock()
+        with pytest.raises(
+            ImportError, match="build_bids_path requires mne-bids"
+        ):
+            build_bids_path(bids_root, recording_id, modality)
