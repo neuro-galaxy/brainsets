@@ -25,7 +25,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from temporaldata import Data, IrregularTimeSeries
+from temporaldata import Data, Interval, IrregularTimeSeries
 
 from constants import PARADIGM_MAP, SAMPLES_COLUMNS
 
@@ -173,6 +173,75 @@ def build_et_index(et_dir: Path) -> list[dict]:
         )
 
     return index
+
+
+def _lcs(seq_a: list[int], seq_b: list[int]) -> list[tuple[int, int]]:
+    """Return index pairs for one Longest Common Subsequence of *seq_a* and *seq_b*."""
+    n, m = len(seq_a), len(seq_b)
+    dp = [[0] * (m + 1) for _ in range(n + 1)]
+    for r in range(n - 1, -1, -1):
+        val = seq_a[r]
+        for c in range(m - 1, -1, -1):
+            if val == seq_b[c]:
+                dp[r][c] = dp[r + 1][c + 1] + 1
+            else:
+                dp[r][c] = max(dp[r + 1][c], dp[r][c + 1])
+
+    r, c = 0, 0
+    pairs: list[tuple[int, int]] = []
+    while r < n and c < m:
+        if seq_a[r] == seq_b[c]:
+            pairs.append((r, c))
+            r += 1
+            c += 1
+        elif dp[r + 1][c] >= dp[r][c + 1]:
+            r += 1
+        else:
+            c += 1
+    return pairs
+
+
+def match_eeg_to_et(
+    paradigm_intervals: Interval,
+    et_index: list[dict],
+) -> dict | None:
+    """Match an EEG session to the best ET file using LCS on paradigm codes.
+
+    Handles exact matches, false starts (repeated paradigm code in one
+    modality), and subset events (one modality has fewer paradigms).
+
+    Returns ``None`` if no match, or a dict with:
+        ``base_id``, ``samples_path``, ``events_path`` — the matched ET file,
+        ``segment_map`` — ``{eeg_paradigm_idx: segment_dict}`` mapping.
+    """
+    if len(paradigm_intervals) == 0 or not et_index:
+        return None
+
+    eeg_codes = [int(c) for c in paradigm_intervals.code]
+
+    best_entry = None
+    best_pairs: list[tuple[int, int]] = []
+
+    for entry in et_index:
+        et_codes = [int(seg["code"]) for seg in entry["segments"]]
+        pairs = _lcs(eeg_codes, et_codes)
+        if len(pairs) > len(best_pairs):
+            best_pairs = pairs
+            best_entry = entry
+
+    if not best_pairs or best_entry is None:
+        return None
+
+    segment_map = {}
+    for eeg_idx, et_idx in best_pairs:
+        segment_map[eeg_idx] = best_entry["segments"][et_idx]
+
+    return {
+        "base_id": best_entry["base_id"],
+        "samples_path": best_entry["samples_path"],
+        "events_path": best_entry["events_path"],
+        "segment_map": segment_map,
+    }
 
 
 def find_paradigm_segment(
