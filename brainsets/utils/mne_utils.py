@@ -309,7 +309,7 @@ def extract_channels(
     channels_type_mapping: dict[str, list[str]] | None = None,
     channels_pos_mapping: dict[str, np.ndarray] | None = None,
 ) -> ArrayDict:
-    """Extract channel metadata from an MNE Raw object with optional renaming and type assignment.
+    """Extract channel metadata, including id, type, and position, from an MNE Raw object with optional renaming and type assignment.
 
     This function generates channel metadata including ids, types, 'bad' status,
     and (if present) spatial positions, by combining information from the MNE Raw object
@@ -319,8 +319,8 @@ def extract_channels(
         - Extracting channel names and original types from `raw.ch_names` and `raw.get_channel_types()`
         - Optionally applying a channel name mapping (`channels_name_mapping`) to rename channels
         - Optionally applying a channel type mapping (`channels_type_mapping`) to reassign channel types
+        - Extracting spatial positions (x, y, z) from `channels_pos_mapping` or the Raw object's montage if available
         - Marking channels in `raw.info["bads"]` as "bad" in the boolean array (others are "good")
-        - Extracting spatial positions (x, y, z) from `pos_mapping` or the Raw object's montage if available
 
     Args:
         recording_data: The MNE Raw object containing signal data and channel metadata.
@@ -330,10 +330,10 @@ def extract_channels(
 
     Returns:
         ArrayDict containing channel metadata with fields:
-            - 'id': channel names (renamed if applicable)
-            - 'type': channel types (remapped if applicable)
-            - 'bad': boolean array, True if bad channel
-            - 'pos': spatial positions, shape (n_channels, 3), if available (from pos_mapping or montage)
+            - 'id': channel names (renamed if applicable), dtype=U
+            - 'type': channel types (remapped if applicable), dtype=U
+            - 'bad': boolean array, True if bad channel, dtype=bool
+            - 'pos': spatial positions, shape (n_channels, 3), if available (from channels_pos_mapping or montage), dtype=float
 
     Raises:
         ImportError: If MNE is not installed.
@@ -383,15 +383,6 @@ def extract_channels(
             dtype="U",
         )
 
-    # bad channel extraction
-    bad_channels = recording_data.info.get("bads", [])
-    if bad_channels:
-        is_bad_channel = np.array(
-            [ch in bad_channels for ch in channel_ids], dtype=bool
-        )
-    else:
-        is_bad_channel = None
-
     # position extraction: prioritize pos_mapping, fall back to montage (x, y, z in mm)
     pos_arr = np.full((channel_count, 3), np.nan)
     if channels_pos_mapping is not None:
@@ -420,16 +411,26 @@ def extract_channels(
         except Exception as e:
             logging.warning(f"Could not extract channel positions from montage: {e}")
 
+    # bad channel extraction
+    bad_channels = recording_data.info.get("bads", [])
+    if bad_channels:
+        is_bad_channel = np.array(
+            [ch in bad_channels for ch in channel_ids], dtype=bool
+        )
+    else:
+        is_bad_channel = None
+
+    # channel fields extraction
     channel_fields = {
         "id": channel_ids,
         "type": channel_types,
     }
 
-    if is_bad_channel is not None:
-        channel_fields["bad"] = is_bad_channel
-
     if np.any(~np.isnan(pos_arr)):
         channel_fields["pos"] = pos_arr
+
+    if is_bad_channel is not None:
+        channel_fields["bad"] = is_bad_channel
 
     return ArrayDict(**channel_fields)
 

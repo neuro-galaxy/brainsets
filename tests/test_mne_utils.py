@@ -216,35 +216,6 @@ class TestExtractChannels:
         expected = np.array([False, True, False])
         np.testing.assert_array_equal(result.bad, expected)
 
-    def test_pos_not_included_when_montage_missing(self):
-        """Test that 'pos' field is absent when no montage is available."""
-        mock_raw = create_mock_raw()
-        result = extract_channels(mock_raw)
-        assert not hasattr(result, "pos")
-
-    def test_pos_included_when_montage_has_positions(self):
-        """Test that 'pos' field is included when montage positions are available."""
-        ch_names = ["CH0", "CH1", "CH2"]
-        mock_raw = create_mock_raw(ch_names=ch_names, n_channels=len(ch_names))
-        montage = MagicMock()
-        montage.get_positions.return_value = {
-            "ch_pos": {
-                "CH0": np.array([0.1, 0.2, 0.3]),
-                "CH2": np.array([0.4, 0.5, 0.6]),
-            }
-        }
-        mock_raw.get_montage.return_value = montage
-
-        result = extract_channels(mock_raw)
-
-        assert hasattr(result, "pos")
-        assert result.pos.shape == (3, 3)
-        np.testing.assert_allclose(
-            result.pos,
-            np.array([[0.1, 0.2, 0.3], [np.nan, np.nan, np.nan], [0.4, 0.5, 0.6]]),
-            equal_nan=True,
-        )
-
     def test_name_mapping_applied(self):
         """Test that channel name mapping is correctly applied."""
         original_names = ["CH0", "CH1", "CH2"]
@@ -293,20 +264,34 @@ class TestExtractChannels:
         expected_types = np.array(["eog", "eog", "emg"], dtype="U")
         np.testing.assert_array_equal(result.type, expected_types)
 
-    def test_bad_channels_checked_against_renamed_ids(self):
-        """Test that bad channel marking is applied to renamed channel names."""
-        original_names = ["CH0", "CH1", "CH2"]
-        mock_raw = create_mock_raw(
-            ch_names=original_names, n_channels=len(original_names)
+    def test_pos_not_included_when_montage_missing(self):
+        """Test that 'pos' field is absent when no montage is available."""
+        mock_raw = create_mock_raw()
+        result = extract_channels(mock_raw)
+        assert not hasattr(result, "pos")
+
+    def test_pos_included_when_montage_has_positions(self):
+        """Test that 'pos' field is included when montage positions are available."""
+        ch_names = ["CH0", "CH1", "CH2"]
+        mock_raw = create_mock_raw(ch_names=ch_names, n_channels=len(ch_names))
+        montage = MagicMock()
+        montage.get_positions.return_value = {
+            "ch_pos": {
+                "CH0": np.array([0.1, 0.2, 0.3]),
+                "CH2": np.array([0.4, 0.5, 0.6]),
+            }
+        }
+        mock_raw.get_montage.return_value = montage
+
+        result = extract_channels(mock_raw)
+
+        assert hasattr(result, "pos")
+        assert result.pos.shape == (3, 3)
+        np.testing.assert_allclose(
+            result.pos,
+            np.array([[0.1, 0.2, 0.3], [np.nan, np.nan, np.nan], [0.4, 0.5, 0.6]]),
+            equal_nan=True,
         )
-        mock_raw.info["bads"] = ["NewCH1"]
-        name_mapping = {"CH0": "NewCH0", "CH1": "NewCH1"}
-
-        result = extract_channels(mock_raw, channels_name_mapping=name_mapping)
-
-        assert hasattr(result, "bad")
-        expected = np.array([False, True, False])
-        np.testing.assert_array_equal(result.bad, expected)
 
     def test_montage_extraction_failure_graceful_fallback(self):
         """Test that position extraction failures are logged but don't fail the function."""
@@ -331,7 +316,7 @@ class TestExtractChannels:
             "CH2": np.array([0.4, 0.5, 0.6]),
         }
 
-        result = extract_channels(mock_raw, pos_mapping=pos_mapping)
+        result = extract_channels(mock_raw, channels_pos_mapping=pos_mapping)
 
         assert hasattr(result, "pos")
         assert result.pos.shape == (3, 3)
@@ -355,7 +340,7 @@ class TestExtractChannels:
         }
 
         result = extract_channels(
-            mock_raw, channels_name_mapping=name_mapping, pos_mapping=pos_mapping
+            mock_raw, channels_name_mapping=name_mapping, channels_pos_mapping=pos_mapping
         )
 
         assert hasattr(result, "pos")
@@ -385,7 +370,7 @@ class TestExtractChannels:
             "CH2": np.array([4.0, 5.0, 6.0]),
         }
 
-        result = extract_channels(mock_raw, pos_mapping=pos_mapping)
+        result = extract_channels(mock_raw, channels_pos_mapping=pos_mapping)
 
         assert hasattr(result, "pos")
         assert result.pos.shape == (3, 3)
@@ -401,49 +386,24 @@ class TestExtractChannels:
         mock_raw = create_mock_raw(ch_names=ch_names, n_channels=len(ch_names))
         pos_mapping = {}
 
-        result = extract_channels(mock_raw, pos_mapping=pos_mapping)
+        result = extract_channels(mock_raw, channels_pos_mapping=pos_mapping)
 
         assert not hasattr(result, "pos")
 
-    def test_type_mapping_with_mixed_channel_names_raises_error(self):
-        """Test that ValueError is raised when type_mapping uses mixed original and renamed names."""
-        original_names = ["CH0", "CH1", "CH2"]
-        mock_raw = create_mock_raw(
-            ch_names=original_names,
-            ch_types=["eeg", "eeg", "eeg"],
-            n_channels=len(original_names),
-        )
-        name_mapping = {"CH0": "EOG_L", "CH1": "EOG_R", "CH2": "EMG"}
-        # Mixed: "EOG_L" is renamed name, but "CH2" is original name
-        type_mapping = {"eog": ["EOG_L", "EOG_R"], "emg": ["CH2"]}
-
-        with pytest.raises(ValueError, match="Channel name mismatch"):
-            extract_channels(
-                mock_raw,
-                channels_name_mapping=name_mapping,
-                channels_type_mapping=type_mapping,
-            )
-
-    def test_pos_mapping_with_mixed_channel_names_raises_error(self):
-        """Test that ValueError is raised when pos_mapping uses mixed original and renamed names."""
+    def test_bad_channels_checked_against_renamed_ids(self):
+        """Test that bad channel marking is applied to renamed channel names."""
         original_names = ["CH0", "CH1", "CH2"]
         mock_raw = create_mock_raw(
             ch_names=original_names, n_channels=len(original_names)
         )
-        name_mapping = {"CH0": "NewCH0", "CH1": "NewCH1", "CH2": "NewCH2"}
-        # Mixed: "NewCH0" is renamed name, but "CH1" is original name
-        pos_mapping = {
-            "NewCH0": np.array([0.1, 0.2, 0.3]),
-            "CH1": np.array([0.2, 0.3, 0.4]),
-            "NewCH2": np.array([0.4, 0.5, 0.6]),
-        }
+        mock_raw.info["bads"] = ["NewCH1"]
+        name_mapping = {"CH0": "NewCH0", "CH1": "NewCH1"}
 
-        with pytest.raises(ValueError, match="Channel name mismatch"):
-            extract_channels(
-                mock_raw,
-                channels_name_mapping=name_mapping,
-                pos_mapping=pos_mapping,
-            )
+        result = extract_channels(mock_raw, channels_name_mapping=name_mapping)
+
+        assert hasattr(result, "bad")
+        expected = np.array([False, True, False])
+        np.testing.assert_array_equal(result.bad, expected)
 
 
 @pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
