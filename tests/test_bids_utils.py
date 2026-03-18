@@ -653,16 +653,12 @@ class TestLoadJsonSidecar:
         sidecar = load_json_sidecar(bids_path)
         assert sidecar["OriginalRecordingTimestamp"] == "2024-01-01T10:00:00"
 
-    def test_raises_runtime_error_when_sidecar_missing(self, bids_root):
-        """Test that RuntimeError is raised when JSON sidecar doesn't exist.
-
-        The mne_bids.BIDSPath.find_matching_sidecar method raises RuntimeError,
-        not FileNotFoundError, when on_error='raise'.
-        """
+    def test_raises_file_not_found_when_sidecar_missing(self, bids_root):
+        """Test that FileNotFoundError is raised when JSON sidecar doesn't exist."""
         bids_path = mne_bids.BIDSPath(
             root=bids_root, subject="01", task="rest", datatype="ieeg", suffix="ieeg"
         )
-        with pytest.raises(RuntimeError):
+        with pytest.raises(FileNotFoundError):
             load_json_sidecar(bids_path)
 
     def test_accepts_bidspath_input(self, bids_dir_with_json_sidecar):

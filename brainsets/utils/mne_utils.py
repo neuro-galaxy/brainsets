@@ -416,7 +416,7 @@ def extract_channels(
     bad_channels = recording_data.info.get("bads", [])
     if bad_channels:
         is_bad_channel = np.array(
-            [ch in bad_channels for ch in channel_ids], dtype=bool
+            [ch in bad_channels for ch in recording_data.ch_names], dtype=bool
         )
     else:
         is_bad_channel = None

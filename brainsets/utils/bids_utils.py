@@ -279,11 +279,14 @@ def load_json_sidecar(bids_path: str | Path | BIDSPath) -> dict:
     if not isinstance(bids_path, BIDSPath):
         bids_path = BIDSPath(bids_path)
 
-    sidecar_path = bids_path.find_matching_sidecar(extension=".json")
-    if sidecar_path is None:
+    try:
+        sidecar_path = bids_path.find_matching_sidecar(
+            extension=".json", on_error="raise"
+        )
+        with open(sidecar_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except RuntimeError:
         raise FileNotFoundError(f"No JSON sidecar file found for {bids_path}.")
-    with open(sidecar_path, "r", encoding="utf-8") as f:
-        return json.load(f)
 
 
 def load_participants_tsv(bids_root: Path | str) -> Optional[pd.DataFrame]:
@@ -293,9 +296,15 @@ def load_participants_tsv(bids_root: Path | str) -> Optional[pd.DataFrame]:
         bids_root: The path to the BIDS root directory.
 
     Returns:
-        DataFrame with participant information indexed by participant_id,
-        or None if participants.tsv doesn't exist or is missing 'participant_id' column.
+        pd.DataFrame: Participant information indexed by participant_id,
+            or None if participants.tsv is missing the 'participant_id' column.
+
+    Raises:
+        FileNotFoundError: If participants.tsv file is not found in the BIDS root directory.
     """
+    if not (Path(bids_root) / "participants.tsv").exists():
+        raise FileNotFoundError(f"participants.tsv file not found in {bids_root}.")
+
     df = pd.read_csv(
         Path(bids_root) / "participants.tsv",
         sep="\t",

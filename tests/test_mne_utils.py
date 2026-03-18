@@ -198,23 +198,6 @@ class TestExtractChannels:
         result = extract_channels(mock_raw)
         assert result.type.dtype.kind == "U"
 
-    def test_bad_field_omitted_when_no_bad_channels(self):
-        """Test that 'bad' field is omitted when there are no bad channels."""
-        mock_raw = create_mock_raw()
-        result = extract_channels(mock_raw)
-        assert not hasattr(result, "bad")
-
-    def test_bad_field_included_when_bad_channels_exist(self):
-        """Test that 'bad' field is included and marks bad channels correctly."""
-        ch_names = ["CH0", "CH1", "CH2"]
-        mock_raw = create_mock_raw(ch_names=ch_names, n_channels=len(ch_names))
-        mock_raw.info["bads"] = ["CH1"]
-        result = extract_channels(mock_raw)
-        assert hasattr(result, "bad")
-        assert result.bad.dtype == bool
-        expected = np.array([False, True, False])
-        np.testing.assert_array_equal(result.bad, expected)
-
     def test_name_mapping_applied(self):
         """Test that channel name mapping is correctly applied."""
         original_names = ["CH0", "CH1", "CH2"]
@@ -391,18 +374,20 @@ class TestExtractChannels:
 
         assert not hasattr(result, "pos")
 
-    def test_bad_channels_checked_against_renamed_ids(self):
-        """Test that bad channel marking is applied to renamed channel names."""
-        original_names = ["CH0", "CH1", "CH2"]
-        mock_raw = create_mock_raw(
-            ch_names=original_names, n_channels=len(original_names)
-        )
-        mock_raw.info["bads"] = ["NewCH1"]
-        name_mapping = {"CH0": "NewCH0", "CH1": "NewCH1"}
+    def test_bad_field_omitted_when_no_bad_channels(self):
+        """Test that 'bad' field is omitted when there are no bad channels."""
+        mock_raw = create_mock_raw()
+        result = extract_channels(mock_raw)
+        assert not hasattr(result, "bad")
 
-        result = extract_channels(mock_raw, channels_name_mapping=name_mapping)
-
+    def test_bad_field_included_when_bad_channels_exist(self):
+        """Test that 'bad' field is included and marks bad channels correctly."""
+        ch_names = ["CH0", "CH1", "CH2"]
+        mock_raw = create_mock_raw(ch_names=ch_names, n_channels=len(ch_names))
+        mock_raw.info["bads"] = ["CH1"]
+        result = extract_channels(mock_raw)
         assert hasattr(result, "bad")
+        assert result.bad.dtype == bool
         expected = np.array([False, True, False])
         np.testing.assert_array_equal(result.bad, expected)
 
@@ -785,11 +770,13 @@ class TestConcatenateRecordings:
     def test_default_policy_is_raise(self):
         """Test that default on_mismatch policy is 'raise'."""
         date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
-        date2 = datetime.datetime(2023, 6, 15, 11, 0, 0, tzinfo=datetime.timezone.utc)
+        date2 = datetime.datetime(
+            2023, 6, 16, 10, 0, 0, tzinfo=datetime.timezone.utc
+        )  # Different day
         mock_raw1 = create_mock_raw(meas_date=date1)
         mock_raw2 = create_mock_raw(meas_date=date2)
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Measurement days are not uniform"):
             concatenate_recordings([mock_raw1, mock_raw2])
 
     def test_invalid_offset_policy_raises_error(self):
