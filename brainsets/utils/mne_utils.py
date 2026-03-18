@@ -303,15 +303,63 @@ def extract_psg_signal(raw_psg: "mne.io.Raw") -> Tuple[RegularTimeSeries, ArrayD
     return signals, channels
 
 
+def _resolve_channel_names_for_mapping(
+    original_ch_names: np.ndarray,
+    remapped_ch_names: np.ndarray,
+    mapping_referenced_names: set,
+) -> np.ndarray:
+    """Determine which channel names to use for mapping lookups (original or remapped).
+
+    When a mapping is provided (e.g., type or position mapping), this helper decides
+    whether the mapping keys refer to original channel names or the remapped channel
+    names (after optional name mapping). The validation requires that all mapping keys
+    exist in either the original or remapped channel names (but not split between them).
+
+    Args:
+        original_ch_names: Array of channel names from the raw recording.
+        remapped_ch_names: Array of channel names after optional name mapping.
+        mapping_referenced_names: Set of all channel names referenced in the mapping.
+
+    Returns:
+        Array of channel names to use for mapping lookups (either original or remapped).
+
+    Raises:
+        ValueError: If mapping names are not consistent with either original or remapped channel names.
+    """
+    renamed_ch_names_set = set(remapped_ch_names)
+    original_ch_names_set = set(original_ch_names)
+    
+    # Check if all mapping references are in remapped channel names
+    all_in_remapped = mapping_referenced_names.issubset(renamed_ch_names_set)
+    
+    # Check if all mapping references are in original names
+    all_in_original = mapping_referenced_names.issubset(original_ch_names_set)
+    
+    if all_in_remapped:
+        return remapped_ch_names
+    elif all_in_original:
+        return original_ch_names
+    else:
+        # Neither original nor remapped contains all mapping names - inconsistent
+        raise ValueError(
+            f"Channel name mismatch in the mapping keys must refer to either "
+            f"all original channel names or all remapped channel names, but not a mix. "
+            f"Mapping keys: {sorted(mapping_referenced_names)}. "
+            f"Renamed channel names: {sorted(renamed_ch_names_set)}. "
+            f"Original channel names: {sorted(original_ch_names_set)}."
+        )
+
+
 def extract_channels(
     recording_data: "mne.io.Raw",
     channels_name_mapping: dict[str, str] | None = None,
     channels_type_mapping: dict[str, list[str]] | None = None,
+    pos_mapping: dict[str, np.ndarray] | None = None,
 ) -> ArrayDict:
     """Extract channel metadata from an MNE Raw object with optional renaming and type assignment.
 
     This function generates channel metadata including ids, types, 'bad' status,
-    and (if present) spatial coordinates, by combining information from the MNE Raw object
+    and (if present) spatial positions, by combining information from the MNE Raw object
     and optional user-provided mappings.
 
     The process includes:
@@ -319,19 +367,20 @@ def extract_channels(
         - Optionally applying a channel name mapping (`channels_name_mapping`) to rename channels
         - Optionally applying a channel type mapping (`channels_type_mapping`) to reassign channel types
         - Marking channels in `raw.info["bads"]` as "bad" in the boolean array (others are "good")
-        - Extracting coordinates (x, y, z) from the Raw object's montage if available
+        - Extracting spatial positions (x, y, z) from `pos_mapping` or the Raw object's montage if available
 
     Args:
         recording_data: The MNE Raw object containing signal data and channel metadata.
         channels_name_mapping: Optional; dict mapping original channel names to new names.
         channels_type_mapping: Optional; dict mapping desired channel type (str) to a list of channel names to assign that type.
+        pos_mapping: Optional; dict mapping channel names to 1D numpy arrays of shape (3,) containing (x, y, z) positions.
 
     Returns:
         ArrayDict containing channel metadata with fields:
             - 'id': channel names (renamed if applicable)
             - 'type': channel types (remapped if applicable)
             - 'bad': boolean array, True if bad channel
-            - 'coord': spatial coordinates, shape (n_channels, 3), if available
+            - 'pos': spatial positions, shape (n_channels, 3), if available (from pos_mapping or montage)
 
     Raises:
         ImportError: If MNE is not installed.
@@ -351,43 +400,30 @@ def extract_channels(
 
     # Optional: apply channels type re-mapping
     if channels_type_mapping:
-        # We need to decide whether to apply channel type mappings based on the original or (optionally) renamed channel names.
-        # - If channels_name_mapping is applied, channel_ids may be different from the raw input ch_names.
-        # - channels_type_mapping dictionary assigns a desired type to a list of channel names.
-        # We want to detect whether these names in the type mapping refer to the original raw names or the mapped names.
 
+        # We need to detect whether channel names in channels_type_mapping 
+        # refer to the original raw names or the mapped channel_ids.
+        
         # Original channel names before any mapping
-        original_channel_names = np.array(recording_data.ch_names, dtype="U")
+        original_ch_names = np.array(recording_data.ch_names, dtype="U")
 
         # Gather all channel names referenced in the type mapping
-        type_mapping_channel_names = set(
+        ch_names_in_type_mapping = set(
             ch for ch_list in channels_type_mapping.values() for ch in ch_list
         )
-
-        # Decide whether to use the mapped names or the original names, for type assignment
-        # If all current channel_ids (already renamed if applicable) are in the type mapping reference list,
-        # we assume the type mapping is meant for the renamed channels.
-        use_renamed_for_type = all(
-            ch in type_mapping_channel_names for ch in channel_ids
+        ch_names_for_typing = _resolve_channel_names_for_mapping(
+            original_ch_names, channel_ids, ch_names_in_type_mapping
         )
-
-        # Select which set of names (renamed or original) should be used for the type lookup
-        channel_names_for_typing = (
-            channel_ids if use_renamed_for_type else original_channel_names
-        )
-
-        # Walk through channels and assign types from mapping, defaulting as needed
-        channel_type_lookup = {
+        ch_type_lookup = {
             ch_name: ch_type
             for ch_type, ch_list in channels_type_mapping.items()
             for ch_name in ch_list
         }
-        # Use the lookup, defaulting to original type if channel not remapped
         channel_types = np.array(
             [
-                channel_type_lookup.get(name_for_type, orig_type)
+                ch_type_lookup.get(name_for_type, orig_type)
                 for name_for_type, orig_type in zip(
-                    channel_names_for_typing, channel_types
+                    ch_names_for_typing, channel_types
                 )
             ],
             dtype="U",
@@ -402,22 +438,37 @@ def extract_channels(
     else:
         is_bad_channel = None
 
-    # coordinate extraction from montage (x, y, z in meters)
-    coords_arr = np.full((channel_count, 3), np.nan)
-    try:
-        montage = recording_data.get_montage()
-        if montage is not None:
-            positions = montage.get_positions()
-            ch_pos = positions.get("ch_pos") if positions is not None else None
-            if ch_pos is not None:
-                for idx, ch_name in enumerate(channel_ids):
-                    if ch_name in ch_pos:
-                        coords = ch_pos[ch_name]
-                        coords_arr[idx, 0] = float(coords[0])
-                        coords_arr[idx, 1] = float(coords[1])
-                        coords_arr[idx, 2] = float(coords[2])
-    except Exception as e:
-        logging.warning(f"Could not extract channel coordinates: {e}")
+    # position extraction: prioritize pos_mapping, fall back to montage (x, y, z in meters)
+    pos_arr = np.full((channel_count, 3), np.nan)
+
+    if pos_mapping is not None:
+        original_ch_names = np.array(recording_data.ch_names, dtype="U")
+        channel_names_in_pos_mapping = set(pos_mapping.keys())
+        channel_names_for_pos = _resolve_channel_names_for_mapping(
+            original_ch_names, channel_ids, channel_names_in_pos_mapping
+        )
+        for idx, ch_name in enumerate(channel_names_for_pos):
+            if ch_name in pos_mapping:
+                pos = pos_mapping[ch_name]
+                pos_arr[idx, 0] = float(pos[0])
+                pos_arr[idx, 1] = float(pos[1])
+                pos_arr[idx, 2] = float(pos[2])
+    else:
+        # Fallback to montage-based extraction if no pos_mapping provided
+        try:
+            montage = recording_data.get_montage()
+            if montage is not None:
+                positions = montage.get_positions()
+                ch_pos = positions.get("ch_pos") if positions is not None else None
+                if ch_pos is not None:
+                    for idx, ch_name in enumerate(channel_ids):
+                        if ch_name in ch_pos:
+                            coords = ch_pos[ch_name]
+                            pos_arr[idx, 0] = float(coords[0])
+                            pos_arr[idx, 1] = float(coords[1])
+                            pos_arr[idx, 2] = float(coords[2])
+        except Exception as e:
+            logging.warning(f"Could not extract channel positions: {e}")
 
     channel_fields = {
         "id": channel_ids,
@@ -427,7 +478,7 @@ def extract_channels(
     if is_bad_channel is not None:
         channel_fields["bad"] = is_bad_channel
 
-    if not np.all(np.isnan(coords_arr)):
-        channel_fields["coord"] = coords_arr
+    if not np.all(np.isnan(pos_arr)):
+        channel_fields["pos"] = pos_arr
 
     return ArrayDict(**channel_fields)
