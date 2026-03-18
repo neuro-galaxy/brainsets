@@ -16,7 +16,6 @@ try:
     )
     from temporaldata import ArrayDict
 except ImportError:
-    print("TEMPORALDATA_NOT_AVAILABLE")
     MNE_AVAILABLE = False
     extract_measurement_date = None
     extract_signal = None
@@ -340,7 +339,9 @@ class TestExtractChannels:
         }
 
         result = extract_channels(
-            mock_raw, channels_name_mapping=name_mapping, channels_pos_mapping=pos_mapping
+            mock_raw,
+            channels_name_mapping=name_mapping,
+            channels_pos_mapping=pos_mapping,
         )
 
         assert hasattr(result, "pos")
