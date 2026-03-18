@@ -9,8 +9,9 @@ class FlintSlutzkyAccurate2012(SpikingDatasetMixin, Dataset):
     Motor cortex (M1) spiking activity and reaching kinematics from 1 monkey
     performing center-out reaching tasks.
 
-    To download and prepare this dataset, run
-    ``brainsets prepare flint_slutzky_accurate_2012``
+    .. admonition:: Preprocessing
+        To download and prepare this dataset, run
+        ``brainsets prepare flint_slutzky_accurate_2012``.
 
     **Tasks:** Center-Out
 

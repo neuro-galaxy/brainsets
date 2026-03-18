@@ -9,8 +9,10 @@ class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
     Motor cortex (M1 and S1) spiking activity and reaching kinematics from 2 monkeys
     performing random target reaching tasks with right hand.
 
-    To download and prepare this dataset, run
-    ``brainsets prepare odoherty_sabes_nonhuman_2017``
+    .. admonition:: Preprocessing
+
+        To download and prepare this dataset, run
+        ``brainsets prepare odoherty_sabes_nonhuman_2017``.
 
     **Tasks:** Random Target
 

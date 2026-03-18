@@ -9,8 +9,11 @@ class PerichMillerPopulation2018(SpikingDatasetMixin, Dataset):
     Motor cortex (M1 and PMd) spiking activity and reaching kinematics from four macaques
     performing center-out and random target reaching tasks. The monkeys were trained to move a cursor from a central target to one of eight peripheral targets arranged in a circle.
 
-    To download and prepare this dataset, run
-    ``brainsets prepare perich_miller_population_2018``
+
+    .. admonition:: Preprocessing
+
+        To download and prepare this dataset, run
+        ``brainsets prepare perich_miller_population_2018``.
 
     **Tasks:** Center-Out and Random Target
 
