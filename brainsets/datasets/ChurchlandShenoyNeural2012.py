@@ -33,12 +33,7 @@ class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
     `DANDI Archive Dataset <https://doi.org/10.48324/dandi.000070/0.251218.1714>`_,
     Version 0.251218.1714.
 
-    .. note::
-        Please run:
-
-        ``brainsets prepare churchland_shenoy_neural_2012``
-
-        to prepare the dataset before using it.
+    **Preprocessing:** Run ``brainsets prepare churchland_shenoy_neural_2012`` before using this dataset.
     """
 
     def __init__(

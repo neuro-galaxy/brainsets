@@ -31,12 +31,7 @@ class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
     *Nonhuman Primate Reaching with Multichannel Sensorimotor Cortex Electrophysiology.*
     `Zenodo Dataset <https://doi.org/10.5281/zenodo.788569>`_.
 
-    .. note::
-        Please run:
-
-        ``brainsets prepare odoherty_sabes_nonhuman_2017``
-
-        to prepare the dataset before using it.
+    **Preprocessing:** Run ``brainsets prepare odoherty_sabes_nonhuman_2017`` before using this dataset.
     """
 
     def __init__(
