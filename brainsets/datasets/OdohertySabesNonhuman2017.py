@@ -30,6 +30,13 @@ class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
     O'Doherty, J. E., Cardoso, M. M. B., Makin, J. G., & Sabes, P. N. (2020).
     *Nonhuman Primate Reaching with Multichannel Sensorimotor Cortex Electrophysiology.*
     `Zenodo Dataset <https://doi.org/10.5281/zenodo.788569>`_.
+
+    .. note::
+        Please run:
+
+        ``brainsets prepare odoherty_sabes_nonhuman_2017``
+
+        to prepare the dataset before using it.
     """
 
     def __init__(

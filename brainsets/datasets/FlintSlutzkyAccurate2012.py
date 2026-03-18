@@ -30,6 +30,13 @@ class FlintSlutzkyAccurate2012(SpikingDatasetMixin, Dataset):
     Flint, R. D., Lindberg, E. W., Jordan, L. R., Miller, L. E., & Slutzky, M. W. (2012).
     *Accurate decoding of reaching movements from field potentials in the absence of spikes.*
     `Journal of Neural Engineering <https://doi.org/10.1088/1741-2560/9/4/046006>`_, 9(4), 046006.
+    
+    .. note::
+        Please run:
+
+        ``brainsets prepare flint_slutzky_accurate_2012``
+
+        to prepare the dataset before using it.
     """
 
     def __init__(

@@ -32,6 +32,13 @@ class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
     *Neural population dynamics during reaching.*
     `DANDI Archive Dataset <https://doi.org/10.48324/dandi.000070/0.251218.1714>`_,
     Version 0.251218.1714.
+
+    .. note::
+        Please run:
+
+        ``brainsets prepare churchland_shenoy_neural_2012``
+
+        to prepare the dataset before using it.
     """
 
     def __init__(

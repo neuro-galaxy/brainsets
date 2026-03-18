@@ -26,6 +26,13 @@ class PerichMillerPopulation2018(SpikingDatasetMixin, Dataset):
     *Long-term recordings of motor and premotor cortical spiking activity during reaching in monkeys.*
     `Neuron <https://doi.org/10.1016/j.neuron.2018.09.030>`_.
     Dataset: `Dandiset 000688 <https://doi.org/10.48324/dandi.000688/0.250122.1735>`_.
+
+    .. note::
+        Please run:
+
+        ``brainsets prepare perich_miller_population_2018``
+
+        to prepare the dataset before using it.
     """
 
     def __init__(
