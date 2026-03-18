@@ -303,53 +303,6 @@ def extract_psg_signal(raw_psg: "mne.io.Raw") -> Tuple[RegularTimeSeries, ArrayD
     return signals, channels
 
 
-def _resolve_channel_names_for_mapping(
-    original_ch_names: np.ndarray,
-    remapped_ch_names: np.ndarray,
-    mapping_referenced_names: set,
-) -> np.ndarray:
-    """Determine which channel names to use for mapping lookups (original or remapped).
-
-    When a mapping is provided (e.g., type or position mapping), this helper decides
-    whether the mapping keys refer to original channel names or the remapped channel
-    names (after optional name mapping). The validation requires that all mapping keys
-    exist in either the original or remapped channel names (but not split between them).
-
-    Args:
-        original_ch_names: Array of channel names from the raw recording.
-        remapped_ch_names: Array of channel names after optional name mapping.
-        mapping_referenced_names: Set of all channel names referenced in the mapping.
-
-    Returns:
-        Array of channel names to use for mapping lookups (either original or remapped).
-
-    Raises:
-        ValueError: If mapping names are not consistent with either original or remapped channel names.
-    """
-    renamed_ch_names_set = set(remapped_ch_names)
-    original_ch_names_set = set(original_ch_names)
-    
-    # Check if all mapping references are in remapped channel names
-    all_in_remapped = mapping_referenced_names.issubset(renamed_ch_names_set)
-    
-    # Check if all mapping references are in original names
-    all_in_original = mapping_referenced_names.issubset(original_ch_names_set)
-    
-    if all_in_remapped:
-        return remapped_ch_names
-    elif all_in_original:
-        return original_ch_names
-    else:
-        # Neither original nor remapped contains all mapping names - inconsistent
-        raise ValueError(
-            f"Channel name mismatch in the mapping keys must refer to either "
-            f"all original channel names or all remapped channel names, but not a mix. "
-            f"Mapping keys: {sorted(mapping_referenced_names)}. "
-            f"Renamed channel names: {sorted(renamed_ch_names_set)}. "
-            f"Original channel names: {sorted(original_ch_names_set)}."
-        )
-
-
 def extract_channels(
     recording_data: "mne.io.Raw",
     channels_name_mapping: dict[str, str] | None = None,
@@ -400,18 +353,17 @@ def extract_channels(
 
     # Optional: apply channels type re-mapping
     if channels_type_mapping:
-
         # We need to detect whether channel names in channels_type_mapping 
-        # refer to the original raw names or the mapped channel_ids.
+        # refer to the original raw names or the mapped channel_ids (after name mapping).
         
-        # Original channel names before any mapping
+        # Original channel names before any name mapping
         original_ch_names = np.array(recording_data.ch_names, dtype="U")
 
         # Gather all channel names referenced in the type mapping
         ch_names_in_type_mapping = set(
             ch for ch_list in channels_type_mapping.values() for ch in ch_list
         )
-        ch_names_for_typing = _resolve_channel_names_for_mapping(
+        ch_names_for_type_mapping = _resolve_channel_names_for_mapping(
             original_ch_names, channel_ids, ch_names_in_type_mapping
         )
         ch_type_lookup = {
@@ -423,7 +375,7 @@ def extract_channels(
             [
                 ch_type_lookup.get(name_for_type, orig_type)
                 for name_for_type, orig_type in zip(
-                    ch_names_for_typing, channel_types
+                    ch_names_for_type_mapping, channel_types
                 )
             ],
             dtype="U",
@@ -444,10 +396,10 @@ def extract_channels(
     if pos_mapping is not None:
         original_ch_names = np.array(recording_data.ch_names, dtype="U")
         channel_names_in_pos_mapping = set(pos_mapping.keys())
-        channel_names_for_pos = _resolve_channel_names_for_mapping(
+        channel_names_for_pos_mapping = _resolve_channel_names_for_mapping(
             original_ch_names, channel_ids, channel_names_in_pos_mapping
         )
-        for idx, ch_name in enumerate(channel_names_for_pos):
+        for idx, ch_name in enumerate(channel_names_for_pos_mapping):
             if ch_name in pos_mapping:
                 pos = pos_mapping[ch_name]
                 pos_arr[idx, 0] = float(pos[0])
@@ -482,3 +434,50 @@ def extract_channels(
         channel_fields["pos"] = pos_arr
 
     return ArrayDict(**channel_fields)
+
+
+def _resolve_channel_names_for_mapping(
+    original_ch_names: np.ndarray,
+    remapped_ch_names: np.ndarray,
+    mapping_referenced_names: set,
+) -> np.ndarray:
+    """Determine which channel names to use for mapping lookups (original or remapped).
+
+    When a mapping is provided (e.g., type or position mapping), this helper decides
+    whether the mapping keys refer to original channel names or the remapped channel
+    names (after optional name mapping). The validation requires that all mapping keys
+    exist in either the original or remapped channel names (but not split between them).
+
+    Args:
+        original_ch_names: Array of channel names from the raw recording.
+        remapped_ch_names: Array of channel names after optional name mapping.
+        mapping_referenced_names: Set of all channel names referenced in the mapping.
+
+    Returns:
+        Array of channel names to use for mapping lookups (either original or remapped).
+
+    Raises:
+        ValueError: If mapping names are not consistent with either original or remapped channel names.
+    """
+    renamed_ch_names_set = set(remapped_ch_names)
+    original_ch_names_set = set(original_ch_names)
+    
+    # Check if all mapping references are in remapped channel names
+    all_in_remapped = mapping_referenced_names.issubset(renamed_ch_names_set)
+    
+    # Check if all mapping references are in original names
+    all_in_original = mapping_referenced_names.issubset(original_ch_names_set)
+    
+    if all_in_remapped:
+        return remapped_ch_names
+    elif all_in_original:
+        return original_ch_names
+    else:
+        # Neither original nor remapped contains all mapping names - inconsistent
+        raise ValueError(
+            f"Channel name mismatch in the mapping keys must refer to either "
+            f"all original channel names or all remapped channel names, but not a mix. "
+            f"Mapping keys: {sorted(mapping_referenced_names)}. "
+            f"Renamed channel names: {sorted(renamed_ch_names_set)}. "
+            f"Original channel names: {sorted(original_ch_names_set)}."
+        )
