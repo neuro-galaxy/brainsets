@@ -40,6 +40,15 @@ EEG_EXTENSIONS = {".edf", ".vhdr", ".set", ".bdf"}
 # Reference: https://bids-specification.readthedocs.io/en/stable/modality-specific-files/intracranial-electroencephalography.html
 IEEG_EXTENSIONS = {".edf", ".vhdr", ".set", ".bdf", ".nwb"}
 
+# BIDS entity short names (BIDS v1.10.1):
+# - subject: 'sub'
+# - session: 'ses'
+# - task: 'task'
+# - acquisition: 'acq'
+# - run: 'run'
+# - description: 'desc'
+# Reference: https://bids-specification.readthedocs.io/en/stable/glossary.html#entity
+# Note: The short names are used to group recordings by entity.
 BIDS_ENTITY_SHORT_NAMES = {
     "subject": "sub",
     "sub": "sub",
