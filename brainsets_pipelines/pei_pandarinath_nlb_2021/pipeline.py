@@ -34,21 +34,22 @@ parser.add_argument("--reprocess", action="store_true")
 
 class Pipeline(BrainsetPipeline):
     brainset_id = "pei_pandarinath_nlb_2021"
-    dandiset_id = "DANDI:000140/0.220113.0408"
+    dandiset_id = {"jenkins_maze": "DANDI:000140/0.220113.0408", "indy_RTT": "DANDI:000129/0.241017.1444"}
     parser = parser
 
     @classmethod
     def get_manifest(cls, raw_dir, args) -> pd.DataFrame:
-        asset_list = get_nwb_asset_list(cls.dandiset_id)
-        manifest_list = [{"path": x.path, "url": x.download_url} for x in asset_list]
+        manifest_list = []
+        for task, dandiset_id in cls.dandiset_id.items():            
+            asset_list = get_nwb_asset_list(dandiset_id)
+            manifest_item = [{"path": x.path, "url": x.download_url} for x in asset_list]
 
-        for m in manifest_list:
-            path = m["path"]
-            m["id"] = "jenkins_maze_test" if "test" in path else "jenkins_maze_train"
+            for m in manifest_item:
+                path = m["path"]
+                m["id"] = f"{task}_test" if "test" in path else f"{task}_train"
+            manifest_list.extend(manifest_item)
 
-        manifest = pd.DataFrame(manifest_list).set_index("id")
-
-        return manifest
+        return pd.DataFrame(manifest_list).set_index("id")
 
     def download(self, manifest_item):
         self.update_status("DOWNLOADING")
