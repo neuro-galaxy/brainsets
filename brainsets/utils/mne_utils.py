@@ -307,7 +307,7 @@ def extract_channels(
     recording_data: "mne.io.Raw",
     channels_name_mapping: dict[str, str] | None = None,
     channels_type_mapping: dict[str, list[str]] | None = None,
-    pos_mapping: dict[str, np.ndarray] | None = None,
+    channels_pos_mapping: dict[str, np.ndarray] | None = None,
 ) -> ArrayDict:
     """Extract channel metadata from an MNE Raw object with optional renaming and type assignment.
 
@@ -326,7 +326,7 @@ def extract_channels(
         recording_data: The MNE Raw object containing signal data and channel metadata.
         channels_name_mapping: Optional; dict mapping original channel names to new names.
         channels_type_mapping: Optional; dict mapping desired channel type (str) to a list of channel names to assign that type.
-        pos_mapping: Optional; dict mapping channel names to 1D numpy arrays of shape (3,) containing (x, y, z) positions.
+        channels_pos_mapping: Optional; dict mapping channel names to 1D numpy arrays of shape (3,) containing (x, y, z) positions.
 
     Returns:
         ArrayDict containing channel metadata with fields:
@@ -390,29 +390,29 @@ def extract_channels(
     else:
         is_bad_channel = None
 
-    # position extraction: prioritize pos_mapping, fall back to montage (x, y, z in meters)
+    # position extraction: prioritize pos_mapping, fall back to montage (x, y, z in mm)
     pos_arr = np.full((channel_count, 3), np.nan)
-    if pos_mapping is not None:
+    if channels_pos_mapping is not None:
         original_ch_names = np.array(recording_data.ch_names, dtype="U")
-        ch_names_in_pos_mapping = set(pos_mapping.keys())
+        ch_names_in_pos_mapping = set(channels_pos_mapping.keys())
         ch_names_for_pos_mapping = _resolve_channel_names_for_mapping(
             original_ch_names, channel_ids, ch_names_in_pos_mapping
         )
         # Fill the existing pos_arr for each channel
         for i, ch_name in enumerate(ch_names_for_pos_mapping):
-            if ch_name in pos_mapping:
-                pos_arr[i] = pos_mapping[ch_name]
+            if ch_name in channels_pos_mapping:
+                pos_arr[i] = channels_pos_mapping[ch_name]
     else:
         # Fallback to montage-based extraction if no pos_mapping provided
         try:
             montage = recording_data.get_montage()
             if montage is not None:
-                pos_mapping = montage.get_positions()["ch_pos"]
-                if pos_mapping is not None:
+                ch_pos_mapping = montage.get_positions()["ch_pos"]
+                if ch_pos_mapping is not None:
                     # Fill pos_arr for each channel using montage-based positions if available
                     for i, ch_name in enumerate(recording_data.ch_names):
-                        if ch_name in pos_mapping:
-                            pos_arr[i] = pos_mapping[ch_name]
+                        if ch_name in ch_pos_mapping:
+                            pos_arr[i] = ch_pos_mapping[ch_name]
         except Exception as e:
             logging.warning(f"Could not extract channel positions from montage: {e}")
 
