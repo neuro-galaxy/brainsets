@@ -353,9 +353,9 @@ def extract_channels(
 
     # Optional: apply channels type re-mapping
     if channels_type_mapping:
-        # We need to detect whether channel names in channels_type_mapping 
+        # We need to detect whether channel names in channels_type_mapping
         # refer to the original raw names or the mapped channel_ids (after name mapping).
-        
+
         # Original channel names before any name mapping
         original_ch_names = np.array(recording_data.ch_names, dtype="U")
 
@@ -364,7 +364,9 @@ def extract_channels(
             ch for ch_list in channels_type_mapping.values() for ch in ch_list
         )
         ch_names_for_type_mapping = _resolve_channel_names_for_mapping(
-            original_ch_names, channel_ids, ch_names_in_type_mapping
+            original_ch_names=original_ch_names,
+            renamed_ch_names=channel_ids,
+            ch_names_in_mapping=ch_names_in_type_mapping,
         )
         ch_type_lookup = {
             ch_name: ch_type
@@ -396,7 +398,9 @@ def extract_channels(
         original_ch_names = np.array(recording_data.ch_names, dtype="U")
         ch_names_in_pos_mapping = set(channels_pos_mapping.keys())
         ch_names_for_pos_mapping = _resolve_channel_names_for_mapping(
-            original_ch_names, channel_ids, ch_names_in_pos_mapping
+            original_ch_names=original_ch_names,
+            renamed_ch_names=channel_ids,
+            ch_names_in_mapping=ch_names_in_pos_mapping,
         )
         # Fill the existing pos_arr for each channel
         for i, ch_name in enumerate(ch_names_for_pos_mapping):
@@ -455,13 +459,13 @@ def _resolve_channel_names_for_mapping(
     """
     renamed_ch_names_set = set(renamed_ch_names)
     original_ch_names_set = set(original_ch_names)
-    
+
     # Check if all mapping references are in renamed channel names
     all_in_renamed = ch_names_in_mapping.issubset(renamed_ch_names_set)
-    
+
     # Check if all mapping references are in original names
     all_in_original = ch_names_in_mapping.issubset(original_ch_names_set)
-    
+
     if all_in_renamed:
         return renamed_ch_names
     elif all_in_original:
