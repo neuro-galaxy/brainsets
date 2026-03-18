@@ -5,7 +5,6 @@ MNE Raw objects and convert them to brainsets data structures.
 """
 
 import datetime
-import warnings
 import numpy as np
 from typing import Tuple, Literal
 from temporaldata import (
@@ -52,13 +51,14 @@ def extract_measurement_date(
     _check_mne_available("extract_measurement_date")
     if recording_data.info["meas_date"] is not None:
         return recording_data.info["meas_date"]
-    warnings.warn("No measurement date found, using Unix epoch as placeholder")
+    logging.warning("No measurement date found, using Unix epoch as placeholder")
     return datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 
 
 def concatenate_recordings(
     recordings: list["mne.io.Raw"],
     on_mismatch: Literal["ignore", "warn", "raise"] = "raise",
+    on_offset: Literal["ignore", "warn", "raise"] = "warn",
 ) -> "mne.io.Raw":
     """Concatenate a list of MNE Raw objects into one, validating metadata.
 
@@ -99,6 +99,11 @@ def concatenate_recordings(
         raise ValueError(
             f"on_mismatch must be one of {valid_policies}, got '{on_mismatch}'"
         )
+    
+    if on_offset not in valid_policies:
+        raise ValueError(
+            f"on_offset must be one of {valid_policies}, got '{on_offset}'"
+        )
 
     for idx, rec in enumerate(recordings):
         if not hasattr(rec, "info") or not hasattr(rec, "ch_names"):
@@ -138,7 +143,7 @@ def concatenate_recordings(
         if on_mismatch == "raise":
             raise ValueError(full_message)
         elif on_mismatch == "warn":
-            warnings.warn(full_message)
+            logging.warning(full_message)
 
     # Sort recordings by measurement date
     indexed_recordings = [
@@ -148,6 +153,24 @@ def concatenate_recordings(
         indexed_recordings,
         key=lambda x: x[2] if x[2] is not None else datetime.datetime.min,
     )
+
+    # Validate that offset between consecutive recordings is within 1 hour
+    if on_offset == "raise":
+        # More efficient: use zip to pair consecutive elements, avoid repeated indexing
+        for (idx1, _, date1), (idx2, _, date2) in zip(sorted_recordings, sorted_recordings[1:]):
+            offset = (date2 - date1).total_seconds()
+            if offset > 3600:
+                raise ValueError(
+                    f"Offset between recordings {idx1} and {idx2} is greater than 1 hour: {offset} seconds"
+                )
+    elif on_offset == "warn":
+        # A more efficient way: use zip to iterate through consecutive pairs directly.
+        for (idx1, _, date1), (idx2, _, date2) in zip(sorted_recordings, sorted_recordings[1:]):
+            offset = (date2 - date1).total_seconds()
+            if offset > 3600:
+                logging.warning(
+                    f"Offset between recordings {idx1} and {idx2} is greater than 1 hour: {offset} seconds"
+                )
 
     copies = []
     for _, rec, _ in sorted_recordings:
@@ -292,7 +315,7 @@ def extract_channels(
             - 'id': channel names (renamed if applicable)
             - 'type': channel types (remapped if applicable)
             - 'bad': boolean array, True if bad channel
-            - 'coords': spatial coordinates, shape (n_channels, 3), if available
+            - 'coord': spatial coordinates, shape (n_channels, 3), if available
 
     Raises:
         ImportError: If MNE is not installed.
@@ -356,7 +379,10 @@ def extract_channels(
 
     # bad channel extraction
     bad_channels = recording_data.info.get("bads", [])
-    is_bad_channel = np.array([ch in bad_channels for ch in channel_ids], dtype=bool)
+    if bad_channels:
+        is_bad_channel = np.array([ch in bad_channels for ch in channel_ids], dtype=bool)
+    else:
+        is_bad_channel = None
 
     # coordinate extraction from montage (x, y, z in meters)
     coords_arr = np.full((channel_count, 3), np.nan)
@@ -378,10 +404,12 @@ def extract_channels(
     channel_fields = {
         "id": channel_ids,
         "type": channel_types,
-        "bad": is_bad_channel,
     }
 
+    if is_bad_channel is not None:
+        channel_fields["bad"] = is_bad_channel
+
     if not np.all(np.isnan(coords_arr)):
-        channel_fields["coords"] = coords_arr
+        channel_fields["coord"] = coords_arr
 
     return ArrayDict(**channel_fields)
