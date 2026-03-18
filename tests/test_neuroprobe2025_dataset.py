@@ -200,6 +200,25 @@ def test_cross_x_fold_must_be_zero(tmp_path):
         )
 
 
+def test_split_selection_accepts_fold1_for_ss_sm(tmp_path):
+    _write_default_recordings(tmp_path)
+
+    ds = _make_dataset(tmp_path, regime="SS-SM", fold=1)
+    assert ds.fold == 1
+
+
+@pytest.mark.parametrize(
+    ("regime", "expected"),
+    [
+        ("SS-SM", 2),
+        ("SS-DM", 1),
+        ("DS-DM", 1),
+    ],
+)
+def test_num_folds_for_regime_reports_expected_counts(regime: str, expected: int):
+    assert Neuroprobe2025.num_folds_for_regime(regime) == expected
+
+
 @pytest.mark.parametrize("fold", [False, ""])
 def test_split_selection_defaults_falsy_fold_to_zero(tmp_path, fold):
     _write_default_recordings(tmp_path)

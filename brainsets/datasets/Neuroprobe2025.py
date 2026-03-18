@@ -170,6 +170,12 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
         dirname: Subdirectory under ``root`` containing recording H5 files.
     """
 
+    _ALLOWED_FOLDS_BY_REGIME: dict[Regime, tuple[int, ...]] = {
+        "SS-SM": (0, 1),
+        "SS-DM": (0,),
+        "DS-DM": (0,),
+    }
+
     def __init__(
         self,
         root: str,
@@ -207,13 +213,13 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
             self.label_mode = label_mode
             self.task = task
             self.regime = regime
+            self.fold = fold
             self.test_subject = test_subject
             self.test_session = test_session
             self.split = split
 
             self._validate_split_args()
             self.h5_regime = H5_REGIME_BY_REGIME[self.regime]
-            self.fold = self._resolve_fold(fold=fold)
             active_recording_ids = self._split_recording_ids()
         else:
             unexpected_split_args = [
@@ -455,6 +461,15 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
             raise ValueError(
                 f"Invalid regime '{self.regime}'. Must be one of {VALID_REGIMES}."
             )
+        if not isinstance(self.fold, Integral) or isinstance(self.fold, bool):
+            raise TypeError(f"fold must be an int, got {type(self.fold).__name__}.")
+
+        allowed_folds = self._ALLOWED_FOLDS_BY_REGIME[self.regime]
+        if self.fold not in allowed_folds:
+            allowed_values = " or ".join(str(value) for value in allowed_folds)
+            raise ValueError(
+                f"Fold for regime '{self.regime}' must be {allowed_values}, got {self.fold}."
+            )
         if self.split not in VALID_SPLITS:
             raise ValueError(
                 f"Invalid split '{self.split}'. Must be one of {VALID_SPLITS}."
@@ -519,28 +534,14 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
                     f"{longest_trials}."
                 )
 
-    def _resolve_fold(self, fold: int) -> int:
-        # SS-SM exposes two folds; SS-DM/DS-DM are fixed to fold0 only.
-        regime = self.regime
-        if not isinstance(fold, Integral) or isinstance(fold, bool):
-            raise TypeError(f"fold must be an int, got {type(fold).__name__}.")
-
+    @classmethod
+    def num_folds_for_regime(cls, regime: str) -> int:
+        """Return the number of available folds for one regime."""
         if regime not in VALID_REGIMES:
             raise ValueError(
                 f"Invalid regime '{regime}'. Must be one of {VALID_REGIMES}."
             )
-
-        if regime == "SS-SM":
-            if fold not in (0, 1):
-                raise ValueError(
-                    f"Fold for regime '{regime}' must be 0 or 1, got {fold}."
-                )
-            return fold
-
-        # SS-DM / DS-DM
-        if fold != 0:
-            raise ValueError(f"Fold for regime '{regime}' must be 0, got {fold}.")
-        return fold
+        return len(cls._ALLOWED_FOLDS_BY_REGIME[regime])
 
     def _resolve_requested_recording_ids(self, recording_ids: list[str]) -> list[str]:
         # Normalize explicit recording-id subsets to a stable, de-duplicated order.
