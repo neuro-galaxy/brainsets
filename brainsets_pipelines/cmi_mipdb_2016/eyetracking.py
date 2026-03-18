@@ -1,22 +1,17 @@
-"""Parsing and processing of SMI iView eyetracking text exports.
+"""Parsing and synchronization of SMI iView eyetracking text exports.
 
-The public entry point is :func:`process`, which returns a
+The public entry point is :func:`process_session`, which returns a
 ``temporaldata.Data`` object containing up to four
 ``IrregularTimeSeries``: *samples*, *fixations*, *saccades*, *blinks*.
-All timestamps are aligned to the EEG time base via the shared paradigm onset marker.
+All timestamps are converted to the EEG timescale via a linear transform
+fitted from matched event codes.
 
-Eye tracking data are based on two separate files:
-- Samples.txt: contains eye tracking data (Dia, POR, pupil dilation, etc.).
-- Events.txt: contains annotations (Fixation, Saccade, Blink).
-
-Not all EEG paradigms have simultaneous Eye Tracking data.
-Some Eye tracking recordings contain multiple paradigms. 
-Matching of EEG and Eye tracking data is done by matching the paradigm codes
-according to the UserEvent messages in the eye tracking Samples.txt files.
-
-We build a single unified index from all ET files (Samples and Events), then
-identify paradigms and parse from that index. See :func:`build_et_index` and
-:func:`find_paradigm_segment`.
+Synchronization strategy:
+1) Build an index of all ET files and their paradigm segments.
+2) Match the EEG session to the best ET file using LCS on paradigm codes.
+3) Align per-paradigm event sequences (LCS) to collect anchor pairs.
+4) Fit one linear ET->EEG timestamp transform for the session.
+5) Parse the full ET file, apply the transform, clip to the EEG domain.
 """
 
 import logging
@@ -327,35 +322,6 @@ def compute_et_to_eeg_time_transform(
     return (slope, intercept)
 
 
-def find_paradigm_segment(
-    et_dir: Path,
-    paradigm_code: int,
-    index: list[dict] | None = None,
-) -> dict | None:
-    """Find an ET segment for *paradigm_code* from the unified ET index.
-    If no index is provided, builds the index from `et_dir` and searches it.
-
-    Returns a dict with keys ``events_path`` (optional), ``samples_path`` (optional),
-    ``code``, ``paradigm_ts``, ``start_ts``, ``end_ts``. Paths are None when that
-    file is not present for this segment.
-    """
-    if index is None:
-        index = build_et_index(et_dir)
-
-    for entry in index:
-        samples_path = entry["samples_path"]
-        events_path = entry["events_path"]
-        for seg in entry["segments"]:
-            if seg["code"] == paradigm_code:
-                return {
-                    "events_path": events_path,
-                    "samples_path": samples_path,
-                    **seg,
-                }
-
-    return None
-
-
 def _et_to_eeg_timestamps(
     t_us: int | np.ndarray, slope: float, intercept: float
 ) -> np.ndarray:
@@ -553,47 +519,46 @@ def parse_events(
     return result
 
 
-def process(
+def process_session(
     et_dir: Path,
-    paradigm_code: int,
-    eeg_paradigm_onset_s: float,
+    paradigm_intervals: Interval,
+    eeg_annotations: Interval,
+    eeg_start_s: float,
+    eeg_end_s: float,
 ) -> Data | None:
-    """Build an eyetracking ``Data`` for a single paradigm from the unified ET index.
+    """Process continuous ET data for one EEG session, aligned to the EEG timescale.
 
     Returns a ``Data`` with up to four ``IrregularTimeSeries``
     (``samples``, ``fixations``, ``saccades``, ``blinks``), or ``None``.
     """
-    index = build_et_index(et_dir)
-    segment = find_paradigm_segment(et_dir, paradigm_code, index=index)
-    if segment is None:
+    et_index = build_et_index(et_dir)
+    if not et_index:
         return None
 
-    paradigm_ts = segment["paradigm_ts"]
-    start_ts = segment["start_ts"]
-    end_ts = segment["end_ts"]
+    matched = match_eeg_to_et(paradigm_intervals, et_index)
+    if matched is None:
+        return None
+
+    transform = compute_et_to_eeg_time_transform(
+        matched, eeg_annotations, paradigm_intervals
+    )
+    if transform is None:
+        return None
+    slope, intercept = transform
 
     et_kwargs: dict = {}
 
-    if segment.get("samples_path") is not None:
-        samples = parse_samples(
-            segment["samples_path"],
-            start_ts,
-            end_ts,
-            paradigm_ts,
-            eeg_paradigm_onset_s,
-        )
+    samples_path = matched["samples_path"]
+    if samples_path is not None:
+        samples = parse_samples(samples_path, slope, intercept, eeg_start_s, eeg_end_s)
         if samples is not None:
             et_kwargs["samples"] = samples
 
-    if segment.get("events_path") is not None:
-        events = parse_events(
-            segment["events_path"],
-            start_ts,
-            end_ts,
-            paradigm_ts,
-            eeg_paradigm_onset_s,
+    events_path = matched["events_path"]
+    if events_path is not None:
+        et_kwargs.update(
+            parse_events(events_path, slope, intercept, eeg_start_s, eeg_end_s)
         )
-        et_kwargs.update(events)
 
     if not et_kwargs:
         return None

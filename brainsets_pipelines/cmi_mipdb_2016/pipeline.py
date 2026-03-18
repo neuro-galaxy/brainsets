@@ -269,17 +269,16 @@ class Pipeline(BrainsetPipeline):
         # --- Eyetracking  ---
         et_data = None
         if et_dir is not None and len(paradigm_intervals) > 0:
-            # FIXME: parse all paradigms, not only the first
-            # match according to UTC timestamps
-            first_code = int(paradigm_intervals.code[0])
-            eeg_paradigm_onset_s = float(paradigm_intervals.start[0])
-            self.update_status(f"Processing eyetracking for paradigm {first_code}")
-            et_data = eyetracking.process(et_dir, first_code, eeg_paradigm_onset_s)
+            self.update_status("Processing eyetracking")
+            et_data = eyetracking.process_session(
+                et_dir,
+                paradigm_intervals,
+                annotations,
+                float(eeg_signal.domain.start[0]),
+                float(eeg_signal.domain.end[0]),
+            )
             if et_data is None:
-                logging.warning(
-                    f"No matching ET data found for paradigm "
-                    f"{first_code} in session {recording_id}"
-                )
+                logging.warning(f"No ET data aligned for session {recording_id}")
         elif et_dir is None:
             logging.warning(f"No ET directory for session {recording_id}")
 
