@@ -12,7 +12,6 @@ from temporaldata import (
     Interval,
     RegularTimeSeries,
 )
-from pathlib import Path
 import logging
 
 try:
