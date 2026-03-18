@@ -373,8 +373,8 @@ def extract_channels(
         }
         channel_types = np.array(
             [
-                ch_type_lookup.get(name_for_type, orig_type)
-                for name_for_type, orig_type in zip(
+                ch_type_lookup.get(ch_name_for_type, orig_type)
+                for ch_name_for_type, orig_type in zip(
                     ch_names_for_type_mapping, channel_types
                 )
             ],
@@ -392,35 +392,29 @@ def extract_channels(
 
     # position extraction: prioritize pos_mapping, fall back to montage (x, y, z in meters)
     pos_arr = np.full((channel_count, 3), np.nan)
-
     if pos_mapping is not None:
         original_ch_names = np.array(recording_data.ch_names, dtype="U")
-        channel_names_in_pos_mapping = set(pos_mapping.keys())
-        channel_names_for_pos_mapping = _resolve_channel_names_for_mapping(
-            original_ch_names, channel_ids, channel_names_in_pos_mapping
+        ch_names_in_pos_mapping = set(pos_mapping.keys())
+        ch_names_for_pos_mapping = _resolve_channel_names_for_mapping(
+            original_ch_names, channel_ids, ch_names_in_pos_mapping
         )
-        for idx, ch_name in enumerate(channel_names_for_pos_mapping):
+        # Fill the existing pos_arr for each channel
+        for i, ch_name in enumerate(ch_names_for_pos_mapping):
             if ch_name in pos_mapping:
-                pos = pos_mapping[ch_name]
-                pos_arr[idx, 0] = float(pos[0])
-                pos_arr[idx, 1] = float(pos[1])
-                pos_arr[idx, 2] = float(pos[2])
+                pos_arr[i] = pos_mapping[ch_name]
     else:
         # Fallback to montage-based extraction if no pos_mapping provided
         try:
             montage = recording_data.get_montage()
             if montage is not None:
-                positions = montage.get_positions()
-                ch_pos = positions.get("ch_pos") if positions is not None else None
-                if ch_pos is not None:
-                    for idx, ch_name in enumerate(channel_ids):
-                        if ch_name in ch_pos:
-                            coords = ch_pos[ch_name]
-                            pos_arr[idx, 0] = float(coords[0])
-                            pos_arr[idx, 1] = float(coords[1])
-                            pos_arr[idx, 2] = float(coords[2])
+                pos_mapping = montage.get_positions()["ch_pos"]
+                if pos_mapping is not None:
+                    # Fill pos_arr for each channel using montage-based positions if available
+                    for i, ch_name in enumerate(recording_data.ch_names):
+                        if ch_name in pos_mapping:
+                            pos_arr[i] = pos_mapping[ch_name]
         except Exception as e:
-            logging.warning(f"Could not extract channel positions: {e}")
+            logging.warning(f"Could not extract channel positions from montage: {e}")
 
     channel_fields = {
         "id": channel_ids,
@@ -430,7 +424,7 @@ def extract_channels(
     if is_bad_channel is not None:
         channel_fields["bad"] = is_bad_channel
 
-    if not np.all(np.isnan(pos_arr)):
+    if np.any(~np.isnan(pos_arr)):
         channel_fields["pos"] = pos_arr
 
     return ArrayDict(**channel_fields)
@@ -438,46 +432,46 @@ def extract_channels(
 
 def _resolve_channel_names_for_mapping(
     original_ch_names: np.ndarray,
-    remapped_ch_names: np.ndarray,
-    mapping_referenced_names: set,
+    renamed_ch_names: np.ndarray,
+    ch_names_in_mapping: set,
 ) -> np.ndarray:
     """Determine which channel names to use for mapping lookups (original or remapped).
 
     When a mapping is provided (e.g., type or position mapping), this helper decides
-    whether the mapping keys refer to original channel names or the remapped channel
+    whether the mapping keys refer to original channel names or the renamed channel
     names (after optional name mapping). The validation requires that all mapping keys
-    exist in either the original or remapped channel names (but not split between them).
+    exist in either the original or renamed channel names (but not split between them).
 
     Args:
         original_ch_names: Array of channel names from the raw recording.
-        remapped_ch_names: Array of channel names after optional name mapping.
-        mapping_referenced_names: Set of all channel names referenced in the mapping.
+        renamed_ch_names: Array of channel names after optional name mapping.
+        ch_names_in_mapping: Set of all channel names referenced in the mapping.
 
     Returns:
-        Array of channel names to use for mapping lookups (either original or remapped).
+        Array of channel names to use for mapping lookups (either original or renamed).
 
     Raises:
         ValueError: If mapping names are not consistent with either original or remapped channel names.
     """
-    renamed_ch_names_set = set(remapped_ch_names)
+    renamed_ch_names_set = set(renamed_ch_names)
     original_ch_names_set = set(original_ch_names)
     
-    # Check if all mapping references are in remapped channel names
-    all_in_remapped = mapping_referenced_names.issubset(renamed_ch_names_set)
+    # Check if all mapping references are in renamed channel names
+    all_in_renamed = ch_names_in_mapping.issubset(renamed_ch_names_set)
     
     # Check if all mapping references are in original names
-    all_in_original = mapping_referenced_names.issubset(original_ch_names_set)
+    all_in_original = ch_names_in_mapping.issubset(original_ch_names_set)
     
-    if all_in_remapped:
-        return remapped_ch_names
+    if all_in_renamed:
+        return renamed_ch_names
     elif all_in_original:
         return original_ch_names
     else:
         # Neither original nor remapped contains all mapping names - inconsistent
         raise ValueError(
             f"Channel name mismatch in the mapping keys must refer to either "
-            f"all original channel names or all remapped channel names, but not a mix. "
-            f"Mapping keys: {sorted(mapping_referenced_names)}. "
+            f"all original channel names or all renamed channel names, but not a mix. "
+            f"Mapping keys: {sorted(ch_names_in_mapping)}. "
             f"Renamed channel names: {sorted(renamed_ch_names_set)}. "
             f"Original channel names: {sorted(original_ch_names_set)}."
         )
