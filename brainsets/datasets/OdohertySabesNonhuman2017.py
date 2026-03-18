@@ -9,6 +9,9 @@ class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
     Motor cortex (M1 and S1) spiking activity and reaching kinematics from 2 monkeys
     performing random target reaching tasks with right hand.
 
+    To download and prepare this dataset, run
+    ``brainsets prepare odoherty_sabes_nonhuman_2017``
+
     **Tasks:** Random Target
 
     **Brain Regions:** M1, S1
@@ -31,7 +34,6 @@ class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
     *Nonhuman Primate Reaching with Multichannel Sensorimotor Cortex Electrophysiology.*
     `Zenodo Dataset <https://doi.org/10.5281/zenodo.788569>`_.
 
-    **Preprocessing:** Run ``brainsets prepare odoherty_sabes_nonhuman_2017`` before using this dataset.
     """
 
     def __init__(

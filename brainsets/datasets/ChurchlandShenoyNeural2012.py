@@ -9,6 +9,9 @@ class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
     Motor cortex (M1 and PMd) spiking activity and reaching kinematics from 2 monkeys
     performing center-out reaching tasks with right hand.
 
+    To download and prepare this dataset, run
+    ``brainsets prepare churchland_shenoy_neural_2012``
+
     **Tasks:** Center-Out
 
     **Brain Regions:** M1, PMd
@@ -33,7 +36,6 @@ class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
     `DANDI Archive Dataset <https://doi.org/10.48324/dandi.000070/0.251218.1714>`_,
     Version 0.251218.1714.
 
-    **Preprocessing:** Run ``brainsets prepare churchland_shenoy_neural_2012`` before using this dataset.
     """
 
     def __init__(

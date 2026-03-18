@@ -9,6 +9,9 @@ class PerichMillerPopulation2018(SpikingDatasetMixin, Dataset):
     Motor cortex (M1 and PMd) spiking activity and reaching kinematics from four macaques
     performing center-out and random target reaching tasks. The monkeys were trained to move a cursor from a central target to one of eight peripheral targets arranged in a circle.
 
+    To download and prepare this dataset, run
+    ``brainsets prepare perich_miller_population_2018``
+
     **Tasks:** Center-Out and Random Target
 
     **Brain Regions:** M1, PMd
@@ -26,8 +29,6 @@ class PerichMillerPopulation2018(SpikingDatasetMixin, Dataset):
     *Long-term recordings of motor and premotor cortical spiking activity during reaching in monkeys.*
     `Neuron <https://doi.org/10.1016/j.neuron.2018.09.030>`_.
     Dataset: `Dandiset 000688 <https://doi.org/10.48324/dandi.000688/0.250122.1735>`_.
-
-    **Preprocessing:** Run ``brainsets prepare perich_miller_population_2018`` before using this dataset.
     """
 
     def __init__(
