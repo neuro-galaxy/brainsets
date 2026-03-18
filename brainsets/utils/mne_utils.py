@@ -383,7 +383,8 @@ def extract_channels(
             dtype="U",
         )
 
-    # position extraction: prioritize pos_mapping, fall back to montage (x, y, z in mm)
+    # Optional: spatial position extraction; prioritize channels_pos_mapping
+    # if not provided, fall back to montage (x, y, z in mm)
     pos_arr = np.full((channel_count, 3), np.nan)
     if channels_pos_mapping is not None:
         original_ch_names = np.array(recording_data.ch_names, dtype="U")
@@ -411,7 +412,7 @@ def extract_channels(
         except Exception as e:
             logging.warning(f"Could not extract channel positions from montage: {e}")
 
-    # bad channel extraction
+    # Bad channel extraction
     bad_channels = recording_data.info.get("bads", [])
     if bad_channels:
         is_bad_channel = np.array(
@@ -420,7 +421,7 @@ def extract_channels(
     else:
         is_bad_channel = None
 
-    # channel fields extraction
+    # Extract channel fields
     channel_fields = {
         "id": channel_ids,
         "type": channel_types,
