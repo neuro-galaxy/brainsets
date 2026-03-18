@@ -833,9 +833,7 @@ class TestCheckMneAvailable:
         from brainsets.utils.bids_utils import fetch_eeg_recordings
 
         source = MagicMock()
-        with pytest.raises(
-            ImportError, match="fetch_eeg_recordings requires mne-bids"
-        ):
+        with pytest.raises(ImportError, match="fetch_eeg_recordings requires mne-bids"):
             fetch_eeg_recordings(source)
 
     @patch("brainsets.utils.bids_utils.MNE_BIDS_AVAILABLE", False)
@@ -890,9 +888,7 @@ class TestCheckMneAvailable:
         from brainsets.utils.bids_utils import load_json_sidecar
 
         bids_path = MagicMock()
-        with pytest.raises(
-            ImportError, match="load_json_sidecar requires mne-bids"
-        ):
+        with pytest.raises(ImportError, match="load_json_sidecar requires mne-bids"):
             load_json_sidecar(bids_path)
 
     @patch("brainsets.utils.bids_utils.MNE_BIDS_AVAILABLE", False)
@@ -903,7 +899,5 @@ class TestCheckMneAvailable:
         bids_root = MagicMock()
         recording_id = MagicMock()
         modality = MagicMock()
-        with pytest.raises(
-            ImportError, match="build_bids_path requires mne-bids"
-        ):
+        with pytest.raises(ImportError, match="build_bids_path requires mne-bids"):
             build_bids_path(bids_root, recording_id, modality)
