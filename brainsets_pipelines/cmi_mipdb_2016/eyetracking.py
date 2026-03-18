@@ -175,7 +175,7 @@ def build_et_index(et_dir: Path) -> list[dict]:
     return index
 
 
-def _lcs(seq_a: list[int], seq_b: list[int]) -> list[tuple[int, int]]:
+def _find_lcs(seq_a: list[int], seq_b: list[int]) -> list[tuple[int, int]]:
     """Return index pairs for one Longest Common Subsequence of *seq_a* and *seq_b*."""
     n, m = len(seq_a), len(seq_b)
     dp = [[0] * (m + 1) for _ in range(n + 1)]
@@ -207,9 +207,6 @@ def match_eeg_to_et(
 ) -> dict | None:
     """Match an EEG session to the best ET file using LCS on paradigm codes.
 
-    Handles exact matches, false starts (repeated paradigm code in one
-    modality), and subset events (one modality has fewer paradigms).
-
     Returns ``None`` if no match, or a dict with:
         ``base_id``, ``samples_path``, ``events_path`` — the matched ET file,
         ``segment_map`` — ``{eeg_paradigm_idx: segment_dict}`` mapping.
@@ -224,7 +221,7 @@ def match_eeg_to_et(
 
     for entry in et_index:
         et_codes = [int(seg["code"]) for seg in entry["segments"]]
-        pairs = _lcs(eeg_codes, et_codes)
+        pairs = _find_lcs(eeg_codes, et_codes)
         if len(pairs) > len(best_pairs):
             best_pairs = pairs
             best_entry = entry
@@ -242,6 +239,92 @@ def match_eeg_to_et(
         "events_path": best_entry["events_path"],
         "segment_map": segment_map,
     }
+
+
+def _align_paradigm_events(
+    eeg_events: list[tuple[float, int]],
+    et_events: list[tuple[int, int]],
+) -> list[tuple[float, int]]:
+    """Match EEG and ET event codes within one paradigm via LCS.
+
+    Returns a list of ``(eeg_timestamp_s, et_timestamp_us)`` anchor pairs.
+    """
+    eeg_codes = [code for _, code in eeg_events]
+    et_codes = [code for _, code in et_events]
+    pairs = _find_lcs(eeg_codes, et_codes)
+    return [(eeg_events[ei][0], et_events[ti][0]) for ei, ti in pairs]
+
+
+def _eeg_events_in_interval(
+    annotations: Interval, start_s: float, end_s: float
+) -> list[tuple[float, int]]:
+    """Slice ``annotations`` to ``[start_s, end_s)`` and return ``(timestamp_s, code)`` pairs."""
+    mask = (annotations.start >= start_s) & (annotations.start < end_s)
+    events: list[tuple[float, int]] = []
+    for idx in np.where(mask)[0]:
+        try:
+            code = int(float(str(annotations.description[idx]).strip()))
+        except (ValueError, TypeError):
+            continue
+        events.append((float(annotations.start[idx]), code))
+    return events
+
+
+def compute_et_to_eeg_time_transform(
+    matched: dict,
+    annotations: Interval,
+    paradigm_intervals: Interval,
+) -> tuple[float, float] | None:
+    """Fit a linear ET-to-EEG timestamp transform from all matched paradigms.
+    Finds the relationship between the ET and EEG timestamps for a given paradigm.
+
+    Returns ``(slope, intercept)`` or ``None`` if no anchors are found.
+    """
+    all_anchors: list[tuple[float, int]] = []
+    for paradigm_idx, seg in matched["segment_map"].items():
+        eeg_events = _eeg_events_in_interval(
+            annotations,
+            float(paradigm_intervals.start[paradigm_idx]),
+            float(paradigm_intervals.end[paradigm_idx]),
+        )
+        et_events = seg.get("all_events", [])
+        anchors = _align_paradigm_events(eeg_events, et_events)
+        if not anchors:
+            eeg_start = float(paradigm_intervals.start[paradigm_idx])
+            et_start = seg.get("paradigm_ts")
+            if et_start is not None:
+                anchors = [(eeg_start, int(et_start))]
+                logging.warning(
+                    "No sub-event matches for paradigm code %s; "
+                    "using paradigm-start anchor only.",
+                    seg.get("code"),
+                )
+        all_anchors.extend(anchors)
+
+    if not all_anchors:
+        return None
+
+    et_s = np.array([a[1] for a in all_anchors], dtype=np.float64) / 1_000_000.0
+    eeg_s = np.array([a[0] for a in all_anchors], dtype=np.float64)
+
+    if len(all_anchors) == 1:
+        slope = 1.0
+        intercept = float(eeg_s[0] - et_s[0])
+    else:
+        slope, intercept = np.polyfit(et_s, eeg_s, 1)
+        slope = float(slope)
+        intercept = float(intercept)
+        residuals = slope * et_s + intercept - eeg_s
+        rmse = float(np.sqrt(np.mean(residuals**2)))
+        logging.info(
+            "Matching EEG and ET timescales",
+            len(all_anchors),
+            slope,
+            intercept,
+            rmse,
+        )
+
+    return (slope, intercept)
 
 
 def find_paradigm_segment(
