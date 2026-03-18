@@ -54,10 +54,18 @@ def _parse_user_events_from_file(path: Path) -> list[tuple[int, str]]:
 def _identify_segments(user_events: list[tuple[int, str]]) -> list[dict]:
     """Identify paradigm segments bounded by ``start_eye_recording`` markers.
 
-    Returns list of dicts with keys: code, paradigm_ts, start_ts, end_ts.
+    Returns list of dicts with keys: code, paradigm_ts, start_ts, end_ts, all_events.
     ``end_ts`` is ``None`` for the last segment.
+    ``all_events`` is a list of ``(timestamp_us, code)`` for every numeric
+    ``# Message: <int>`` UserEvent within ``[start_ts, end_ts)``.
     """
     recording_starts = [ts for ts, desc in user_events if "start_eye_recording" in desc]
+
+    numeric_events: list[tuple[int, int]] = []
+    for ts, desc in user_events:
+        m = re.match(r"# Message: (\d+)$", desc)
+        if m:
+            numeric_events.append((ts, int(m.group(1))))
 
     segments = []
     for ts, desc in user_events:
@@ -78,12 +86,22 @@ def _identify_segments(user_events: list[tuple[int, str]]) -> list[dict]:
                 following_start = rs
                 break
 
+        start_ts = preceding_start if preceding_start else user_events[0][0]
+        end_ts = following_start
+
+        seg_events = [
+            (ev_ts, ev_code)
+            for ev_ts, ev_code in numeric_events
+            if ev_ts >= start_ts and (end_ts is None or ev_ts < end_ts)
+        ]
+
         segments.append(
             {
                 "code": code,
                 "paradigm_ts": ts,
-                "start_ts": (preceding_start if preceding_start else user_events[0][0]),
-                "end_ts": following_start,
+                "start_ts": start_ts,
+                "end_ts": end_ts,
+                "all_events": seg_events,
             }
         )
     return segments
