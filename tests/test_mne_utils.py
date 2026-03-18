@@ -240,13 +240,17 @@ class TestExtractChannels:
         assert hasattr(result, "coord")
         assert result.coord.shape == (3, 3)
         np.testing.assert_allclose(
-            result.coord, np.array([[0.1, 0.2, 0.3], [np.nan, np.nan, np.nan], [0.4, 0.5, 0.6]]), equal_nan=True
+            result.coord,
+            np.array([[0.1, 0.2, 0.3], [np.nan, np.nan, np.nan], [0.4, 0.5, 0.6]]),
+            equal_nan=True,
         )
 
     def test_name_mapping_applied(self):
         """Test that channel name mapping is correctly applied."""
         original_names = ["CH0", "CH1", "CH2"]
-        mock_raw = create_mock_raw(ch_names=original_names, n_channels=len(original_names))
+        mock_raw = create_mock_raw(
+            ch_names=original_names, n_channels=len(original_names)
+        )
         name_mapping = {"CH0": "NewCH0", "CH1": "NewCH1"}
 
         result = extract_channels(mock_raw, channels_name_mapping=name_mapping)
@@ -654,12 +658,8 @@ class TestConcatenateRecordings:
         meas_date = datetime.datetime(
             2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc
         )
-        mock_raw1 = create_mock_raw(
-            ch_names=["CH0", "CH1", "CH2"], meas_date=meas_date
-        )
-        mock_raw2 = create_mock_raw(
-            ch_names=["CH0", "CH1", "CH3"], meas_date=meas_date
-        )
+        mock_raw1 = create_mock_raw(ch_names=["CH0", "CH1", "CH2"], meas_date=meas_date)
+        mock_raw2 = create_mock_raw(ch_names=["CH0", "CH1", "CH3"], meas_date=meas_date)
 
         with pytest.raises(
             ValueError, match="Mismatch in channel names and/or order across recordings"
@@ -671,12 +671,8 @@ class TestConcatenateRecordings:
         meas_date = datetime.datetime(
             2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc
         )
-        mock_raw1 = create_mock_raw(
-            ch_names=["CH0", "CH1", "CH2"], meas_date=meas_date
-        )
-        mock_raw2 = create_mock_raw(
-            ch_names=["CH0", "CH1", "CH3"], meas_date=meas_date
-        )
+        mock_raw1 = create_mock_raw(ch_names=["CH0", "CH1", "CH2"], meas_date=meas_date)
+        mock_raw2 = create_mock_raw(ch_names=["CH0", "CH1", "CH3"], meas_date=meas_date)
         mock_raw1.copy.return_value = mock_raw1
         mock_raw2.copy.return_value = mock_raw2
 
@@ -692,12 +688,8 @@ class TestConcatenateRecordings:
         meas_date = datetime.datetime(
             2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc
         )
-        mock_raw1 = create_mock_raw(
-            ch_names=["CH0", "CH1", "CH2"], meas_date=meas_date
-        )
-        mock_raw2 = create_mock_raw(
-            ch_names=["CH0", "CH1", "CH3"], meas_date=meas_date
-        )
+        mock_raw1 = create_mock_raw(ch_names=["CH0", "CH1", "CH2"], meas_date=meas_date)
+        mock_raw2 = create_mock_raw(ch_names=["CH0", "CH1", "CH3"], meas_date=meas_date)
         mock_raw1.copy.return_value = mock_raw1
         mock_raw2.copy.return_value = mock_raw2
 
@@ -745,7 +737,9 @@ class TestConcatenateRecordings:
         mock_raw1 = create_mock_raw(meas_date=date1)
         mock_raw2 = create_mock_raw(meas_date=date2)
 
-        with pytest.raises(ValueError, match="Offset between recordings .* is greater than 1 hour"):
+        with pytest.raises(
+            ValueError, match="Offset between recordings .* is greater than 1 hour"
+        ):
             concatenate_recordings([mock_raw1, mock_raw2], on_offset="raise")
 
     def test_offset_greater_than_1_hour_warn_with_warn_policy(self):
@@ -760,7 +754,9 @@ class TestConcatenateRecordings:
 
         with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
             mock_concat.return_value = MagicMock()
-            with pytest.warns(UserWarning, match="Offset between recordings .* is greater than 1 hour"):
+            with pytest.warns(
+                UserWarning, match="Offset between recordings .* is greater than 1 hour"
+            ):
                 concatenate_recordings([mock_raw1, mock_raw2], on_offset="warn")
 
     def test_offset_greater_than_1_hour_ignore_with_ignore_policy(self):
@@ -790,7 +786,9 @@ class TestConcatenateRecordings:
 
         with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
             mock_concat.return_value = MagicMock()
-            with pytest.warns(UserWarning, match="Offset between recordings .* is greater than 1 hour"):
+            with pytest.warns(
+                UserWarning, match="Offset between recordings .* is greater than 1 hour"
+            ):
                 concatenate_recordings([mock_raw1, mock_raw2])
 
     def test_multiple_offsets_check_all_consecutive_pairs(self):
@@ -803,7 +801,9 @@ class TestConcatenateRecordings:
         mock_raw2 = create_mock_raw(meas_date=date2)
         mock_raw3 = create_mock_raw(meas_date=date3)
 
-        with pytest.raises(ValueError, match="Offset between recordings .* is greater than 1 hour"):
+        with pytest.raises(
+            ValueError, match="Offset between recordings .* is greater than 1 hour"
+        ):
             concatenate_recordings([mock_raw1, mock_raw2, mock_raw3], on_offset="raise")
 
     def test_concatenate_raws_called_with_copies(self):

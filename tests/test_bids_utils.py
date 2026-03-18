@@ -80,12 +80,22 @@ class TestFetchRecordings:
         """Create a mixed source with multiple modalities and file extensions."""
         return [
             # EEG recordings (valid + duplicate + unsupported sidecars)
-            Path("sub-01/ses-01/eeg/sub-01_ses-01_task-rest_acq-headband_run-01_eeg.edf"),
-            Path("sub-01/ses-01/eeg/sub-01_ses-01_task-rest_acq-headband_run-01_eeg.vhdr"),  # duplicate ID
-            Path("sub-01/ses-01/eeg/sub-01_ses-01_task-rest_acq-headband_run-01_eeg.vmrk"),
-            Path("sub-01/ses-01/eeg/sub-01_ses-01_task-rest_acq-headband_run-02_eeg.bdf"),
+            Path(
+                "sub-01/ses-01/eeg/sub-01_ses-01_task-rest_acq-headband_run-01_eeg.edf"
+            ),
+            Path(
+                "sub-01/ses-01/eeg/sub-01_ses-01_task-rest_acq-headband_run-01_eeg.vhdr"
+            ),  # duplicate ID
+            Path(
+                "sub-01/ses-01/eeg/sub-01_ses-01_task-rest_acq-headband_run-01_eeg.vmrk"
+            ),
+            Path(
+                "sub-01/ses-01/eeg/sub-01_ses-01_task-rest_acq-headband_run-02_eeg.bdf"
+            ),
             "sub-01/ses-01/eeg/sub-01_ses-01_task-rest_acq-headband_run-03_eeg.set",
-            Path("sub-01/ses-01/eeg/sub-01_ses-01_task-rest_acq-headband_run-03_eeg.json"),
+            Path(
+                "sub-01/ses-01/eeg/sub-01_ses-01_task-rest_acq-headband_run-03_eeg.json"
+            ),
             # iEEG recordings (valid + unsupported sidecars)
             Path("sub-02/ieeg/sub-02_task-visual_run-01_ieeg.nwb"),
             Path("sub-02/ieeg/sub-02_task-visual_run-02_ieeg.edf"),
@@ -107,7 +117,7 @@ class TestFetchRecordings:
         )
 
         assert len(recordings) == 2
-        
+
         rec1 = next(r for r in recordings if r["subject_id"] == "sub-01")
         assert rec1["recording_id"] == "sub-01_task-Sleep"
         assert rec1["task_id"] == "Sleep"
@@ -125,7 +135,9 @@ class TestFetchRecordings:
         with pytest.raises(TypeError):
             _fetch_recordings(None, EEG_EXTENSIONS, "eeg")
 
-    def test_filters_by_extension_modality_and_deduplicates(self, mixed_extension_paths):
+    def test_filters_by_extension_modality_and_deduplicates(
+        self, mixed_extension_paths
+    ):
         """Test extension filtering, modality filtering, and deduplication of recording IDs.
 
         The function should:
@@ -154,11 +166,19 @@ class TestFetchRecordings:
         assert recordings[0]["run_id"] == "01"
         assert recordings[1]["run_id"] == "02"
         assert recordings[2]["run_id"] == "03"
-        assert "sub-01_ses-01_task-rest_acq-headband_run-01_eeg.edf" in str(recordings[0]["fpath"])
-        assert "sub-01_ses-01_task-rest_acq-headband_run-02_eeg.bdf" in str(recordings[1]["fpath"])
-        assert "sub-01_ses-01_task-rest_acq-headband_run-03_eeg.set" in str(recordings[2]["fpath"])
+        assert "sub-01_ses-01_task-rest_acq-headband_run-01_eeg.edf" in str(
+            recordings[0]["fpath"]
+        )
+        assert "sub-01_ses-01_task-rest_acq-headband_run-02_eeg.bdf" in str(
+            recordings[1]["fpath"]
+        )
+        assert "sub-01_ses-01_task-rest_acq-headband_run-03_eeg.set" in str(
+            recordings[2]["fpath"]
+        )
 
-    def test_fetch_eeg_recordings_wrapper_returns_eeg_files(self, mixed_extension_paths):
+    def test_fetch_eeg_recordings_wrapper_returns_eeg_files(
+        self, mixed_extension_paths
+    ):
         """Test fetch_eeg_recordings wrapper function.
 
         Verifies that the wrapper correctly filters EEG extensions and populates
@@ -168,32 +188,47 @@ class TestFetchRecordings:
 
         assert len(recordings) == 3
 
-        assert recordings[0]["recording_id"] == "sub-01_ses-01_task-rest_acq-headband_run-01"
+        assert (
+            recordings[0]["recording_id"]
+            == "sub-01_ses-01_task-rest_acq-headband_run-01"
+        )
         assert recordings[0]["subject_id"] == "sub-01"
         assert recordings[0]["session_id"] == "ses-01"
         assert recordings[0]["task_id"] == "rest"
         assert recordings[0]["acquisition_id"] == "headband"
         assert recordings[0]["run_id"] == "01"
         assert recordings[0]["description_id"] is None
-        assert "sub-01_ses-01_task-rest_acq-headband_run-01_eeg.edf" in str(recordings[0]["fpath"])
+        assert "sub-01_ses-01_task-rest_acq-headband_run-01_eeg.edf" in str(
+            recordings[0]["fpath"]
+        )
 
-        assert recordings[1]["recording_id"] == "sub-01_ses-01_task-rest_acq-headband_run-02"
+        assert (
+            recordings[1]["recording_id"]
+            == "sub-01_ses-01_task-rest_acq-headband_run-02"
+        )
         assert recordings[1]["subject_id"] == "sub-01"
         assert recordings[1]["session_id"] == "ses-01"
         assert recordings[1]["task_id"] == "rest"
         assert recordings[1]["acquisition_id"] == "headband"
         assert recordings[1]["run_id"] == "02"
         assert recordings[1]["description_id"] is None
-        assert "sub-01_ses-01_task-rest_acq-headband_run-02_eeg.bdf" in str(recordings[1]["fpath"])
+        assert "sub-01_ses-01_task-rest_acq-headband_run-02_eeg.bdf" in str(
+            recordings[1]["fpath"]
+        )
 
-        assert recordings[2]["recording_id"] == "sub-01_ses-01_task-rest_acq-headband_run-03"
+        assert (
+            recordings[2]["recording_id"]
+            == "sub-01_ses-01_task-rest_acq-headband_run-03"
+        )
         assert recordings[2]["subject_id"] == "sub-01"
         assert recordings[2]["session_id"] == "ses-01"
         assert recordings[2]["task_id"] == "rest"
         assert recordings[2]["acquisition_id"] == "headband"
         assert recordings[2]["run_id"] == "03"
         assert recordings[2]["description_id"] is None
-        assert "sub-01_ses-01_task-rest_acq-headband_run-03_eeg.set" in str(recordings[2]["fpath"])
+        assert "sub-01_ses-01_task-rest_acq-headband_run-03_eeg.set" in str(
+            recordings[2]["fpath"]
+        )
 
     def test_fetch_ieeg_recordings_wrapper_filters_by_ieeg_extensions(
         self, mixed_extension_paths
@@ -359,7 +394,9 @@ class TestGroupRecordingsByEntity:
             },
         ]
 
-    def test_groups_multiple_runs_with_same_entities(self, recordings_with_multiple_runs):
+    def test_groups_multiple_runs_with_same_entities(
+        self, recordings_with_multiple_runs
+    ):
         """Test that recordings with different run IDs are grouped together.
 
         By default, the 'run' entity is excluded from grouping keys, so multiple runs
@@ -381,9 +418,7 @@ class TestGroupRecordingsByEntity:
         """Test that a recording without a run entity is kept as its own group."""
         grouped = group_recordings_by_entity([recording_with_description])
 
-        assert grouped == {
-            "sub-01_task-rest_desc-clean": [recording_with_description]
-        }
+        assert grouped == {"sub-01_task-rest_desc-clean": [recording_with_description]}
 
     def test_does_not_group_recordings_with_different_suffixes(
         self, recordings_with_different_descriptions
@@ -440,7 +475,9 @@ class TestGroupRecordingsByEntity:
 
         assert list(grouped.keys()) == ["sub-01_task-rest_desc-clean"]
 
-    def test_raises_value_error_for_unsupported_entity(self, recording_with_description):
+    def test_raises_value_error_for_unsupported_entity(
+        self, recording_with_description
+    ):
         """Test that an unsupported entity name raises ValueError."""
         with pytest.raises(ValueError, match="Unsupported BIDS entity"):
             group_recordings_by_entity(
@@ -493,9 +530,7 @@ class TestCheckRecordingFilesExist:
         The check should be case-insensitive for file extensions.
         """
         assert (
-            check_eeg_recording_files_exist(
-                bids_dir_with_eeg_file, "sub-01_task-rest"
-            )
+            check_eeg_recording_files_exist(bids_dir_with_eeg_file, "sub-01_task-rest")
             is True
         )
 
@@ -516,9 +551,7 @@ class TestCheckRecordingFilesExist:
         subject_dir.mkdir(parents=True)
         (subject_dir / "sub-01_task-rest_ieeg.nwb").write_text("dummy")
 
-        assert (
-            check_ieeg_recording_files_exist(bids_root, "sub-01_task-rest") is True
-        )
+        assert check_ieeg_recording_files_exist(bids_root, "sub-01_task-rest") is True
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
@@ -704,31 +737,26 @@ class TestGetSubjectInfo:
     def participants_df_with_age_sex(self):
         """Create a participants DataFrame with age and sex information."""
         return _make_participants_df(
-            "participant_id\tage\tsex\n"
-            "sub-01\t34\tF\n"
-            "sub-02\t28\tM\n"
+            "participant_id\tage\tsex\n" "sub-01\t34\tF\n" "sub-02\t28\tM\n"
         )
 
     @pytest.fixture
     def participants_df_with_na_values(self):
         """Create a participants DataFrame with NA/N/A values."""
         return _make_participants_df(
-            "participant_id\tage\tsex\n"
-            "sub-01\tn/a\tN/A\n"
-            "sub-02\t28\tM\n"
+            "participant_id\tage\tsex\n" "sub-01\tn/a\tN/A\n" "sub-02\t28\tM\n"
         )
 
     @pytest.fixture
     def participants_df_missing_age_sex(self):
         """Create a participants DataFrame without age and sex columns."""
-        return _make_participants_df(
-            "participant_id\thandedness\n"
-            "sub-01\tright\n"
-        )
+        return _make_participants_df("participant_id\thandedness\n" "sub-01\tright\n")
 
     def test_returns_age_and_sex_when_available(self, participants_df_with_age_sex):
         """Test that age and sex are correctly returned when available in participants.tsv."""
-        subject_info = get_subject_info("sub-01", participants_data=participants_df_with_age_sex)
+        subject_info = get_subject_info(
+            "sub-01", participants_data=participants_df_with_age_sex
+        )
         assert subject_info == {"age": 34, "sex": "F"}
 
     def test_returns_none_for_missing_subject(self, participants_df_with_age_sex):
@@ -740,7 +768,9 @@ class TestGetSubjectInfo:
 
     def test_normalizes_na_values_to_none(self, participants_df_with_na_values):
         """Test that NA/N/A values in participants.tsv are normalized to None."""
-        subject_info = get_subject_info("sub-01", participants_data=participants_df_with_na_values)
+        subject_info = get_subject_info(
+            "sub-01", participants_data=participants_df_with_na_values
+        )
         assert subject_info == {"age": None, "sex": None}
 
     def test_returns_none_when_required_columns_missing(
@@ -760,12 +790,16 @@ class TestGetSubjectInfo:
         subject_info = get_subject_info("sub-01", participants_data=None)
         assert subject_info == {"age": None, "sex": None}
 
-    def test_handles_partial_data_in_participants_tsv(self, participants_df_with_age_sex):
+    def test_handles_partial_data_in_participants_tsv(
+        self, participants_df_with_age_sex
+    ):
         """Test that get_subject_info correctly returns available data.
 
         When a subject exists with age and sex, both should be returned as expected values.
         """
-        subject_info = get_subject_info("sub-01", participants_data=participants_df_with_age_sex)
+        subject_info = get_subject_info(
+            "sub-01", participants_data=participants_df_with_age_sex
+        )
         assert subject_info["age"] == 34
         assert subject_info["sex"] == "F"
 

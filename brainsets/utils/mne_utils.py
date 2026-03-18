@@ -99,7 +99,7 @@ def concatenate_recordings(
         raise ValueError(
             f"on_mismatch must be one of {valid_policies}, got '{on_mismatch}'"
         )
-    
+
     if on_offset not in valid_policies:
         raise ValueError(
             f"on_offset must be one of {valid_policies}, got '{on_offset}'"
@@ -157,7 +157,9 @@ def concatenate_recordings(
     # Validate that offset between consecutive recordings is within 1 hour
     if on_offset == "raise":
         # More efficient: use zip to pair consecutive elements, avoid repeated indexing
-        for (idx1, _, date1), (idx2, _, date2) in zip(sorted_recordings, sorted_recordings[1:]):
+        for (idx1, _, date1), (idx2, _, date2) in zip(
+            sorted_recordings, sorted_recordings[1:]
+        ):
             offset = (date2 - date1).total_seconds()
             if offset > 3600:
                 raise ValueError(
@@ -165,7 +167,9 @@ def concatenate_recordings(
                 )
     elif on_offset == "warn":
         # A more efficient way: use zip to iterate through consecutive pairs directly.
-        for (idx1, _, date1), (idx2, _, date2) in zip(sorted_recordings, sorted_recordings[1:]):
+        for (idx1, _, date1), (idx2, _, date2) in zip(
+            sorted_recordings, sorted_recordings[1:]
+        ):
             offset = (date2 - date1).total_seconds()
             if offset > 3600:
                 logging.warning(
@@ -380,7 +384,9 @@ def extract_channels(
     # bad channel extraction
     bad_channels = recording_data.info.get("bads", [])
     if bad_channels:
-        is_bad_channel = np.array([ch in bad_channels for ch in channel_ids], dtype=bool)
+        is_bad_channel = np.array(
+            [ch in bad_channels for ch in channel_ids], dtype=bool
+        )
     else:
         is_bad_channel = None
 
