@@ -12,7 +12,7 @@ from temporaldata import (
     Interval,
     RegularTimeSeries,
 )
-import logging
+import warnings
 
 try:
     import mne
@@ -50,7 +50,7 @@ def extract_measurement_date(
     _check_mne_available("extract_measurement_date")
     if recording_data.info["meas_date"] is not None:
         return recording_data.info["meas_date"]
-    logging.warning("No measurement date found, using Unix epoch as placeholder")
+    warnings.warn("No measurement date found, using Unix epoch as placeholder")
     return datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 
 
@@ -155,7 +155,7 @@ def concatenate_recordings(
         if on_mismatch == "raise":
             raise ValueError(full_message)
         elif on_mismatch == "warn":
-            logging.warning(full_message)
+            warnings.warn(full_message)
 
     # Sort recordings by measurement date
     indexed_recordings = [
@@ -184,7 +184,7 @@ def concatenate_recordings(
         ):
             offset = (date2 - date1).total_seconds()
             if offset > 3600:
-                logging.warning(
+                warnings.warn(
                     f"Offset between recordings {idx1} and {idx2} is greater than 1 hour: {offset} seconds"
                 )
 
@@ -383,7 +383,7 @@ def extract_channels(
             dtype="U",
         )
 
-    # Optional: spatial position extraction; prioritize channels_pos_mapping
+    # Spatial position extraction; prioritize channels_pos_mapping
     # if not provided, fall back to montage (x, y, z in mm)
     pos_arr = np.full((channel_count, 3), np.nan)
     if channels_pos_mapping is not None:
@@ -410,7 +410,7 @@ def extract_channels(
                         if ch_name in ch_pos_mapping:
                             pos_arr[i] = ch_pos_mapping[ch_name]
         except Exception as e:
-            logging.warning(f"Could not extract channel positions from montage: {e}")
+            warnings.warn(f"Could not extract channel positions from montage: {e}")
 
     # Bad channel extraction
     bad_channels = recording_data.info.get("bads", [])

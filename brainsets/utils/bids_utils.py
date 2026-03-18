@@ -8,7 +8,7 @@ For more information about BIDS, see the BIDS specification: https://bids-specif
 from collections import defaultdict
 from typing import Optional
 from pathlib import Path
-import logging
+import warnings
 import re
 import json
 import pandas as pd
@@ -304,7 +304,7 @@ def load_participants_tsv(bids_root: Path | str) -> Optional[pd.DataFrame]:
     )
 
     if "participant_id" not in df.columns:
-        logging.warning(
+        warnings.warn(
             f"No participant_id column found in participants.tsv file in BIDS root directory {bids_root}. "
             "Returning None."
         )
@@ -333,14 +333,14 @@ def get_subject_info(
         dict: {'age': value or None, 'sex': value or None}
     """
     if participants_data is None:
-        logging.warning(
+        warnings.warn(
             "The participants.tsv file was not provided. No subject information can be retrieved. "
             "Returning None for age and sex. Please provide a valid participants.tsv file."
         )
         return {"age": None, "sex": None}
 
     if subject_id not in participants_data.index:
-        logging.warning(
+        warnings.warn(
             f"Subject {subject_id} not found in participants.tsv file. "
             "Setting age and sex to None."
         )
@@ -350,7 +350,7 @@ def get_subject_info(
 
     age = row.get("age", None)
     if pd.isna(age):
-        logging.warning(
+        warnings.warn(
             f"Age for subject {subject_id} is NaN in participants.tsv file. "
             "Setting age to None."
         )
@@ -358,7 +358,7 @@ def get_subject_info(
 
     sex = row.get("sex", None)
     if pd.isna(sex):
-        logging.warning(
+        warnings.warn(
             f"Sex for subject {subject_id} is NaN in participants.tsv file. "
             "Setting sex to None."
         )
