@@ -10,6 +10,7 @@ class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
     performing center-out reaching tasks with right hand.
 
     .. admonition:: Preprocessing
+
         To download and prepare this dataset, run
         ``brainsets prepare churchland_shenoy_neural_2012``.
 
