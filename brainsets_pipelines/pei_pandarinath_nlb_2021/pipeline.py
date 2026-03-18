@@ -47,6 +47,7 @@ class Pipeline(BrainsetPipeline):
             for m in manifest_item:
                 path = m["path"]
                 m["id"] = f"{task}_test" if "test" in path else f"{task}_train"
+                m["dandiset_id"] = dandiset_id
             manifest_list.extend(manifest_item)
 
         return pd.DataFrame(manifest_list).set_index("id")
@@ -60,22 +61,23 @@ class Pipeline(BrainsetPipeline):
             self.raw_dir,
             overwrite=self.args.redownload,
         )
-        return fpath
+        return {"fpath": fpath, "dandiset_id": manifest_item.dandiset_id}
 
-    def process(self, fpath):
+    def process(self, download_output):
         self.processed_dir.mkdir(exist_ok=True, parents=True)
 
         # intiantiate a DatasetBuilder which provides utilities for processing data
         brainset_description = BrainsetDescription(
             id=self.brainset_id,
-            origin_version="dandi/000140/0.220113.0408",
+            origin_version=download_output["dandiset_id"],
             derived_version="1.0.0",
-            source="https://dandiarchive.org/dandiset/000140",
+            source=f"https://dandiarchive.org/dandiset/{download_output['dandiset_id']}",
             description="This dataset contains sorted unit spiking times and behavioral"
             " data from a macaque performing a delayed reaching task. The experimental task"
             " was a center-out reaching task with obstructing barriers forming a maze,"
             " resulting in a variety of straight and curved reaches.",
         )
+        fpath = download_output["fpath"]
 
         # open file
         self.update_status("Loading NWB")
