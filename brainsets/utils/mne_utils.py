@@ -70,12 +70,25 @@ def concatenate_recordings(
     It then normalizes each recording's timeline so that its first sample
     corresponds to its measurement date, then concatenates them.
 
+    Offset validation:
+        The function checks for temporal offsets in the measurement dates of the recordings.
+        If the measurement dates are separated by notable amounts of time, this can indicate
+        temporal discontinuity. The `on_offset` parameter controls how such offsets are handled:
+            - "raise": raise ValueError if an offset is detected,
+            - "warn": issue a warning and continue (default),
+            - "ignore": silently continue.
+        This is useful to ensure recordings are truly continuous or to be notified about gaps between sessions.
+
     Args:
         recordings: List of MNE Raw objects to concatenate.
         on_mismatch: How to handle mismatches in measurement date or channels.
             - "raise": raise ValueError on any mismatch (default),
             - "warn": issue a warning and continue,
             - "ignore": silently continue with mismatches.
+        on_offset: How to handle temporal offsets between recordings' measurement dates.
+            - "raise": raise ValueError if offsets are detected,
+            - "warn": issue a warning and continue (default),
+            - "ignore": silently continue with offsets.
 
     Returns:
         An MNE Raw object containing the concatenated recordings in temporal order.
@@ -83,7 +96,7 @@ def concatenate_recordings(
     Raises:
         ImportError: If MNE is not installed.
         ValueError: If recordings is empty, contains non-Raw objects,
-            on_mismatch is invalid, or (if on_mismatch="raise") mismatches are detected.
+            on_mismatch or on_offset is invalid, or (if set to "raise") mismatches or time offsets are detected.
     """
     _check_mne_available("concatenate_recordings")
 
