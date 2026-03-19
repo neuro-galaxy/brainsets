@@ -306,18 +306,15 @@ def match_eeg_to_et(
     }
 
 
-def _align_paradigm_events(
+def _match_eeg_to_et_event_timestamps(
     eeg_events: list[tuple[float, int]],
     et_events: list[tuple[int, int]],
 ) -> list[tuple[float, int]]:
-    """Match EEG and ET event codes within one paradigm via LCS.
+    """Match EEG and ET event timestamps within one matched paradigm.
 
     Returns a list of ``(eeg_timestamp_s, et_timestamp_us)`` anchor pairs.
     """
-    eeg_codes = [code for _, code in eeg_events]
-    et_codes = [code for _, code in et_events]
-    pairs = _find_lcs(eeg_codes, et_codes)
-    return [(eeg_events[ei][0], et_events[ti][0]) for ei, ti in pairs]
+    return [(eeg_events[i][0], et_events[i][0]) for i in range(len(eeg_events))]
 
 
 def _eeg_events_in_interval(
@@ -354,7 +351,7 @@ def compute_et_to_eeg_time_transform(
             float(paradigm_intervals.end[paradigm_idx]),
         )
         et_events = seg.get("all_events", [])
-        anchors = _align_paradigm_events(eeg_events, et_events)
+        anchors = _match_eeg_to_et_event_timestamps(eeg_events, et_events)
         if not anchors:
             eeg_start = float(paradigm_intervals.start[paradigm_idx])
             et_start = seg.get("paradigm_ts")
