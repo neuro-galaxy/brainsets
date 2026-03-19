@@ -36,6 +36,13 @@ class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
     *Nonhuman Primate Reaching with Multichannel Sensorimotor Cortex Electrophysiology.*
     `Zenodo Dataset <https://doi.org/10.5281/zenodo.788569>`_.
 
+    Args:
+        root (str): Root directory for the dataset.
+        recording_ids (list[str], optional): List of recording IDs to load.
+        transform (Callable, optional): Data transformation to apply.
+        split_type (str, optional): Which split type to use. Defaults to "cursor_velocity".
+        dirname (str, optional): Subdirectory for the dataset. Defaults to "odoherty_sabes_nonhuman_2017".
+
     """
 
     def __init__(

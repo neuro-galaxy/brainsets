@@ -36,6 +36,13 @@ class FlintSlutzkyAccurate2012(SpikingDatasetMixin, Dataset):
     *Accurate decoding of reaching movements from field potentials in the absence of spikes.*
     `Journal of Neural Engineering <https://doi.org/10.1088/1741-2560/9/4/046006>`_, 9(4), 046006.
 
+    Args:
+        root (str): Root directory for the dataset.
+        recording_ids (list[str], optional): List of recording IDs to load.
+        transform (Callable, optional): Data transformation to apply.
+        split_type (str, optional): Which split type to use. Defaults to "hand_velocity".
+        dirname (str, optional): Subdirectory for the dataset. Defaults to "flint_slutzky_accurate_2012".
+
     """
 
     def __init__(

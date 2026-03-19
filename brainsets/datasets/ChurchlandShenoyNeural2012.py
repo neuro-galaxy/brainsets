@@ -38,6 +38,13 @@ class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
     `DANDI Archive Dataset <https://doi.org/10.48324/dandi.000070/0.251218.1714>`_,
     Version 0.251218.1714.
 
+    Args:
+        root (str): Root directory for the dataset.
+        recording_ids (list[str], optional): List of recording IDs to load.
+        transform (Callable, optional): Data transformation to apply.
+        split_type (str, optional): Which split type to use. Defaults to "cursor_velocity".
+        dirname (str, optional): Subdirectory for the dataset. Defaults to "churchland_shenoy_neural_2012".
+
     """
 
     def __init__(
