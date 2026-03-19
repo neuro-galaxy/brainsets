@@ -1,6 +1,9 @@
 # /// brainset-pipeline
 # python-version = "3.11"
-# dependencies = ["dandi==0.74.0"]
+# dependencies = [
+# "dandi==0.74.0",
+# "temporaldata@git+https://github.com/neuro-galaxy/temporaldata@main"
+# ]
 # ///
 
 from argparse import ArgumentParser
@@ -10,6 +13,7 @@ import h5py
 from pynwb import NWBHDF5IO
 from temporaldata import Data, IrregularTimeSeries, Interval
 import pandas as pd
+import numpy as np
 
 from brainsets.descriptions import (
     BrainsetDescription,
@@ -34,20 +38,26 @@ parser.add_argument("--reprocess", action="store_true")
 
 class Pipeline(BrainsetPipeline):
     brainset_id = "pei_pandarinath_nlb_2021"
-    dandiset_id = {"jenkins_maze": "DANDI:000140/0.220113.0408", "indy_RTT": "DANDI:000129/0.241017.1444"}
+    dandiset_id = {
+        "jenkins_maze": "DANDI:000140/0.220113.0408",
+        "indy_RTT": "DANDI:000129/0.241017.1444",
+    }
     parser = parser
 
     @classmethod
     def get_manifest(cls, raw_dir, args) -> pd.DataFrame:
         manifest_list = []
-        for task, dandiset_id in cls.dandiset_id.items():            
+        for task, dandiset_id in cls.dandiset_id.items():
             asset_list = get_nwb_asset_list(dandiset_id)
-            manifest_item = [{"path": x.path, "url": x.download_url} for x in asset_list]
+            manifest_item = [
+                {"path": x.path, "url": x.download_url} for x in asset_list
+            ]
 
             for m in manifest_item:
                 path = m["path"]
                 m["id"] = f"{task}_test" if "test" in path else f"{task}_train"
                 m["dandiset_id"] = dandiset_id
+                m["task"] = task.split("_")[1]
             manifest_list.extend(manifest_item)
 
         return pd.DataFrame(manifest_list).set_index("id")
@@ -61,7 +71,7 @@ class Pipeline(BrainsetPipeline):
             self.raw_dir,
             overwrite=self.args.redownload,
         )
-        return {"fpath": fpath, "dandiset_id": manifest_item.dandiset_id}
+        return {"fpath": fpath, "manifest_item": manifest_item}
 
     def process(self, download_output):
         self.processed_dir.mkdir(exist_ok=True, parents=True)
@@ -69,16 +79,16 @@ class Pipeline(BrainsetPipeline):
         # intiantiate a DatasetBuilder which provides utilities for processing data
         brainset_description = BrainsetDescription(
             id=self.brainset_id,
-            origin_version=download_output["dandiset_id"],
+            origin_version=download_output["manifest_item"].dandiset_id,
             derived_version="1.0.0",
-            source=f"https://dandiarchive.org/dandiset/{download_output['dandiset_id']}",
+            source=f"https://dandiarchive.org/dandiset/{download_output['manifest_item'].dandiset_id}",
             description="This dataset contains sorted unit spiking times and behavioral"
             " data from a macaque performing a delayed reaching task. The experimental task"
             " was a center-out reaching task with obstructing barriers forming a maze,"
             " resulting in a variety of straight and curved reaches.",
         )
         fpath = download_output["fpath"]
-
+        task = download_output["manifest_item"].task
         # open file
         self.update_status("Loading NWB")
         io = NWBHDF5IO(fpath, "r")
@@ -93,7 +103,7 @@ class Pipeline(BrainsetPipeline):
         # extract experiment metadata
         recording_date = nwbfile.session_start_time.strftime("%Y%m%d")
         device_id = f"{subject.id}_{recording_date}"
-        session_id = f"{subject.id}_maze"
+        session_id = f"{subject.id}_{task}"
         if "test" in str(fpath):
             session_id += "_test"
         else:
@@ -145,13 +155,17 @@ class Pipeline(BrainsetPipeline):
         if not "test" in str(fpath):
             self.update_status("Creating Splits")
             # extract behavior
-            data.hand, data.eye = extract_behavior(nwbfile, trials)
-
-            # report accuracy only on the evaluation intervals
-            data.nlb_eval_intervals = Interval(
-                start=trials.move_onset_time - 0.05,
-                end=trials.move_onset_time + 0.65,
-            )
+            if task == "jenkins_maze":
+                data.hand, data.eye = extract_behavior(nwbfile, trials, task)
+                # report accuracy only on the evaluation intervals
+                data.nlb_eval_intervals = Interval(
+                    start=trials.move_onset_time - 0.05,
+                    end=trials.move_onset_time + 0.65,
+                )
+            elif task == "indy_RTT":
+                data.cursor, data.finger, data.target = extract_behavior(
+                    nwbfile, trials, task
+                )
 
             # split and register trials into train, validation and test
             train_trials, valid_trials = trials.select_by_mask(
@@ -184,7 +198,10 @@ def extract_trials(nwbfile):
             "split": "split_indicator",
         }
     )
+
     trials = Interval.from_dataframe(trial_table)
+    trials.end = np.round(trials.end, 1)
+    trials.start = np.round(trials.start, 1)
 
     # the dataset has pre-defined train/valid splits, we will use the valid split
     # as our test
@@ -199,7 +216,7 @@ def extract_trials(nwbfile):
     return trials
 
 
-def extract_behavior(nwbfile, trials):
+def extract_behavior(nwbfile, trials, task):
     """Extract behavior from the NWB file.
 
     ..note::
@@ -208,22 +225,51 @@ def extract_behavior(nwbfile, trials):
         depending on the sequence. # todo investigate more
     """
     # cursor, hand and eye share the same timestamps (verified)
-    timestamps = nwbfile.processing["behavior"]["hand_vel"].timestamps[:]
-    hand_pos = nwbfile.processing["behavior"]["hand_pos"].data[:]
-    hand_vel = nwbfile.processing["behavior"]["hand_vel"].data[:]
-    eye_pos = nwbfile.processing["behavior"]["eye_pos"].data[:]
+    if task == "jenkins_maze":
+        timestamps = nwbfile.processing["behavior"]["hand_vel"].timestamps[:]
+        hand_pos = nwbfile.processing["behavior"]["hand_pos"].data[:]
+        hand_vel = nwbfile.processing["behavior"]["hand_vel"].data[:]
+        eye_pos = nwbfile.processing["behavior"]["eye_pos"].data[:]
 
-    hand = IrregularTimeSeries(
-        timestamps=timestamps,
-        pos=hand_pos,
-        vel=hand_vel,
-        domain="auto",
-    )
+        hand = IrregularTimeSeries(
+            timestamps=timestamps,
+            pos=hand_pos,
+            vel=hand_vel,
+            domain="auto",
+        )
 
-    eye = IrregularTimeSeries(
-        timestamps=timestamps,
-        pos=eye_pos,
-        domain="auto",
-    )
+        eye = IrregularTimeSeries(
+            timestamps=timestamps,
+            pos=eye_pos,
+            domain="auto",
+        )
 
-    return hand, eye
+        return hand, eye
+
+    elif task == "indy_RTT":
+        timestamps = nwbfile.processing["behavior"]["cursor_pos"].timestamps[:]
+        cursor_pos = nwbfile.processing["behavior"]["cursor_pos"].data[:]
+        finger_pos = nwbfile.processing["behavior"]["finger_pos"].data[:]
+        finger_vel = nwbfile.processing["behavior"]["finger_vel"].data[:]
+        target_pos = nwbfile.processing["behavior"]["target_pos"].data[:]
+
+        cursor = IrregularTimeSeries(
+            timestamps=timestamps,
+            pos=cursor_pos,
+            domain="auto",
+        )
+
+        finger = IrregularTimeSeries(
+            timestamps=timestamps,
+            pos=finger_pos,
+            vel=finger_vel,
+            domain="auto",
+        )
+
+        target = IrregularTimeSeries(
+            timestamps=timestamps,
+            pos=target_pos,
+            domain="auto",
+        )
+
+        return cursor, finger, target
