@@ -155,7 +155,7 @@ class Pipeline(BrainsetPipeline):
         if not "test" in str(fpath):
             self.update_status("Creating Splits")
             # extract behavior
-            if task == "jenkins_maze":
+            if task == "maze":
                 data.hand, data.eye = extract_behavior_maze(nwbfile, trials)
                 # report accuracy only on the evaluation intervals
                 data.nlb_eval_intervals = Interval(
@@ -172,7 +172,7 @@ class Pipeline(BrainsetPipeline):
                 data.set_valid_domain(valid_trials)
                 data.set_test_domain(test_trials)
 
-            elif task == "indy_RTT":
+            elif task == "RTT":
                 data.cursor, data.finger, data.target = extract_behavior_rtt(
                     nwbfile, trials
                 )
