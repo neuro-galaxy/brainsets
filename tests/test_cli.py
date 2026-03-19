@@ -54,7 +54,10 @@ class TestPrepareCommand:
             assert command[8] == "--with-editable"
             assert ("brainsets" in command[9]) and ("file://" in command[9])
             assert command[10] == "--with"
-            assert command[11] == "dandi==0.74.0"
+            assert (
+                command[11]
+                == "dandi==0.74.0,temporaldata@git+https://github.com/neuro-galaxy/temporaldata@main"
+            )
             assert command[12] == "python"
             assert command[13] == "-m"
             assert command[14] == "brainsets.runner"
