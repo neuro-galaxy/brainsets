@@ -162,20 +162,20 @@ class Pipeline(BrainsetPipeline):
                     start=trials.move_onset_time - 0.05,
                     end=trials.move_onset_time + 0.65,
                 )
+                # split and register trials into train, validation and test
+                train_trials, valid_trials = trials.select_by_mask(
+                    trials.train_mask_nwb
+                ).split([0.8, 0.2], shuffle=True, random_seed=42)
+                test_trials = trials.select_by_mask(trials.test_mask_nwb)
+
+                data.set_train_domain(train_trials)
+                data.set_valid_domain(valid_trials)
+                data.set_test_domain(test_trials)
+
             elif task == "indy_RTT":
                 data.cursor, data.finger, data.target = extract_behavior_rtt(
                     nwbfile, trials
                 )
-
-            # split and register trials into train, validation and test
-            train_trials, valid_trials = trials.select_by_mask(
-                trials.train_mask_nwb
-            ).split([0.8, 0.2], shuffle=True, random_seed=42)
-            test_trials = trials.select_by_mask(trials.test_mask_nwb)
-
-            data.set_train_domain(train_trials)
-            data.set_valid_domain(valid_trials)
-            data.set_test_domain(test_trials)
 
         # close file
         io.close()
