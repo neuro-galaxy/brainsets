@@ -77,7 +77,7 @@ class Pipeline(BrainsetPipeline):
         brainset_description = BrainsetDescription(
             id=self.brainset_id,
             origin_version=download_output["manifest_item"].dandiset_id,
-            derived_version="1.0.0",
+            derived_version="2.0.0",
             source=f"https://dandiarchive.org/dandiset/{download_output['manifest_item'].dandiset_id}",
             description="This dataset contains sorted unit spiking times and behavioral"
             " data from a macaque performing a delayed reaching task. The experimental task"
