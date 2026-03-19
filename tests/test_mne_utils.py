@@ -602,6 +602,7 @@ class TestExtractPsgSignal:
 class TestConcatenateRecordings:
     """Test concatenation of multiple MNE Raw objects."""
 
+    # ----------- Basic input validation tests -----------
     def test_empty_list_raises_error(self):
         """Test that ValueError is raised for empty recordings list."""
         with pytest.raises(ValueError, match="Recordings list cannot be empty"):
@@ -618,12 +619,25 @@ class TestConcatenateRecordings:
         with pytest.raises(ValueError, match="is not an MNE Raw-like object"):
             concatenate_recordings([{"not": "raw"}])
 
-    def test_invalid_policy_raises_error(self):
+    def test_invalid_on_mismatch_policy_raises_error(self):
         """Test that ValueError is raised for invalid on_mismatch policy."""
         mock_raw = create_mock_raw()
         with pytest.raises(ValueError, match="on_mismatch must be one of"):
             concatenate_recordings([mock_raw], on_mismatch="invalid")
 
+    def test_invalid_on_offset_policy_raises_error(self):
+        """Test that ValueError is raised for invalid on_offset policy."""
+        mock_raw = create_mock_raw()
+        with pytest.raises(ValueError, match="on_offset must be one of"):
+            concatenate_recordings([mock_raw], on_offset="invalid")
+
+    def test_invalid_on_missing_meas_date_policy_raises_error(self):
+        """Test that ValueError is raised for invalid on_missing_meas_date policy."""
+        mock_raw = create_mock_raw()
+        with pytest.raises(ValueError, match="on_missing_meas_date must be one of"):
+            concatenate_recordings([mock_raw], on_missing_meas_date="invalid")
+
+    # ----------- Concatenation happy-paths and basic behavior -----------
     def test_single_recording_concatenates(self):
         """Test that a single recording can be concatenated."""
         meas_date = datetime.datetime(
@@ -681,6 +695,119 @@ class TestConcatenateRecordings:
             assert call_args[1] == mock_raw1
             assert call_args[2] == mock_raw2
 
+    # ----------- Channel name mismatch behavior -----------
+    def test_different_channel_names_raise_error(self):
+        """Test that ValueError is raised for different channel names with raise policy."""
+        meas_date = datetime.datetime(
+            2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc
+        )
+        mock_raw1 = create_mock_raw(ch_names=["CH0", "CH1", "CH2"], meas_date=meas_date)
+        mock_raw2 = create_mock_raw(ch_names=["CH0", "CH1", "CH3"], meas_date=meas_date)
+
+        with pytest.raises(
+            ValueError, match="Mismatch in channel names and/or order across recordings"
+        ):
+            concatenate_recordings([mock_raw1, mock_raw2])
+
+    # ----------- Handling missing measurement dates -----------
+    def test_missing_meas_date_raise_with_raise_policy(self):
+        """Test that ValueError is raised when any meas_date is None with raise policy."""
+        date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        mock_raw1 = create_mock_raw(meas_date=date1)
+        mock_raw2 = create_mock_raw(meas_date=None)
+
+        with pytest.raises(
+            ValueError, match="One or more recordings have missing measurement dates"
+        ):
+            concatenate_recordings([mock_raw1, mock_raw2], on_missing_meas_date="raise")
+
+    def test_missing_meas_date_warn_with_warn_policy(self):
+        """Test that warning is issued when any meas_date is None with warn policy."""
+        date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        mock_raw1 = create_mock_raw(meas_date=date1)
+        mock_raw2 = create_mock_raw(meas_date=None)
+        mock_raw1.copy.return_value = mock_raw1
+        mock_raw2.copy.return_value = mock_raw2
+
+        with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
+            mock_concat.return_value = MagicMock()
+            with pytest.warns(
+                UserWarning,
+                match="One or more recordings have missing measurement dates",
+            ):
+                result = concatenate_recordings(
+                    [mock_raw1, mock_raw2], on_missing_meas_date="warn"
+                )
+            mock_concat.assert_called_once()
+
+    def test_missing_meas_date_ignore_with_ignore_policy(self):
+        """Test that missing meas_date is silently ignored with ignore policy."""
+        date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        mock_raw1 = create_mock_raw(meas_date=date1)
+        mock_raw2 = create_mock_raw(meas_date=None)
+        mock_raw1.copy.return_value = mock_raw1
+        mock_raw2.copy.return_value = mock_raw2
+
+        with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
+            mock_concat.return_value = MagicMock()
+            result = concatenate_recordings(
+                [mock_raw1, mock_raw2], on_missing_meas_date="ignore"
+            )
+            mock_concat.assert_called_once()
+
+    def test_default_on_missing_meas_date_policy_is_warn(self):
+        """Test that default on_missing_meas_date policy is 'warn'."""
+        date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+        mock_raw1 = create_mock_raw(meas_date=date1)
+        mock_raw2 = create_mock_raw(meas_date=None)
+        mock_raw1.copy.return_value = mock_raw1
+        mock_raw2.copy.return_value = mock_raw2
+
+        with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
+            mock_concat.return_value = MagicMock()
+            with pytest.warns(
+                UserWarning,
+                match="One or more recordings have missing measurement dates",
+            ):
+                result = concatenate_recordings([mock_raw1, mock_raw2])
+            mock_concat.assert_called_once()
+
+    # ----------- Timezone normalization/handling -----------
+    def test_mixed_timezone_aware_datetimes_normalized(self):
+        """Test that mixed timezone-aware datetimes are normalized correctly."""
+        tz_plus5 = datetime.timezone(datetime.timedelta(hours=5))
+        tz_minus3 = datetime.timezone(datetime.timedelta(hours=-3))
+        date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=tz_plus5)
+        date2 = datetime.datetime(2023, 6, 15, 2, 0, 0, tzinfo=tz_minus3)
+
+        mock_raw1 = create_mock_raw(meas_date=date1)
+        mock_raw2 = create_mock_raw(meas_date=date2)
+        mock_raw1.copy.return_value = mock_raw1
+        mock_raw2.copy.return_value = mock_raw2
+
+        with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
+            mock_concat.return_value = MagicMock()
+            result = concatenate_recordings([mock_raw1, mock_raw2])
+            mock_concat.assert_called_once()
+
+    def test_mixed_naive_and_aware_datetimes_normalized(self):
+        """Test that mixed naive and timezone-aware datetimes are normalized correctly."""
+        naive_date = datetime.datetime(2023, 6, 15, 5, 0, 0)
+        aware_date = datetime.datetime(
+            2023, 6, 15, 5, 0, 0, tzinfo=datetime.timezone.utc
+        )
+
+        mock_raw1 = create_mock_raw(meas_date=naive_date)
+        mock_raw2 = create_mock_raw(meas_date=aware_date)
+        mock_raw1.copy.return_value = mock_raw1
+        mock_raw2.copy.return_value = mock_raw2
+
+        with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
+            mock_concat.return_value = MagicMock()
+            result = concatenate_recordings([mock_raw1, mock_raw2])
+            mock_concat.assert_called_once()
+
+    # ----------- Handling different measurement days (mismatch policy) -----------
     def test_different_meas_date_days_raise_with_raise_policy(self):
         """Test that ValueError is raised for different measurement date days with raise policy."""
         date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
@@ -722,52 +849,7 @@ class TestConcatenateRecordings:
             concatenate_recordings([mock_raw1, mock_raw2], on_mismatch="ignore")
             mock_concat.assert_called_once()
 
-    def test_different_channel_names_raise_with_raise_policy(self):
-        """Test that ValueError is raised for different channel names with raise policy."""
-        meas_date = datetime.datetime(
-            2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc
-        )
-        mock_raw1 = create_mock_raw(ch_names=["CH0", "CH1", "CH2"], meas_date=meas_date)
-        mock_raw2 = create_mock_raw(ch_names=["CH0", "CH1", "CH3"], meas_date=meas_date)
-
-        with pytest.raises(
-            ValueError, match="Mismatch in channel names and/or order across recordings"
-        ):
-            concatenate_recordings([mock_raw1, mock_raw2], on_mismatch="raise")
-
-    def test_different_channel_names_warn_with_warn_policy(self):
-        """Test that warning is issued for different channel names with warn policy."""
-        meas_date = datetime.datetime(
-            2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc
-        )
-        mock_raw1 = create_mock_raw(ch_names=["CH0", "CH1", "CH2"], meas_date=meas_date)
-        mock_raw2 = create_mock_raw(ch_names=["CH0", "CH1", "CH3"], meas_date=meas_date)
-        mock_raw1.copy.return_value = mock_raw1
-        mock_raw2.copy.return_value = mock_raw2
-
-        with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
-            mock_concat.return_value = MagicMock()
-            with pytest.warns(
-                UserWarning, match="Mismatch in channel names and/or order"
-            ):
-                concatenate_recordings([mock_raw1, mock_raw2], on_mismatch="warn")
-
-    def test_different_channel_names_ignore_with_ignore_policy(self):
-        """Test that different channel names are silently ignored with ignore policy."""
-        meas_date = datetime.datetime(
-            2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc
-        )
-        mock_raw1 = create_mock_raw(ch_names=["CH0", "CH1", "CH2"], meas_date=meas_date)
-        mock_raw2 = create_mock_raw(ch_names=["CH0", "CH1", "CH3"], meas_date=meas_date)
-        mock_raw1.copy.return_value = mock_raw1
-        mock_raw2.copy.return_value = mock_raw2
-
-        with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
-            mock_concat.return_value = MagicMock()
-            concatenate_recordings([mock_raw1, mock_raw2], on_mismatch="ignore")
-            mock_concat.assert_called_once()
-
-    def test_default_policy_is_raise(self):
+    def test_default_on_mismatch_policy_is_raise(self):
         """Test that default on_mismatch policy is 'raise'."""
         date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
         date2 = datetime.datetime(
@@ -779,14 +861,9 @@ class TestConcatenateRecordings:
         with pytest.raises(ValueError, match="Measurement days are not uniform"):
             concatenate_recordings([mock_raw1, mock_raw2])
 
-    def test_invalid_offset_policy_raises_error(self):
-        """Test that ValueError is raised for invalid on_offset policy."""
-        mock_raw = create_mock_raw()
-        with pytest.raises(ValueError, match="on_offset must be one of"):
-            concatenate_recordings([mock_raw], on_offset="invalid")
-
-    def test_offset_within_1_hour_succeeds_with_warn_policy(self):
-        """Test that recordings within 1 hour offset pass with warn policy."""
+    # ----------- Offset checking behavior -----------
+    def test_offset_within_max_offset_succeeds_with_warn_policy(self):
+        """Test that recordings within max_offset offset pass with warn policy."""
         date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
         date2 = datetime.datetime(2023, 6, 15, 10, 30, 0, tzinfo=datetime.timezone.utc)
 
@@ -800,8 +877,8 @@ class TestConcatenateRecordings:
             result = concatenate_recordings([mock_raw1, mock_raw2], on_offset="warn")
             mock_concat.assert_called_once()
 
-    def test_offset_greater_than_1_hour_raise_with_raise_policy(self):
-        """Test that ValueError is raised when offset > 1 hour with raise policy."""
+    def test_offset_greater_than_max_offset_raise_with_raise_policy(self):
+        """Test that ValueError is raised when offset > max_offset with raise policy."""
         date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
         date2 = datetime.datetime(2023, 6, 15, 12, 0, 0, tzinfo=datetime.timezone.utc)
 
@@ -809,12 +886,12 @@ class TestConcatenateRecordings:
         mock_raw2 = create_mock_raw(meas_date=date2)
 
         with pytest.raises(
-            ValueError, match="Offset between recordings .* is greater than 1 hour"
+            ValueError, match="Offset between recordings .* is greater than"
         ):
             concatenate_recordings([mock_raw1, mock_raw2], on_offset="raise")
 
-    def test_offset_greater_than_1_hour_warn_with_warn_policy(self):
-        """Test that warning is issued when offset > 1 hour with warn policy."""
+    def test_offset_greater_than_max_offset_warn_with_warn_policy(self):
+        """Test that warning is issued when offset > max_offset with warn policy."""
         date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
         date2 = datetime.datetime(2023, 6, 15, 12, 0, 0, tzinfo=datetime.timezone.utc)
 
@@ -826,11 +903,11 @@ class TestConcatenateRecordings:
         with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
             mock_concat.return_value = MagicMock()
             with pytest.warns(
-                UserWarning, match="Offset between recordings .* is greater than 1 hour"
+                UserWarning, match="Offset between recordings .* is greater than"
             ):
                 concatenate_recordings([mock_raw1, mock_raw2], on_offset="warn")
 
-    def test_offset_greater_than_1_hour_ignore_with_ignore_policy(self):
+    def test_offset_greater_than_max_offset_ignore_with_ignore_policy(self):
         """Test that offset > 1 hour is silently ignored with ignore policy."""
         date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
         date2 = datetime.datetime(2023, 6, 15, 12, 0, 0, tzinfo=datetime.timezone.utc)
@@ -845,7 +922,7 @@ class TestConcatenateRecordings:
             concatenate_recordings([mock_raw1, mock_raw2], on_offset="ignore")
             mock_concat.assert_called_once()
 
-    def test_default_offset_policy_is_warn(self):
+    def test_default_on_offset_policy_is_warn(self):
         """Test that default on_offset policy is 'warn'."""
         date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
         date2 = datetime.datetime(2023, 6, 15, 12, 0, 0, tzinfo=datetime.timezone.utc)
@@ -858,7 +935,7 @@ class TestConcatenateRecordings:
         with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
             mock_concat.return_value = MagicMock()
             with pytest.warns(
-                UserWarning, match="Offset between recordings .* is greater than 1 hour"
+                UserWarning, match="Offset between recordings .* is greater than"
             ):
                 concatenate_recordings([mock_raw1, mock_raw2])
 
@@ -873,10 +950,11 @@ class TestConcatenateRecordings:
         mock_raw3 = create_mock_raw(meas_date=date3)
 
         with pytest.raises(
-            ValueError, match="Offset between recordings .* is greater than 1 hour"
+            ValueError, match="Offset between recordings .* is greater than"
         ):
             concatenate_recordings([mock_raw1, mock_raw2, mock_raw3], on_offset="raise")
 
+    # ----------- Internal mechanics (copies used for concatenation) -----------
     def test_concatenate_raws_called_with_copies(self):
         """Test that mne.concatenate_raws is called with copies of recordings."""
         meas_date = datetime.datetime(

@@ -54,49 +54,82 @@ def extract_measurement_date(
     return datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 
 
+def _normalize_meas_date(
+    meas_date: datetime.datetime | None,
+) -> datetime.datetime | None:
+    """Normalize measurement date to naive UTC datetime for consistent comparison.
+
+    Converts timezone-aware datetimes to naive UTC. Naive datetimes are returned as-is.
+    None values are preserved as None.
+
+    Args:
+        meas_date: A datetime object that may be timezone-aware or naive, or None.
+
+    Returns:
+        A naive UTC datetime, a naive datetime (unchanged), or None.
+    """
+    if meas_date is None:
+        return None
+    if meas_date.tzinfo is not None:
+        return meas_date.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+    return meas_date
+
+
 def concatenate_recordings(
     recordings: list["mne.io.Raw"],
+    max_offset: float = 1.0,
     on_mismatch: Literal["ignore", "warn", "raise"] = "raise",
     on_offset: Literal["ignore", "warn", "raise"] = "warn",
+    on_missing_meas_date: Literal["ignore", "warn", "raise"] = "warn",
 ) -> "mne.io.Raw":
     """Concatenate a list of MNE Raw objects into one, validating metadata.
 
-    This function concatenates multiple MNE Raw recordings in temporal order
-    (sorted by measurement date). Before concatenation, it validates that all
-    recordings have:
-      - identical measurement days (raw.info["meas_date"]),
-      - identical channel names and order.
+    This function concatenates multiple MNE Raw recordings, prioritizing temporal order
+    by default: recordings are sorted by measurement date before concatenation.
 
-    It then normalizes each recording's timeline so that its first sample
-    corresponds to its measurement date, then concatenates them.
+    Channel validation (always enforced):
+        All recordings must have identical channel names and order.
+
+    Measurement date validation:
+        The function validates that all recordings have identical measurement days.
+        The `on_mismatch` parameter controls how such mismatches are handled.
+
+        If one or more recordings are missing a measurement date (`meas_date` is None), temporal order cannot be established.
+        By default, the function will concatenate the recordings in the input order rather than sorting by measurement date.
+        The `on_missing_meas_date` parameter controls how this is handled.
 
     Offset validation:
         The function checks for temporal offsets in the measurement dates of the recordings.
-        If the measurement dates are separated by notable amounts of time, this can indicate
-        temporal discontinuity. The `on_offset` parameter controls how such offsets are handled:
-            - "raise": raise ValueError if an offset is detected,
-            - "warn": issue a warning and continue (default),
-            - "ignore": silently continue.
+        If the measurement dates are separated by notable amounts of time (as defined by the `max_offset`
+        parameter, in hours), this can indicate temporal discontinuity.
+        The `on_offset` parameter controls how such offsets are handled when the offset exceeds `max_offset`.
         This is useful to ensure recordings are truly continuous or to be notified about gaps between sessions.
 
     Args:
         recordings: List of MNE Raw objects to concatenate.
-        on_mismatch: How to handle mismatches in measurement date or channels.
-            - "raise": raise ValueError on any mismatch (default),
+        max_offset: Maximum allowed gap in hours between consecutive measurement dates for the recordings to be considered continuous.
+        on_mismatch: How to handle measurement date mismatches (channel mismatches always raise).
+            - "raise": raise ValueError if measurement days are not uniform (default),
             - "warn": issue a warning and continue,
-            - "ignore": silently continue with mismatches.
+            - "ignore": silently continue with measurement day mismatches.
         on_offset: How to handle temporal offsets between recordings' measurement dates.
             - "raise": raise ValueError if offsets are detected,
             - "warn": issue a warning and continue (default),
             - "ignore": silently continue with offsets.
+        on_missing_meas_date: How to handle missing (None) measurement dates.
+            - "raise": raise ValueError if any measurement date is None,
+            - "warn": issue a warning and continue in input order (default),
+            - "ignore": silently continue in input order.
 
     Returns:
-        An MNE Raw object containing the concatenated recordings in temporal order.
+        An MNE Raw object containing the concatenated recordings in temporal order
+        (or input order if measurement dates are missing or mixed).
 
     Raises:
         ImportError: If MNE is not installed.
-        ValueError: If recordings is empty, contains non-Raw objects,
-            on_mismatch or on_offset is invalid, or (if set to "raise") mismatches or time offsets are detected.
+        ValueError: If recordings is empty, contains non-Raw objects, has channel mismatches,
+            on_mismatch, on_offset, or on_missing_meas_date is invalid, or (if set to "raise")
+            measurement date mismatches, time offsets, or missing measurement dates are detected.
     """
     _check_mne_available("concatenate_recordings")
 
@@ -117,6 +150,11 @@ def concatenate_recordings(
             f"on_offset must be one of {valid_policies}, got '{on_offset}'"
         )
 
+    if on_missing_meas_date not in valid_policies:
+        raise ValueError(
+            f"on_missing_meas_date must be one of {valid_policies}, got '{on_missing_meas_date}'"
+        )
+
     for idx, rec in enumerate(recordings):
         if not hasattr(rec, "info") or not hasattr(rec, "ch_names"):
             raise ValueError(
@@ -124,38 +162,57 @@ def concatenate_recordings(
                 "(missing 'info' or 'ch_names' attributes)"
             )
 
-    # Validate that all recordings have the same measurement date
-    mismatch_messages = []
-    meas_dates = [rec.info["meas_date"] for rec in recordings]
-    meas_days = [
-        d.date() if hasattr(d, "date") and d is not None else None for d in meas_dates
-    ]
-    if len(set(meas_days)) > 1:
-        mismatch_messages.append(
-            f"Measurement days are not uniform: {meas_days} (full datetimes: {meas_dates})"
-        )
-
-    # Validate that all recordings have the same channel names and order
+    # Validate that all recordings have the same channel names and order (always enforced)
     ch_names_list = [tuple(rec.ch_names) for rec in recordings]
     if len(set(ch_names_list)) > 1:
         mismatch_details = []
         for idx, ch_names in enumerate(ch_names_list):
             mismatch_details.append(f"Recording {idx}: {ch_names}")
-        mismatch_message = (
+        raise ValueError(
             "Mismatch in channel names and/or order across recordings.\n"
             "Each tuple below shows the channel names for one recording in the given order:\n"
             + "\n".join(mismatch_details)
             + "\n"
             "All recordings must have identical channel lists and order for concatenation."
         )
-        mismatch_messages.append(mismatch_message)
 
-    if mismatch_messages:
-        full_message = "; ".join(mismatch_messages)
+    # Normalize measurement dates before meas_date validation
+    raw_meas_dates = [rec.info["meas_date"] for rec in recordings]
+    meas_dates = [_normalize_meas_date(d) for d in raw_meas_dates]
+
+    # Check for missing measurement dates
+    has_missing = any(d is None for d in meas_dates)
+    if has_missing:
+        if on_missing_meas_date == "raise":
+            raise ValueError(
+                "One or more recordings have missing measurement dates (meas_date=None). "
+                "Cannot establish temporal order. Use on_missing_meas_date='warn' or 'ignore' to concatenate in input order."
+            )
+        elif on_missing_meas_date == "warn":
+            warnings.warn(
+                "One or more recordings have missing measurement dates (meas_date=None). "
+                "Concatenating in input order; measurement date validation and temporal sorting will be skipped."
+            )
+        # For both 'warn' and 'ignore', skip the date-based validation and sort by input order
+        copies = []
+        for rec in recordings:
+            copies.append(rec.copy())
+        concatenated = mne.concatenate_raws(copies)
+        return concatenated
+
+    # All dates are present; extract measurement days for validation
+    meas_days = [
+        d.date() if hasattr(d, "date") and d is not None else None for d in meas_dates
+    ]
+    if len(set(meas_days)) > 1:
         if on_mismatch == "raise":
-            raise ValueError(full_message)
+            raise ValueError(
+                f"Measurement days are not uniform: {meas_days} (full datetimes: {meas_dates})"
+            )
         elif on_mismatch == "warn":
-            warnings.warn(full_message)
+            warnings.warn(
+                f"Measurement days are not uniform: {meas_days} (full datetimes: {meas_dates})"
+            )
 
     # Sort recordings by measurement date
     indexed_recordings = [
@@ -166,26 +223,20 @@ def concatenate_recordings(
         key=lambda x: x[2] if x[2] is not None else datetime.datetime.min,
     )
 
-    # Validate that offset between consecutive recordings is within 1 hour
-    if on_offset == "raise":
-        # More efficient: use zip to pair consecutive elements, avoid repeated indexing
-        for (idx1, _, date1), (idx2, _, date2) in zip(
-            sorted_recordings, sorted_recordings[1:]
-        ):
-            offset = (date2 - date1).total_seconds()
-            if offset > 3600:
+    # Validate that offset between consecutive recordings is within max_offset
+    for (idx1, _, date1), (idx2, _, date2) in zip(
+        sorted_recordings, sorted_recordings[1:]
+    ):
+        offset = (date2 - date1).total_seconds()
+
+        if offset > max_offset * 3600:
+            if on_offset == "raise":
                 raise ValueError(
-                    f"Offset between recordings {idx1} and {idx2} is greater than 1 hour: {offset} seconds"
+                    f"Offset between recordings {idx1} and {idx2} is greater than {max_offset} hours: {offset} seconds"
                 )
-    elif on_offset == "warn":
-        # A more efficient way: use zip to iterate through consecutive pairs directly.
-        for (idx1, _, date1), (idx2, _, date2) in zip(
-            sorted_recordings, sorted_recordings[1:]
-        ):
-            offset = (date2 - date1).total_seconds()
-            if offset > 3600:
+            elif on_offset == "warn":
                 warnings.warn(
-                    f"Offset between recordings {idx1} and {idx2} is greater than 1 hour: {offset} seconds"
+                    f"Offset between recordings {idx1} and {idx2} is greater than {max_offset} hours: {offset} seconds"
                 )
 
     copies = []

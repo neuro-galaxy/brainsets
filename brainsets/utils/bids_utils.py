@@ -73,7 +73,7 @@ def _check_mne_bids_available(func_name: str) -> None:
 
 
 def fetch_eeg_recordings(
-    source: Optional[BIDSPath | Path | str | list[BIDSPath | Path | str]],
+    source: BIDSPath | Path | str | list[BIDSPath | Path | str],
 ) -> list[dict]:
     """Discover all EEG recordings in a dataset by parsing BIDS filenames.
 
@@ -96,7 +96,7 @@ def fetch_eeg_recordings(
 
 
 def fetch_ieeg_recordings(
-    source: Optional[BIDSPath | Path | str | list[BIDSPath | Path | str]],
+    source: BIDSPath | Path | str | list[BIDSPath | Path | str],
 ) -> list[dict]:
     """Discover all iEEG recordings in a dataset by parsing BIDS filenames.
 
@@ -263,7 +263,7 @@ def build_bids_path(
     )
 
 
-def load_json_sidecar(bids_path: str | Path | BIDSPath) -> dict:
+def load_json_sidecar(bids_path: BIDSPath) -> dict:
     """Load the JSON sidecar file for a given BIDS file.
 
     Args:
@@ -276,9 +276,6 @@ def load_json_sidecar(bids_path: str | Path | BIDSPath) -> dict:
         FileNotFoundError: If no JSON sidecar file is found for the BIDS path.
     """
     _check_mne_bids_available("load_json_sidecar")
-    if not isinstance(bids_path, BIDSPath):
-        bids_path = BIDSPath(bids_path)
-
     try:
         sidecar_path = bids_path.find_matching_sidecar(
             extension=".json", on_error="raise"
@@ -377,7 +374,7 @@ def get_subject_info(
 
 
 def _fetch_recordings(
-    source: Optional[BIDSPath | Path | str | list[BIDSPath | Path | str]],
+    source: BIDSPath | Path | str | list[BIDSPath | Path | str],
     extensions: set[str],
     modality: str,
 ) -> list[dict]:
@@ -385,7 +382,7 @@ def _fetch_recordings(
     Internal helper for discovering BIDS recordings that match provided file extensions and modality.
 
     Args:
-        source: BIDS root directory as a string; BIDSPath, or Path, or a list of those types.
+        source: BIDS root directory as a string, BIDSPath, or Path, or a list of those types.
         extensions: Set of allowed file extensions (e.g., EEG_EXTENSIONS).
         modality: Modality to filter by (e.g., 'eeg', 'ieeg').
 
@@ -401,9 +398,16 @@ def _fetch_recordings(
             - fpath: Relative path to the recording file
     """
     # Determine the files to analyze
-    if isinstance(source, (str, BIDSPath, Path)):
-        bids_path = BIDSPath(root=source, datatype=modality)
-        source = bids_path.match()
+    if source is None:
+        raise TypeError(
+            "source must be a BIDSPath, Path, or string, or a list of those types. None was provided."
+        )
+
+    if isinstance(source, BIDSPath):
+        source = source.root
+
+    if not isinstance(source, list):
+        source = BIDSPath(root=source, datatype=modality).match()
 
     if len(source) == 0:
         return []
