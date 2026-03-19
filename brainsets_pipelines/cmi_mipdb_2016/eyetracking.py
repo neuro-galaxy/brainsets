@@ -8,7 +8,9 @@ fitted from matched event codes.
 
 Synchronization strategy:
 1) Build an index of all ET files and their paradigm segments.
-2) Match the EEG session to the best ET file using LCS on paradigm codes.
+2) Match the EEG session to the best ET file. Paradigms are grouped by
+   start code, then full event code sequences are compared via LCS to
+   resolve ambiguities (e.g. false starts that share the same start code).
 3) Align per-paradigm event sequences (LCS) to collect anchor pairs.
 4) Fit one linear ET->EEG timestamp transform for the session.
 5) Parse the full ET file, apply the transform, clip to the EEG domain.
@@ -196,11 +198,54 @@ def _find_lcs(seq_a: list[int], seq_b: list[int]) -> list[tuple[int, int]]:
     return pairs
 
 
+def _match_paradigms_for_code(
+    eeg_indices: list[int],
+    et_indices: list[int],
+    eeg_event_seqs: list[list[int]],
+    et_event_seqs: list[list[int]],
+) -> list[tuple[int, int, int]]:
+    """Find the best EEG-to-ET pairing for paradigms sharing the same start code.
+
+    Returns list of ``(eeg_idx, et_idx, similarity)`` triples.
+    """
+    if len(eeg_indices) == 1 and len(et_indices) == 1:
+        sim = len(
+            _find_lcs(eeg_event_seqs[eeg_indices[0]], et_event_seqs[et_indices[0]])
+        )
+        return [(eeg_indices[0], et_indices[0], sim)]
+
+    scores: list[tuple[int, int, int]] = []
+    for eeg_i in eeg_indices:
+        for et_j in et_indices:
+            eeg_seq = eeg_event_seqs[eeg_i]
+            et_seq = et_event_seqs[et_j]
+            sim = len(_find_lcs(eeg_seq, et_seq)) / max(len(eeg_seq), len(et_seq))
+            scores.append((eeg_i, et_j, sim))
+
+    # Sort by similarity score, descending
+    scores.sort(key=lambda x: x[2], reverse=True)
+
+    used_eeg: set[int] = set()
+    used_et: set[int] = set()
+    result: list[tuple[int, int, int]] = []
+    for eeg_i, et_j, sim in scores:
+        if eeg_i not in used_eeg and et_j not in used_et and sim > 0:
+            result.append((eeg_i, et_j, sim))
+            used_eeg.add(eeg_i)
+            used_et.add(et_j)
+    return result
+
+
 def match_eeg_to_et(
     paradigm_intervals: Interval,
     et_index: list[dict],
 ) -> dict | None:
-    """Match an EEG session to the best ET file using LCS on paradigm codes.
+    """Match an EEG session to the best ET file using full paradigm event sequences.
+
+    For each ET file, paradigms are grouped by start code. When multiple EEG
+    paradigms share the same start code (e.g. due to false starts), compared the
+    full event code sequence of each paradigm is via LCS to determine the
+    correct pairing.
 
     Returns ``None`` if no match, or a dict with:
         ``base_id``, ``samples_path``, ``events_path`` — the matched ET file,
@@ -209,30 +254,55 @@ def match_eeg_to_et(
     if len(paradigm_intervals) == 0 or not et_index:
         return None
 
-    eeg_codes = [int(c) for c in paradigm_intervals.code]
+    eeg_codes = [int(c) for c in paradigm_intervals.start_code]
+
+    eeg_event_seqs = [ec.tolist() for ec in paradigm_intervals.event_codes]
 
     best_entry = None
-    best_pairs: list[tuple[int, int]] = []
+    best_segment_map: dict[int, dict] = {}
+    best_score: tuple[int, int] = (0, 0)
 
     for entry in et_index:
-        et_codes = [int(seg["code"]) for seg in entry["segments"]]
-        pairs = _find_lcs(eeg_codes, et_codes)
-        if len(pairs) > len(best_pairs):
-            best_pairs = pairs
+        segments = entry["segments"]
+        et_codes = [int(seg["code"]) for seg in segments]
+        et_event_seqs = [
+            [code for _, code in seg.get("all_events", [])] for seg in segments
+        ]
+
+        common_codes = set(eeg_codes) & set(et_codes)
+        if not common_codes:
+            continue
+
+        segment_map: dict[int, dict] = {}
+        total_matches = 0
+        total_similarity = 0
+
+        for code in common_codes:
+            eeg_idxs = [i for i, c in enumerate(eeg_codes) if c == code]
+            et_idxs = [i for i, c in enumerate(et_codes) if c == code]
+
+            matched_pairs = _match_paradigms_for_code(
+                eeg_idxs, et_idxs, eeg_event_seqs, et_event_seqs
+            )
+            for eeg_i, et_i, sim in matched_pairs:
+                segment_map[eeg_i] = segments[et_i]
+                total_matches += 1
+                total_similarity += sim
+
+        score = (total_matches, total_similarity)
+        if score > best_score:
+            best_score = score
+            best_segment_map = segment_map
             best_entry = entry
 
-    if not best_pairs or best_entry is None:
+    if not best_segment_map or best_entry is None:
         return None
-
-    segment_map = {}
-    for eeg_idx, et_idx in best_pairs:
-        segment_map[eeg_idx] = best_entry["segments"][et_idx]
 
     return {
         "base_id": best_entry["base_id"],
         "samples_path": best_entry["samples_path"],
         "events_path": best_entry["events_path"],
-        "segment_map": segment_map,
+        "segment_map": best_segment_map,
     }
 
 
@@ -254,7 +324,7 @@ def _eeg_events_in_interval(
     annotations: Interval, start_s: float, end_s: float
 ) -> list[tuple[float, int]]:
     """Slice ``annotations`` to ``[start_s, end_s)`` and return ``(timestamp_s, code)`` pairs."""
-    mask = (annotations.start >= start_s) & (annotations.start < end_s)
+    mask = (annotations.start >= start_s) & (annotations.start <= end_s)
     events: list[tuple[float, int]] = []
     for idx in np.where(mask)[0]:
         try:
@@ -277,6 +347,7 @@ def compute_et_to_eeg_time_transform(
     """
     all_anchors: list[tuple[float, int]] = []
     for paradigm_idx, seg in matched["segment_map"].items():
+        # TODO: get timestamps from paradigm events
         eeg_events = _eeg_events_in_interval(
             annotations,
             float(paradigm_intervals.start[paradigm_idx]),
