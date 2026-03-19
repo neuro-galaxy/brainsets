@@ -273,7 +273,6 @@ class Pipeline(BrainsetPipeline):
             et_data = eyetracking.process_session(
                 et_dir,
                 paradigm_intervals,
-                annotations,
                 float(eeg_signal.domain.start[0]),
                 float(eeg_signal.domain.end[0]),
             )
