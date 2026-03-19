@@ -7,6 +7,10 @@ try:
     import mne
 
     MNE_AVAILABLE = True
+except ImportError:
+    MNE_AVAILABLE = False
+
+try:
     from brainsets.utils.mne_utils import (
         extract_measurement_date,
         extract_signal,
@@ -16,7 +20,6 @@ try:
     )
     from temporaldata import ArrayDict
 except ImportError:
-    MNE_AVAILABLE = False
     extract_measurement_date = None
     extract_signal = None
     extract_channels = None
@@ -390,6 +393,20 @@ class TestExtractChannels:
         assert result.bad.dtype == bool
         expected = np.array([False, True, False])
         np.testing.assert_array_equal(result.bad, expected)
+
+    def test_raises_value_error_on_duplicate_final_channel_ids(self):
+        """Test that ValueError is raised when the final channel IDs have duplicates due to name mapping."""
+        original_names = ["A", "B", "C"]
+        mock_raw = create_mock_raw(
+            ch_names=original_names, n_channels=len(original_names)
+        )
+        # This will cause both "A" and "B" to be renamed to "DUPLICATE"
+        name_mapping = {"A": "DUPLICATE", "B": "DUPLICATE"}
+
+        with pytest.raises(
+            ValueError, match="Duplicate channel names after name re-mapping"
+        ):
+            extract_channels(mock_raw, channels_name_mapping=name_mapping)
 
 
 @pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")

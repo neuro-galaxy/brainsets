@@ -9,6 +9,10 @@ try:
     import mne_bids
 
     MNE_BIDS_AVAILABLE = True
+except ImportError:
+    MNE_BIDS_AVAILABLE = False
+
+try:
     from brainsets.utils.bids_utils import (
         EEG_EXTENSIONS,
         IEEG_EXTENSIONS,
@@ -24,7 +28,6 @@ try:
         _fetch_recordings,
     )
 except ImportError:
-    MNE_BIDS_AVAILABLE = False
     EEG_EXTENSIONS = None
     IEEG_EXTENSIONS = None
     fetch_eeg_recordings = None
