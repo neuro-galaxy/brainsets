@@ -156,15 +156,15 @@ class Pipeline(BrainsetPipeline):
             self.update_status("Creating Splits")
             # extract behavior
             if task == "jenkins_maze":
-                data.hand, data.eye = extract_behavior(nwbfile, trials, task)
+                data.hand, data.eye = extract_behavior_maze(nwbfile, trials)
                 # report accuracy only on the evaluation intervals
                 data.nlb_eval_intervals = Interval(
                     start=trials.move_onset_time - 0.05,
                     end=trials.move_onset_time + 0.65,
                 )
             elif task == "indy_RTT":
-                data.cursor, data.finger, data.target = extract_behavior(
-                    nwbfile, trials, task
+                data.cursor, data.finger, data.target = extract_behavior_rtt(
+                    nwbfile, trials
                 )
 
             # split and register trials into train, validation and test
@@ -216,60 +216,52 @@ def extract_trials(nwbfile):
     return trials
 
 
-def extract_behavior(nwbfile, trials, task):
-    """Extract behavior from the NWB file.
+def extract_behavior_maze(nwbfile, trials):
+    timestamps = nwbfile.processing["behavior"]["hand_vel"].timestamps[:]
+    hand_pos = nwbfile.processing["behavior"]["hand_pos"].data[:]
+    hand_vel = nwbfile.processing["behavior"]["hand_vel"].data[:]
+    eye_pos = nwbfile.processing["behavior"]["eye_pos"].data[:]
 
-    ..note::
-        Cursor position and target position are in the same frame of reference.
-        They are both of size (sequence_len, 2). Finger position can be either 3d or 6d,
-        depending on the sequence. # todo investigate more
-    """
-    # cursor, hand and eye share the same timestamps (verified)
-    if task == "jenkins_maze":
-        timestamps = nwbfile.processing["behavior"]["hand_vel"].timestamps[:]
-        hand_pos = nwbfile.processing["behavior"]["hand_pos"].data[:]
-        hand_vel = nwbfile.processing["behavior"]["hand_vel"].data[:]
-        eye_pos = nwbfile.processing["behavior"]["eye_pos"].data[:]
+    hand = IrregularTimeSeries(
+        timestamps=timestamps,
+        pos=hand_pos,
+        vel=hand_vel,
+        domain="auto",
+    )
 
-        hand = IrregularTimeSeries(
-            timestamps=timestamps,
-            pos=hand_pos,
-            vel=hand_vel,
-            domain="auto",
-        )
+    eye = IrregularTimeSeries(
+        timestamps=timestamps,
+        pos=eye_pos,
+        domain="auto",
+    )
 
-        eye = IrregularTimeSeries(
-            timestamps=timestamps,
-            pos=eye_pos,
-            domain="auto",
-        )
+    return hand, eye
 
-        return hand, eye
 
-    elif task == "indy_RTT":
-        timestamps = nwbfile.processing["behavior"]["cursor_pos"].timestamps[:]
-        cursor_pos = nwbfile.processing["behavior"]["cursor_pos"].data[:]
-        finger_pos = nwbfile.processing["behavior"]["finger_pos"].data[:]
-        finger_vel = nwbfile.processing["behavior"]["finger_vel"].data[:]
-        target_pos = nwbfile.processing["behavior"]["target_pos"].data[:]
+def extract_behavior_rtt(nwbfile, trials):
+    timestamps = nwbfile.processing["behavior"]["cursor_pos"].timestamps[:]
+    cursor_pos = nwbfile.processing["behavior"]["cursor_pos"].data[:]
+    finger_pos = nwbfile.processing["behavior"]["finger_pos"].data[:]
+    finger_vel = nwbfile.processing["behavior"]["finger_vel"].data[:]
+    target_pos = nwbfile.processing["behavior"]["target_pos"].data[:]
 
-        cursor = IrregularTimeSeries(
-            timestamps=timestamps,
-            pos=cursor_pos,
-            domain="auto",
-        )
+    cursor = IrregularTimeSeries(
+        timestamps=timestamps,
+        pos=cursor_pos,
+        domain="auto",
+    )
 
-        finger = IrregularTimeSeries(
-            timestamps=timestamps,
-            pos=finger_pos,
-            vel=finger_vel,
-            domain="auto",
-        )
+    finger = IrregularTimeSeries(
+        timestamps=timestamps,
+        pos=finger_pos,
+        vel=finger_vel,
+        domain="auto",
+    )
 
-        target = IrregularTimeSeries(
-            timestamps=timestamps,
-            pos=target_pos,
-            domain="auto",
-        )
+    target = IrregularTimeSeries(
+        timestamps=timestamps,
+        pos=target_pos,
+        domain="auto",
+    )
 
-        return cursor, finger, target
+    return cursor, finger, target
