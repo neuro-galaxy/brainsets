@@ -1,8 +1,6 @@
 # /// brainset-pipeline
 # python-version = "3.11"
-# dependencies = [
-# "dandi==0.74.0",
-# ]
+# dependencies = ["dandi==0.74.0"]
 # ///
 
 from argparse import ArgumentParser
