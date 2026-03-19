@@ -204,9 +204,8 @@ class Pipeline(BrainsetPipeline):
         data = Data(
             brainset=brainset_description,
             subject=subject,
-            # Keep subject/session ids as analogous scalar identifiers while
-            # also storing a canonical globally unique recording id.
-            session=Data(id=str(trial_id), recording_id=recording_id),
+            # Keep session.id canonical and globally unique.
+            session=Data(id=recording_id),
             # neural activity
             seeg_data=seeg_data,
             channels=channels,
