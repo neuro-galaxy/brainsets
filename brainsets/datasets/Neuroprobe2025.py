@@ -263,14 +263,6 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
         self.multichannel_dataset_mixin_uniquify_channel_ids_with_session = (
             uniquify_channel_ids_with_session
         )
-        # Keep old attribute names in sync for compatibility with older torch_brain
-        # versions that still read seeg_dataset_mixin_* flags.
-        self.seeg_dataset_mixin_uniquify_channel_ids_with_subject = (
-            uniquify_channel_ids_with_subject
-        )
-        self.seeg_dataset_mixin_uniquify_channel_ids_with_session = (
-            uniquify_channel_ids_with_session
-        )
         # Validate flags eagerly so config errors fail at construction time.
         self._normalize_channel_uniquify_components()
 
