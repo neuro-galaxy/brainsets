@@ -2,7 +2,6 @@
 # python-version = "3.11"
 # dependencies = [
 # "dandi==0.74.0",
-# "temporaldata@git+https://github.com/neuro-galaxy/temporaldata@main"
 # ]
 # ///
 
