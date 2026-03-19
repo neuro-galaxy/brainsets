@@ -197,8 +197,12 @@ def extract_trials(nwbfile):
     )
 
     trials = Interval.from_dataframe(trial_table)
-    trials.end = np.round(trials.end, 1)
-    trials.start = np.round(trials.start, 1)
+
+    # For RTT, trial boundaries have small floating-point inconsistencies
+    # which can make the end of a trial slightly less than the start of the next making the interval not disjoint.
+    if not trials.is_disjoint():
+        trials.end = np.round(trials.end, 1)
+        trials.start = np.round(trials.start, 1)
 
     # the dataset has pre-defined train/valid splits, we will use the valid split
     # as our test
