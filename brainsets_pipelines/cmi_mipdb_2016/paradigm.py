@@ -63,6 +63,19 @@ def _paradigm_segment_end(
     return float(annotations.end[-1]) if n > 0 else float(annotations.end[start_idx])
 
 
+def _extract_event_codes(
+    annotations: Interval, start_s: float, end_s: float
+) -> np.ndarray:
+    """Return all numeric annotation codes within ``[start_s, end_s]``."""
+    mask = (annotations.start >= start_s) & (annotations.start <= end_s)
+    codes: list[int] = []
+    for idx in np.where(mask)[0]:
+        code = _annotation_code_at(annotations, idx)
+        if code is not None:
+            codes.append(code)
+    return np.array(codes, dtype=np.int64)
+
+
 def get_paradigm_interval_for_code(
     paradigm_code: int,
     annotations: Interval,
@@ -75,7 +88,8 @@ def get_paradigm_interval_for_code(
 
     Returns:
         Interval with one segment per occurrence of this paradigm (start, end,
-        description, code). Empty Interval if the paradigm does not appear.
+        description, code, event_codes). Empty Interval if the paradigm does
+        not appear.
     """
     if paradigm_code not in PARADIGM_MAP or len(annotations) == 0:
         return Interval(start=np.array([]), end=np.array([]))
@@ -104,11 +118,16 @@ def get_paradigm_interval_for_code(
             _paradigm_segment_end(i, paradigm_code, annotations, paradigm_start_indices)
         )
 
+    event_codes = np.empty(len(starts), dtype=object)
+    for j, (s, e) in enumerate(zip(starts, ends)):
+        event_codes[j] = _extract_event_codes(annotations, s, e)
+
     return Interval(
         start=np.array(starts),
         end=np.array(ends),
         description=np.array([paradigm_name] * len(starts), dtype="U"),
-        code=np.full(len(starts), paradigm_code, dtype=np.int64),
+        start_code=np.full(len(starts), paradigm_code, dtype=np.int64),
+        event_codes=event_codes,
     )
 
 
@@ -120,7 +139,10 @@ def get_all_paradigm_intervals(annotations: Interval) -> Interval:
 
     Returns:
         Interval with one segment per paradigm occurrence (start, end,
-        description, code), in order of appearance. Empty if no paradigms.
+        description, code, event_codes), in order of appearance.
+        ``event_codes`` is a numpy object array where each element is an
+        ``int64`` array of all numeric annotation codes within that paradigm.
+        Empty Interval if no paradigms.
     """
     if len(annotations) == 0 or annotations.description is None:
         return Interval(start=np.array([]), end=np.array([]))
@@ -146,11 +168,16 @@ def get_all_paradigm_intervals(annotations: Interval) -> Interval:
         names.append(paradigm_name)
         codes.append(code)
 
+    event_codes = np.empty(len(starts), dtype=object)
+    for j, (s, e) in enumerate(zip(starts, ends)):
+        event_codes[j] = _extract_event_codes(annotations, s, e)
+
     return Interval(
         start=np.array(starts),
         end=np.array(ends),
         description=np.array(names, dtype="U"),
-        code=np.array(codes, dtype=np.int64),
+        start_code=np.array(codes, dtype=np.int64),
+        event_codes=event_codes,
     )
 
 
