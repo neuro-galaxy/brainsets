@@ -239,8 +239,12 @@ def extract_behavior_maze(nwbfile, trials):
 
 
 def extract_behavior_rtt(nwbfile, trials):
-    timestamps = nwbfile.processing["behavior"]["cursor_pos"].timestamps[:]
+
     cursor_pos = nwbfile.processing["behavior"]["cursor_pos"].data[:]
+    n = cursor_pos.shape[0]
+    rate = nwbfile.processing["behavior"]["cursor_pos"].rate
+    start = nwbfile.processing["behavior"]["cursor_pos"].starting_time
+    timestamps = start + np.arange(n) / rate
     finger_pos = nwbfile.processing["behavior"]["finger_pos"].data[:]
     finger_vel = nwbfile.processing["behavior"]["finger_vel"].data[:]
     target_pos = nwbfile.processing["behavior"]["target_pos"].data[:]
