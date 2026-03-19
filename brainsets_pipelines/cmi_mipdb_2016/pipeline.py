@@ -261,11 +261,6 @@ class Pipeline(BrainsetPipeline):
         annotations = extract_annotations(raw)
         paradigm_intervals = paradigm.get_all_paradigm_intervals(annotations)
 
-        # Could have multiple paradigms/tasks in the same session,
-        # task = paradigm.get_session_task_from_paradigm_intervals(paradigm_intervals)
-        # if task is not None:
-        #     session_description.task = task
-
         # --- Eyetracking  ---
         et_data = None
         if et_dir is not None and len(paradigm_intervals) > 0:

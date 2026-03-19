@@ -114,7 +114,7 @@ def get_paradigm_interval_for_code(
     if not indices_for_code:
         return Interval(start=np.array([]), end=np.array([]))
 
-    paradigm_name = PARADIGM_MAP[paradigm_code][0]
+    paradigm_name, task = PARADIGM_MAP[paradigm_code]
     starts = []
     ends = []
     for i in indices_for_code:
@@ -132,6 +132,7 @@ def get_paradigm_interval_for_code(
         end=np.array(ends),
         description=np.array([paradigm_name] * len(starts), dtype="U"),
         start_code=np.full(len(starts), paradigm_code, dtype=np.int64),
+        task=np.array([task.name] * len(starts), dtype="U"),
         event_codes=np.array(event_codes, dtype="U"),
         event_onsets=np.array(event_onsets, dtype="U"),
     )
@@ -165,15 +166,17 @@ def get_all_paradigm_intervals(annotations: Interval) -> Interval:
     ends = []
     names = []
     codes = []
+    tasks = []
     for i in paradigm_start_indices:
         code = _annotation_code_at(annotations, i)
         if code is None or code not in PARADIGM_MAP:
             continue
-        paradigm_name = PARADIGM_MAP[code][0]
+        paradigm_name, task = PARADIGM_MAP[code]
         starts.append(float(annotations.start[i]))
         ends.append(_paradigm_segment_end(i, code, annotations, paradigm_start_indices))
         names.append(paradigm_name)
         codes.append(code)
+        tasks.append(task.name)
 
     event_codes, event_onsets = zip(
         *[_extract_paradigm_events(annotations, s, e) for s, e in zip(starts, ends)]
@@ -184,21 +187,7 @@ def get_all_paradigm_intervals(annotations: Interval) -> Interval:
         end=np.array(ends),
         description=np.array(names, dtype="U"),
         start_code=np.array(codes, dtype=np.int64),
+        task=np.array(tasks, dtype="U"),
         event_codes=np.array(event_codes, dtype="U"),
         event_onsets=np.array(event_onsets, dtype="U"),
     )
-
-
-def get_session_task_from_paradigm_intervals(
-    paradigm_intervals: Interval,
-) -> Task | None:
-    """Return the task for the first paradigm segment, if any.
-
-    Used to set session_description.task when paradigm intervals are available.
-    """
-    if len(paradigm_intervals) == 0:
-        return None
-    code = int(paradigm_intervals.code[0])
-    if code not in PARADIGM_MAP:
-        return None
-    return PARADIGM_MAP[code][1]
