@@ -114,6 +114,26 @@ def concatenate_recordings(
     """
     _check_mne_available("concatenate_recordings")
 
+    def _normalize_meas_date(
+        meas_date: datetime.datetime | None,
+    ) -> datetime.datetime | None:
+        """Normalize measurement date to naive UTC datetime for consistent comparison.
+
+        Converts timezone-aware datetimes to naive UTC. Naive datetimes are returned as-is.
+        None values are preserved as None.
+
+        Args:
+            meas_date: A datetime object that may be timezone-aware or naive, or None.
+
+        Returns:
+            A naive UTC datetime, a naive datetime (unchanged), or None.
+        """
+        if meas_date is None:
+            return None
+        if meas_date.tzinfo is not None:
+            return meas_date.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        return meas_date
+
     if not recordings:
         raise ValueError("Recordings list cannot be empty")
 
@@ -521,24 +541,3 @@ def _resolve_channel_names_for_mapping(
             f"Renamed channel names: {sorted(renamed_ch_names_set)}. "
             f"Original channel names: {sorted(original_ch_names_set)}."
         )
-
-
-def _normalize_meas_date(
-    meas_date: datetime.datetime | None,
-) -> datetime.datetime | None:
-    """Normalize measurement date to naive UTC datetime for consistent comparison.
-
-    Converts timezone-aware datetimes to naive UTC. Naive datetimes are returned as-is.
-    None values are preserved as None.
-
-    Args:
-        meas_date: A datetime object that may be timezone-aware or naive, or None.
-
-    Returns:
-        A naive UTC datetime, a naive datetime (unchanged), or None.
-    """
-    if meas_date is None:
-        return None
-    if meas_date.tzinfo is not None:
-        return meas_date.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-    return meas_date

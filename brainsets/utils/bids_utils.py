@@ -7,6 +7,7 @@ For more information about BIDS, see the BIDS specification: https://bids-specif
 
 from collections import defaultdict
 from typing import Optional
+import warnings
 from pathlib import Path
 import warnings
 import re
@@ -47,7 +48,7 @@ IEEG_EXTENSIONS = {".edf", ".vhdr", ".set", ".bdf", ".nwb"}
 # - acquisition: 'acq'
 # - run: 'run'
 # - description: 'desc'
-# Reference: https://bids-specification.readthedocs.io/en/stable/glossary.html#entity
+# Reference: https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
 # Note: The short names are used to group recordings by entity.
 BIDS_ENTITY_SHORT_NAMES = {
     "subject": "sub",
@@ -77,6 +78,11 @@ def fetch_eeg_recordings(
 ) -> list[dict]:
     """Discover all EEG recordings in a dataset by parsing BIDS filenames.
 
+    Note: The values in the returned dictionary correspond to BIDS entity values
+    (e.g., subject, session, task, acquisition, run, description) extracted from the filenames.
+    For more information on BIDS entities, see:
+    https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
+
     Args:
         source: BIDS root directory as a string, BIDSPath, or Path, or a list of those types.
 
@@ -99,6 +105,11 @@ def fetch_ieeg_recordings(
     source: BIDSPath | Path | str | list[BIDSPath | Path | str],
 ) -> list[dict]:
     """Discover all iEEG recordings in a dataset by parsing BIDS filenames.
+
+    Note: The values in the returned dictionary correspond to BIDS entity values
+    (e.g., subject, session, task, acquisition, run, description) extracted from the filenames.
+    For more information on BIDS entities, see:
+    https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
 
     Args:
         source: BIDS root directory as a string, BIDSPath, or Path, or a list of those types.
@@ -123,6 +134,10 @@ def group_recordings_by_entity(
     fixed_entities: Optional[list[str]] = None,
 ) -> dict[str, list[dict]]:
     """Group BIDS-compliant recordings by specified fixed entities.
+
+    BIDS entities (e.g., subject, session, task) are standardized labels in BIDS filenames.
+    For more information on BIDS entities, see:
+    https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
 
     Group keys are constructed using only the entities listed in
     `fixed_entities`; all other entities are implicitly allowed to vary within
@@ -158,6 +173,14 @@ def group_recordings_by_entity(
                 )
             normalized.append(short_name)
         return normalized
+
+    if fixed_entities is None:
+        warnings.warn(
+            "No fixed_entities were specified for grouping recordings. "
+            "By default, recordings will be grouped by all BIDS entities present in the filename, except for the 'run' entity "
+            "(so only the run may vary within each group). "
+            "To control grouping more precisely, specify 'fixed_entities' as a list of BIDS entities (e.g., ['subject', 'session', 'task'])."
+        )
 
     normalized_fixed = (
         set(_normalize_entity_list(fixed_entities, "fixed_entities"))
@@ -201,6 +224,9 @@ def check_eeg_recording_files_exist(
 ) -> bool:
     """Check if EEG data files corresponding to a BIDS recording_id exist in the BIDS root directory.
 
+    Note: The BIDS root directory is the top-level folder of a BIDS dataset.
+    All data and metadata within the dataset are organized relative to this root directory.
+
     Args:
         bids_root: BIDS root directory (e.g., '/path/to/bids/root')
         recording_id: Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband')
@@ -217,6 +243,9 @@ def check_ieeg_recording_files_exist(
     recording_id: str,
 ) -> bool:
     """Check if iEEG data files corresponding to a BIDS recording_id exist in the BIDS root directory.
+
+    Note: The BIDS root directory is the top-level folder of a BIDS dataset.
+    All data and metadata within the dataset are organized relative to this root directory.
 
     Args:
         bids_root: BIDS root directory (e.g., '/path/to/bids/root')
@@ -235,6 +264,13 @@ def build_bids_path(
     bids_root: str | Path, recording_id: str, modality: str
 ) -> BIDSPath:
     """Build a mne_bids.BIDSPath for a given recording_id, modality, and BIDS root directory.
+
+    Note: The BIDS root directory is the top-level folder of a BIDS dataset.
+    All data and metadata within the dataset are organized relative to this root directory.
+
+    BIDSPath is a helper class from mne-bids for representing BIDS file paths and entities.
+    For more information on BIDSPath, see:
+    https://mne.tools/mne-bids/stable/generated/mne_bids.BIDSPath.html
 
     Args:
         bids_root: BIDS root directory (e.g., '/path/to/bids/root')
@@ -266,6 +302,16 @@ def build_bids_path(
 def load_json_sidecar(bids_path: BIDSPath) -> dict:
     """Load the JSON sidecar file for a given BIDS file.
 
+    The JSON sidecar file contains metadata and additional annotations about a BIDS recording,
+    such as acquisition parameters, device settings, channel information, and other contextual
+    information that supplements the raw data file. Sidecar files are an essential component
+    of BIDS datasets and are typically found alongside the primary data files with the same
+    base name but a `.json` extension.
+
+    For more information on JSON sidecar files, see:
+    EEG: https://bids-specification.readthedocs.io/en/stable/modality-specific-files/electroencephalography.html#sidecar-json-_eegjson
+    iEEG: https://bids-specification.readthedocs.io/en/stable/modality-specific-files/intracranial-electroencephalography.html#sidecar-json-_ieegjson
+
     Args:
         bids_path: BIDS path as a string, Path, or BIDSPath.
 
@@ -289,8 +335,15 @@ def load_json_sidecar(bids_path: BIDSPath) -> dict:
 def load_participants_tsv(bids_root: Path | str) -> Optional[pd.DataFrame]:
     """Load participants.tsv data from a BIDS root directory.
 
+    The participants.tsv file is a tab-delimited file containing information about all subjects
+    in the dataset, such as participant_id, age, sex, and other metadata. This file is part
+    of the BIDS standard, and is typically found at the root of the BIDS dataset.
+
+    For more information on participants.tsv, see:
+    https://bids-specification.readthedocs.io/en/stable/modality-agnostic-files/data-summary-files.html#participants-file
+
     Args:
-        bids_root: The path to the BIDS root directory.
+        bids_root: BIDS root directory (e.g., '/path/to/bids/root')
 
     Returns:
         pd.DataFrame: Participant information indexed by participant_id,
@@ -380,6 +433,11 @@ def _fetch_recordings(
 ) -> list[dict]:
     """
     Internal helper for discovering BIDS recordings that match provided file extensions and modality.
+
+    Note: The values in the returned dictionary correspond to BIDS entity values
+    (e.g., subject, session, task, acquisition, run, description) extracted from the filenames.
+    For more information on BIDS entities, see:
+    https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
 
     Args:
         source: BIDS root directory as a string, BIDSPath, or Path, or a list of those types.
@@ -477,6 +535,9 @@ def _check_recording_files_exist(
     extensions: set[str],
 ) -> bool:
     """Check if any data file for a BIDS recording exists in the BIDS root directory.
+
+    Note: The BIDS root directory is the top-level folder of a BIDS dataset.
+    All data and metadata within the dataset are organized relative to this root directory.
 
     This searches for any file belonging to the recording in the proper BIDS directory structure,
     matching any of the supported file extensions. It supports all BIDS-compliant formats (e.g., .edf, .vhdr, .set, .bdf, .eeg, .nwb)
