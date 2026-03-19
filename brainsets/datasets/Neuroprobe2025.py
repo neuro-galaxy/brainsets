@@ -99,22 +99,29 @@ NEUROPROBE_LONGEST_TRIALS_FOR_SUBJECT: dict[int, list[int]] = {
 _RECORDING_ID_RE = re.compile(r"^sub_(\d+)_trial(\d{3})$")
 
 
-def _to_recording_id(subject: int, session: int) -> str:
+def _to_recording_id(subject: Integral, session: Integral) -> str:
     # Normalize integer subject/session into the canonical H5 recording id.
     if (
         isinstance(subject, bool)
-        or not isinstance(subject, int)
-        or subject < 0
+        or not isinstance(subject, Integral)
         or isinstance(session, bool)
-        or not isinstance(session, int)
-        or not (0 <= session <= 999)
+        or not isinstance(session, Integral)
     ):
         raise ValueError(
             "_to_recording_id received invalid subject/session values: "
             f"subject={subject!r}, session={session!r}. Expected subject to be a "
             "non-negative integer and session to be an integer in 0..999."
         )
-    return f"sub_{subject}_trial{session:03d}"
+
+    subject_int = int(subject)
+    session_int = int(session)
+    if subject_int < 0 or not (0 <= session_int <= 999):
+        raise ValueError(
+            "_to_recording_id received invalid subject/session values: "
+            f"subject={subject!r}, session={session!r}. Expected subject to be a "
+            "non-negative integer and session to be an integer in 0..999."
+        )
+    return f"sub_{subject_int}_trial{session_int:03d}"
 
 
 def _from_recording_id(recording_id: str) -> tuple[int, int]:
@@ -287,36 +294,8 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
         _ = recording_id
         return 2048.0
 
-    def get_channel_arrays(
-        self, recording_id: str, *, included_only: bool = False
-    ) -> dict[str, np.ndarray | None]:
+    def get_channel_arrays(self, recording_id: str) -> dict[str, np.ndarray | str]:
         """Return normalized channel metadata arrays for one recording."""
-        full_arrays = self._get_full_channel_arrays(recording_id)
-        included_mask = full_arrays["included_mask"]
-        if included_only:
-            indices = np.flatnonzero(included_mask)
-            ids = full_arrays["ids"][indices]
-            names = full_arrays["names"][indices]
-            lip = None if full_arrays["lip"] is None else full_arrays["lip"][indices]
-            return {
-                "ids": ids,
-                "names": names,
-                "included_mask": np.ones(len(indices), dtype=bool),
-                "lip": lip,
-                "indices": indices,
-            }
-
-        return {
-            "ids": full_arrays["ids"],
-            "names": full_arrays["names"],
-            "included_mask": included_mask,
-            "lip": full_arrays["lip"],
-            "indices": np.arange(len(full_arrays["ids"]), dtype=int),
-        }
-
-    def _get_full_channel_arrays(
-        self, recording_id: str
-    ) -> dict[str, np.ndarray | None]:
         rec = self.get_recording(recording_id)
         channels = rec.channels
 
@@ -360,7 +339,9 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
             "ids": ids,
             "names": names,
             "included_mask": included_mask,
-            "lip": lip,
+            "coords": lip,
+            "coords_type": "lip",
+            "indices": np.arange(len(ids), dtype=int),
         }
 
     def get_recording_hook(self, data: Data):

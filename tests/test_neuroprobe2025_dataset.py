@@ -135,6 +135,10 @@ def test_recording_id_roundtrip():
     assert _from_recording_id(recording_id) == (2, 4)
 
 
+def test_to_recording_id_accepts_numpy_integer_inputs():
+    assert _to_recording_id(np.int64(2), np.int32(4)) == "sub_2_trial004"
+
+
 @pytest.mark.parametrize(
     ("subject", "session"),
     [
@@ -524,7 +528,9 @@ def test_domain_intervals_use_active_recording_ids_and_sampling_requires_split_m
     assert list(domain_intervals.keys()) == ["sub_1_trial001", "sub_2_trial004"]
 
 
-def test_get_channel_arrays_included_only_filters_channels(tmp_path, monkeypatch):
+def test_get_channel_arrays_returns_full_arrays_with_included_mask(
+    tmp_path, monkeypatch
+):
     _write_default_recordings(tmp_path)
 
     ds = _make_dataset(tmp_path)
@@ -542,16 +548,14 @@ def test_get_channel_arrays_included_only_filters_channels(tmp_path, monkeypatch
 
     monkeypatch.setattr(ds, "get_recording", lambda _rid: _FakeRecording())
 
-    full_arrays = ds.get_channel_arrays("sub_1_trial001", included_only=False)
-    included_arrays = ds.get_channel_arrays("sub_1_trial001", included_only=True)
-    assert full_arrays["ids"].tolist() == ["c0", "c1"]
-    assert full_arrays["indices"].tolist() == [0, 1]
-    assert included_arrays["ids"].tolist() == ["c0"]
-    assert included_arrays["names"].tolist() == ["A"]
-    assert included_arrays["included_mask"].tolist() == [True]
-    assert included_arrays["indices"].tolist() == [0]
-    assert included_arrays["lip"] is not None
-    assert included_arrays["lip"].shape == (1, 3)
+    channel_arrays = ds.get_channel_arrays("sub_1_trial001")
+    assert channel_arrays["ids"].tolist() == ["c0", "c1"]
+    assert channel_arrays["names"].tolist() == ["A", "B"]
+    assert channel_arrays["included_mask"].tolist() == [True, False]
+    assert channel_arrays["coords_type"] == "lip"
+    assert channel_arrays["indices"].tolist() == [0, 1]
+    assert channel_arrays["coords"] is not None
+    assert channel_arrays["coords"].shape == (2, 3)
 
 
 def test_get_channel_ids_use_recording_view_ids_without_suffix(tmp_path, monkeypatch):
