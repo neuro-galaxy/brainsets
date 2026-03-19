@@ -9,6 +9,7 @@
 from itertools import product
 import os
 import re
+import time
 import h5py
 import logging
 import shutil
@@ -35,6 +36,9 @@ logging.basicConfig(level=logging.INFO)
 
 
 BASE_URL = "https://braintreebank.dev"
+DOWNLOAD_TIMEOUT_SECONDS = 60
+DOWNLOAD_MAX_RETRIES = 2
+DOWNLOAD_RETRY_BACKOFF_SECONDS = 1.0
 COMMON_ASSETS = [
     "data/localization.zip",
     "data/subject_timings.zip",
@@ -141,7 +145,12 @@ class Pipeline(BrainsetPipeline):
         )
         return extracted_path
 
+    def _prepare_worker_runtime(self) -> None:
+        # Worker processes do not share globals initialized during manifest creation.
+        _prepare_neuroprobe_lib(self.raw_dir)
+
     def process(self, fpath):
+        self._prepare_worker_runtime()
         self.update_status("Processing")
         self.processed_dir.mkdir(exist_ok=True, parents=True)
         output_path = self.processed_dir / Path(fpath).name
@@ -230,9 +239,13 @@ class Pipeline(BrainsetPipeline):
     def iterate_extract_splits(
         self, subject_id: int, trial_id: int
     ) -> Dict[str, Interval]:
+        self._prepare_worker_runtime()
         if not hasattr(self, "all_subjects"):
             # load all subjects and channels once
             # channels will be populated with subsets for each fold
+            unique_subject_ids = sorted(
+                {sid for sid, _ in neuroprobe_config.NEUROPROBE_FULL_SUBJECT_TRIALS}
+            )
             self.all_subjects = {
                 subject_id: neuroprobe.BrainTreebankSubject(
                     subject_id=subject_id,
@@ -241,7 +254,7 @@ class Pipeline(BrainsetPipeline):
                     dtype=torch.float32,
                     coordinates_type="lpi",
                 )
-                for subject_id, _ in neuroprobe_config.NEUROPROBE_FULL_SUBJECT_TRIALS
+                for subject_id in unique_subject_ids
             }
             self.all_channels = {
                 subject_id: _extract_channel_data(self.all_subjects[subject_id])
@@ -564,12 +577,8 @@ def _extract_neural_data(input_file: Path, channels: ArrayDict) -> IrregularTime
             data[:, c] = f["data"][key][:]
 
     seeg_data = IrregularTimeSeries(
-        timestamps=np.linspace(
-            0,
-            data.shape[0] / neuroprobe_config.SAMPLING_RATE,
-            data.shape[0],
-            dtype=np.float64,
-        ),
+        timestamps=np.arange(data.shape[0], dtype=np.float64)
+        / neuroprobe_config.SAMPLING_RATE,
         data=data,
         domain="auto",
     )
@@ -581,8 +590,33 @@ def _download_file(url: str, dest: Path, *, overwrite: bool) -> None:
     if dest.exists() and not overwrite:
         return
     dest.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(url) as response, dest.open("wb") as handle:
-        shutil.copyfileobj(response, handle)
+    tmp_dest = dest.with_suffix(f"{dest.suffix}.tmp")
+
+    total_attempts = DOWNLOAD_MAX_RETRIES + 1
+    for attempt in range(1, total_attempts + 1):
+        try:
+            with (
+                urllib.request.urlopen(
+                    url, timeout=DOWNLOAD_TIMEOUT_SECONDS
+                ) as response,
+                tmp_dest.open("wb") as handle,
+            ):
+                shutil.copyfileobj(response, handle)
+            tmp_dest.replace(dest)
+            return
+        except Exception:
+            if tmp_dest.exists():
+                tmp_dest.unlink()
+            if attempt == total_attempts:
+                raise
+            logging.warning(
+                "Download attempt %d/%d failed for %s; retrying in %.1fs.",
+                attempt,
+                total_attempts,
+                url,
+                DOWNLOAD_RETRY_BACKOFF_SECONDS,
+            )
+            time.sleep(DOWNLOAD_RETRY_BACKOFF_SECONDS)
 
 
 def _download_and_extract(raw_dir: Path, href: str, *, overwrite: bool) -> Path:
