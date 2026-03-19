@@ -82,7 +82,7 @@ class Pipeline(BrainsetPipeline):
             description="This dataset contains sorted unit spiking times and behavioral"
             " data from a macaque performing a delayed reaching task. The experimental task"
             " was a center-out reaching task with obstructing barriers forming a maze,"
-            " resulting in a variety of straight and curved reaches.",
+            " resulting in a variety of straight and curved reaches. The dataset also has RTT ie random target reaching task.",
         )
         fpath = download_output["fpath"]
         task = download_output["manifest_item"].task
