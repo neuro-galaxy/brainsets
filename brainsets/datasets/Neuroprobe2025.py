@@ -257,16 +257,14 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
         )
 
         # Configure subject/session-based channel-id prefixing behavior.
-        if not isinstance(uniquify_channel_ids_with_subject, bool):
-            raise TypeError(
-                "uniquify_channel_ids_with_subject must be bool; got "
-                f"{type(uniquify_channel_ids_with_subject).__name__}."
-            )
-        if not isinstance(uniquify_channel_ids_with_session, bool):
-            raise TypeError(
-                "uniquify_channel_ids_with_session must be bool; got "
-                f"{type(uniquify_channel_ids_with_session).__name__}."
-            )
+        self.multichannel_dataset_mixin_uniquify_channel_ids_with_subject = (
+            uniquify_channel_ids_with_subject
+        )
+        self.multichannel_dataset_mixin_uniquify_channel_ids_with_session = (
+            uniquify_channel_ids_with_session
+        )
+        # Keep old attribute names in sync for compatibility with older torch_brain
+        # versions that still read seeg_dataset_mixin_* flags.
         self.seeg_dataset_mixin_uniquify_channel_ids_with_subject = (
             uniquify_channel_ids_with_subject
         )
@@ -381,7 +379,7 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
             super().get_recording_hook(data)
             return
 
-        recording_id = data.session.recording_id
+        recording_id = data.session.id
         channel_mask_path = self._channel_mask_attr_path()
         interval_path = self._interval_attr_path()
 

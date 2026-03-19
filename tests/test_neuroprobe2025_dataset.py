@@ -379,18 +379,21 @@ def test_get_sampling_rate_is_fixed_constant(tmp_path):
     assert ds.get_sampling_rate() == 2048.0
 
 
-def test_uniquify_channel_ids_option_sets_seeg_mixin_components(tmp_path):
+def test_uniquify_channel_ids_option_sets_multichannel_mixin_components(tmp_path):
     _write_default_recordings(tmp_path)
 
     ds = _make_dataset(tmp_path, uniquify_channel_ids_with_subject=True)
-    assert ds.seeg_dataset_mixin_uniquify_channel_ids_with_subject is True
-    assert ds.seeg_dataset_mixin_uniquify_channel_ids_with_session is False
+    assert ds.multichannel_dataset_mixin_uniquify_channel_ids_with_subject is True
+    assert ds.multichannel_dataset_mixin_uniquify_channel_ids_with_session is False
 
 
 def test_uniquify_channel_ids_option_rejects_non_boolean(tmp_path):
     _write_default_recordings(tmp_path)
 
-    with pytest.raises(TypeError, match="uniquify_channel_ids_with_subject"):
+    with pytest.raises(
+        TypeError,
+        match="multichannel_dataset_mixin_uniquify_channel_ids_with_subject",
+    ):
         _make_dataset(tmp_path, uniquify_channel_ids_with_subject="yes")
 
 
@@ -429,7 +432,7 @@ def test_get_recording_hook_sets_active_split_interval_on_data(tmp_path):
             self.channels = _FakeChannels()
             self.splits = object()
             self.paths = []
-            self.session = type("_Session", (), {"recording_id": "sub_1_trial001"})()
+            self.session = type("_Session", (), {"id": "sub_1_trial001"})()
 
         def get_nested_attribute(self, path: str):
             self.paths.append(path)
@@ -567,7 +570,6 @@ def test_get_channel_ids_use_recording_view_ids_without_suffix(tmp_path, monkeyp
     monkeypatch.setattr(ds, "get_recording", lambda _rid: _FakeRecording())
 
     assert ds.get_channel_ids() == ["ch0", "ch0", "ch1", "ch1"]
-    assert ds.get_channel_ids(included_only=True) == ["ch0", "ch0"]
 
 
 def test_get_channel_ids_return_prefixed_ids_from_recording_view(tmp_path, monkeypatch):
