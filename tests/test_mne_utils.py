@@ -397,11 +397,16 @@ class TestExtractChannels:
     def test_channel_names_mapping_with_missing_keys_raises_value_error(self):
         """Test that ValueError is raised if channel_names_mapping keys are not in raw channels."""
         original_names = ["A", "B", "C"]
-        mock_raw = create_mock_raw(ch_names=original_names, n_channels=len(original_names))
+        mock_raw = create_mock_raw(
+            ch_names=original_names, n_channels=len(original_names)
+        )
         # Mapping contains a key "D" which isn't in raw channels
         name_mapping = {"A": "Alpha", "D": "Delta"}
 
-        with pytest.raises(ValueError, match="Channel names in the mapping are not present in the raw data"):
+        with pytest.raises(
+            ValueError,
+            match="Channel names in the mapping are not present in the raw data",
+        ):
             extract_channels(mock_raw, channel_names_mapping=name_mapping)
 
     def test_ambiguous_channel_name_mapping_raises_value_error(self):
@@ -426,10 +431,10 @@ class TestExtractChannels:
         name_mapping = {"A": "DUPLICATE", "B": "DUPLICATE"}
 
         with pytest.raises(
-            ValueError, match="Duplicate channel names in channel_names_mapping detected"
+            ValueError,
+            match="Duplicate channel names in channel_names_mapping detected",
         ):
             extract_channels(mock_raw, channel_names_mapping=name_mapping)
-
 
 
 @pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")

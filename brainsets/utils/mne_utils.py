@@ -35,7 +35,7 @@ def _check_mne_available(func_name: str) -> None:
 
 
 def extract_measurement_date(
-    recording_data: "mne.io.Raw",
+    recording_data: "mne.io.BaseRaw",
 ) -> datetime.datetime:
     """Extract the measurement date from MNE Raw recording data.
 
@@ -57,12 +57,12 @@ def extract_measurement_date(
 
 
 def concatenate_recordings(
-    recordings: list["mne.io.Raw"],
+    recordings: list["mne.io.BaseRaw"],
     max_offset: float = 1.0,
     on_mismatch: Literal["ignore", "warn", "raise"] = "raise",
     on_offset: Literal["ignore", "warn", "raise"] = "warn",
     on_missing_meas_date: Literal["ignore", "warn", "raise"] = "warn",
-) -> "mne.io.Raw":
+) -> "mne.io.BaseRaw":
     """Concatenate a list of MNE Raw objects into one, validating metadata.
 
     This function concatenates multiple MNE Raw recordings, prioritizing temporal order
@@ -252,7 +252,7 @@ def concatenate_recordings(
 
 
 def extract_signal(
-    recording_data: "mne.io.Raw",
+    recording_data: "mne.io.BaseRaw",
 ) -> RegularTimeSeries:
     """Extract entire time-series signal from an MNE Raw object.
 
@@ -284,7 +284,9 @@ def extract_signal(
     )
 
 
-def extract_psg_signal(raw_psg: "mne.io.Raw") -> Tuple[RegularTimeSeries, ArrayDict]:
+def extract_psg_signal(
+    raw_psg: "mne.io.BaseRaw",
+) -> Tuple[RegularTimeSeries, ArrayDict]:
     """Extract physiological (PSG) signals and channel metadata from an MNE Raw (EDF) recording.
 
     Args:
@@ -358,43 +360,65 @@ def extract_psg_signal(raw_psg: "mne.io.Raw") -> Tuple[RegularTimeSeries, ArrayD
 
 
 def extract_channels(
-    recording_data: "mne.io.Raw",
+    recording_data: "mne.io.BaseRaw",
     channel_names_mapping: dict[str, str] | None = None,
     channel_types_mapping: dict[str, list[str]] | None = None,
     channel_pos_mapping: dict[str, np.ndarray] | None = None,
 ) -> ArrayDict:
-    """
-    """
+    """ """
     _check_mne_available("extract_channels")
-    
-    if not isinstance(recording_data, mne.io.Raw):
-        raise TypeError(f"recording_data must be a mne.io.Raw object, got {type(recording_data).__name__}.")
 
-    if channel_names_mapping is not None and not isinstance(channel_names_mapping, dict):
-        raise TypeError(f"channel_names_mapping must be a dictionary, got {type(channel_names_mapping).__name__}.")
-    channel_names_mapping = _validate_channel_names_mapping(recording_data, channel_names_mapping)
+    if not isinstance(recording_data, mne.io.BaseRaw):
+        raise TypeError(
+            f"recording_data must be a mne.io.BaseRaw object, got {type(recording_data).__name__}."
+        )
 
-    if channel_types_mapping is not None and not isinstance(channel_types_mapping, dict):
-        raise TypeError(f"channel_types_mapping must be a dictionary, got {type(channel_types_mapping).__name__}.")
-    channel_types_mapping = _validate_channel_types_mapping(recording_data, channel_names_mapping, channel_types_mapping)
-    
+    if channel_names_mapping is not None and not isinstance(
+        channel_names_mapping, dict
+    ):
+        raise TypeError(
+            f"channel_names_mapping must be a dictionary, got {type(channel_names_mapping).__name__}."
+        )
+    channel_names_mapping = _validate_channel_names_mapping(
+        recording_data, channel_names_mapping
+    )
+
+    if channel_types_mapping is not None and not isinstance(
+        channel_types_mapping, dict
+    ):
+        raise TypeError(
+            f"channel_types_mapping must be a dictionary, got {type(channel_types_mapping).__name__}."
+        )
+    channel_types_mapping = _validate_channel_types_mapping(
+        recording_data, channel_names_mapping, channel_types_mapping
+    )
+
     if channel_pos_mapping is not None and not isinstance(channel_pos_mapping, dict):
-        raise TypeError(f"channel_pos_mapping must be a dictionary, got {type(channel_pos_mapping).__name__}.")
-    channel_pos_mapping = _validate_channel_pos_mapping(recording_data, channel_names_mapping, channel_pos_mapping)
-  
+        raise TypeError(
+            f"channel_pos_mapping must be a dictionary, got {type(channel_pos_mapping).__name__}."
+        )
+    channel_pos_mapping = _validate_channel_pos_mapping(
+        recording_data, channel_names_mapping, channel_pos_mapping
+    )
+
     raw_ch_names = np.array(recording_data.ch_names, dtype="U")
     raw_ch_types = np.array(recording_data.get_channel_types(), dtype="U")
-    
+
     # Apply channel name mapping
     channel_ids = np.array(
-            [channel_names_mapping.get(ch_name, ch_name) for ch_name in raw_ch_names], dtype="U"
-        )
-        
+        [channel_names_mapping.get(ch_name, ch_name) for ch_name in raw_ch_names],
+        dtype="U",
+    )
+
     # Apply channel type mapping
     channel_types = np.array(
-        [channel_types_mapping.get(ch_name, ch_type) for ch_name, ch_type in zip(raw_ch_names, raw_ch_types)], dtype="U"
+        [
+            channel_types_mapping.get(ch_name, ch_type)
+            for ch_name, ch_type in zip(raw_ch_names, raw_ch_types)
+        ],
+        dtype="U",
     )
-    
+
     # Apply channel position mapping
     channel_count = len(raw_ch_names)
     channel_pos = np.full((channel_count, 3), np.nan)
@@ -406,10 +430,13 @@ def extract_channels(
                 channel_pos_mapping = montage.get_positions()["ch_pos"]
         except Exception as e:
             warnings.warn(f"Could not extract channel positions from montage: {e}")
-    
+
     if channel_pos_mapping is not None:
         channel_pos = np.array(
-            [channel_pos_mapping.get(ch_name, ch_pos) for ch_name, ch_pos in zip(raw_ch_names, channel_pos)]
+            [
+                channel_pos_mapping.get(ch_name, ch_pos)
+                for ch_name, ch_pos in zip(raw_ch_names, channel_pos)
+            ]
         )
 
     # Bad channel extraction
@@ -480,7 +507,7 @@ def _resolve_channel_names_for_mapping(
 
 
 def _validate_channel_names_mapping(
-    raw_data: "mne.io.Raw",
+    raw_data: "mne.io.BaseRaw",
     channel_names_mapping: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Validate and return a channel name mapping.
@@ -502,24 +529,28 @@ def _validate_channel_names_mapping(
             or if the resulting mapped channel names are not unique.
     """
     raw_ch_names = np.array(raw_data.ch_names, dtype="U")
-    
+
     if channel_names_mapping is None:
         return {ch_name: ch_name for ch_name in raw_ch_names}
-    
+
     raw_ch_names_set = set(raw_ch_names)
     mapping_keys_set = set(channel_names_mapping.keys())
     mapping_values_set = set(channel_names_mapping.values())
-    
+
     if not mapping_keys_set.issubset(raw_ch_names_set):
         missing_keys = mapping_keys_set - raw_ch_names_set
         raise ValueError(
             f"Channel names in the mapping are not present in the raw data: {missing_keys}"
         )
-    
+
     # Detect ambiguous mappings where a key also appears as a value with different order
     if mapping_keys_set & mapping_values_set:
-        key_idx = {ch_name: idx for idx, ch_name in enumerate(channel_names_mapping.keys())}
-        value_idx = {ch_name: idx for idx, ch_name in enumerate(channel_names_mapping.values())}
+        key_idx = {
+            ch_name: idx for idx, ch_name in enumerate(channel_names_mapping.keys())
+        }
+        value_idx = {
+            ch_name: idx for idx, ch_name in enumerate(channel_names_mapping.values())
+        }
         ambiguous = [
             ch_name
             for ch_name in mapping_keys_set
@@ -532,14 +563,21 @@ def _validate_channel_names_mapping(
 
     # Check for duplicate channel names in channel_names_mapping
     if len(mapping_keys_set) != len(mapping_values_set):
-        duplicates = [ch_name for ch_name in set(channel_names_mapping.values()) if list(channel_names_mapping.values()).count(ch_name) > 1]
-        raise ValueError(f"Duplicate channel names in channel_names_mapping detected: {duplicates}. "
-                         f"Ensure that your channel name mapping creates unique identifiers.")
+        duplicates = [
+            ch_name
+            for ch_name in set(channel_names_mapping.values())
+            if list(channel_names_mapping.values()).count(ch_name) > 1
+        ]
+        raise ValueError(
+            f"Duplicate channel names in channel_names_mapping detected: {duplicates}. "
+            f"Ensure that your channel name mapping creates unique identifiers."
+        )
 
     return channel_names_mapping
 
+
 def _validate_channel_types_mapping(
-    raw_data: "mne.io.Raw",
+    raw_data: "mne.io.BaseRaw",
     channel_names_mapping: dict[str, str] | None = None,
     channel_types_mapping: dict[str, list[str]] | None = None,
 ) -> dict[str, str]:
@@ -563,17 +601,19 @@ def _validate_channel_types_mapping(
     """
     raw_ch_names = np.array(raw_data.ch_names, dtype="U")
     raw_ch_types = np.array(raw_data.get_channel_types(), dtype="U")
-    
+
     if channel_types_mapping is None:
-        return {ch_name: ch_type for ch_name, ch_type in zip(raw_ch_names, raw_ch_types)}
-    
+        return {
+            ch_name: ch_type for ch_name, ch_type in zip(raw_ch_names, raw_ch_types)
+        }
+
     # Build a lookup from channel names to types (from type_mapping)
     ch_type_lookup = {
         ch_name: ch_type
         for ch_type, ch_list in channel_types_mapping.items()
         for ch_name in ch_list
     }
-    
+
     # Determine if mapping keys refer to original or renamed names
     ch_names_in_type_mapping = set(ch_type_lookup.keys())
     renamed_ch_names = (
@@ -581,27 +621,30 @@ def _validate_channel_types_mapping(
         if channel_names_mapping
         else raw_ch_names
     )
-    
+
     # Resolve which namespace the mapping uses
     ch_names_for_type_mapping = _resolve_channel_names_for_mapping(
         original_ch_names=raw_ch_names,
         renamed_ch_names=renamed_ch_names,
         ch_names_in_mapping=ch_names_in_type_mapping,
     )
-    
+
     # If mapping used renamed names, convert back to original names
-    if not np.array_equal(ch_names_for_type_mapping, raw_ch_names) and channel_names_mapping:
+    if (
+        not np.array_equal(ch_names_for_type_mapping, raw_ch_names)
+        and channel_names_mapping
+    ):
         inv_name_mapping = {v: k for k, v in channel_names_mapping.items()}
         ch_type_lookup = {
             inv_name_mapping.get(ch_name, ch_name): ch_type
             for ch_name, ch_type in ch_type_lookup.items()
         }
-    
+
     return ch_type_lookup
 
 
 def _validate_channel_pos_mapping(
-    raw_data: "mne.io.Raw",
+    raw_data: "mne.io.BaseRaw",
     channel_names_mapping: dict[str, str] | None = None,
     channel_pos_mapping: dict[str, np.ndarray] | None = None,
 ) -> dict[str, np.ndarray] | None:
@@ -624,10 +667,10 @@ def _validate_channel_pos_mapping(
         ValueError: If mapping keys are not consistent (mixed original/renamed).
     """
     raw_ch_names = np.array(raw_data.ch_names, dtype="U")
-    
+
     if channel_pos_mapping is None:
         return None
-    
+
     # Determine if mapping keys refer to original or renamed names
     ch_names_in_pos_mapping = set(channel_pos_mapping.keys())
     renamed_ch_names = (
@@ -635,20 +678,23 @@ def _validate_channel_pos_mapping(
         if channel_names_mapping
         else raw_ch_names
     )
-    
+
     # Resolve which namespace the mapping uses
     ch_names_for_pos_mapping = _resolve_channel_names_for_mapping(
         original_ch_names=raw_ch_names,
         renamed_ch_names=renamed_ch_names,
         ch_names_in_mapping=ch_names_in_pos_mapping,
     )
-    
+
     # If mapping used renamed names, convert back to original names
-    if not np.array_equal(ch_names_for_pos_mapping, raw_ch_names) and channel_names_mapping:
+    if (
+        not np.array_equal(ch_names_for_pos_mapping, raw_ch_names)
+        and channel_names_mapping
+    ):
         inv_name_mapping = {v: k for k, v in channel_names_mapping.items()}
         return {
             inv_name_mapping.get(ch_name, ch_name): pos
             for ch_name, pos in channel_pos_mapping.items()
         }
-    
+
     return channel_pos_mapping
