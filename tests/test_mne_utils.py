@@ -417,9 +417,7 @@ class TestExtractChannels:
         # Ambiguous swap mapping: "A" -> "B" and "B" -> "A"
         name_mapping = {"A": "B", "B": "A"}
 
-        with pytest.raises(
-            ValueError, match="Ambiguous channel name mapping detected"
-        ):
+        with pytest.raises(ValueError, match="Ambiguous channel name mapping detected"):
             extract_channels(mock_raw, channels_name_mapping=name_mapping)
 
 
