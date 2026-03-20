@@ -270,8 +270,6 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
         self.multichannel_dataset_mixin_uniquify_channel_ids_with_session = (
             uniquify_channel_ids_with_session
         )
-        # Validate flags eagerly so config errors fail at construction time.
-        self._normalize_channel_uniquify_components()
 
     def get_sampling_intervals(self) -> dict[str, Interval]:
         """Return split-specific sampling intervals for this dataset instance."""
