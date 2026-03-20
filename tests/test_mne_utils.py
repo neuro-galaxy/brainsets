@@ -37,7 +37,7 @@ def create_mock_raw(
     ch_types=None,
 ):
     """Helper to create a mock MNE Raw object for testing."""
-    mock_raw = MagicMock()
+    mock_raw = MagicMock(spec=mne.io.Raw)
 
     if ch_names is None:
         ch_names = [f"CH{i}" for i in range(n_channels)]
@@ -209,7 +209,7 @@ class TestExtractChannels:
         )
         name_mapping = {"CH0": "NewCH0", "CH1": "NewCH1"}
 
-        result = extract_channels(mock_raw, channels_name_mapping=name_mapping)
+        result = extract_channels(mock_raw, channel_names_mapping=name_mapping)
 
         expected = np.array(["NewCH0", "NewCH1", "CH2"], dtype="U")
         np.testing.assert_array_equal(result.id, expected)
@@ -224,7 +224,7 @@ class TestExtractChannels:
         )
         type_mapping = {"eog": ["CH0"], "emg": ["CH2"]}
 
-        result = extract_channels(mock_raw, channels_type_mapping=type_mapping)
+        result = extract_channels(mock_raw, channel_types_mapping=type_mapping)
 
         expected = np.array(["eog", "eeg", "emg"], dtype="U")
         np.testing.assert_array_equal(result.type, expected)
@@ -242,8 +242,8 @@ class TestExtractChannels:
 
         result = extract_channels(
             mock_raw,
-            channels_name_mapping=name_mapping,
-            channels_type_mapping=type_mapping,
+            channel_names_mapping=name_mapping,
+            channel_types_mapping=type_mapping,
         )
 
         expected_types = np.array(["eog", "eog", "emg"], dtype="U")
@@ -301,7 +301,7 @@ class TestExtractChannels:
             "CH2": np.array([0.4, 0.5, 0.6]),
         }
 
-        result = extract_channels(mock_raw, channels_pos_mapping=pos_mapping)
+        result = extract_channels(mock_raw, channel_pos_mapping=pos_mapping)
 
         assert hasattr(result, "pos")
         assert result.pos.shape == (3, 3)
@@ -326,8 +326,8 @@ class TestExtractChannels:
 
         result = extract_channels(
             mock_raw,
-            channels_name_mapping=name_mapping,
-            channels_pos_mapping=pos_mapping,
+            channel_names_mapping=name_mapping,
+            channel_pos_mapping=pos_mapping,
         )
 
         assert hasattr(result, "pos")
@@ -357,7 +357,7 @@ class TestExtractChannels:
             "CH2": np.array([4.0, 5.0, 6.0]),
         }
 
-        result = extract_channels(mock_raw, channels_pos_mapping=pos_mapping)
+        result = extract_channels(mock_raw, channel_pos_mapping=pos_mapping)
 
         assert hasattr(result, "pos")
         assert result.pos.shape == (3, 3)
@@ -373,7 +373,7 @@ class TestExtractChannels:
         mock_raw = create_mock_raw(ch_names=ch_names, n_channels=len(ch_names))
         pos_mapping = {}
 
-        result = extract_channels(mock_raw, channels_pos_mapping=pos_mapping)
+        result = extract_channels(mock_raw, channel_pos_mapping=pos_mapping)
 
         assert not hasattr(result, "pos")
 
@@ -394,21 +394,17 @@ class TestExtractChannels:
         expected = np.array([False, True, False])
         np.testing.assert_array_equal(result.bad, expected)
 
-    def test_raises_value_error_on_duplicate_final_channel_ids(self):
-        """Test that ValueError is raised when the final channel IDs have duplicates due to name mapping."""
+    def test_channel_names_mapping_with_missing_keys_raises_value_error(self):
+        """Test that ValueError is raised if channel_names_mapping keys are not in raw channels."""
         original_names = ["A", "B", "C"]
-        mock_raw = create_mock_raw(
-            ch_names=original_names, n_channels=len(original_names)
-        )
-        # This will cause both "A" and "B" to be renamed to "DUPLICATE"
-        name_mapping = {"A": "DUPLICATE", "B": "DUPLICATE"}
+        mock_raw = create_mock_raw(ch_names=original_names, n_channels=len(original_names))
+        # Mapping contains a key "D" which isn't in raw channels
+        name_mapping = {"A": "Alpha", "D": "Delta"}
 
-        with pytest.raises(
-            ValueError, match="Duplicate channel names after name re-mapping"
-        ):
-            extract_channels(mock_raw, channels_name_mapping=name_mapping)
+        with pytest.raises(ValueError, match="Channel names in the mapping are not present in the raw data"):
+            extract_channels(mock_raw, channel_names_mapping=name_mapping)
 
-    def test_raises_value_error_on_ambiguous_channel_name_mapping(self):
+    def test_ambiguous_channel_name_mapping_raises_value_error(self):
         """Test that ValueError is raised when channel name mapping is ambiguous."""
         original_names = ["A", "B"]
         mock_raw = create_mock_raw(
@@ -418,7 +414,22 @@ class TestExtractChannels:
         name_mapping = {"A": "B", "B": "A"}
 
         with pytest.raises(ValueError, match="Ambiguous channel name mapping detected"):
-            extract_channels(mock_raw, channels_name_mapping=name_mapping)
+            extract_channels(mock_raw, channel_names_mapping=name_mapping)
+
+    def test_duplicate_channel_name_mapping_raises_value_error(self):
+        """Test that ValueError is raised when the final channel IDs have duplicates due to name mapping."""
+        original_names = ["A", "B", "C"]
+        mock_raw = create_mock_raw(
+            ch_names=original_names, n_channels=len(original_names)
+        )
+        # This will cause both "A" and "B" to be renamed to "DUPLICATE"
+        name_mapping = {"A": "DUPLICATE", "B": "DUPLICATE"}
+
+        with pytest.raises(
+            ValueError, match="Duplicate channel names in channel_names_mapping detected"
+        ):
+            extract_channels(mock_raw, channel_names_mapping=name_mapping)
+
 
 
 @pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
@@ -640,7 +651,7 @@ class TestConcatenateRecordings:
     def test_non_list_input_raises_error(self):
         """Test that ValueError is raised when input is not a list."""
         mock_raw = create_mock_raw()
-        with pytest.raises(ValueError, match="Recordings must be a list"):
+        with pytest.raises(TypeError, match="Recordings must be a list"):
             concatenate_recordings(mock_raw)
 
     def test_non_raw_object_raises_error(self):
