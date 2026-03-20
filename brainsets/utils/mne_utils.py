@@ -73,17 +73,17 @@ def concatenate_recordings(
 
     Measurement date validation:
         The function validates that all recordings have identical measurement days.
-        The `on_mismatch` parameter controls how such mismatches are handled.
+        The `on_mismatch` parameter controls how such mismatches are handled; default is "raise".
 
         If one or more recordings are missing a measurement date (`meas_date` is None), temporal order cannot be established.
-        By default, the function will concatenate the recordings in the input order rather than sorting by measurement date.
-        The `on_missing_meas_date` parameter controls how this is handled.
+        By default, the function will concatenate the recordings in the given input order rather than sorting by measurement date.
+        The `on_missing_meas_date` parameter controls how this is handled; default is "warn".
 
     Offset validation:
         The function checks for temporal offsets in the measurement dates of the recordings.
         If the measurement dates are separated by notable amounts of time (as defined by the `max_offset`
         parameter, in hours), this can indicate temporal discontinuity.
-        The `on_offset` parameter controls how such offsets are handled when the offset exceeds `max_offset`.
+        The `on_offset` parameter controls how such offsets are handled when the offset exceeds `max_offset`; default is "warn".
         This is useful to ensure recordings are truly continuous or to be notified about gaps between sessions.
 
     Args:
@@ -155,6 +155,8 @@ def concatenate_recordings(
         raise ValueError(
             f"on_missing_meas_date must be one of {valid_policies}, got '{on_missing_meas_date}'"
         )
+    if max_offset < 0:
+        raise ValueError("max_offset must be non-negative")
 
     for idx, rec in enumerate(recordings):
         if not hasattr(rec, "info") or not hasattr(rec, "ch_names"):
@@ -399,6 +401,9 @@ def extract_channels(
 
     # Optional: apply channels name re-mapping
     if channels_name_mapping:
+        _validate_channel_names_mapping(
+            channels_name_mapping,
+        )
         channel_ids = np.array(
             [channels_name_mapping.get(ch, ch) for ch in channel_ids], dtype="U"
         )
@@ -496,6 +501,51 @@ def extract_channels(
     return ArrayDict(**channel_fields)
 
 
+def _validate_channel_names_mapping(
+    channels_name_mapping: dict[str, str],
+) -> None:
+    """
+    Validate that the channel name mapping keys are not ambiguous.
+
+    This function checks that the provided channel name mapping does not produce
+    ambiguous or conflicting results where a channel name could both be mapped from
+    and to itself or where a key also appears as a value with different mapping order.
+    It is intended to catch misspecified mapping dictionaries for channel renaming,
+    which could otherwise make downstream processing ambiguous or unreliable.
+
+    Args:
+        channels_name_mapping: Dictionary mapping original channel names (keys) to new channel names (values).
+
+    Raises:
+        ValueError: If the mapping keys are ambiguous after applying the mapping, i.e.,
+        a key appears in the mapping values and is mapped to a name at a different index,
+        which may cause conflicts or unintended channel renaming.
+    """
+
+    # Validate that the mapping keys are not ambiguous
+    ambiguous = None
+    if any(ch in channels_name_mapping.values() for ch in channels_name_mapping.keys()):
+        original_idx = {
+            name: idx for idx, name in enumerate(channels_name_mapping.keys())
+        }
+        renamed_idx = {
+            name: idx for idx, name in enumerate(channels_name_mapping.values())
+        }
+        ambiguous = [
+            name
+            for name in channels_name_mapping.keys()
+            if original_idx.get(name) != renamed_idx.get(name)
+        ]
+    if ambiguous:
+        raise ValueError(
+            "Ambiguous channel name mapping detected: The following mapping keys appear as both source and target with different index/order, which could lead to conflicting or unpredictable renaming: "
+            + ", ".join(ambiguous)
+            + ".\nOriginal mapping keys: "
+            + ", ".join(channels_name_mapping.keys())
+            + ".\nPlease ensure that your mapping does not cause channels to overlap during renaming."
+        )
+
+
 def _resolve_channel_names_for_mapping(
     original_ch_names: np.ndarray,
     renamed_ch_names: np.ndarray,
@@ -527,6 +577,14 @@ def _resolve_channel_names_for_mapping(
 
     # Check if all mapping references are in original names
     all_in_original = ch_names_in_mapping.issubset(original_ch_names_set)
+
+    if all_in_original and all_in_renamed:
+        _validate_channel_names_mapping(
+            channels_name_mapping={
+                original_ch_names[i]: renamed_ch_names[i]
+                for i in range(len(original_ch_names))
+            }
+        )
 
     if all_in_renamed:
         return renamed_ch_names

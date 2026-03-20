@@ -16,6 +16,7 @@ try:
     from brainsets.utils.bids_utils import (
         EEG_EXTENSIONS,
         IEEG_EXTENSIONS,
+        Modality,
         fetch_eeg_recordings,
         fetch_ieeg_recordings,
         check_eeg_recording_files_exist,
@@ -30,6 +31,7 @@ try:
 except ImportError:
     EEG_EXTENSIONS = None
     IEEG_EXTENSIONS = None
+    Modality = None
     fetch_eeg_recordings = None
     fetch_ieeg_recordings = None
     check_eeg_recording_files_exist = None
@@ -154,7 +156,7 @@ class TestFetchRecordings:
         recordings = _fetch_recordings(
             eeg_source_paths,
             EEG_EXTENSIONS,
-            "eeg",
+            Modality.EEG,
         )
 
         assert len(recordings) == 2
@@ -174,7 +176,7 @@ class TestFetchRecordings:
     def test_raises_type_error_when_source_missing(self):
         """Test that _fetch_recordings raises TypeError when source is None."""
         with pytest.raises(TypeError):
-            _fetch_recordings(None, EEG_EXTENSIONS, "eeg")
+            _fetch_recordings(None, EEG_EXTENSIONS, Modality.EEG)
 
     def test_filters_by_extension_modality_and_deduplicates(
         self, mixed_extension_paths
@@ -189,7 +191,7 @@ class TestFetchRecordings:
         recordings = _fetch_recordings(
             mixed_extension_paths,
             EEG_EXTENSIONS,
-            "eeg",
+            Modality.EEG,
         )
 
         assert len(recordings) == 3
@@ -608,7 +610,7 @@ class TestBuildBidsPath:
         bids_path = build_bids_path(
             bids_root=bids_root,
             recording_id="sub-01_ses-02_task-rest_acq-ecog_run-03_desc-preproc",
-            modality="ieeg",
+            modality=Modality.IEEG,
         )
 
         assert bids_path.root == bids_root
@@ -626,7 +628,7 @@ class TestBuildBidsPath:
         bids_path = build_bids_path(
             bids_root=bids_root,
             recording_id="sub-01_task-rest",
-            modality="eeg",
+            modality=Modality.EEG,
         )
 
         assert bids_path.subject == "01"
@@ -643,7 +645,9 @@ class TestBuildBidsPath:
         and will return None for them.
         """
         bids_path = build_bids_path(
-            bids_root, "sub-01_ses-02_acq-ecog_run-03_desc-preproc", "eeg"
+            bids_root,
+            "sub-01_ses-02_acq-ecog_run-03_desc-preproc",
+            Modality.EEG,
         )
         assert bids_path.subject == "01"
         assert bids_path.task is None
@@ -654,9 +658,14 @@ class TestBuildBidsPath:
 
         The function requires only subject to construct a valid BIDSPath.
         """
-        bids_path = build_bids_path(bids_root, "sub-01", "eeg")
+        bids_path = build_bids_path(bids_root, "sub-01", Modality.EEG)
         assert bids_path.subject == "01"
         assert bids_path.task is None
+
+    def test_raises_value_error_for_unsupported_modality(self, bids_root):
+        """Test that unsupported modalities are rejected."""
+        with pytest.raises(ValueError, match="Unsupported modality"):
+            build_bids_path(bids_root, "sub-01_task-rest", "meg")
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
@@ -677,6 +686,24 @@ class TestLoadJsonSidecar:
         sidecar_path.parent.mkdir(parents=True)
         sidecar_path.write_text('{"OriginalRecordingTimestamp": "2024-01-01T10:00:00"}')
         return bids_root
+
+    def test_accepts_bidspath_input(self, bids_dir_with_json_sidecar):
+        """Test that load_json_sidecar correctly accepts BIDSPath input."""
+        bids_path = mne_bids.BIDSPath(
+            root=bids_dir_with_json_sidecar,
+            subject="01",
+            task="rest",
+            datatype="ieeg",
+            suffix="ieeg",
+        )
+        sidecar = load_json_sidecar(bids_path)
+        assert sidecar["OriginalRecordingTimestamp"] == "2024-01-01T10:00:00"
+
+    def test_raises_type_error_for_non_bidspath_input(self, bids_dir_with_json_sidecar):
+        """Test that TypeError is raised if bids_path is not a BIDSPath object."""
+        not_a_bidspath = "this/is/not/a/BIDSPath"
+        with pytest.raises(TypeError, match="bids_path must be a BIDSPath object"):
+            load_json_sidecar(not_a_bidspath)
 
     def test_loads_json_sidecar_content(self, bids_dir_with_json_sidecar):
         """Test that JSON sidecar content is correctly loaded and parsed.
@@ -700,18 +727,6 @@ class TestLoadJsonSidecar:
         )
         with pytest.raises(FileNotFoundError):
             load_json_sidecar(bids_path)
-
-    def test_accepts_bidspath_input(self, bids_dir_with_json_sidecar):
-        """Test that load_json_sidecar correctly accepts BIDSPath input."""
-        bids_path = mne_bids.BIDSPath(
-            root=bids_dir_with_json_sidecar,
-            subject="01",
-            task="rest",
-            datatype="ieeg",
-            suffix="ieeg",
-        )
-        sidecar = load_json_sidecar(bids_path)
-        assert sidecar["OriginalRecordingTimestamp"] == "2024-01-01T10:00:00"
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
@@ -859,8 +874,7 @@ def test_eeg_extensions_do_not_include_nwb():
     assert ".nwb" not in EEG_EXTENSIONS
 
 
-@pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
-class TestCheckMneAvailable:
+class TestCheckMneBidsAvailable:
     """Test that functions raise ImportError when MNE_BIDS is not available."""
 
     @patch("brainsets.utils.bids_utils.MNE_BIDS_AVAILABLE", False)

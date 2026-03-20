@@ -408,6 +408,20 @@ class TestExtractChannels:
         ):
             extract_channels(mock_raw, channels_name_mapping=name_mapping)
 
+    def test_raises_value_error_on_ambiguous_channel_name_mapping(self):
+        """Test that ValueError is raised when channel name mapping is ambiguous."""
+        original_names = ["A", "B"]
+        mock_raw = create_mock_raw(
+            ch_names=original_names, n_channels=len(original_names)
+        )
+        # Ambiguous swap mapping: "A" -> "B" and "B" -> "A"
+        name_mapping = {"A": "B", "B": "A"}
+
+        with pytest.raises(
+            ValueError, match="Mapping keys are ambiguous after channels_name_mapping"
+        ):
+            extract_channels(mock_raw, channels_name_mapping=name_mapping)
+
 
 @pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
 class TestExtractPsgSignal:
@@ -994,7 +1008,6 @@ class TestConcatenateRecordings:
             assert mock_copy2 in call_args
 
 
-@pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
 class TestCheckMneAvailable:
     """Test that functions raise ImportError when MNE is not available."""
 

@@ -7,6 +7,7 @@ For more information about BIDS, see the BIDS specification: https://bids-specif
 
 from collections import defaultdict
 from typing import Optional
+from enum import Enum
 import warnings
 from pathlib import Path
 import warnings
@@ -64,6 +65,13 @@ BIDS_ENTITY_SHORT_NAMES = {
 }
 
 
+class Modality(str, Enum):
+    """Supported BIDS modalities for this module."""
+
+    EEG = "eeg"
+    IEEG = "ieeg"
+
+
 def _check_mne_bids_available(func_name: str) -> None:
     """Raise ImportError if mne-bids is not available."""
     if not MNE_BIDS_AVAILABLE:
@@ -98,7 +106,7 @@ def fetch_eeg_recordings(
             - fpath: Relative path to EEG file
     """
     _check_mne_bids_available("fetch_eeg_recordings")
-    return _fetch_recordings(source, EEG_EXTENSIONS, "eeg")
+    return _fetch_recordings(source, EEG_EXTENSIONS, Modality.EEG)
 
 
 def fetch_ieeg_recordings(
@@ -126,7 +134,7 @@ def fetch_ieeg_recordings(
             - fpath: Relative path to iEEG file
     """
     _check_mne_bids_available("fetch_ieeg_recordings")
-    return _fetch_recordings(source, IEEG_EXTENSIONS, "ieeg")
+    return _fetch_recordings(source, IEEG_EXTENSIONS, Modality.IEEG)
 
 
 def group_recordings_by_entity(
@@ -235,7 +243,9 @@ def check_eeg_recording_files_exist(
         True if at least one EEG data file is found, False otherwise.
     """
     _check_mne_bids_available("check_eeg_recording_files_exist")
-    return _check_recording_files_exist(bids_root, recording_id, "eeg", EEG_EXTENSIONS)
+    return _check_recording_files_exist(
+        bids_root, recording_id, Modality.EEG, EEG_EXTENSIONS
+    )
 
 
 def check_ieeg_recording_files_exist(
@@ -256,12 +266,12 @@ def check_ieeg_recording_files_exist(
     """
     _check_mne_bids_available("check_ieeg_recording_files_exist")
     return _check_recording_files_exist(
-        bids_root, recording_id, "ieeg", IEEG_EXTENSIONS
+        bids_root, recording_id, Modality.IEEG, IEEG_EXTENSIONS
     )
 
 
 def build_bids_path(
-    bids_root: str | Path, recording_id: str, modality: str
+    bids_root: str | Path, recording_id: str, modality: Modality | str
 ) -> BIDSPath:
     """Build a mne_bids.BIDSPath for a given recording_id, modality, and BIDS root directory.
 
@@ -275,7 +285,7 @@ def build_bids_path(
     Args:
         bids_root: BIDS root directory (e.g., '/path/to/bids/root')
         recording_id: Recording identifier (e.g., 'sub-01_ses-01_task-Sleep')
-        modality: Modality (e.g., 'eeg', 'ieeg', 'meg', 'anat', 'func', 'beh', 'dwi', 'fmap', 'pet')
+        modality: Modality (supported values: 'eeg', 'ieeg')
 
     Returns:
         BIDSPath configured for reading via mne_bids.read_raw_bids.
@@ -284,6 +294,7 @@ def build_bids_path(
         ValueError: If recording_id cannot be parsed.
     """
     _check_mne_bids_available("build_bids_path")
+    normalized_modality = _normalize_modality(modality)
     entities = get_entities_from_fname(recording_id, on_error="raise")
 
     return BIDSPath(
@@ -294,8 +305,8 @@ def build_bids_path(
         acquisition=entities.get("acquisition"),
         run=entities.get("run"),
         description=entities.get("description"),
-        datatype=modality,
-        suffix=modality,
+        datatype=normalized_modality.value,
+        suffix=normalized_modality.value,
     )
 
 
@@ -313,8 +324,7 @@ def load_json_sidecar(bids_path: BIDSPath) -> dict:
     iEEG: https://bids-specification.readthedocs.io/en/stable/modality-specific-files/intracranial-electroencephalography.html#sidecar-json-_ieegjson
 
     Args:
-        bids_path: BIDS path as a string, Path, or BIDSPath.
-
+        bids_path: A BIDSPath object representing the BIDS file for which to load the JSON sidecar.
     Returns:
         Dictionary containing the JSON sidecar data.
 
@@ -322,14 +332,19 @@ def load_json_sidecar(bids_path: BIDSPath) -> dict:
         FileNotFoundError: If no JSON sidecar file is found for the BIDS path.
     """
     _check_mne_bids_available("load_json_sidecar")
+    if not isinstance(bids_path, BIDSPath):
+        raise TypeError(
+            f"bids_path must be a BIDSPath object, got {type(bids_path).__name__}."
+        )
+
     try:
         sidecar_path = bids_path.find_matching_sidecar(
             extension=".json", on_error="raise"
         )
         with open(sidecar_path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except RuntimeError:
-        raise FileNotFoundError(f"No JSON sidecar file found for {bids_path}.")
+    except RuntimeError as err:
+        raise FileNotFoundError(f"No JSON sidecar file found for {bids_path}.") from err
 
 
 def load_participants_tsv(bids_root: Path | str) -> Optional[pd.DataFrame]:
@@ -375,21 +390,16 @@ def load_participants_tsv(bids_root: Path | str) -> Optional[pd.DataFrame]:
 
 def get_subject_info(
     subject_id: str,
-    participants_data: Optional[pd.DataFrame] = None,
-) -> dict:
-    """
-    Retrieve demographic information (age, sex) for a given subject from a participants DataFrame.
-
-    Looks up the subject's 'age' and 'sex' fields in the provided participants DataFrame.
-    Returns a dictionary with those keys. If the data is missing or not found, values will be None.
-    If no DataFrame is provided, returns None for both age and sex.
+    participants_data: pd.DataFrame | None,
+) -> dict[str, float | str | None]:
+    """Retrieve demographic information (age, sex) for a given subject from a participants DataFrame.
 
     Args:
         subject_id: BIDS subject identifier (e.g., 'sub-01').
-        participants_data: Optional DataFrame of participants.tsv data.
+        participants_data: DataFrame of participants.tsv data. If None, returns None for both age and sex.
 
     Returns:
-        dict: {'age': value or None, 'sex': value or None}
+        Dictionary with keys 'age' and 'sex', each mapping to the value or None if not found.
     """
     if participants_data is None:
         warnings.warn(
@@ -429,7 +439,7 @@ def get_subject_info(
 def _fetch_recordings(
     source: BIDSPath | Path | str | list[BIDSPath | Path | str],
     extensions: set[str],
-    modality: str,
+    modality: Modality | str,
 ) -> list[dict]:
     """
     Internal helper for discovering BIDS recordings that match provided file extensions and modality.
@@ -442,7 +452,7 @@ def _fetch_recordings(
     Args:
         source: BIDS root directory as a string, BIDSPath, or Path, or a list of those types.
         extensions: Set of allowed file extensions (e.g., EEG_EXTENSIONS).
-        modality: Modality to filter by (e.g., 'eeg', 'ieeg').
+        modality: Modality to filter by (supported values: 'eeg', 'ieeg').
 
     Returns:
         List of dicts with key/value pairs for BIDS entities:
@@ -455,6 +465,8 @@ def _fetch_recordings(
             - description_id: Description identifier or None (e.g., 'preproc')
             - fpath: Relative path to the recording file
     """
+    normalized_modality = _normalize_modality(modality)
+
     # Determine the files to analyze
     if source is None:
         raise TypeError(
@@ -465,7 +477,7 @@ def _fetch_recordings(
         source = source.root
 
     if not isinstance(source, list):
-        source = BIDSPath(root=source, datatype=modality).match()
+        source = BIDSPath(root=source, datatype=normalized_modality.value).match()
 
     if len(source) == 0:
         return []
@@ -481,7 +493,7 @@ def _fetch_recordings(
         if not isinstance(filepath, BIDSPath):
             filepath = get_bids_path_from_fname(filepath, check=False)
 
-        if filepath.datatype != modality:
+        if filepath.datatype != normalized_modality.value:
             continue
 
         components = []
@@ -531,7 +543,7 @@ def _fetch_recordings(
 def _check_recording_files_exist(
     bids_root: str | Path,
     recording_id: str,
-    modality: str,
+    modality: Modality | str,
     extensions: set[str],
 ) -> bool:
     """Check if any data file for a BIDS recording exists in the BIDS root directory.
@@ -546,7 +558,7 @@ def _check_recording_files_exist(
     Args:
         bids_root: BIDS root directory (e.g., '/path/to/bids/root')
         recording_id: Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband')
-        modality: Modality (e.g., 'eeg', 'ieeg')
+        modality: Modality (supported values: 'eeg', 'ieeg')
         extensions: Set of allowed file extensions (e.g., EEG_EXTENSIONS or IEEG_EXTENSIONS)
 
     Returns:
@@ -560,3 +572,22 @@ def _check_recording_files_exist(
         if file.suffix.lower() in extensions:
             return True
     return False
+
+
+def _normalize_modality(modality: Modality | str) -> Modality:
+    """Normalize and validate modality input."""
+    if isinstance(modality, Modality):
+        return modality
+
+    if isinstance(modality, str):
+        try:
+            return Modality(modality.lower())
+        except ValueError as err:
+            valid = ", ".join(m.value for m in Modality)
+            raise ValueError(
+                f"Unsupported modality '{modality}'. Expected one of: {valid}."
+            ) from err
+
+    raise TypeError(
+        f"modality must be a str or Modality, got {type(modality).__name__}."
+    )
