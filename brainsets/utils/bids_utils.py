@@ -92,7 +92,7 @@ def fetch_eeg_recordings(
     https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
 
     Args:
-        source: BIDS root directory as a string, BIDSPath, or Path, or a list of those types.
+        source: Either the BIDS root directory (as a str, Path, or BIDSPath), or a list of files (each item being a str, Path, or BIDSPath).
 
     Returns:
         List of dicts with key/value pairs for BIDS entities:
@@ -120,7 +120,7 @@ def fetch_ieeg_recordings(
     https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
 
     Args:
-        source: BIDS root directory as a string, BIDSPath, or Path, or a list of those types.
+        source: Either the BIDS root directory (as a str, Path, or BIDSPath), or a list of files (each item being a str, Path, or BIDSPath).
 
     Returns:
         List of dicts with key/value pairs for BIDS entities:
@@ -450,7 +450,7 @@ def _fetch_recordings(
     https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
 
     Args:
-        source: BIDS root directory as a string, BIDSPath, or Path, or a list of those types.
+        source: Either the BIDS root directory (as a str, Path, or BIDSPath), or a list of files (each item being a str, Path, or BIDSPath).
         extensions: Set of allowed file extensions (e.g., EEG_EXTENSIONS).
         modality: Modality to filter by (supported values: 'eeg', 'ieeg').
 
@@ -474,7 +474,7 @@ def _fetch_recordings(
         )
 
     if isinstance(source, BIDSPath):
-        source = source.root
+        source = source.update(datatype=normalized_modality.value).match()
 
     if not isinstance(source, list):
         source = BIDSPath(root=source, datatype=normalized_modality.value).match()

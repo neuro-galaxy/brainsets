@@ -273,7 +273,7 @@ class TestFetchRecordings:
             recordings[2]["fpath"]
         )
 
-    def test_fetch_ieeg_recordings_wrapper_filters_by_ieeg_extensions(
+    def test_fetch_ieeg_recordings_wrapper_return_ieeg_files(
         self, mixed_extension_paths
     ):
         """Test fetch_ieeg_recordings wrapper function.
