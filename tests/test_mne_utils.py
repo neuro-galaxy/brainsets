@@ -15,7 +15,6 @@ try:
         extract_measurement_date,
         extract_signal,
         extract_channels,
-        extract_psg_signal,
         concatenate_recordings,
     )
     from temporaldata import ArrayDict
@@ -23,7 +22,6 @@ except ImportError:
     extract_measurement_date = None
     extract_signal = None
     extract_channels = None
-    extract_psg_signal = None
     concatenate_recordings = None
     ArrayDict = None
 
@@ -436,212 +434,6 @@ class TestExtractChannels:
             match="Duplicate channel names in channel_names_mapping detected",
         ):
             extract_channels(mock_raw, channel_names_mapping=name_mapping)
-
-
-@pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
-class TestExtractPsgSignal:
-    """Test extraction of PSG (polysomnography) signals from MNE Raw objects."""
-
-    @pytest.fixture
-    def mock_psg_raw(self):
-        """Fixture to create a mock PSG Raw object with EEG, EOG, EMG channels."""
-        ch_names = ["EEG Fpz-Cz", "EOG horizontal", "EMG submental", "RESP"]
-        n_channels = len(ch_names)
-        n_samples = 1000
-        sfreq = 256.0
-
-        mock_raw = MagicMock()
-        mock_raw.info = {"sfreq": sfreq}
-        mock_raw.ch_names = ch_names
-
-        mock_data = np.random.randn(n_channels, n_samples)
-        mock_times = np.arange(n_samples) / sfreq
-        mock_raw.get_data.return_value = (mock_data, mock_times)
-
-        return mock_raw
-
-    def test_returns_tuple_of_signals_and_channels(self, mock_psg_raw):
-        """Test that a tuple of (RegularTimeSeries, ArrayDict) is returned."""
-        signals, channels = extract_psg_signal(mock_psg_raw)
-        assert hasattr(signals, "signal")
-        assert hasattr(signals, "sampling_rate")
-        assert hasattr(signals, "domain")
-        assert isinstance(channels, ArrayDict)
-
-    def test_extracts_eeg_channels(self):
-        """Test that EEG channels are correctly classified."""
-        ch_names = ["EEG Fpz-Cz", "EEG Pz-Oz", "Other"]
-        mock_raw = MagicMock()
-        mock_raw.info = {"sfreq": 256.0}
-        mock_raw.ch_names = ch_names
-        n_samples = 100
-        mock_data = np.random.randn(len(ch_names), n_samples)
-        mock_times = np.arange(n_samples) / 256.0
-        mock_raw.get_data.return_value = (mock_data, mock_times)
-
-        _, channels = extract_psg_signal(mock_raw)
-
-        assert "EEG" in channels.type
-        assert np.sum(channels.type == "EEG") == 2
-
-    def test_extracts_eog_channels(self):
-        """Test that EOG channels are correctly classified."""
-        ch_names = ["EOG horizontal", "EEG Fpz-Cz"]
-        mock_raw = MagicMock()
-        mock_raw.info = {"sfreq": 256.0}
-        mock_raw.ch_names = ch_names
-        n_samples = 100
-        mock_data = np.random.randn(len(ch_names), n_samples)
-        mock_times = np.arange(n_samples) / 256.0
-        mock_raw.get_data.return_value = (mock_data, mock_times)
-
-        _, channels = extract_psg_signal(mock_raw)
-
-        assert "EOG" in channels.type
-
-    def test_extracts_emg_channels(self):
-        """Test that EMG channels are correctly classified."""
-        ch_names = ["EMG submental", "EEG Fpz-Cz"]
-        mock_raw = MagicMock()
-        mock_raw.info = {"sfreq": 256.0}
-        mock_raw.ch_names = ch_names
-        n_samples = 100
-        mock_data = np.random.randn(len(ch_names), n_samples)
-        mock_times = np.arange(n_samples) / 256.0
-        mock_raw.get_data.return_value = (mock_data, mock_times)
-
-        _, channels = extract_psg_signal(mock_raw)
-
-        assert "EMG" in channels.type
-
-    def test_extracts_resp_channels(self):
-        """Test that RESP channels are correctly classified."""
-        ch_names = ["Resp oro-nasal", "EEG Fpz-Cz"]
-        mock_raw = MagicMock()
-        mock_raw.info = {"sfreq": 256.0}
-        mock_raw.ch_names = ch_names
-        n_samples = 100
-        mock_data = np.random.randn(len(ch_names), n_samples)
-        mock_times = np.arange(n_samples) / 256.0
-        mock_raw.get_data.return_value = (mock_data, mock_times)
-
-        _, channels = extract_psg_signal(mock_raw)
-
-        assert "RESP" in channels.type
-
-    def test_extracts_temp_channels(self):
-        """Test that TEMP channels are correctly classified."""
-        ch_names = ["Temp rectal", "EEG Fpz-Cz"]
-        mock_raw = MagicMock()
-        mock_raw.info = {"sfreq": 256.0}
-        mock_raw.ch_names = ch_names
-        n_samples = 100
-        mock_data = np.random.randn(len(ch_names), n_samples)
-        mock_times = np.arange(n_samples) / 256.0
-        mock_raw.get_data.return_value = (mock_data, mock_times)
-
-        _, channels = extract_psg_signal(mock_raw)
-
-        assert "TEMP" in channels.type
-
-    def test_skips_unknown_channels(self):
-        """Test that channels not matching PSG patterns are skipped."""
-        ch_names = ["Unknown1", "Unknown2", "EEG Fpz-Cz"]
-        mock_raw = MagicMock()
-        mock_raw.info = {"sfreq": 256.0}
-        mock_raw.ch_names = ch_names
-        n_samples = 100
-        mock_data = np.random.randn(len(ch_names), n_samples)
-        mock_times = np.arange(n_samples) / 256.0
-        mock_raw.get_data.return_value = (mock_data, mock_times)
-
-        _, channels = extract_psg_signal(mock_raw)
-
-        assert len(channels.id) == 1
-
-    def test_channel_ids_preserved(self, mock_psg_raw):
-        """Test that original channel names are preserved in the output."""
-        _, channels = extract_psg_signal(mock_psg_raw)
-        assert "EEG Fpz-Cz" in channels.id
-        assert "EOG horizontal" in channels.id
-
-    def test_fpz_cz_pattern_case_insensitive(self):
-        """Test that Fpz-Cz pattern matching is case-insensitive."""
-        ch_names = ["FPZ-CZ", "fpz-cz", "Fpz-Cz"]
-        mock_raw = MagicMock()
-        mock_raw.info = {"sfreq": 256.0}
-        mock_raw.ch_names = ch_names
-        n_samples = 100
-        mock_data = np.random.randn(len(ch_names), n_samples)
-        mock_times = np.arange(n_samples) / 256.0
-        mock_raw.get_data.return_value = (mock_data, mock_times)
-
-        _, channels = extract_psg_signal(mock_raw)
-
-        assert np.sum(channels.type == "EEG") == 3
-
-    def test_pz_oz_pattern_case_insensitive(self):
-        """Test that Pz-Oz pattern matching is case-insensitive."""
-        ch_names = ["PZ-OZ", "pz-oz", "Pz-Oz"]
-        mock_raw = MagicMock()
-        mock_raw.info = {"sfreq": 256.0}
-        mock_raw.ch_names = ch_names
-        n_samples = 100
-        mock_data = np.random.randn(len(ch_names), n_samples)
-        mock_times = np.arange(n_samples) / 256.0
-        mock_raw.get_data.return_value = (mock_data, mock_times)
-
-        _, channels = extract_psg_signal(mock_raw)
-
-        assert np.sum(channels.type == "EEG") == 3
-
-    def test_signal_shape_matches_n_samples_by_n_channels(self, mock_psg_raw):
-        """Test that signal shape is (n_samples, n_extracted_channels)."""
-        signals, _ = extract_psg_signal(mock_psg_raw)
-        n_samples = 1000
-        n_extracted = 4  # EEG, EOG, EMG, RESP
-        assert signals.signal.shape == (n_samples, n_extracted)
-
-    def test_sampling_rate_extracted_correctly(self, mock_psg_raw):
-        """Test that sampling rate is correctly extracted."""
-        signals, _ = extract_psg_signal(mock_psg_raw)
-        assert signals.sampling_rate == 256.0
-
-    def test_domain_uses_times_from_get_data(self):
-        """Test that domain is set using actual times from get_data(return_times=True)."""
-        ch_names = ["EEG Fpz-Cz"]
-        mock_raw = MagicMock()
-        mock_raw.info = {"sfreq": 100.0}
-        mock_raw.ch_names = ch_names
-        n_samples = 1000
-        mock_data = np.random.randn(1, n_samples)
-        mock_times = np.arange(n_samples) / 100.0
-        mock_raw.get_data.return_value = (mock_data, mock_times)
-
-        signals, _ = extract_psg_signal(mock_raw)
-
-        assert np.isclose(signals.domain.start, mock_times[0])
-        assert np.isclose(signals.domain.end, mock_times[-1])
-
-    def test_raises_error_when_no_signals_extracted(self):
-        """Test that ValueError is raised when no matching PSG signals are found."""
-        ch_names = ["Unknown1", "Unknown2"]
-        mock_raw = MagicMock()
-        mock_raw.info = {"sfreq": 256.0}
-        mock_raw.ch_names = ch_names
-        n_samples = 100
-        mock_data = np.random.randn(len(ch_names), n_samples)
-        mock_times = np.arange(n_samples) / 256.0
-        mock_raw.get_data.return_value = (mock_data, mock_times)
-
-        with pytest.raises(ValueError, match="No signals extracted from PSG file"):
-            extract_psg_signal(mock_raw)
-
-    def test_channels_has_id_and_type(self, mock_psg_raw):
-        """Test that returned channels ArrayDict has 'id' and 'type' fields."""
-        _, channels = extract_psg_signal(mock_psg_raw)
-        assert hasattr(channels, "id")
-        assert hasattr(channels, "type")
 
 
 @pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
@@ -1058,17 +850,6 @@ class TestCheckMneAvailable:
             ImportError, match="extract_channels requires the MNE library"
         ):
             extract_channels(mock_raw)
-
-    @patch("brainsets.utils.mne_utils.MNE_AVAILABLE", False)
-    def test_extract_psg_signal_raises_import_error(self):
-        """Test that extract_psg_signal raises ImportError when MNE is unavailable."""
-        from brainsets.utils.mne_utils import extract_psg_signal
-
-        mock_raw = MagicMock()
-        with pytest.raises(
-            ImportError, match="extract_psg_signal requires the MNE library"
-        ):
-            extract_psg_signal(mock_raw)
 
     @patch("brainsets.utils.mne_utils.MNE_AVAILABLE", False)
     def test_concatenate_recordings_raises_import_error(self):

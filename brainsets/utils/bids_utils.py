@@ -633,7 +633,6 @@ def _is_bids_root(path: str | Path) -> bool:
     """
     _check_mne_bids_available("_is_bids_root")
 
-    print("\nPath: ", path, "---", type(path))
     if not isinstance(path, Path):
         path = Path(path)
 

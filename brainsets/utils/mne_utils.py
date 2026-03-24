@@ -205,14 +205,11 @@ def concatenate_recordings(
         d.date() if hasattr(d, "date") and d is not None else None for d in meas_dates
     ]
     if len(set(meas_days)) > 1:
+        msg = f"Measurement days are not uniform: {meas_days} (full datetimes: {meas_dates})"
         if on_mismatch == "raise":
-            raise ValueError(
-                f"Measurement days are not uniform: {meas_days} (full datetimes: {meas_dates})"
-            )
+            raise ValueError(msg)
         elif on_mismatch == "warn":
-            warnings.warn(
-                f"Measurement days are not uniform: {meas_days} (full datetimes: {meas_dates})"
-            )
+            warnings.warn(msg)
 
     # Sort recordings by measurement date
     indexed_recordings = [
@@ -231,17 +228,14 @@ def concatenate_recordings(
         # and the last time point of the previous recording (rec1), offset by its meas_date (date1).
         rec1_duration_s = rec1.n_times / rec1.info["sfreq"]
         rec1_end_time = date1 + datetime.timedelta(seconds=rec1_duration_s)
-        gap = (date2 - rec1_end_time).total_seconds() # convert to seconds
+        gap = (date2 - rec1_end_time).total_seconds()  # convert to seconds
 
         if gap > max_gap * 3600:  # convert hours to seconds
+            msg = f"Gap between recordings {idx1} and {idx2} is greater than {max_gap} hours: {(gap / 3600):.2f} hours"
             if on_gap == "raise":
-                raise ValueError(
-                    f"Gap between recordings {idx1} and {idx2} is greater than {max_gap} hours: {gap} seconds"
-                )
+                raise ValueError(msg)
             elif on_gap == "warn":
-                warnings.warn(
-                    f"Gap between recordings {idx1} and {idx2} is greater than {max_gap} hours: {gap} seconds"
-                )
+                warnings.warn(msg)
 
     copies = []
     for _, rec, _ in sorted_recordings:
@@ -285,88 +279,56 @@ def extract_signal(
     )
 
 
-def extract_psg_signal(
-    raw_psg: "mne.io.BaseRaw",
-) -> Tuple[RegularTimeSeries, ArrayDict]:
-    """Extract physiological (PSG) signals and channel metadata from an MNE Raw (EDF) recording.
-
-    Args:
-        raw_psg: The MNE Raw object containing PSG data (e.g., from an EDF file).
-
-    Returns:
-        Tuple containing:
-        - RegularTimeSeries: The extracted physiological signal data with
-          sampling rate and domain info.
-        - ArrayDict: Channel metadata with fields 'id' (channel names)
-          and 'type' (channel types: EEG, EOG, EMG, RESP, or TEMP).
-
-    Raises:
-        ImportError: If MNE is not installed.
-        ValueError: If no physiological signals are extracted from the PSG recording.
-    """
-    _check_mne_available("extract_psg_signal")
-    data, times = raw_psg.get_data(return_times=True)
-    ch_names = raw_psg.ch_names
-
-    signal_list = []
-    channel_meta = []
-
-    for idx, ch_name in enumerate(ch_names):
-        ch_name_lower = ch_name.lower()
-        signal_data = data[idx, :]
-
-        ch_type = None
-        if (
-            "eeg" in ch_name_lower
-            or "fpz-cz" in ch_name_lower
-            or "pz-oz" in ch_name_lower
-        ):
-            ch_type = "EEG"
-        elif "eog" in ch_name_lower:
-            ch_type = "EOG"
-        elif "emg" in ch_name_lower:
-            ch_type = "EMG"
-        elif "resp" in ch_name_lower:
-            ch_type = "RESP"
-        elif "temp" in ch_name_lower:
-            ch_type = "TEMP"
-        else:
-            continue
-
-        signal_list.append(signal_data)
-        channel_meta.append(
-            {
-                "id": str(ch_name),
-                "type": ch_type,
-            }
-        )
-
-    if not signal_list:
-        raise ValueError("No signals extracted from PSG file")
-
-    stacked_signals = np.stack(signal_list, axis=1)
-
-    signals = RegularTimeSeries(
-        signal=stacked_signals,
-        sampling_rate=raw_psg.info["sfreq"],
-        domain=Interval(start=times[0], end=times[-1]),
-    )
-
-    channels = ArrayDict(
-        id=np.array([ch["id"] for ch in channel_meta], dtype="U"),
-        type=np.array([ch["type"] for ch in channel_meta], dtype="U"),
-    )
-
-    return signals, channels
-
-
 def extract_channels(
     recording_data: "mne.io.BaseRaw",
     channel_names_mapping: dict[str, str] | None = None,
     channel_types_mapping: dict[str, list[str]] | None = None,
     channel_pos_mapping: dict[str, np.ndarray] | None = None,
 ) -> ArrayDict:
-    """ """
+    """
+    Extract channel metadata from an MNE Raw object, with support for custom channel name, type, and position mappings.
+
+    This function returns a channel-level ArrayDict containing (at minimum) the unique channel IDs (`id`)
+    and types (`type`) for each channel in the provided MNE Raw object. Optionally, it can also include
+    the 3D channel locations (`pos`) and "bad" channel labels, depending on mappings and recording metadata.
+
+    Channel name, type, and/or position dictionaries, if provided, can be used to override or map the values
+    from the raw file using either original or renamed channel names (but not a mix).
+
+    Args:
+        recording_data: MNE Raw object containing the electrophysiological data and metadata.
+        channel_names_mapping: Optional dictionary mapping original channel names to new names
+            (e.g., {"EEG01": "Fp1"}). Ensures renaming is unique.
+        channel_types_mapping: Optional dictionary mapping types (e.g., "eeg") to lists of channel names
+            (e.g., {"eeg": ["C3", "C4"]}). See `_validate_channel_types_mapping` for remapping logic.
+        channel_pos_mapping: Optional dictionary mapping channel names to 3D position numpy arrays.
+            Falls back to using montage positions if not provided.
+
+    Returns:
+        ArrayDict containing channel information with fields:
+            - id: np.ndarray of (new) channel identifiers.
+            - type: np.ndarray of channel types (lowercased).
+            - pos: (optional) np.ndarray of shape (n_channels, 3) giving 3D coordinates for each channel.
+            - bad: (optional) np.ndarray[bool] mask for bad channels (from MNE info['bads']).
+
+    Raises:
+        ImportError: If MNE is not installed.
+        TypeError: If input recording or mappings do not match expected types.
+        ValueError: If mapping keys mix original and renamed names, or have duplicate new channel names.
+
+    Examples:
+        >>> from mne.io import read_raw_edf
+        >>> raw = read_raw_edf("example.edf", preload=True)
+        >>> metadata = extract_channels(raw)
+        >>> print(metadata.keys())
+        ['id', 'type', 'pos', 'bad']
+
+        >>> # Remap channel names, types, and positions
+        >>> name_map = {"EEG F3-M2": "F3", "EEG F4-M1": "F4"}
+        >>> type_map = {"eeg": ["F3", "F4"]}
+        >>> pos_map = {"F3": np.array([0.0, 0.7, 0.0]), "F4": np.array([0.6, 0.7, 0.0])}
+        >>> metadata = extract_channels(raw, name_map, type_map, pos_map)
+    """
     _check_mne_available("extract_channels")
 
     if not isinstance(recording_data, mne.io.BaseRaw):
@@ -414,7 +376,9 @@ def extract_channels(
     # Apply channel type mapping
     channel_types = np.array(
         [
-            channel_types_mapping.get(ch_name, ch_type)
+            channel_types_mapping.get(
+                ch_name, ch_type
+            ).lower()  # to be compatible with MNE's channel type validation
             for ch_name, ch_type in zip(raw_ch_names, raw_ch_types)
         ],
         dtype="U",
