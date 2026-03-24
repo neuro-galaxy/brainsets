@@ -380,7 +380,7 @@ def test_get_sampling_rate_is_fixed_constant(tmp_path):
     _write_default_recordings(tmp_path)
 
     ds = _make_dataset(tmp_path)
-    assert ds.get_sampling_rate() == 2048.0
+    assert ds.sampling_rate == 2048.0
 
 
 def test_uniquify_channel_ids_option_sets_multichannel_mixin_components(tmp_path):

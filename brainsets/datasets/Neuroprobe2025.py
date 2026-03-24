@@ -161,8 +161,17 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
         label_mode: One of ``"binary"``, ``"multiclass"``. Defaults to ``"binary"``
             in split-selection mode.
         task: Neuroprobe task name. Defaults to ``"speech"`` in split-selection mode.
+            Supported values are:
+            ``"delta_volume"``, ``"face_num"``, ``"frame_brightness"``,
+            ``"global_flow"``, ``"gpt2_surprisal"``, ``"local_flow"``,
+            ``"onset"``, ``"pitch"``, ``"speech"``, ``"volume"``,
+            ``"word_gap"``, ``"word_head_pos"``, ``"word_index"``,
+            ``"word_length"``, ``"word_part_speech"``.
         regime: One of ``"SS-SM"``, ``"SS-DM"``, ``"DS-DM"``. Defaults to
-            ``"SS-SM"`` in split-selection mode.
+            ``"SS-SM"`` in split-selection mode. Neuroprobe regime semantics:
+            - ``"SS-SM"``: single-subject, single-session (within-session split)
+            - ``"SS-DM"``: single-subject, different-session (cross-x split)
+            - ``"DS-DM"``: different-subject, different-session (cross-x split)
         fold: Fold index used only in split-selection mode. Defaults to ``0`` in
             split-selection mode and must be omitted in explicit-recording mode.
             Valid values depend on regime:
@@ -287,9 +296,9 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
         """Return full-domain intervals for active recordings."""
         return {rid: self.get_recording(rid).domain for rid in self.recording_ids}
 
-    def get_sampling_rate(self, recording_id: str | None = None) -> float:
-        """Return recording sampling rate in Hz."""
-        _ = recording_id
+    @property
+    def sampling_rate(self) -> float:
+        """Recording sampling rate in Hz."""
         return 2048.0
 
     def get_channel_arrays(self, recording_id: str) -> dict[str, np.ndarray | str]:
