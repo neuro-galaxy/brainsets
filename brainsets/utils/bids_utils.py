@@ -16,12 +16,18 @@ import json
 import pandas as pd
 
 try:
-    from mne_bids import get_bids_path_from_fname, get_entities_from_fname, BIDSPath
+    from mne_bids import (
+        get_bids_path_from_fname,
+        get_entities_from_fname,
+        get_entity_vals,
+        BIDSPath,
+    )
 
     MNE_BIDS_AVAILABLE = True
 except ImportError:
     get_bids_path_from_fname = None
     get_entities_from_fname = None
+    get_entity_vals = None
     BIDSPath = None
     MNE_BIDS_AVAILABLE = False
 
@@ -84,18 +90,13 @@ def _check_mne_bids_available(func_name: str) -> None:
 def fetch_eeg_recordings(
     source: BIDSPath | Path | str | list[BIDSPath | Path | str],
 ) -> list[dict]:
-    """Discover all EEG recordings in a dataset by parsing BIDS filenames.
-
-    Note: The values in the returned dictionary correspond to BIDS entity values
-    (e.g., subject, session, task, acquisition, run, description) extracted from the filenames.
-    For more information on BIDS entities, see:
-    https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
+    """Discover all EEG recordings inside a BIDS dataset or list of files.
 
     Args:
         source: Either the BIDS root directory (as a str, Path, or BIDSPath), or a list of files (each item being a str, Path, or BIDSPath).
 
     Returns:
-        List of dicts with key/value pairs for BIDS entities:
+        List of dicts with key/value pairs for BIDS entities extracted from the fetched recording files.
             - recording_id: Full recording identifier (e.g., 'sub-01_ses-01_task-Sleep')
             - subject_id: Subject identifier (e.g., 'sub-01')
             - session_id: Session identifier or None (e.g., 'ses-01')
@@ -104,6 +105,15 @@ def fetch_eeg_recordings(
             - run_id: Run identifier or None (e.g., '01')
             - description_id: Description identifier or None (e.g., 'preproc')
             - fpath: Relative path to EEG file
+
+        For more information on BIDS entities, see:
+        https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
+
+
+    Notes:
+        If `source` is a BIDSPath pointing to a subfolder inside the BIDS root directory,
+        this function will return all EEG recording files within that specific subfolder.
+        This does not work if the subfolder is a string or Path object.
     """
     _check_mne_bids_available("fetch_eeg_recordings")
     return _fetch_recordings(source, EEG_EXTENSIONS, Modality.EEG)
@@ -112,26 +122,30 @@ def fetch_eeg_recordings(
 def fetch_ieeg_recordings(
     source: BIDSPath | Path | str | list[BIDSPath | Path | str],
 ) -> list[dict]:
-    """Discover all iEEG recordings in a dataset by parsing BIDS filenames.
-
-    Note: The values in the returned dictionary correspond to BIDS entity values
-    (e.g., subject, session, task, acquisition, run, description) extracted from the filenames.
-    For more information on BIDS entities, see:
-    https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
+    """Discover all iEEG recordings inside a BIDS dataset or list of files.
 
     Args:
         source: Either the BIDS root directory (as a str, Path, or BIDSPath), or a list of files (each item being a str, Path, or BIDSPath).
 
     Returns:
-        List of dicts with key/value pairs for BIDS entities:
-            - recording_id: Full recording identifier (e.g., 'sub-01_ses-01_task-VisualNaming')
+        List of dicts with key/value pairs for BIDS entities extracted from the fetched recording files.
+            - recording_id: Full recording identifier (e.g., 'sub-01_ses-01_task-Sleep')
             - subject_id: Subject identifier (e.g., 'sub-01')
             - session_id: Session identifier or None (e.g., 'ses-01')
-            - task_id: Task identifier (e.g., 'VisualNaming')
-            - acquisition_id: Acquisition identifier or None (e.g., 'ecog')
+            - task_id: Task identifier (e.g., 'Sleep')
+            - acquisition_id: Acquisition identifier or None (e.g., 'headband')
             - run_id: Run identifier or None (e.g., '01')
             - description_id: Description identifier or None (e.g., 'preproc')
             - fpath: Relative path to iEEG file
+
+        For more information on BIDS entities, see:
+        https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
+
+
+    Notes:
+        If `source` is a BIDSPath pointing to a subfolder inside the BIDS root directory,
+        this function will return all iEEG recording files within that specific subfolder.
+        This does not work if the subfolder is a string or Path object.
     """
     _check_mne_bids_available("fetch_ieeg_recordings")
     return _fetch_recordings(source, IEEG_EXTENSIONS, Modality.IEEG)
@@ -291,11 +305,23 @@ def build_bids_path(
         BIDSPath configured for reading via mne_bids.read_raw_bids.
 
     Raises:
-        ValueError: If recording_id cannot be parsed.
+        ValueError: If any unsupported BIDS entities are present in recording_id.
     """
     _check_mne_bids_available("build_bids_path")
     normalized_modality = _normalize_modality(modality)
-    entities = get_entities_from_fname(recording_id, on_error="raise")
+
+    if not _is_bids_root(bids_root):
+        raise ValueError(
+            f"bids_root ('{bids_root}') must point to a valid BIDS root directory."
+        )
+
+    try:
+        entities = get_entities_from_fname(recording_id, on_error="raise")
+    except KeyError as err:
+        raise ValueError(
+            f"Unsupported BIDS entity '{err.args[0]}' in recording_id: {recording_id}. "
+            f"Expected one of: {sorted(set(BIDS_ENTITY_SHORT_NAMES.values()))}"
+        ) from err
 
     return BIDSPath(
         root=bids_root,
@@ -444,18 +470,17 @@ def _fetch_recordings(
     """
     Internal helper for discovering BIDS recordings that match provided file extensions and modality.
 
-    Note: The values in the returned dictionary correspond to BIDS entity values
-    (e.g., subject, session, task, acquisition, run, description) extracted from the filenames.
-    For more information on BIDS entities, see:
-    https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
-
     Args:
-        source: Either the BIDS root directory (as a str, Path, or BIDSPath), or a list of files (each item being a str, Path, or BIDSPath).
+        source: Either the BIDS root directory (as a str, Path, or BIDSPath),
+            or a list of files (each item being a str, Path, or BIDSPath).
+            If `source` is a BIDSPath pointing to a subfolder inside the BIDS root directory, this function will
+            search for all files within the subfolder corresponding to the given modality and extensions.
+            All files matching the extensions for that modality will be returned.
         extensions: Set of allowed file extensions (e.g., EEG_EXTENSIONS).
         modality: Modality to filter by (supported values: 'eeg', 'ieeg').
 
     Returns:
-        List of dicts with key/value pairs for BIDS entities:
+        List of dicts, each containing key/value pairs for BIDS entities extracted from the fetched recording files.
             - recording_id: Full recording identifier (e.g., 'sub-01_ses-01_task-Sleep')
             - subject_id: Subject identifier (e.g., 'sub-01')
             - session_id: Session identifier or None (e.g., 'ses-01')
@@ -463,21 +488,40 @@ def _fetch_recordings(
             - acquisition_id: Acquisition identifier or None (e.g., 'headband')
             - run_id: Run identifier or None (e.g., '01')
             - description_id: Description identifier or None (e.g., 'preproc')
-            - fpath: Relative path to the recording file
+            - fpath: Path to the recording file
+
+        For more information on BIDS entities, see:
+        https://bids-specification.readthedocs.io/en/stable/appendices/entities.html
+
+    Raises:
+        TypeError: If `source` is None or is not a valid type (BIDSPath, Path, str, or list thereof).
+        ValueError: If `source` is a directory that is not a valid BIDS root and isn't a BIDSPath.
     """
     normalized_modality = _normalize_modality(modality)
 
     # Determine the files to analyze
     if source is None:
         raise TypeError(
-            "source must be a BIDSPath, Path, or string, or a list of those types. None was provided."
+            "'source' must be a BIDSPath, Path, or string, or a list of those types. None was provided."
         )
 
-    if isinstance(source, BIDSPath):
-        source = source.update(datatype=normalized_modality.value).match()
+    if isinstance(source, (str, Path)):
+        # If the source is a string or Path, check if it is a valid BIDS root directory
+        if _is_bids_root(source):
+            source = BIDSPath(root=source, datatype=normalized_modality.value).match()
+        else:
+            # If the source is not a valid BIDS root directory, raise an error
+            raise ValueError(
+                f"The 'source' parameter points to '{source}', "
+                "which is a directory that does not appear to be a valid BIDS root folder. "
+                "If 'source' does not point to a BIDS root directory, it must be provided as a BIDSPath object."
+            )
 
-    if not isinstance(source, list):
-        source = BIDSPath(root=source, datatype=normalized_modality.value).match()
+    if isinstance(source, BIDSPath):
+        if source.datatype is not None:
+            source = source.update(datatype=normalized_modality.value)
+        source = source.match()
+        print("SOURCE: ", source)
 
     if len(source) == 0:
         return []
@@ -565,12 +609,55 @@ def _check_recording_files_exist(
         True if at least one data file is found, False otherwise.
     """
     bids_path = build_bids_path(bids_root, recording_id, modality)
-    subject_id = f"sub-{bids_path.entities['subject']}"
-    subject_dir = bids_path.root / subject_id
 
-    for file in subject_dir.rglob(f"{recording_id}_*"):
-        if file.suffix.lower() in extensions:
-            return True
+    recordings = _fetch_recordings(bids_path, extensions, modality)
+    return any(recording["recording_id"] == recording_id for recording in recordings)
+
+
+def _is_bids_root(path: str | Path) -> bool:
+    """
+    Determine whether a given filesystem path corresponds to a valid BIDS root directory.
+
+    A valid BIDS root directory must:
+      - Be a directory (not a file).
+      - Contain at least one subject folder (e.g., a sub-XX directory in BIDS naming convention).
+        This is checked using get_entity_vals(path, 'subject'), which searches for subject-level entities.
+
+    Args:
+        path (str or Path): The path to check.
+
+    Returns:
+        bool: True if the path is a valid BIDS root (i.e., it is a directory and has at least one BIDS subject entity).
+              False otherwise.
+
+    Example:
+        >>> _is_bids_root("/path/to/bids/dataset")
+        True
+    """
+    _check_mne_bids_available("_is_bids_root")
+
+    print("\nPath: ", path, "---", type(path))
+    if not isinstance(path, Path):
+        path = Path(path)
+
+    # Validate that the path is a folder
+    is_folder = path.is_dir()
+    print("Is folder: ", is_folder)
+    # Check for mandatory root file
+    is_root = (path / "dataset_description.json").exists()
+    print("Is root: ", is_root)
+    # Check for BIDS entities (subjects) to ensure it's a BIDS structure
+    # If we are in a subfolder, get_entity_vals will still work because it
+    # looks at the directory names in the path.
+    try:
+        subjects = get_entity_vals(path, "subject")
+        print("Subjects: ", subjects)
+        has_bids_structure = len(subjects) > 0
+    except Exception:
+        has_bids_structure = False
+    print("Has bids structure: ", has_bids_structure)
+    if is_folder and is_root and has_bids_structure:
+        return True
     return False
 
 

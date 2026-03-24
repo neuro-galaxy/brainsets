@@ -1,5 +1,6 @@
 from pathlib import Path
 from io import StringIO
+import shutil
 
 import pandas as pd
 import pytest
@@ -7,9 +8,11 @@ from unittest.mock import MagicMock, patch
 
 try:
     import mne_bids
+    from mne_bids import BIDSPath
 
     MNE_BIDS_AVAILABLE = True
 except ImportError:
+    BIDSPath = None
     MNE_BIDS_AVAILABLE = False
 
 try:
@@ -20,7 +23,6 @@ try:
         fetch_eeg_recordings,
         fetch_ieeg_recordings,
         check_eeg_recording_files_exist,
-        check_ieeg_recording_files_exist,
         build_bids_path,
         load_json_sidecar,
         get_subject_info,
@@ -35,7 +37,6 @@ except ImportError:
     fetch_eeg_recordings = None
     fetch_ieeg_recordings = None
     check_eeg_recording_files_exist = None
-    check_ieeg_recording_files_exist = None
     build_bids_path = None
     load_json_sidecar = None
     get_subject_info = None
@@ -58,7 +59,62 @@ def bids_root(tmp_path):
     Returns:
         Path: Path to the temporary BIDS root directory.
     """
-    return tmp_path
+    bids_root = tmp_path / "ds000001"
+    (bids_root / "sub-01" / "ses-01" / "eeg").mkdir(parents=True, exist_ok=True)
+    (bids_root / "sub-02" / "ses-01" / "eeg").mkdir(parents=True, exist_ok=True)
+    (
+        bids_root
+        / "sub-01"
+        / "ses-01"
+        / "eeg"
+        / "sub-01_ses-01_task-rest_run-01_eeg.edf"
+    ).write_bytes(b"FAKE1")
+    (
+        bids_root
+        / "sub-02"
+        / "ses-01"
+        / "eeg"
+        / "sub-02_ses-01_task-rest_run-01_eeg.bdf"
+    ).write_bytes(b"FAKE2")
+    (
+        bids_root
+        / "sub-01"
+        / "ses-01"
+        / "eeg"
+        / "sub-01_ses-01_task-rest_run-02_eeg.edf"
+    ).write_bytes(b"FAKE3")
+    (
+        bids_root
+        / "sub-02"
+        / "ses-01"
+        / "eeg"
+        / "sub-02_ses-01_task-rest_run-02_eeg.bdf"
+    ).write_bytes(b"FAKE4")
+    (
+        bids_root
+        / "sub-01"
+        / "ses-01"
+        / "eeg"
+        / "sub-01_ses-01_task-rest_run-03_eeg.edf"
+    ).write_bytes(b"FAKE5")
+    (
+        bids_root
+        / "sub-02"
+        / "ses-01"
+        / "eeg"
+        / "sub-02_ses-01_task-rest_run-03_eeg.bdf"
+    ).write_bytes(b"FAKE6")
+    (
+        bids_root
+        / "sub-01"
+        / "ses-01"
+        / "eeg"
+        / "sub-01_ses-01_task-rest_run-04_events.tsv"
+    ).write_text("dummy")
+    (bids_root / "dataset_description.json").write_text("{}")
+
+    (bids_root / "dataset_description.json").write_text("{}")
+    return bids_root
 
 
 @pytest.fixture
@@ -83,6 +139,17 @@ def bids_root_with_participants(bids_root):
         "sub-02\tn/a\tN/A\n"
         "sub-03\t28\tM\n"
     )
+    return bids_root
+
+
+@pytest.fixture
+def invalid_bids_root(tmp_path):
+    """Create an invalid BIDS root directory.
+
+    Returns:
+        Path: Path to the invalid BIDS root directory.
+    """
+    bids_root = tmp_path / "ds000001"
     return bids_root
 
 
@@ -113,7 +180,7 @@ class TestFetchRecordings:
         return [
             Path("sub-01/eeg/sub-01_task-Sleep_eeg.edf"),
             "sub-01/eeg/sub-01_task-Sleep_channels.tsv",
-            "sub-02/eeg/sub-02_ses-01_task-Rest_acq-headband_run-01_eeg.vhdr",
+            Path("sub-02/eeg/sub-02_ses-01_task-Rest_acq-headband_run-01_eeg.vhdr"),
             "sub-02/eeg/sub-02_ses-01_task-Rest_acq-headband_run-01_eeg.vmrk",
             "participants.tsv",
         ]
@@ -151,7 +218,16 @@ class TestFetchRecordings:
             Path("dataset_description.json"),
         ]
 
-    def test_parses_string_and_path_sources(self, eeg_source_paths):
+    # ----------- Basic input validation tests -----------
+    def test_raises_type_error_when_source_is_none(self):
+        """Test that _fetch_recordings raises TypeError when source is None."""
+        with pytest.raises(
+            TypeError,
+            match="'source' must be a BIDSPath, Path, or string, or a list of those types. None was provided.",
+        ):
+            _fetch_recordings(None, EEG_EXTENSIONS, Modality.EEG)
+
+    def test_accepts_list_of_strings_and_paths_sources(self, eeg_source_paths):
         """Test that _fetch_recordings handles both string and Path source types."""
         recordings = _fetch_recordings(
             eeg_source_paths,
@@ -173,11 +249,89 @@ class TestFetchRecordings:
         assert rec2["acquisition_id"] == "headband"
         assert rec2["run_id"] == "01"
 
-    def test_raises_type_error_when_source_missing(self):
-        """Test that _fetch_recordings raises TypeError when source is None."""
-        with pytest.raises(TypeError):
-            _fetch_recordings(None, EEG_EXTENSIONS, Modality.EEG)
+    def test_accepts_bids_root_as_path_or_string(self, bids_root):
+        """Test that a BIDS root passed as Path or str is accepted and scanned."""
+        try:
+            recordings_from_path = _fetch_recordings(
+                source=bids_root,
+                extensions=EEG_EXTENSIONS,
+                modality=Modality.EEG,
+            )
+            recordings_from_str = _fetch_recordings(
+                source=str(bids_root),
+                extensions=EEG_EXTENSIONS,
+                modality=Modality.EEG,
+            )
 
+            ids_from_path = sorted(r["recording_id"] for r in recordings_from_path)
+            ids_from_str = sorted(r["recording_id"] for r in recordings_from_str)
+
+            assert len(recordings_from_path) == 6
+            assert len(recordings_from_str) == 6
+
+            assert ids_from_path == [
+                "sub-01_ses-01_task-rest_run-01",
+                "sub-01_ses-01_task-rest_run-02",
+                "sub-01_ses-01_task-rest_run-03",
+                "sub-02_ses-01_task-rest_run-01",
+                "sub-02_ses-01_task-rest_run-02",
+                "sub-02_ses-01_task-rest_run-03",
+            ]
+            assert ids_from_str == [
+                "sub-01_ses-01_task-rest_run-01",
+                "sub-01_ses-01_task-rest_run-02",
+                "sub-01_ses-01_task-rest_run-03",
+                "sub-02_ses-01_task-rest_run-01",
+                "sub-02_ses-01_task-rest_run-02",
+                "sub-02_ses-01_task-rest_run-03",
+            ]
+        finally:
+            # Clean up after test: remove created bids_root and all its contents
+            shutil.rmtree(bids_root, ignore_errors=True)
+
+    def test_accepts_bids_subfolder_as_bids_path(self, bids_root):
+        """Test that files are returned when source is a BIDSPath pointing to a subfolder inside BIDS root."""
+        try:
+            # Point source to the EEG folder inside BIDS, not the BIDS root itself
+            source = BIDSPath(root=bids_root, subject="01", session="01")
+            recordings = fetch_eeg_recordings(source=source)
+
+            assert isinstance(recordings, list)
+            assert len(recordings) == 3
+            assert [r["recording_id"] for r in recordings] == [
+                "sub-01_ses-01_task-rest_run-01",
+                "sub-01_ses-01_task-rest_run-02",
+                "sub-01_ses-01_task-rest_run-03",
+            ]
+            assert str(recordings[0]["fpath"].basename).endswith("_eeg.edf")
+        finally:
+            shutil.rmtree(bids_root, ignore_errors=True)
+
+    def test_raises_value_error_for_bids_subfolder_as_path_or_string(self, bids_root):
+        """Test that non-BIDS-root Path/str sources are rejected with ValueError."""
+        subject_folder = bids_root / "sub-01"
+        try:
+            with pytest.raises(
+                ValueError, match="does not appear to be a valid BIDS root"
+            ):
+                _fetch_recordings(
+                    source=subject_folder,
+                    extensions=EEG_EXTENSIONS,
+                    modality=Modality.EEG,
+                )
+
+            with pytest.raises(
+                ValueError, match="does not appear to be a valid BIDS root"
+            ):
+                _fetch_recordings(
+                    source=str(subject_folder),
+                    extensions=EEG_EXTENSIONS,
+                    modality=Modality.EEG,
+                )
+        finally:
+            shutil.rmtree(bids_root, ignore_errors=True)
+
+    # ----------- Basic behavior tests -----------
     def test_filters_by_extension_modality_and_deduplicates(
         self, mixed_extension_paths
     ):
@@ -534,67 +688,47 @@ class TestCheckRecordingFilesExist:
     """Test checking for existence of BIDS recording files."""
 
     @pytest.fixture
-    def bids_dir_with_eeg_file(self, bids_root):
-        """Create a BIDS directory structure with an EEG file.
-
-        Args:
-            bids_root: Temporary BIDS root directory.
-
-        Returns:
-            Path: Path to the created BIDS root directory.
-        """
-        subject_dir = bids_root / "sub-01" / "eeg"
-        subject_dir.mkdir(parents=True)
-        (subject_dir / "sub-01_task-rest_eeg.EDF").write_text("dummy")
+    def bids_dir_with_invalid_recording_file(self, bids_root):
+        """Create a BIDS directory with an invalid recording file."""
+        invalid_recording_file = (
+            bids_root
+            / "sub-01"
+            / "ses-01"
+            / "eeg"
+            / "sub-01_ses-01_task-rest_run-04_events.tsv"
+        )
+        invalid_recording_file.write_text("dummy")
         return bids_root
 
-    @pytest.fixture
-    def bids_dir_with_unsupported_file(self, bids_root):
-        """Create a BIDS directory with only unsupported file formats.
-
-        Args:
-            bids_root: Temporary BIDS root directory.
-
-        Returns:
-            Path: Path to the created BIDS root directory.
-        """
-        subject_dir = bids_root / "sub-01" / "eeg"
-        subject_dir.mkdir(parents=True)
-        (subject_dir / "sub-01_task-rest_events.tsv").write_text("dummy")
-        return bids_root
-
-    def test_returns_false_when_subject_dir_missing(self, bids_root):
+    def test_returns_false_when_recording_file_missing(
+        self, bids_dir_with_invalid_recording_file
+    ):
         """Test that False is returned when the subject directory doesn't exist."""
-        assert check_eeg_recording_files_exist(bids_root, "sub-01_task-rest") is False
+        try:
+            assert (
+                check_eeg_recording_files_exist(
+                    bids_dir_with_invalid_recording_file,
+                    "sub-01_ses-01_task-rest_run-04",
+                )
+                is False
+            )
+        finally:
+            shutil.rmtree(bids_dir_with_invalid_recording_file, ignore_errors=True)
 
-    def test_returns_true_when_matching_eeg_file_exists(self, bids_dir_with_eeg_file):
+    def test_returns_true_when_matching_recording_file_exists(self, bids_root):
         """Test that True is returned when a supported EEG file exists.
 
         The check should be case-insensitive for file extensions.
         """
-        assert (
-            check_eeg_recording_files_exist(bids_dir_with_eeg_file, "sub-01_task-rest")
-            is True
-        )
-
-    def test_returns_false_when_only_unsupported_files_exist(
-        self, bids_dir_with_unsupported_file
-    ):
-        """Test that False is returned when only unsupported file formats exist."""
-        assert (
-            check_eeg_recording_files_exist(
-                bids_dir_with_unsupported_file, "sub-01_task-rest"
+        try:
+            assert (
+                check_eeg_recording_files_exist(
+                    bids_root, "sub-01_ses-01_task-rest_run-01"
+                )
+                is True
             )
-            is False
-        )
-
-    def test_ieeg_check_returns_true_for_nwb_files(self, bids_root):
-        """Test that iEEG check correctly recognizes .nwb files as supported."""
-        subject_dir = bids_root / "sub-01" / "ieeg"
-        subject_dir.mkdir(parents=True)
-        (subject_dir / "sub-01_task-rest_ieeg.nwb").write_text("dummy")
-
-        assert check_ieeg_recording_files_exist(bids_root, "sub-01_task-rest") is True
+        finally:
+            shutil.rmtree(bids_root, ignore_errors=True)
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
@@ -607,36 +741,42 @@ class TestBuildBidsPath:
         Verifies that all entities (subject, session, task, acquisition, run, description)
         are correctly extracted and set on the BIDSPath object.
         """
-        bids_path = build_bids_path(
-            bids_root=bids_root,
-            recording_id="sub-01_ses-02_task-rest_acq-ecog_run-03_desc-preproc",
-            modality=Modality.IEEG,
-        )
+        try:
+            bids_path = build_bids_path(
+                bids_root=bids_root,
+                recording_id="sub-01_ses-02_task-rest_acq-ecog_run-03_desc-preproc",
+                modality=Modality.IEEG,
+            )
 
-        assert bids_path.root == bids_root
-        assert bids_path.subject == "01"
-        assert bids_path.session == "02"
-        assert bids_path.task == "rest"
-        assert bids_path.acquisition == "ecog"
-        assert bids_path.run == "03"
-        assert bids_path.description == "preproc"
-        assert bids_path.datatype == "ieeg"
-        assert bids_path.suffix == "ieeg"
+            assert bids_path.root == bids_root
+            assert bids_path.subject == "01"
+            assert bids_path.session == "02"
+            assert bids_path.task == "rest"
+            assert bids_path.acquisition == "ecog"
+            assert bids_path.run == "03"
+            assert bids_path.description == "preproc"
+            assert bids_path.datatype == "ieeg"
+            assert bids_path.suffix == "ieeg"
+        finally:
+            shutil.rmtree(bids_root, ignore_errors=True)
 
     def test_builds_minimal_bids_path_with_required_entities(self, bids_root):
         """Test that build_bids_path works with only required entities."""
-        bids_path = build_bids_path(
-            bids_root=bids_root,
-            recording_id="sub-01_task-rest",
-            modality=Modality.EEG,
-        )
+        try:
+            bids_path = build_bids_path(
+                bids_root=bids_root,
+                recording_id="sub-01_task-rest",
+                modality=Modality.EEG,
+            )
 
-        assert bids_path.subject == "01"
-        assert bids_path.task == "rest"
-        assert bids_path.session is None
-        assert bids_path.acquisition is None
-        assert bids_path.run is None
-        assert bids_path.description is None
+            assert bids_path.subject == "01"
+            assert bids_path.task == "rest"
+            assert bids_path.session is None
+            assert bids_path.acquisition is None
+            assert bids_path.run is None
+            assert bids_path.description is None
+        finally:
+            shutil.rmtree(bids_root, ignore_errors=True)
 
     def test_handles_missing_entities_gracefully(self, bids_root):
         """Test that build_bids_path extracts available entities even when some are missing.
@@ -644,28 +784,63 @@ class TestBuildBidsPath:
         The function uses get_entities_from_fname which allows missing entities
         and will return None for them.
         """
-        bids_path = build_bids_path(
-            bids_root,
-            "sub-01_ses-02_acq-ecog_run-03_desc-preproc",
-            Modality.EEG,
-        )
-        assert bids_path.subject == "01"
-        assert bids_path.task is None
-        assert bids_path.acquisition == "ecog"
+        try:
+            bids_path = build_bids_path(
+                bids_root,
+                "sub-01_ses-02_acq-ecog_run-03_desc-preproc",
+                Modality.EEG,
+            )
+            assert bids_path.subject == "01"
+            assert bids_path.task is None
+            assert bids_path.acquisition == "ecog"
+        finally:
+            shutil.rmtree(bids_root, ignore_errors=True)
 
     def test_builds_path_with_minimal_entities(self, bids_root):
         """Test that build_bids_path works with only subject entity.
 
         The function requires only subject to construct a valid BIDSPath.
         """
-        bids_path = build_bids_path(bids_root, "sub-01", Modality.EEG)
-        assert bids_path.subject == "01"
-        assert bids_path.task is None
+        try:
+            bids_path = build_bids_path(bids_root, "sub-01", Modality.EEG)
+            assert bids_path.subject == "01"
+            assert bids_path.task is None
+        finally:
+            shutil.rmtree(bids_root, ignore_errors=True)
 
     def test_raises_value_error_for_unsupported_modality(self, bids_root):
         """Test that unsupported modalities are rejected."""
-        with pytest.raises(ValueError, match="Unsupported modality"):
-            build_bids_path(bids_root, "sub-01_task-rest", "meg")
+        try:
+            with pytest.raises(ValueError, match="Unsupported modality"):
+                build_bids_path(bids_root, "sub-01_task-rest", "meg")
+        finally:
+            shutil.rmtree(bids_root, ignore_errors=True)
+
+    def test_raises_value_error_for_unsupported_entity(self, bids_root):
+        """Test that ValueError is raised if recording_id contains unsupported entity names."""
+        # entity 'foo' is not a supported BIDS entity
+        try:
+            recording_id = "sub-01_task-rest_foo-bar_eeg.edf"
+            with pytest.raises(ValueError, match="Unsupported BIDS entity"):
+                build_bids_path(bids_root, recording_id, Modality.EEG)
+        finally:
+            shutil.rmtree(bids_root, ignore_errors=True)
+
+    def test_raises_value_error_for_invalid_bids_root(self, invalid_bids_root):
+        """Test that ValueError is raised if bids_root does not correspond to a valid BIDS root directory."""
+        # invalid_bids_root is an empty dir and does not have a dataset_description.json
+        try:
+            recording_id = "sub-01_task-rest"
+            with pytest.raises(
+                ValueError, match="must point to a valid BIDS root directory"
+            ):
+                build_bids_path(
+                    bids_root=invalid_bids_root,
+                    recording_id=recording_id,
+                    modality=Modality.EEG,
+                )
+        finally:
+            shutil.rmtree(invalid_bids_root, ignore_errors=True)
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
@@ -689,17 +864,20 @@ class TestLoadJsonSidecar:
 
     def test_accepts_bidspath_input(self, bids_dir_with_json_sidecar):
         """Test that load_json_sidecar correctly accepts BIDSPath input."""
-        bids_path = mne_bids.BIDSPath(
-            root=bids_dir_with_json_sidecar,
-            subject="01",
-            task="rest",
-            datatype="ieeg",
-            suffix="ieeg",
-        )
-        sidecar = load_json_sidecar(bids_path)
-        assert sidecar["OriginalRecordingTimestamp"] == "2024-01-01T10:00:00"
+        try:
+            bids_path = mne_bids.BIDSPath(
+                root=bids_dir_with_json_sidecar,
+                subject="01",
+                task="rest",
+                datatype="ieeg",
+                suffix="ieeg",
+            )
+            sidecar = load_json_sidecar(bids_path)
+            assert sidecar["OriginalRecordingTimestamp"] == "2024-01-01T10:00:00"
+        finally:
+            shutil.rmtree(bids_dir_with_json_sidecar, ignore_errors=True)
 
-    def test_raises_type_error_for_non_bidspath_input(self, bids_dir_with_json_sidecar):
+    def test_raises_type_error_for_non_bidspath_input(self):
         """Test that TypeError is raised if bids_path is not a BIDSPath object."""
         not_a_bidspath = "this/is/not/a/BIDSPath"
         with pytest.raises(TypeError, match="bids_path must be a BIDSPath object"):
@@ -710,23 +888,35 @@ class TestLoadJsonSidecar:
 
         The function should return a dictionary with the sidecar JSON content.
         """
-        bids_path = mne_bids.BIDSPath(
-            root=bids_dir_with_json_sidecar,
-            subject="01",
-            task="rest",
-            datatype="ieeg",
-            suffix="ieeg",
-        )
-        sidecar = load_json_sidecar(bids_path)
-        assert sidecar["OriginalRecordingTimestamp"] == "2024-01-01T10:00:00"
+        try:
+            bids_path = mne_bids.BIDSPath(
+                root=bids_dir_with_json_sidecar,
+                subject="01",
+                task="rest",
+                datatype="ieeg",
+                suffix="ieeg",
+            )
+            sidecar = load_json_sidecar(bids_path)
+            assert sidecar["OriginalRecordingTimestamp"] == "2024-01-01T10:00:00"
+        finally:
+            shutil.rmtree(bids_dir_with_json_sidecar, ignore_errors=True)
 
     def test_raises_file_not_found_when_sidecar_missing(self, bids_root):
         """Test that FileNotFoundError is raised when JSON sidecar doesn't exist."""
-        bids_path = mne_bids.BIDSPath(
-            root=bids_root, subject="01", task="rest", datatype="ieeg", suffix="ieeg"
-        )
-        with pytest.raises(FileNotFoundError):
-            load_json_sidecar(bids_path)
+        try:
+            bids_path = mne_bids.BIDSPath(
+                root=bids_root,
+                subject="01",
+                task="rest",
+                datatype="ieeg",
+                suffix="ieeg",
+            )
+            with pytest.raises(
+                FileNotFoundError, match="No JSON sidecar file found for"
+            ):
+                load_json_sidecar(bids_path)
+        finally:
+            shutil.rmtree(bids_root, ignore_errors=True)
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
@@ -735,50 +925,67 @@ class TestLoadParticipantsTsv:
 
     def test_raises_file_not_found_when_missing(self, bids_root):
         """Test that FileNotFoundError is raised when participants.tsv doesn't exist."""
-        with pytest.raises(FileNotFoundError):
-            load_participants_tsv(bids_root)
+        try:
+            with pytest.raises(
+                FileNotFoundError, match="participants.tsv file not found in"
+            ):
+                load_participants_tsv(bids_root)
+        finally:
+            shutil.rmtree(bids_root, ignore_errors=True)
 
     def test_returns_none_without_participant_id_column(self, bids_root):
         """Test that None is returned when participant_id column is missing.
 
         This allows graceful handling of malformed participants.tsv files.
         """
-        participants_tsv = bids_root / "participants.tsv"
-        participants_tsv.write_text("subject_id\tage\tsex\nsub-01\t34\tF\n")
+        try:
+            participants_tsv = bids_root / "participants.tsv"
+            participants_tsv.write_text("subject_id\tage\tsex\nsub-01\t34\tF\n")
 
-        participants_data = load_participants_tsv(bids_root)
-        assert participants_data is None
+            participants_data = load_participants_tsv(bids_root)
+            assert participants_data is None
+        finally:
+            shutil.rmtree(bids_root, ignore_errors=True)
 
     def test_loads_and_indexes_by_participant_id(self, bids_root_with_participants):
         """Test that participants.tsv is correctly loaded and indexed by participant_id.
 
         The DataFrame should be indexed by participant_id with other columns preserved.
         """
-        participants_data = load_participants_tsv(bids_root_with_participants)
+        try:
+            participants_data = load_participants_tsv(bids_root_with_participants)
 
-        assert participants_data is not None
-        assert participants_data.index.name == "participant_id"
-        assert list(participants_data.index) == ["sub-01", "sub-02", "sub-03"]
+            assert participants_data is not None
+            assert participants_data.index.name == "participant_id"
+            assert list(participants_data.index) == ["sub-01", "sub-02", "sub-03"]
+        finally:
+            shutil.rmtree(bids_root_with_participants, ignore_errors=True)
 
     def test_preserves_column_data_types(self, bids_root_with_participants):
         """Test that data types are correctly preserved when loading.
 
         Numeric columns should remain numeric, and string columns should remain strings.
         """
-        participants_data = load_participants_tsv(bids_root_with_participants)
+        try:
+            participants_data = load_participants_tsv(bids_root_with_participants)
 
-        assert participants_data.loc["sub-01", "age"] == 34
-        assert participants_data.loc["sub-01", "sex"] == "F"
+            assert participants_data.loc["sub-01", "age"] == 34
+            assert participants_data.loc["sub-01", "sex"] == "F"
+        finally:
+            shutil.rmtree(bids_root_with_participants, ignore_errors=True)
 
     def test_handles_na_values_correctly(self, bids_root_with_participants):
         """Test that NA values (n/a, N/A) are converted to NaN/None.
 
         This ensures consistent handling of missing data across the dataset.
         """
-        participants_data = load_participants_tsv(bids_root_with_participants)
+        try:
+            participants_data = load_participants_tsv(bids_root_with_participants)
 
-        assert pd.isna(participants_data.loc["sub-02", "age"])
-        assert pd.isna(participants_data.loc["sub-02", "sex"])
+            assert pd.isna(participants_data.loc["sub-02", "age"])
+            assert pd.isna(participants_data.loc["sub-02", "sex"])
+        finally:
+            shutil.rmtree(bids_root_with_participants, ignore_errors=True)
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
