@@ -58,9 +58,9 @@ def extract_measurement_date(
 
 def concatenate_recordings(
     recordings: list["mne.io.BaseRaw"],
-    max_offset: float = 1.0,
+    max_gap: float = 1.0,
     on_mismatch: Literal["ignore", "warn", "raise"] = "raise",
-    on_offset: Literal["ignore", "warn", "raise"] = "warn",
+    on_gap: Literal["ignore", "warn", "raise"] = "warn",
     on_missing_meas_date: Literal["ignore", "warn", "raise"] = "warn",
 ) -> "mne.io.BaseRaw":
     """Concatenate a list of MNE Raw objects into one, validating metadata.
@@ -81,19 +81,19 @@ def concatenate_recordings(
 
     Offset validation:
         The function checks for temporal offsets in the measurement dates of the recordings.
-        If the measurement dates are separated by notable amounts of time (as defined by the `max_offset`
+        If the measurement dates are separated by notable amounts of time (as defined by the `max_gap`
         parameter, in hours), this can indicate temporal discontinuity.
-        The `on_offset` parameter controls how such offsets are handled when the offset exceeds `max_offset`; default is "warn".
+        The `on_gap` parameter controls how such offsets are handled when the offset exceeds `max_gap`; default is "warn".
         This is useful to ensure recordings are truly continuous or to be notified about gaps between sessions.
 
     Args:
         recordings: List of MNE Raw objects to concatenate.
-        max_offset: Maximum allowed gap in hours between consecutive measurement dates for the recordings to be considered continuous.
+        max_gap: Maximum allowed gap in hours between consecutive measurement dates for the recordings to be considered continuous.
         on_mismatch: How to handle measurement date mismatches (channel mismatches always raise).
             - "raise": raise ValueError if measurement days are not uniform (default),
             - "warn": issue a warning and continue,
             - "ignore": silently continue with measurement day mismatches.
-        on_offset: How to handle temporal offsets between recordings' measurement dates.
+        on_gap: How to handle temporal offsets between recordings' measurement dates.
             - "raise": raise ValueError if offsets are detected,
             - "warn": issue a warning and continue (default),
             - "ignore": silently continue with offsets.
@@ -109,7 +109,7 @@ def concatenate_recordings(
     Raises:
         ImportError: If MNE is not installed.
         ValueError: If recordings is empty, contains non-Raw objects, has channel mismatches,
-            on_mismatch, on_offset, or on_missing_meas_date is invalid, or (if set to "raise")
+            on_mismatch, on_gap, or on_missing_meas_date is invalid, or (if set to "raise")
             measurement date mismatches, time offsets, or missing measurement dates are detected.
     """
     _check_mne_available("concatenate_recordings")
@@ -130,9 +130,8 @@ def concatenate_recordings(
         """
         if meas_date is None:
             return None
-        if meas_date.tzinfo is not None:
-            return meas_date.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-        return meas_date
+        # Convert timezone-aware datetime to naive UTC datetime
+        return meas_date.astimezone(datetime.timezone.utc).replace(tzinfo=None)
 
     if not isinstance(recordings, list):
         raise TypeError(f"Recordings must be a list, got {type(recordings).__name__}.")
@@ -146,17 +145,15 @@ def concatenate_recordings(
             f"on_mismatch must be one of {valid_policies}, got '{on_mismatch}'"
         )
 
-    if on_offset not in valid_policies:
-        raise ValueError(
-            f"on_offset must be one of {valid_policies}, got '{on_offset}'"
-        )
+    if on_gap not in valid_policies:
+        raise ValueError(f"on_gap must be one of {valid_policies}, got '{on_gap}'")
 
     if on_missing_meas_date not in valid_policies:
         raise ValueError(
             f"on_missing_meas_date must be one of {valid_policies}, got '{on_missing_meas_date}'"
         )
-    if max_offset < 0:
-        raise ValueError("max_offset must be non-negative")
+    if max_gap < 0:
+        raise ValueError("max_gap must be non-negative")
 
     for idx, rec in enumerate(recordings):
         if not hasattr(rec, "info") or not hasattr(rec, "ch_names"):
@@ -226,20 +223,24 @@ def concatenate_recordings(
         key=lambda x: x[2] if x[2] is not None else datetime.datetime.min,
     )
 
-    # Validate that offset between consecutive recordings is within max_offset
-    for (idx1, _, date1), (idx2, _, date2) in zip(
+    # Validate that gap between consecutive recordings is within max_gap
+    for (idx1, rec1, date1), (idx2, rec2, date2) in zip(
         sorted_recordings, sorted_recordings[1:]
     ):
-        offset = (date2 - date1).total_seconds()
+        # Gap is the difference between the meas_date (date2) of the next recording (rec2)
+        # and the last time point of the previous recording (rec1), offset by its meas_date (date1).
+        rec1_duration_s = rec1.n_times / rec1.info["sfreq"]
+        rec1_end_time = date1 + datetime.timedelta(seconds=rec1_duration_s)
+        gap = (date2 - rec1_end_time).total_seconds() # convert to seconds
 
-        if offset > max_offset * 3600:
-            if on_offset == "raise":
+        if gap > max_gap * 3600:  # convert hours to seconds
+            if on_gap == "raise":
                 raise ValueError(
-                    f"Offset between recordings {idx1} and {idx2} is greater than {max_offset} hours: {offset} seconds"
+                    f"Gap between recordings {idx1} and {idx2} is greater than {max_gap} hours: {gap} seconds"
                 )
-            elif on_offset == "warn":
+            elif on_gap == "warn":
                 warnings.warn(
-                    f"Offset between recordings {idx1} and {idx2} is greater than {max_offset} hours: {offset} seconds"
+                    f"Gap between recordings {idx1} and {idx2} is greater than {max_gap} hours: {gap} seconds"
                 )
 
     copies = []

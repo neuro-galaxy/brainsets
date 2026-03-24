@@ -50,6 +50,7 @@ def create_mock_raw(
         "bads": [],
     }
     mock_raw.ch_names = ch_names
+    mock_raw.n_times = n_samples
     mock_raw.get_channel_types.return_value = ch_types
     mock_raw.get_montage.return_value = None
 
@@ -670,11 +671,11 @@ class TestConcatenateRecordings:
         with pytest.raises(ValueError, match="on_mismatch must be one of"):
             concatenate_recordings([mock_raw], on_mismatch="invalid")
 
-    def test_invalid_on_offset_policy_raises_error(self):
-        """Test that ValueError is raised for invalid on_offset policy."""
+    def test_invalid_on_gap_policy_raises_error(self):
+        """Test that ValueError is raised for invalid on_gap policy."""
         mock_raw = create_mock_raw()
-        with pytest.raises(ValueError, match="on_offset must be one of"):
-            concatenate_recordings([mock_raw], on_offset="invalid")
+        with pytest.raises(ValueError, match="on_gap must be one of"):
+            concatenate_recordings([mock_raw], on_gap="invalid")
 
     def test_invalid_on_missing_meas_date_policy_raises_error(self):
         """Test that ValueError is raised for invalid on_missing_meas_date policy."""
@@ -682,7 +683,21 @@ class TestConcatenateRecordings:
         with pytest.raises(ValueError, match="on_missing_meas_date must be one of"):
             concatenate_recordings([mock_raw], on_missing_meas_date="invalid")
 
-    # ----------- Concatenation happy-paths and basic behavior -----------
+    # ----------- Channel name mismatch behavior -----------
+    def test_different_channel_names_raise_error(self):
+        """Test that ValueError is raised for different channel names with raise policy."""
+        meas_date = datetime.datetime(
+            2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc
+        )
+        mock_raw1 = create_mock_raw(ch_names=["CH0", "CH1", "CH2"], meas_date=meas_date)
+        mock_raw2 = create_mock_raw(ch_names=["CH0", "CH1", "CH3"], meas_date=meas_date)
+
+        with pytest.raises(
+            ValueError, match="Mismatch in channel names and/or order across recordings"
+        ):
+            concatenate_recordings([mock_raw1, mock_raw2])
+
+    # ----------- Concatenation basic behavior -----------
     def test_single_recording_concatenates(self):
         """Test that a single recording can be concatenated."""
         meas_date = datetime.datetime(
@@ -739,20 +754,6 @@ class TestConcatenateRecordings:
             assert call_args[0] == mock_raw3
             assert call_args[1] == mock_raw1
             assert call_args[2] == mock_raw2
-
-    # ----------- Channel name mismatch behavior -----------
-    def test_different_channel_names_raise_error(self):
-        """Test that ValueError is raised for different channel names with raise policy."""
-        meas_date = datetime.datetime(
-            2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc
-        )
-        mock_raw1 = create_mock_raw(ch_names=["CH0", "CH1", "CH2"], meas_date=meas_date)
-        mock_raw2 = create_mock_raw(ch_names=["CH0", "CH1", "CH3"], meas_date=meas_date)
-
-        with pytest.raises(
-            ValueError, match="Mismatch in channel names and/or order across recordings"
-        ):
-            concatenate_recordings([mock_raw1, mock_raw2])
 
     # ----------- Handling missing measurement dates -----------
     def test_missing_meas_date_raise_with_raise_policy(self):
@@ -906,9 +907,9 @@ class TestConcatenateRecordings:
         with pytest.raises(ValueError, match="Measurement days are not uniform"):
             concatenate_recordings([mock_raw1, mock_raw2])
 
-    # ----------- Offset checking behavior -----------
-    def test_offset_within_max_offset_succeeds_with_warn_policy(self):
-        """Test that recordings within max_offset offset pass with warn policy."""
+    # ----------- Gap checking behavior -----------
+    def test_gap_within_max_gap_succeeds_with_warn_policy(self):
+        """Test that recordings within max_gap gap pass with warn policy."""
         date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
         date2 = datetime.datetime(2023, 6, 15, 10, 30, 0, tzinfo=datetime.timezone.utc)
 
@@ -919,11 +920,11 @@ class TestConcatenateRecordings:
 
         with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
             mock_concat.return_value = MagicMock()
-            result = concatenate_recordings([mock_raw1, mock_raw2], on_offset="warn")
+            result = concatenate_recordings([mock_raw1, mock_raw2], on_gap="warn")
             mock_concat.assert_called_once()
 
-    def test_offset_greater_than_max_offset_raise_with_raise_policy(self):
-        """Test that ValueError is raised when offset > max_offset with raise policy."""
+    def test_gap_greater_than_max_gap_raise_with_raise_policy(self):
+        """Test that ValueError is raised when gap > max_gap with raise policy."""
         date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
         date2 = datetime.datetime(2023, 6, 15, 12, 0, 0, tzinfo=datetime.timezone.utc)
 
@@ -931,12 +932,12 @@ class TestConcatenateRecordings:
         mock_raw2 = create_mock_raw(meas_date=date2)
 
         with pytest.raises(
-            ValueError, match="Offset between recordings .* is greater than"
+            ValueError, match="Gap between recordings .* is greater than"
         ):
-            concatenate_recordings([mock_raw1, mock_raw2], on_offset="raise")
+            concatenate_recordings([mock_raw1, mock_raw2], on_gap="raise")
 
-    def test_offset_greater_than_max_offset_warn_with_warn_policy(self):
-        """Test that warning is issued when offset > max_offset with warn policy."""
+    def test_gap_greater_than_max_gap_warn_with_warn_policy(self):
+        """Test that warning is issued when gap > max_gap with warn policy."""
         date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
         date2 = datetime.datetime(2023, 6, 15, 12, 0, 0, tzinfo=datetime.timezone.utc)
 
@@ -948,12 +949,12 @@ class TestConcatenateRecordings:
         with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
             mock_concat.return_value = MagicMock()
             with pytest.warns(
-                UserWarning, match="Offset between recordings .* is greater than"
+                UserWarning, match="Gap between recordings .* is greater than"
             ):
-                concatenate_recordings([mock_raw1, mock_raw2], on_offset="warn")
+                concatenate_recordings([mock_raw1, mock_raw2], on_gap="warn")
 
-    def test_offset_greater_than_max_offset_ignore_with_ignore_policy(self):
-        """Test that offset > 1 hour is silently ignored with ignore policy."""
+    def test_gap_greater_than_max_gap_ignore_with_ignore_policy(self):
+        """Test that gap > 1 hour is silently ignored with ignore policy."""
         date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
         date2 = datetime.datetime(2023, 6, 15, 12, 0, 0, tzinfo=datetime.timezone.utc)
 
@@ -964,11 +965,11 @@ class TestConcatenateRecordings:
 
         with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
             mock_concat.return_value = MagicMock()
-            concatenate_recordings([mock_raw1, mock_raw2], on_offset="ignore")
+            concatenate_recordings([mock_raw1, mock_raw2], on_gap="ignore")
             mock_concat.assert_called_once()
 
-    def test_default_on_offset_policy_is_warn(self):
-        """Test that default on_offset policy is 'warn'."""
+    def test_default_on_gap_policy_is_warn(self):
+        """Test that default on_gap policy is 'warn'."""
         date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
         date2 = datetime.datetime(2023, 6, 15, 12, 0, 0, tzinfo=datetime.timezone.utc)
 
@@ -980,12 +981,12 @@ class TestConcatenateRecordings:
         with patch("brainsets.utils.mne_utils.mne.concatenate_raws") as mock_concat:
             mock_concat.return_value = MagicMock()
             with pytest.warns(
-                UserWarning, match="Offset between recordings .* is greater than"
+                UserWarning, match="Gap between recordings .* is greater than"
             ):
                 concatenate_recordings([mock_raw1, mock_raw2])
 
-    def test_multiple_offsets_check_all_consecutive_pairs(self):
-        """Test that offset check is applied to all consecutive recording pairs."""
+    def test_multiple_gaps_check_all_consecutive_pairs(self):
+        """Test that gap check is applied to all consecutive recording pairs."""
         date1 = datetime.datetime(2023, 6, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
         date2 = datetime.datetime(2023, 6, 15, 11, 30, 0, tzinfo=datetime.timezone.utc)
         date3 = datetime.datetime(2023, 6, 15, 13, 30, 0, tzinfo=datetime.timezone.utc)
@@ -995,9 +996,9 @@ class TestConcatenateRecordings:
         mock_raw3 = create_mock_raw(meas_date=date3)
 
         with pytest.raises(
-            ValueError, match="Offset between recordings .* is greater than"
+            ValueError, match="Gap between recordings .* is greater than"
         ):
-            concatenate_recordings([mock_raw1, mock_raw2, mock_raw3], on_offset="raise")
+            concatenate_recordings([mock_raw1, mock_raw2, mock_raw3], on_gap="raise")
 
     # ----------- Internal mechanics (copies used for concatenation) -----------
     def test_concatenate_raws_called_with_copies(self):
