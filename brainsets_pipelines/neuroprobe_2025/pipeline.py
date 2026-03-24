@@ -538,6 +538,10 @@ def _extract_local_role_splits(
 
     return [
         {
+            # Intentional: when this split is consumed as training, we use the
+            # entire local sample set for training. cross_x uses different
+            # subject/session roles for train vs test upstream, so this does
+            # not leak evaluation windows into training.
             "train_dataset": local_dataset,
             "val_dataset": val_dataset,
             "test_dataset": test_dataset,
