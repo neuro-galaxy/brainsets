@@ -7,7 +7,6 @@ MNE Raw objects and convert them to brainsets data structures.
 import datetime
 import numpy as np
 from typing import Tuple, Literal
-from collections import Counter
 
 from temporaldata import (
     ArrayDict,
