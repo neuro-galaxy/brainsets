@@ -518,10 +518,7 @@ def _fetch_recordings(
             )
 
     if isinstance(source, BIDSPath):
-        if source.datatype is not None:
-            source = source.update(datatype=normalized_modality.value)
-        source = source.match()
-        print("SOURCE: ", source)
+        source = source.update(datatype=normalized_modality.value).match()
 
     if len(source) == 0:
         return []
@@ -642,20 +639,19 @@ def _is_bids_root(path: str | Path) -> bool:
 
     # Validate that the path is a folder
     is_folder = path.is_dir()
-    print("Is folder: ", is_folder)
+
     # Check for mandatory root file
     is_root = (path / "dataset_description.json").exists()
-    print("Is root: ", is_root)
+
     # Check for BIDS entities (subjects) to ensure it's a BIDS structure
     # If we are in a subfolder, get_entity_vals will still work because it
     # looks at the directory names in the path.
     try:
         subjects = get_entity_vals(path, "subject")
-        print("Subjects: ", subjects)
         has_bids_structure = len(subjects) > 0
     except Exception:
         has_bids_structure = False
-    print("Has bids structure: ", has_bids_structure)
+
     if is_folder and is_root and has_bids_structure:
         return True
     return False
