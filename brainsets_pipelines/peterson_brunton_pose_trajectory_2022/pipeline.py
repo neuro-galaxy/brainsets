@@ -2,9 +2,10 @@
 # python-version = "3.11"
 # dependencies = [
 #   "mne~=1.11.0",
-#   "dandi==0.61.2",
+#   "dandi==0.74.0",
 #   "pynwb==3.1.3",
-#   "scikit-learn==1.7.2"
+#   "scikit-learn==1.7.2",
+#   "temporaldata@git+https://github.com/neuro-galaxy/temporaldata@main",
 # ]
 # ///
 
