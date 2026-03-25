@@ -22,7 +22,7 @@ def _behavior_trials_for_task(recording, task_type: str) -> Interval:
     return trials.select_by_mask(mask)
 
 
-class PetersonBruntonPoseTrajectory2022(Dataset, MultiChannelDatasetMixin):
+class PetersonBruntonPoseTrajectory2022(MultiChannelDatasetMixin, Dataset):
     def __init__(
         self,
         root: str,
