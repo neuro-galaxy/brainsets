@@ -34,13 +34,23 @@ from brainsets.utils.split import (
 from brainsets.utils.s3_utils import get_cached_s3_client
 from brainsets.utils.mne_utils import (
     extract_measurement_date,
-    extract_psg_signal,
+    extract_signal,
+    extract_channels,
 )
-from temporaldata import Data, Interval
+from temporaldata import Data, Interval, RegularTimeSeries, ArrayDict
 
 
 logging.basicConfig(level=logging.INFO)
 
+CHANNEL_TYPE_REMAPPING = {
+    "EEG": ["EEG Fpz-Cz", "EEG Pz-Oz"],
+    "EOG": ["EOG horizontal"],
+    "RESP": ["Resp oro-nasal"],
+    "EMG": ["EMG submental"],
+    "TEMP": ["Temp rectal"],
+}
+
+IGNORE_CHANNELS = ["Event marker"]
 
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
@@ -214,7 +224,14 @@ class Pipeline(BrainsetPipeline):
         )
 
         self.update_status("Extracting Signals")
-        signals, channels = extract_psg_signal(raw_psg)
+        signals = extract_signal(raw_psg, ignore_channels=IGNORE_CHANNELS)
+
+        self.update_status("Extracting Channels")
+        channels = extract_channels(
+            raw_psg,
+            channel_types_mapping=CHANNEL_TYPE_REMAPPING,
+            ignore_channels=IGNORE_CHANNELS,
+        )
 
         self.update_status("Extracting Sleep Stages")
         stages = extract_sleep_stages(str(hypnogram_path))
@@ -397,3 +414,75 @@ def create_splits(
         setattr(splits, key, value)
 
     return splits
+
+    """Extract physiological signals from polysomnography (PSG) recording as a RegularTimeSeries.
+
+    Args:
+        raw_psg: The MNE Raw object containing PSG data from an EDF file
+
+    Returns:
+        A tuple containing:
+        - RegularTimeSeries: The extracted physiological signals with
+          sampling rate and time domain information
+        - ArrayDict: Channel metadata with fields 'id' (channel names)
+          and 'type' (channel types: EEG, EOG, EMG, RESP, or TEMP)
+
+    Raises:
+        ImportError: If MNE is not installed.
+        ValueError: If no signals are extracted from the PSG file.
+    """
+    data, times = raw_psg.get_data(return_times=True)
+    ch_names = raw_psg.ch_names
+    ch_types = raw_psg.get_channel_types()
+
+    signal_list = []
+    channel_meta = []
+
+    for idx, ch_name in enumerate(ch_names):
+        ch_name_lower = ch_name.lower()
+        signal_data = data[idx, :]
+
+        ch_type = None
+        if (
+            "eeg" in ch_name_lower
+            or "fpz-cz" in ch_name_lower
+            or "pz-oz" in ch_name_lower
+        ):
+            ch_type = "EEG"
+        elif "eog" in ch_name_lower:
+            ch_type = "EOG"
+        elif "emg" in ch_name_lower:
+            ch_type = "EMG"
+        elif "resp" in ch_name_lower:
+            ch_type = "RESP"
+        elif "temp" in ch_name_lower:
+            ch_type = "TEMP"
+        else:
+            continue
+
+        signal_list.append(signal_data)
+
+        channel_meta.append(
+            {
+                "id": str(ch_name),
+                "type": ch_type,
+            }
+        )
+
+    if not signal_list:
+        raise ValueError("No signals extracted from PSG file")
+
+    stacked_signals = np.stack(signal_list, axis=1)
+
+    signals = RegularTimeSeries(
+        signal=stacked_signals,
+        sampling_rate=raw_psg.info["sfreq"],
+        domain=Interval(start=times[0], end=times[-1]),
+    )
+
+    channels = ArrayDict(
+        id=np.array([ch["id"] for ch in channel_meta], dtype="U"),
+        type=np.array([ch["type"] for ch in channel_meta], dtype="U"),
+    )
+
+    return signals, channels

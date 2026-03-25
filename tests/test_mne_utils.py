@@ -152,6 +152,56 @@ class TestExtractSignal:
         result = extract_signal(mock_raw)
         assert result.signal.shape == (n_samples, n_channels)
 
+    def test_ignore_channels_excludes_specified_channels(self):
+        """Test that ignore_channels excludes specified channels from extraction."""
+        ch_names = ["CH0", "CH1", "CH2", "CH3"]
+        n_samples = 1000
+        mock_raw = create_mock_raw(
+            ch_names=ch_names, n_channels=len(ch_names), n_samples=n_samples
+        )
+        result = extract_signal(mock_raw, ignore_channels=["CH1", "CH3"])
+        assert result.signal.shape == (n_samples, 2)
+
+    def test_ignore_channels_with_single_channel(self):
+        """Test ignore_channels with a single channel to ignore."""
+        ch_names = ["CH0", "CH1", "CH2"]
+        n_samples = 500
+        mock_raw = create_mock_raw(
+            ch_names=ch_names, n_channels=len(ch_names), n_samples=n_samples
+        )
+        result = extract_signal(mock_raw, ignore_channels=["CH1"])
+        assert result.signal.shape == (n_samples, 2)
+
+    def test_ignore_channels_with_all_but_one(self):
+        """Test ignore_channels with all but one channel ignored."""
+        ch_names = ["CH0", "CH1", "CH2"]
+        n_samples = 1000
+        mock_raw = create_mock_raw(
+            ch_names=ch_names, n_channels=len(ch_names), n_samples=n_samples
+        )
+        result = extract_signal(mock_raw, ignore_channels=["CH0", "CH2"])
+        assert result.signal.shape == (n_samples, 1)
+
+    def test_ignore_channels_with_none(self):
+        """Test that None value for ignore_channels includes all channels."""
+        ch_names = ["CH0", "CH1", "CH2"]
+        n_samples = 500
+        mock_raw = create_mock_raw(
+            ch_names=ch_names, n_channels=len(ch_names), n_samples=n_samples
+        )
+        result = extract_signal(mock_raw, ignore_channels=None)
+        assert result.signal.shape == (n_samples, 3)
+
+    def test_ignore_channels_with_empty_list(self):
+        """Test that empty list for ignore_channels includes all channels."""
+        ch_names = ["CH0", "CH1", "CH2"]
+        n_samples = 500
+        mock_raw = create_mock_raw(
+            ch_names=ch_names, n_channels=len(ch_names), n_samples=n_samples
+        )
+        result = extract_signal(mock_raw, ignore_channels=[])
+        assert result.signal.shape == (n_samples, 3)
+
 
 @pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
 class TestExtractChannels:
@@ -434,6 +484,99 @@ class TestExtractChannels:
             match="Duplicate channel names in channel_names_mapping detected",
         ):
             extract_channels(mock_raw, channel_names_mapping=name_mapping)
+
+    def test_ignore_channels_excludes_specified_channels(self):
+        """Test that ignore_channels excludes specified channels from extraction."""
+        ch_names = ["CH0", "CH1", "CH2", "CH3"]
+        ch_types = ["eeg", "eeg", "eog", "emg"]
+        mock_raw = create_mock_raw(
+            ch_names=ch_names, ch_types=ch_types, n_channels=len(ch_names)
+        )
+        result = extract_channels(mock_raw, ignore_channels=["CH1", "CH3"])
+        assert len(result.id) == 2
+        expected_ids = np.array(["CH0", "CH2"], dtype="U")
+        np.testing.assert_array_equal(result.id, expected_ids)
+
+    def test_ignore_channels_with_single_channel(self):
+        """Test ignore_channels with a single channel to ignore."""
+        ch_names = ["CH0", "CH1", "CH2"]
+        mock_raw = create_mock_raw(ch_names=ch_names, n_channels=len(ch_names))
+        result = extract_channels(mock_raw, ignore_channels=["CH1"])
+        assert len(result.id) == 2
+        expected_ids = np.array(["CH0", "CH2"], dtype="U")
+        np.testing.assert_array_equal(result.id, expected_ids)
+
+    def test_ignore_channels_with_none(self):
+        """Test that None value for ignore_channels includes all channels."""
+        ch_names = ["CH0", "CH1", "CH2"]
+        mock_raw = create_mock_raw(ch_names=ch_names, n_channels=len(ch_names))
+        result = extract_channels(mock_raw, ignore_channels=None)
+        assert len(result.id) == 3
+        expected_ids = np.array(ch_names, dtype="U")
+        np.testing.assert_array_equal(result.id, expected_ids)
+
+    def test_ignore_channels_with_empty_list(self):
+        """Test that empty list for ignore_channels includes all channels."""
+        ch_names = ["CH0", "CH1", "CH2"]
+        mock_raw = create_mock_raw(ch_names=ch_names, n_channels=len(ch_names))
+        result = extract_channels(mock_raw, ignore_channels=[])
+        assert len(result.id) == 3
+        expected_ids = np.array(ch_names, dtype="U")
+        np.testing.assert_array_equal(result.id, expected_ids)
+
+    def test_ignore_channels_with_name_mapping(self):
+        """Test that ignore_channels works with channel name mapping."""
+        original_names = ["CH0", "CH1", "CH2"]
+        mock_raw = create_mock_raw(
+            ch_names=original_names, n_channels=len(original_names)
+        )
+        name_mapping = {"CH0": "NewCH0", "CH1": "NewCH1", "CH2": "NewCH2"}
+        result = extract_channels(
+            mock_raw,
+            channel_names_mapping=name_mapping,
+            ignore_channels=["CH1"],
+        )
+        assert len(result.id) == 2
+        expected_ids = np.array(["NewCH0", "NewCH2"], dtype="U")
+        np.testing.assert_array_equal(result.id, expected_ids)
+
+    def test_ignore_channels_with_type_mapping(self):
+        """Test that ignore_channels works with channel type mapping."""
+        ch_names = ["CH0", "CH1", "CH2"]
+        mock_raw = create_mock_raw(
+            ch_names=ch_names,
+            ch_types=["eeg", "eeg", "eeg"],
+            n_channels=len(ch_names),
+        )
+        type_mapping = {"eog": ["CH0"], "emg": ["CH2"]}
+        result = extract_channels(
+            mock_raw, channel_types_mapping=type_mapping, ignore_channels=["CH1"]
+        )
+        assert len(result.type) == 2
+        expected_types = np.array(["eog", "emg"], dtype="U")
+        np.testing.assert_array_equal(result.type, expected_types)
+
+    def test_ignore_channels_preserves_bad_channel_mask(self):
+        """Test that ignore_channels correctly updates bad channel mask."""
+        ch_names = ["CH0", "CH1", "CH2", "CH3"]
+        mock_raw = create_mock_raw(ch_names=ch_names, n_channels=len(ch_names))
+        mock_raw.info["bads"] = ["CH1", "CH3"]
+        result = extract_channels(mock_raw, ignore_channels=["CH3"])
+        assert hasattr(result, "bad")
+        expected_bad = np.array([False, True, False])
+        np.testing.assert_array_equal(result.bad, expected_bad)
+
+    def test_ignore_channels_all_but_one(self):
+        """Test ignore_channels with all but one channel ignored."""
+        ch_names = ["CH0", "CH1", "CH2"]
+        ch_types = ["eeg", "eog", "emg"]
+        mock_raw = create_mock_raw(
+            ch_names=ch_names, ch_types=ch_types, n_channels=len(ch_names)
+        )
+        result = extract_channels(mock_raw, ignore_channels=["CH0", "CH2"])
+        assert len(result.id) == 1
+        assert result.id[0] == "CH1"
+        assert result.type[0] == "eog"
 
 
 @pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")

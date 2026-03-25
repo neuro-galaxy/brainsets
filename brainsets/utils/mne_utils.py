@@ -247,12 +247,14 @@ def concatenate_recordings(
 
 def extract_signal(
     recording_data: "mne.io.BaseRaw",
+    ignore_channels: list[str] | None = None,
 ) -> RegularTimeSeries:
     """Extract entire time-series signal from an MNE Raw object.
 
     Args:
         recording_data: The MNE Raw object containing signal data.
-
+        ignore_channels: Optional list of channel names to ignore.
+            If provided, the channels will be excluded from the extraction.
     Returns:
         RegularTimeSeries object containing the signal matrix
         and time information.
@@ -263,8 +265,22 @@ def extract_signal(
     """
     _check_mne_available("extract_signal")
 
+    if ignore_channels is not None:
+        warnings.warn(
+            "The 'ignore_channels' argument was passed to extract_signal. "
+            "Ensure you also pass the same value to extract_channels to maintain consistency."
+        )
+
     sfreq = recording_data.info["sfreq"]
-    signal = recording_data.get_data().T
+
+    # Create a mask to select the channels to keep
+    channels_mask = (
+        ~np.isin(recording_data.ch_names, ignore_channels)
+        if ignore_channels is not None
+        else slice(None)  # select all channels
+    )
+    signal = recording_data.get_data()[channels_mask, :].T
+
     if len(signal) == 0:
         raise ValueError("Recording contains no samples")
 
@@ -283,6 +299,7 @@ def extract_channels(
     channel_names_mapping: dict[str, str] | None = None,
     channel_types_mapping: dict[str, list[str]] | None = None,
     channel_pos_mapping: dict[str, np.ndarray] | None = None,
+    ignore_channels: list[str] | None = None,
 ) -> ArrayDict:
     """
     Extract channel metadata from an MNE Raw object, with support for custom channel name, type, and position mappings.
@@ -302,6 +319,8 @@ def extract_channels(
             (e.g., {"eeg": ["C3", "C4"]}). See `_validate_channel_types_mapping` for remapping logic.
         channel_pos_mapping: Optional dictionary mapping channel names to 3D position numpy arrays.
             Falls back to using montage positions if not provided.
+        ignore_channels: Optional list of channel names to ignore.
+            If provided, the channels will be excluded from the extraction.
 
     Returns:
         ArrayDict containing channel information with fields:
@@ -329,6 +348,12 @@ def extract_channels(
         >>> metadata = extract_channels(raw, name_map, type_map, pos_map)
     """
     _check_mne_available("extract_channels")
+
+    if ignore_channels is not None:
+        warnings.warn(
+            "The 'ignore_channels' argument was passed to extract_channels. "
+            "Ensure you also pass the same value to extract_signal to maintain consistency."
+        )
 
     if not isinstance(recording_data, mne.io.BaseRaw):
         raise TypeError(
@@ -363,8 +388,15 @@ def extract_channels(
         recording_data, channel_names_mapping, channel_pos_mapping
     )
 
-    raw_ch_names = np.array(recording_data.ch_names, dtype="U")
-    raw_ch_types = np.array(recording_data.get_channel_types(), dtype="U")
+    if ignore_channels is not None:
+        channels_mask = ~np.isin(recording_data.ch_names, ignore_channels)
+    else:
+        channels_mask = slice(None)
+
+    raw_ch_names = np.array(recording_data.ch_names, dtype="U")[channels_mask]
+    raw_ch_types = np.array(recording_data.get_channel_types(), dtype="U")[
+        channels_mask
+    ]
 
     # Apply channel name mapping
     channel_ids = np.array(
