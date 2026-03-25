@@ -16,14 +16,17 @@ try:
         extract_signal,
         extract_channels,
         concatenate_recordings,
+        extract_annotations,
     )
-    from temporaldata import ArrayDict
+    from temporaldata import ArrayDict, Interval
 except ImportError:
     extract_measurement_date = None
     extract_signal = None
     extract_channels = None
     concatenate_recordings = None
+    extract_annotations = None
     ArrayDict = None
+    Interval = None
 
 
 def create_mock_raw(
@@ -958,6 +961,133 @@ class TestConcatenateRecordings:
             assert mock_copy2 in call_args
 
 
+@pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
+class TestExtractAnnotations:
+    """Test extraction of annotations from MNE Raw objects."""
+
+    def _make_mock_annotations(self, onset, duration, description, extras=None):
+        """Helper to create a mock MNE Annotations object."""
+        annot = MagicMock()
+        annot.onset = np.array(onset)
+        annot.duration = np.array(duration)
+        annot.description = np.array(description, dtype="U")
+        annot.__len__ = lambda self: len(onset)
+        annot.extras = extras if extras is not None else [{}] * len(onset)
+        return annot
+
+    def test_returns_interval(self):
+        """Test that an Interval object is returned."""
+        mock_raw = create_mock_raw()
+        mock_raw.annotations = self._make_mock_annotations(
+            onset=[1.0, 2.0], duration=[0.5, 1.0], description=["evt1", "evt2"]
+        )
+        result = extract_annotations(mock_raw)
+        assert isinstance(result, Interval)
+
+    def test_start_and_end_computed_correctly(self):
+        """Test that start equals onset and end equals onset + duration."""
+        mock_raw = create_mock_raw()
+        mock_raw.annotations = self._make_mock_annotations(
+            onset=[1.0, 3.0, 5.5],
+            duration=[0.5, 1.0, 2.0],
+            description=["a", "b", "c"],
+        )
+        result = extract_annotations(mock_raw)
+        np.testing.assert_array_almost_equal(result.start, [1.0, 3.0, 5.5])
+        np.testing.assert_array_almost_equal(result.end, [1.5, 4.0, 7.5])
+
+    def test_description_field_present(self):
+        """Test that the description field is correctly populated."""
+        mock_raw = create_mock_raw()
+        mock_raw.annotations = self._make_mock_annotations(
+            onset=[0.0, 1.0], duration=[0.5, 0.5], description=["Sleep W", "Sleep N1"]
+        )
+        result = extract_annotations(mock_raw)
+        np.testing.assert_array_equal(
+            result.description, np.array(["Sleep W", "Sleep N1"], dtype="U")
+        )
+
+    def test_empty_annotations_returns_empty_interval_with_warning(self):
+        """Test that empty annotations produce a warning and an empty Interval."""
+        mock_raw = create_mock_raw()
+        annot = MagicMock()
+        annot.__len__ = lambda self: 0
+        mock_raw.annotations = annot
+
+        with pytest.warns(UserWarning, match="No annotations found"):
+            result = extract_annotations(mock_raw)
+
+        assert len(result.start) == 0
+        assert len(result.end) == 0
+
+    def test_single_annotation(self):
+        """Test extraction with a single annotation."""
+        mock_raw = create_mock_raw()
+        mock_raw.annotations = self._make_mock_annotations(
+            onset=[2.5], duration=[1.0], description=["event"]
+        )
+        result = extract_annotations(mock_raw)
+        assert len(result.start) == 1
+        np.testing.assert_array_almost_equal(result.start, [2.5])
+        np.testing.assert_array_almost_equal(result.end, [3.5])
+        np.testing.assert_array_equal(result.description, ["event"])
+
+    def test_zero_duration_annotations(self):
+        """Test annotations with zero duration (point events)."""
+        mock_raw = create_mock_raw()
+        mock_raw.annotations = self._make_mock_annotations(
+            onset=[1.0, 2.0], duration=[0.0, 0.0], description=["stim", "stim"]
+        )
+        result = extract_annotations(mock_raw)
+        np.testing.assert_array_almost_equal(result.start, result.end)
+
+    def test_extras_included_when_present(self):
+        """Test that extra annotation fields are included in the Interval."""
+        mock_raw = create_mock_raw()
+        extras = [
+            {"channel": "CH0", "severity": "high"},
+            {"channel": "CH1", "severity": "low"},
+        ]
+        mock_raw.annotations = self._make_mock_annotations(
+            onset=[0.0, 1.0],
+            duration=[0.5, 0.5],
+            description=["art", "art"],
+            extras=extras,
+        )
+        result = extract_annotations(mock_raw)
+        np.testing.assert_array_equal(
+            result.channel, np.array(["CH0", "CH1"], dtype="U")
+        )
+        np.testing.assert_array_equal(
+            result.severity, np.array(["high", "low"], dtype="U")
+        )
+
+    def test_extras_not_included_when_empty(self):
+        """Test that no extra fields are added when extras are empty dicts."""
+        mock_raw = create_mock_raw()
+        mock_raw.annotations = self._make_mock_annotations(
+            onset=[0.0], duration=[1.0], description=["evt"], extras=[{}]
+        )
+        result = extract_annotations(mock_raw)
+        assert hasattr(result, "description")
+        assert not hasattr(result, "channel")
+
+    def test_many_annotations(self):
+        """Test extraction with a large number of annotations."""
+        n = 500
+        onset = np.arange(n, dtype=float)
+        duration = np.full(n, 0.1)
+        description = [f"evt_{i}" for i in range(n)]
+        mock_raw = create_mock_raw()
+        mock_raw.annotations = self._make_mock_annotations(
+            onset=onset, duration=duration, description=description
+        )
+        result = extract_annotations(mock_raw)
+        assert len(result.start) == n
+        assert len(result.end) == n
+        assert len(result.description) == n
+
+
 class TestCheckMneAvailable:
     """Test that functions raise ImportError when MNE is not available."""
 
@@ -1004,3 +1134,14 @@ class TestCheckMneAvailable:
             ImportError, match="concatenate_recordings requires the MNE library"
         ):
             concatenate_recordings([mock_raw])
+
+    @patch("brainsets.utils.mne_utils.MNE_AVAILABLE", False)
+    def test_extract_annotations_raises_import_error(self):
+        """Test that extract_annotations raises ImportError when MNE is unavailable."""
+        from brainsets.utils.mne_utils import extract_annotations
+
+        mock_raw = MagicMock()
+        with pytest.raises(
+            ImportError, match="extract_annotations requires the MNE library"
+        ):
+            extract_annotations(mock_raw)
