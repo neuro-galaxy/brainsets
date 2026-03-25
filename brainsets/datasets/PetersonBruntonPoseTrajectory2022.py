@@ -4,6 +4,7 @@ from typing import Callable, Literal, Optional
 from temporaldata import Interval
 
 from torch_brain.dataset import Dataset
+from torch_brain.dataset.mixins import MultiChannelDatasetMixin
 
 BEHAVIOR_LABELS = ["Eat", "Talk", "TV", "Computer/phone"]
 
@@ -21,7 +22,7 @@ def _behavior_trials_for_task(recording, task_type: str) -> Interval:
     return trials.select_by_mask(mask)
 
 
-class PetersonBruntonPoseTrajectory2022(Dataset):
+class PetersonBruntonPoseTrajectory2022(Dataset, MultiChannelDatasetMixin):
     def __init__(
         self,
         root: str,
@@ -47,6 +48,7 @@ class PetersonBruntonPoseTrajectory2022(Dataset):
         self.fold_num = fold_num
         self.split_type = split_type
         self.task_type = task_type
+        self.multichannel_dataset_mixin_uniquify_channel_ids_with_session = True
 
     def get_sampling_intervals(
         self,
