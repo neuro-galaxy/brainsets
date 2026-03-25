@@ -9,11 +9,12 @@
 # ///
 
 from argparse import ArgumentParser
-
+import h5py
 import pandas as pd
-
+from brainsets import serialize_fn_map
 from brainsets.utils.openneuro import OpenNeuroEEGPipeline
 from brainsets.utils.openneuro.pipeline import _openneuro_parser
+from brainsets.utils.openneuro.dataset import fetch_participants_tsv
 
 RELEASES = {
     1: "ds005505",
@@ -92,3 +93,26 @@ class Pipeline(OpenNeuroEEGPipeline):
         finally:
             self.raw_dir = original_raw_dir
             self.processed_dir = original_processed_dir
+
+    def process(self, download_output: dict) -> None:
+
+        result = super()._process_common(download_output)
+
+        if result is None:
+            return
+
+        data, store_path = result
+
+        row = self._participants_data.loc[data.subject.id]
+        if row is not None:
+            data.subject.ehq_total = row.get("ehq_total", None)
+            data.subject.commercial_use = row.get("commercial_use", None)
+            data.subject.full_pheno = row.get("full_pheno", None)
+            data.subject.p_factor = row.get("p_factor", None)
+            data.subject.attention = row.get("attention", None)
+            data.subject.internalizing = row.get("internalizing", None)
+            data.subject.externalizing = row.get("externalizing", None)
+
+        self.update_status("Storing")
+        with h5py.File(store_path, "w") as file:
+            data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
