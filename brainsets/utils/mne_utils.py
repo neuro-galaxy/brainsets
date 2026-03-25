@@ -459,49 +459,6 @@ def extract_channels(
     return ArrayDict(**channel_fields)
 
 
-def _resolve_channel_names_for_mapping(
-    original_ch_names: np.ndarray,
-    renamed_ch_names: np.ndarray,
-    ch_names_in_mapping: set,
-) -> np.ndarray:
-    """Determine which channel names to use for mapping lookups (original or remapped).
-
-    When a mapping is provided (e.g., type or position mapping), this helper decides
-    whether the mapping keys refer to original channel names or the renamed channel
-    names (after optional name mapping). The validation requires that all mapping keys
-    exist in either the original or renamed channel names (but not split between them).
-
-    Args:
-        original_ch_names: Array of channel names from the raw recording.
-        renamed_ch_names: Array of channel names after optional name mapping.
-        ch_names_in_mapping: Set of all channel names referenced in the mapping.
-
-    Returns:
-        Array of channel names to use for mapping lookups (either original or renamed).
-
-    Raises:
-        ValueError: If mapping names are not consistent with either original or remapped channel names.
-    """
-    renamed_ch_names_set = set(renamed_ch_names)
-    original_ch_names_set = set(original_ch_names)
-
-    all_in_renamed = ch_names_in_mapping.issubset(renamed_ch_names_set)
-    all_in_original = ch_names_in_mapping.issubset(original_ch_names_set)
-
-    if all_in_renamed:
-        return renamed_ch_names
-    elif all_in_original:
-        return original_ch_names
-    else:
-        raise ValueError(
-            f"Channel name mismatch: mapping keys must refer to either "
-            f"all original channel names or all renamed channel names, but not a mix. "
-            f"Mapping keys: {sorted(ch_names_in_mapping)}. "
-            f"Renamed channel names: {sorted(renamed_ch_names_set)}. "
-            f"Original channel names: {sorted(original_ch_names_set)}."
-        )
-
-
 def _validate_channel_names_mapping(
     raw_data: "mne.io.BaseRaw",
     channel_names_mapping: dict[str, str] | None = None,
@@ -517,7 +474,7 @@ def _validate_channel_names_mapping(
         channel_names_mapping: Optional dict mapping original names to new names.
 
     Returns:
-        Validated mapping dict or identity map if input is None.
+        Dict mapping original channel names to new channel names or identity map if input is None.
 
     Raises:
         ValueError: If any mapping keys are not present in the raw data channel names,
@@ -529,15 +486,13 @@ def _validate_channel_names_mapping(
     if channel_names_mapping is None:
         return {ch_name: ch_name for ch_name in raw_ch_names}
 
-    raw_ch_names_set = set(raw_ch_names)
+    if not any([ch_name in channel_names_mapping.keys() for ch_name in raw_ch_names]):
+        warnings.warn(
+            f"Some channel names in the raw data are not present in the mapping keys: {set(raw_ch_names) - set(channel_names_mapping.keys())}"
+        )
+
     mapping_keys_set = set(channel_names_mapping.keys())
     mapping_values_set = set(channel_names_mapping.values())
-
-    if not mapping_keys_set.issubset(raw_ch_names_set):
-        missing_keys = mapping_keys_set - raw_ch_names_set
-        raise ValueError(
-            f"Channel names in the mapping are not present in the raw data: {missing_keys}"
-        )
 
     # Detect ambiguous mappings where a key also appears as a value with different order
     if mapping_keys_set & mapping_values_set:
@@ -568,6 +523,10 @@ def _validate_channel_names_mapping(
             f"Duplicate channel names in channel_names_mapping detected: {duplicates}. "
             f"Ensure that your channel name mapping creates unique identifiers."
         )
+
+    channel_names_mapping = {
+        ch_name: channel_names_mapping.get(ch_name, ch_name) for ch_name in raw_ch_names
+    }
 
     return channel_names_mapping
 
@@ -610,33 +569,15 @@ def _validate_channel_types_mapping(
         for ch_name in ch_list
     }
 
-    # Determine if mapping keys refer to original or renamed names
-    ch_names_in_type_mapping = set(ch_type_lookup.keys())
-    renamed_ch_names = (
-        np.array([channel_names_mapping.get(ch, ch) for ch in raw_ch_names], dtype="U")
-        if channel_names_mapping
-        else raw_ch_names
-    )
+    channel_types_mapping = {
+        ch_name: ch_type_lookup.get(
+            ch_name,
+            ch_type_lookup.get(channel_names_mapping.get(ch_name, ch_name), ch_type),
+        )
+        for ch_name, ch_type in zip(raw_ch_names, raw_ch_types)
+    }
 
-    # Resolve which namespace the mapping uses
-    ch_names_for_type_mapping = _resolve_channel_names_for_mapping(
-        original_ch_names=raw_ch_names,
-        renamed_ch_names=renamed_ch_names,
-        ch_names_in_mapping=ch_names_in_type_mapping,
-    )
-
-    # If mapping used renamed names, convert back to original names
-    if (
-        not np.array_equal(ch_names_for_type_mapping, raw_ch_names)
-        and channel_names_mapping
-    ):
-        inv_name_mapping = {v: k for k, v in channel_names_mapping.items()}
-        ch_type_lookup = {
-            inv_name_mapping.get(ch_name, ch_name): ch_type
-            for ch_name, ch_type in ch_type_lookup.items()
-        }
-
-    return ch_type_lookup
+    return channel_types_mapping
 
 
 def _validate_channel_pos_mapping(
@@ -657,7 +598,7 @@ def _validate_channel_pos_mapping(
         channel_pos_mapping: Optional dict mapping channel names to position arrays.
 
     Returns:
-        Dict mapping original channel names to position arrays (shape: (3,)).
+        Dict mapping original channel names to position arrays (shape: (3,)) or None if no mapping is provided.
 
     Raises:
         ValueError: If mapping keys are not consistent (mixed original/renamed).
@@ -667,30 +608,15 @@ def _validate_channel_pos_mapping(
     if channel_pos_mapping is None:
         return None
 
-    # Determine if mapping keys refer to original or renamed names
-    ch_names_in_pos_mapping = set(channel_pos_mapping.keys())
-    renamed_ch_names = (
-        np.array([channel_names_mapping.get(ch, ch) for ch in raw_ch_names], dtype="U")
-        if channel_names_mapping
-        else raw_ch_names
-    )
-
     # Resolve which namespace the mapping uses
-    ch_names_for_pos_mapping = _resolve_channel_names_for_mapping(
-        original_ch_names=raw_ch_names,
-        renamed_ch_names=renamed_ch_names,
-        ch_names_in_mapping=ch_names_in_pos_mapping,
-    )
-
-    # If mapping used renamed names, convert back to original names
-    if (
-        not np.array_equal(ch_names_for_pos_mapping, raw_ch_names)
-        and channel_names_mapping
-    ):
-        inv_name_mapping = {v: k for k, v in channel_names_mapping.items()}
-        return {
-            inv_name_mapping.get(ch_name, ch_name): pos
-            for ch_name, pos in channel_pos_mapping.items()
-        }
+    channel_pos_mapping = {
+        ch_name: channel_pos_mapping.get(
+            ch_name,
+            channel_pos_mapping.get(
+                channel_names_mapping.get(ch_name, ch_name), np.full(3, np.nan)
+            ),
+        )
+        for ch_name in raw_ch_names
+    }
 
     return channel_pos_mapping

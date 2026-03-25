@@ -258,7 +258,7 @@ def check_eeg_recording_files_exist(
     """
     _check_mne_bids_available("check_eeg_recording_files_exist")
     return _check_recording_files_exist(
-        bids_root, recording_id, Modality.EEG, EEG_EXTENSIONS
+        bids_root, recording_id, EEG_EXTENSIONS
     )
 
 
@@ -280,7 +280,7 @@ def check_ieeg_recording_files_exist(
     """
     _check_mne_bids_available("check_ieeg_recording_files_exist")
     return _check_recording_files_exist(
-        bids_root, recording_id, Modality.IEEG, IEEG_EXTENSIONS
+        bids_root, recording_id, IEEG_EXTENSIONS
     )
 
 
@@ -459,7 +459,7 @@ def get_subject_info(
         )
         sex = None
 
-    return {"age": age, "sex": sex}
+    return {"age": age.astype(float) if age is not None else None, "sex": sex}
 
 
 def _fetch_recordings(
@@ -584,7 +584,6 @@ def _fetch_recordings(
 def _check_recording_files_exist(
     bids_root: str | Path,
     recording_id: str,
-    modality: Modality | str,
     extensions: set[str],
 ) -> bool:
     """Check if any data file for a BIDS recording exists in the BIDS root directory.
@@ -605,10 +604,17 @@ def _check_recording_files_exist(
     Returns:
         True if at least one data file is found, False otherwise.
     """
-    bids_path = build_bids_path(bids_root, recording_id, modality)
+    entities = get_entities_from_fname(recording_id, on_error="raise")
+    subject_dir = Path(bids_root) / f"sub-{entities['subject']}"
 
-    recordings = _fetch_recordings(bids_path, extensions, modality)
-    return any(recording["recording_id"] == recording_id for recording in recordings)
+    if not subject_dir.exists():
+        return False
+
+    for file in subject_dir.rglob(f"{recording_id}_*"):
+        if file.suffix.lower() in extensions:
+            return True
+
+    return False
 
 
 def _is_bids_root(path: str | Path) -> bool:

@@ -207,6 +207,7 @@ class TestExtractSignal:
 class TestExtractChannels:
     """Test extraction of channel metadata from MNE Raw objects."""
 
+    # ---------- Basic structure and field presence ----------
     def test_returns_array_dict(self):
         """Test that an ArrayDict is returned."""
         mock_raw = create_mock_raw()
@@ -250,6 +251,7 @@ class TestExtractChannels:
         result = extract_channels(mock_raw)
         assert result.type.dtype.kind == "U"
 
+    # ---------- Channel name mapping tests ----------
     def test_name_mapping_applied(self):
         """Test that channel name mapping is correctly applied."""
         original_names = ["CH0", "CH1", "CH2"]
@@ -263,7 +265,8 @@ class TestExtractChannels:
         expected = np.array(["NewCH0", "NewCH1", "CH2"], dtype="U")
         np.testing.assert_array_equal(result.id, expected)
 
-    def test_type_mapping_with_original_names(self):
+    # ---------- Channel type mapping tests ----------
+    def test_type_mapping_with_original_channel_names(self):
         """Test type mapping using original channel names."""
         ch_names = ["CH0", "CH1", "CH2"]
         mock_raw = create_mock_raw(
@@ -298,6 +301,7 @@ class TestExtractChannels:
         expected_types = np.array(["eog", "eog", "emg"], dtype="U")
         np.testing.assert_array_equal(result.type, expected_types)
 
+    # ---------- 3D position extraction tests ----------
     def test_pos_not_included_when_montage_missing(self):
         """Test that 'pos' field is absent when no montage is available."""
         mock_raw = create_mock_raw()
@@ -426,6 +430,7 @@ class TestExtractChannels:
 
         assert not hasattr(result, "pos")
 
+    # ---------- Bad channel handling ----------
     def test_bad_field_omitted_when_no_bad_channels(self):
         """Test that 'bad' field is omitted when there are no bad channels."""
         mock_raw = create_mock_raw()
@@ -443,21 +448,7 @@ class TestExtractChannels:
         expected = np.array([False, True, False])
         np.testing.assert_array_equal(result.bad, expected)
 
-    def test_channel_names_mapping_with_missing_keys_raises_value_error(self):
-        """Test that ValueError is raised if channel_names_mapping keys are not in raw channels."""
-        original_names = ["A", "B", "C"]
-        mock_raw = create_mock_raw(
-            ch_names=original_names, n_channels=len(original_names)
-        )
-        # Mapping contains a key "D" which isn't in raw channels
-        name_mapping = {"A": "Alpha", "D": "Delta"}
-
-        with pytest.raises(
-            ValueError,
-            match="Channel names in the mapping are not present in the raw data",
-        ):
-            extract_channels(mock_raw, channel_names_mapping=name_mapping)
-
+    # ---------- Channel name mapping rejection (errors) ----------
     def test_ambiguous_channel_name_mapping_raises_value_error(self):
         """Test that ValueError is raised when channel name mapping is ambiguous."""
         original_names = ["A", "B"]
@@ -485,6 +476,7 @@ class TestExtractChannels:
         ):
             extract_channels(mock_raw, channel_names_mapping=name_mapping)
 
+    # ---------- ignore_channels argument tests ----------
     def test_ignore_channels_excludes_specified_channels(self):
         """Test that ignore_channels excludes specified channels from extraction."""
         ch_names = ["CH0", "CH1", "CH2", "CH3"]
@@ -577,6 +569,95 @@ class TestExtractChannels:
         assert len(result.id) == 1
         assert result.id[0] == "CH1"
         assert result.type[0] == "eog"
+
+    # ---------- Mapping dicts: more/fewer keys or entries than channels ----------
+    def test_channel_names_mapping_more_keys_than_channels(self):
+        """Test name mapping has more keys than there are channels."""
+        ch_names = ["A", "B"]
+        name_mapping = {"A": "X", "B": "Y", "C": "Z"}
+        mock_raw = create_mock_raw(ch_names=ch_names, n_channels=2)
+        # "C": "Z" extra key should not cause problems
+        result = extract_channels(mock_raw, channel_names_mapping=name_mapping)
+        expected_ids = np.array(["X", "Y"], dtype="U")
+        np.testing.assert_array_equal(result.id, expected_ids)
+
+    def test_channel_names_mapping_fewer_keys_than_channels(self):
+        """Test name mapping has fewer keys than there are channels."""
+        ch_names = ["A", "B", "C"]
+        name_mapping = {"A": "X"}
+        mock_raw = create_mock_raw(ch_names=ch_names, n_channels=3)
+        # Only "A" should be renamed; others unchanged
+        result = extract_channels(mock_raw, channel_names_mapping=name_mapping)
+        expected_ids = np.array(["X", "B", "C"], dtype="U")
+        np.testing.assert_array_equal(result.id, expected_ids)
+
+    def test_channel_types_mapping_more_keys_than_channels(self):
+        """Test type mapping has more keys (types) than there are channels."""
+        ch_names = ["A", "B"]
+        type_mapping = {"eeg": ["A"], "eog": ["B"], "emg": ["Q"]}
+        mock_raw = create_mock_raw(
+            ch_names=ch_names, ch_types=["eeg", "eog"], n_channels=2
+        )
+        # "emg" is not relevant, but should not cause an error
+        result = extract_channels(mock_raw, channel_types_mapping=type_mapping)
+        expected_types = np.array(["eeg", "eog"], dtype="U")
+        np.testing.assert_array_equal(result.type, expected_types)
+
+    def test_channel_types_mapping_fewer_keys_than_channels(self):
+        """Test type mapping has fewer keys (types) than there are channels."""
+        ch_names = ["A", "B", "C"]
+        type_mapping = {"resp": ["A"]}
+        mock_raw = create_mock_raw(
+            ch_names=ch_names, ch_types=["eeg", "eog", "emg"], n_channels=3
+        )
+        result = extract_channels(mock_raw, channel_types_mapping=type_mapping)
+        # Only A is in mapping, others keep original type
+        expected_types = np.array(["resp", "eog", "emg"], dtype="U")
+        np.testing.assert_array_equal(result.type, expected_types)
+
+    def test_types_and_names_mapping_all_different_sizes(self):
+        """Test different number of keys for type map, name map, and channels."""
+        ch_names = ["A", "B", "C", "D"]
+        name_mapping = {"A": "X", "B": "Y"}  # only two mapped, two not
+        type_mapping = {"eeg": ["X"], "emg": ["C", "D"]}
+        # Channel order after mapping: ["X", "Y", "C", "D"]; type mapping only provides "X", "C", "D"
+        mock_raw = create_mock_raw(
+            ch_names=ch_names, ch_types=["eeg", "eeg", "emg", "emg"], n_channels=4
+        )
+        result = extract_channels(
+            mock_raw,
+            channel_names_mapping=name_mapping,
+            channel_types_mapping=type_mapping,
+        )
+        # X gets "eeg" from type_mapping, C and D get "emg" from type_mapping, Y falls back to original type
+        expected_ids = np.array(["X", "Y", "C", "D"], dtype="U")
+        expected_types = np.array(["eeg", "eeg", "emg", "emg"], dtype="U")
+        np.testing.assert_array_equal(result.id, expected_ids)
+        np.testing.assert_array_equal(result.type, expected_types)
+
+    def test_channel_mapping_with_nonexistent_channels(self):
+        """Test extract_channels handles mappings where none of the channels are present."""
+        ch_names = ["A", "B", "C"]
+        mock_raw = create_mock_raw(ch_names=ch_names, n_channels=3)
+        # Provide mappings that do not match any channels in the raw data
+        name_mapping = {"X": "Y", "D": "Z"}
+        type_mapping = {"temp": ["Q", "Z"]}
+        pos_mapping = {"Q": np.array([1, 2, 3])}
+
+        # Should fall back to defaults/originals, not raise
+        result = extract_channels(
+            mock_raw,
+            channel_names_mapping=name_mapping,
+            channel_types_mapping=type_mapping,
+            channel_pos_mapping=pos_mapping,
+        )
+        np.testing.assert_array_equal(result.id, np.array(ch_names, dtype="U"))
+        np.testing.assert_array_equal(
+            result.type,
+            np.array([ch_type for ch_type in mock_raw.get_channel_types()], dtype="U"),
+        )
+        # Should not have 'pos' unless pos_mapping or montage covers the real channels
+        assert not hasattr(result, "pos")
 
 
 @pytest.mark.skipif(not MNE_AVAILABLE, reason="mne not installed")
