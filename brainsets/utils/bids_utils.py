@@ -257,9 +257,7 @@ def check_eeg_recording_files_exist(
         True if at least one EEG data file is found, False otherwise.
     """
     _check_mne_bids_available("check_eeg_recording_files_exist")
-    return _check_recording_files_exist(
-        bids_root, recording_id, EEG_EXTENSIONS
-    )
+    return _check_recording_files_exist(bids_root, recording_id, EEG_EXTENSIONS)
 
 
 def check_ieeg_recording_files_exist(
@@ -279,9 +277,7 @@ def check_ieeg_recording_files_exist(
         True if at least one iEEG data file is found, False otherwise.
     """
     _check_mne_bids_available("check_ieeg_recording_files_exist")
-    return _check_recording_files_exist(
-        bids_root, recording_id, IEEG_EXTENSIONS
-    )
+    return _check_recording_files_exist(bids_root, recording_id, IEEG_EXTENSIONS)
 
 
 def build_bids_path(
