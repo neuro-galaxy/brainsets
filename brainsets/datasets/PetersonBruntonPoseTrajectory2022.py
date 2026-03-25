@@ -36,6 +36,8 @@ class PetersonBruntonPoseTrajectory2022(Dataset, MultiChannelDatasetMixin):
             Literal["active_vs_inactive", "behavior", "pose_estimation"]
         ] = "behavior",
         dirname: str = "peterson_brunton_pose_trajectory_2022",
+        uniquify_channel_ids_session: bool = True,
+        uniquify_channel_ids_subject: bool = False,
         **kwargs,
     ):
         super().__init__(
@@ -48,7 +50,12 @@ class PetersonBruntonPoseTrajectory2022(Dataset, MultiChannelDatasetMixin):
         self.fold_num = fold_num
         self.split_type = split_type
         self.task_type = task_type
-        self.multichannel_dataset_mixin_uniquify_channel_ids_with_session = True
+        self.multichannel_dataset_mixin_uniquify_channel_ids_with_session = (
+            uniquify_channel_ids_session
+        )
+        self.multichannel_dataset_mixin_uniquify_channel_ids_with_subject = (
+            uniquify_channel_ids_subject
+        )
 
     def get_sampling_intervals(
         self,
