@@ -53,7 +53,7 @@ class TestPrepareCommand:
             assert command[8] == "--with-editable"
             assert ("brainsets" in command[9]) and ("file://" in command[9])
             assert command[10] == "--with"
-            assert command[11] == "dandi==0.71.3"
+            assert command[11] == "dandi==0.74.0"
             assert command[12] == "python"
             assert command[13] == "-m"
             assert command[14] == "brainsets.runner"
@@ -94,6 +94,27 @@ class TestPrepareCommand:
 
             assert f"--raw-dir={str(raw_dir)}" in command
             assert f"--processed-dir={str(processed_dir)}" in command
+
+    def test_download_only_flag(self, mock_config):
+        """Test prepare command with --download-only flag
+        Ensure it is forwarded to the runner subprocess."""
+        runner = CliRunner()
+
+        with (
+            patch("brainsets._cli.cli_prepare.load_config", return_value=mock_config),
+            patch("brainsets._cli.cli_prepare.subprocess.run") as mock_subprocess,
+        ):
+            mock_subprocess.return_value = MagicMock(returncode=0)
+            result = runner.invoke(
+                cli, ["prepare", "pei_pandarinath_nlb_2021", "--download-only"]
+            )
+            assert result.exit_code == 0, f"CLI failed with: {result.output}"
+
+            mock_subprocess.assert_called_once()
+            call_args = mock_subprocess.call_args
+            command = call_args[1].get("command") or call_args[0][0]
+
+            assert "--download-only" in command
 
     def test_extra_option_passthrough(self, mock_config):
         """Test that extra options are passed through to the subprocess."""
