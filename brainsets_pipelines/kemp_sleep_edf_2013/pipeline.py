@@ -37,7 +37,7 @@ from brainsets.utils.mne_utils import (
     extract_signal,
     extract_channels,
 )
-from temporaldata import Data, Interval, RegularTimeSeries, ArrayDict
+from temporaldata import Data, Interval
 
 
 logging.basicConfig(level=logging.INFO)
