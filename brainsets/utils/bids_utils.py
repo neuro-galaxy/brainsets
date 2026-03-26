@@ -8,7 +8,6 @@ For more information about BIDS, see the BIDS specification: https://bids-specif
 from collections import defaultdict
 from typing import Optional
 from enum import Enum
-import warnings
 from pathlib import Path
 import warnings
 import re
