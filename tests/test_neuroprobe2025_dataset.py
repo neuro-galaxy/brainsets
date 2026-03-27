@@ -43,6 +43,7 @@ def _write_mock_h5(
     with h5py.File(path, "w") as h5:
         channels = h5.create_group("channels")
         channels.create_dataset("id", data=np.array(["ch0"], dtype="S8"))
+        channel_splits = h5.create_group("channel_splits")
         for split in splits:
             key = _split_key(
                 subset_tier=subset_tier,
@@ -52,7 +53,7 @@ def _write_mock_h5(
                 fold=fold,
                 split=split,
             )
-            channels.create_dataset(key, data=np.array([True], dtype=bool))
+            channel_splits.create_dataset(key, data=np.array([True], dtype=bool))
 
         splits_group = h5.create_group("splits")
         for split in splits:
@@ -391,14 +392,12 @@ def test_uniquify_channel_ids_option_sets_multichannel_mixin_components(tmp_path
     assert ds.multichannel_dataset_mixin_uniquify_channel_ids_with_session is False
 
 
-def test_uniquify_channel_ids_option_rejects_non_boolean(tmp_path):
+def test_uniquify_channel_ids_option_accepts_non_boolean_passthrough(tmp_path):
     _write_default_recordings(tmp_path)
 
-    with pytest.raises(
-        TypeError,
-        match="multichannel_dataset_mixin_uniquify_channel_ids_with_subject",
-    ):
-        _make_dataset(tmp_path, uniquify_channel_ids_with_subject="yes")
+    ds = _make_dataset(tmp_path, uniquify_channel_ids_with_subject="yes")
+    assert ds.multichannel_dataset_mixin_uniquify_channel_ids_with_subject == "yes"
+    assert ds.multichannel_dataset_mixin_uniquify_channel_ids_with_session is False
 
 
 def test_get_sampling_intervals_reads_current_splits_field(tmp_path, monkeypatch):
@@ -436,13 +435,12 @@ def test_get_recording_hook_sets_active_split_interval_on_data(tmp_path):
             self.channels = _FakeChannels()
             self.splits = object()
             self.paths = []
+            self.subject = type("_Subject", (), {"id": "1"})()
             self.session = type("_Session", (), {"id": "sub_1_trial001"})()
 
         def get_nested_attribute(self, path: str):
             self.paths.append(path)
-            if path == "subject.id":
-                return "1"
-            if path == f"channels.{split_key}":
+            if path == f"channel_splits.{split_key}":
                 return np.array([True], dtype=bool)
             if path == f"splits.{split_key}":
                 return Interval(
@@ -460,7 +458,69 @@ def test_get_recording_hook_sets_active_split_interval_on_data(tmp_path):
     assert rec.splits.end.tolist() == [1.0]
     assert rec.splits.label.tolist() == [1]
     assert rec.channels.included.tolist() == [True]
-    assert rec.paths == [f"channels.{split_key}", f"splits.{split_key}", "subject.id"]
+    assert rec.paths == [f"channel_splits.{split_key}", f"splits.{split_key}"]
+
+
+def test_get_recording_hook_does_not_read_legacy_channel_split_path(tmp_path):
+    _write_default_recordings(tmp_path)
+
+    ds = _make_dataset(tmp_path)
+    split_key = ds._split_key()
+
+    class _FakeChannels:
+        id = np.array(["ch0"], dtype=str)
+        included = np.array([False], dtype=bool)
+
+    class _FakeRecording:
+        def __init__(self):
+            self.channels = _FakeChannels()
+            self.splits = object()
+            self.paths = []
+            self.subject = type("_Subject", (), {"id": "1"})()
+            self.session = type("_Session", (), {"id": "sub_1_trial001"})()
+
+        def get_nested_attribute(self, path: str):
+            self.paths.append(path)
+            if path == f"channel_splits.{split_key}":
+                raise KeyError(path)
+            if path == f"splits.{split_key}":
+                return Interval(
+                    start=np.array([0.0]),
+                    end=np.array([1.0]),
+                    label=np.array([1]),
+                )
+            raise KeyError(path)
+
+    with pytest.raises(KeyError, match="channel_splits"):
+        ds.get_recording_hook(_FakeRecording())
+
+
+def test_get_recording_hook_requires_channel_split_and_interval_paths(tmp_path):
+    _write_default_recordings(tmp_path)
+
+    ds = _make_dataset(tmp_path)
+    split_key = ds._split_key()
+
+    class _FakeChannels:
+        id = np.array(["ch0"], dtype=str)
+        included = np.array([False], dtype=bool)
+
+    class _FakeRecording:
+        def __init__(self):
+            self.channels = _FakeChannels()
+            self.splits = object()
+            self.subject = type("_Subject", (), {"id": "1"})()
+            self.session = type("_Session", (), {"id": "sub_1_trial001"})()
+
+        def get_nested_attribute(self, path: str):
+            raise KeyError(path)
+
+    with pytest.raises(KeyError, match="channel_splits") as excinfo:
+        ds.get_recording_hook(_FakeRecording())
+
+    message = str(excinfo.value)
+    assert f"channel_splits.{split_key}" in message
+    assert f"splits.{split_key}" in message
 
 
 def test_get_domain_intervals_uses_selected_recording_domains(tmp_path, monkeypatch):

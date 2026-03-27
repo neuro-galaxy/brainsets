@@ -139,10 +139,11 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
     """Neuroprobe 2025 iEEG benchmark dataset.
 
     Each instance operates in exactly one of two mutually-exclusive modes:
-    - Split-selection mode (`recording_ids=None`): active recordings are resolved
-      from Neuroprobe benchmark selectors.
-    - Explicit-recording mode (`recording_ids` provided): active recordings come
-      directly from that subset and split selectors must not be provided.
+    - Neuroprobe benchmark mode (`recording_ids=None`): splits are resolved
+      from Neuroprobe benchmark split generators. Cross-session and Cross-subject
+      are condensed to 'cross-x' splits that will be selected for train and test.
+    - Recording id mode (`recording_ids` provided): no splits are resolved,
+      only recording_ids specified are preprocessed to be used as continuous data.
 
     Args:
         root: Root directory containing processed Neuroprobe artifacts.
@@ -214,9 +215,9 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
         # Resolve and validate constructor inputs before touching dataset records.
         self._dataset_dir = Path(root) / dirname
 
-        # XOR recording-source behavior:
-        # - no recording_ids => use split-resolved benchmark recordings
-        # - recording_ids provided => use the explicit subset as active recordings
+        # XOR recording-source behavior (exactly one source of active recording ids):
+        # - no recording_ids => use neuroprobe benchmark split recordings
+        # - recording_ids provided => use the explicit subset of recordings
         use_split_selection = recording_ids is None
         self._use_split_selection = use_split_selection
         if use_split_selection:
@@ -360,20 +361,22 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
             return
 
         recording_id = data.session.id
-        channel_mask_path = self._channel_mask_attr_path()
+        channel_split_path = self._channel_split_attr_path()
         interval_path = self._interval_attr_path()
 
-        # Override generic channel mask and split interval using this dataset instance's
-        # resolved selector key; split-selection mode expects both paths to exist.
+        # Split-selection mode requires both the channel mask and intervals.
         try:
-            data.channels.included = data.get_nested_attribute(channel_mask_path)
-            data.splits = data.get_nested_attribute(interval_path)
+            channel_mask = data.get_nested_attribute(channel_split_path)
+            split_interval = data.get_nested_attribute(interval_path)
         except (AttributeError, KeyError) as exc:
             raise KeyError(
                 "Missing required split-selection attributes for Neuroprobe2025 "
-                f"recording '{recording_id}'. Expected both '{channel_mask_path}' "
-                f"and '{interval_path}'."
+                f"recording '{recording_id}'. Expected channel mask at "
+                f"'{channel_split_path}', "
+                f"and split intervals at '{interval_path}'."
             ) from exc
+        data.channels.included = channel_mask
+        data.splits = split_interval
         super().get_recording_hook(data)
 
     def describe_selection(self) -> dict[str, object]:
@@ -407,7 +410,7 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
 
     # Path/key builders.
     def _split_key(self) -> str:
-        """Return the canonical key shared under both `splits` and `channels`."""
+        """Return the canonical key shared under `splits` and `channel_splits`."""
         return (
             f"{self.subset_tier}${self.label_mode}${self.h5_regime}${self.task}$"
             f"fold{self.fold}${self.split}"
@@ -417,9 +420,9 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
         # Primary split interval path under data.splits.
         return f"splits.{self._split_key()}"
 
-    def _channel_mask_attr_path(self) -> str:
-        # Return the nested attribute path for the split-specific channel mask.
-        return f"channels.{self._split_key()}"
+    def _channel_split_attr_path(self) -> str:
+        # Return the primary path for split-specific channel masks.
+        return f"channel_splits.{self._split_key()}"
 
     def _validate_split_args(self) -> None:
         # Keep constructor strict so invalid benchmark configs fail immediately.
