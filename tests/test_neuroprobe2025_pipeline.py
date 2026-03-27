@@ -119,7 +119,7 @@ def test_iterate_extract_splits_prepares_and_deduplicates_subject_initialization
 
     def _fake_extract_and_structure_splits(**kwargs):
         seen_subject_keys.append(sorted(kwargs["all_subjects"].keys()))
-        return {"split_key": object()}
+        return {"split_key": object()}, {"split_key": np.array([True], dtype=bool)}
 
     monkeypatch.setattr(neuroprobe_pipeline, "_prepare_neuroprobe_lib", _fake_prepare)
     monkeypatch.setattr(
@@ -143,13 +143,73 @@ def test_iterate_extract_splits_prepares_and_deduplicates_subject_initialization
         _fake_extract_and_structure_splits,
     )
 
-    split_indices = neuroprobe_pipeline.Pipeline.iterate_extract_splits(
-        pipeline_instance,
-        subject_id=1,
-        trial_id=0,
+    split_indices, split_channel_masks = (
+        neuroprobe_pipeline.Pipeline.iterate_extract_splits(
+            pipeline_instance,
+            subject_id=1,
+            trial_id=0,
+        )
     )
 
     assert prepared_raw_dirs == [pipeline_instance.raw_dir]
     assert created_subject_ids == [1, 2]
     assert seen_subject_keys == [[1, 2]]
     assert "split_key" in split_indices
+    assert "split_key" in split_channel_masks
+    assert split_channel_masks["split_key"].tolist() == [True]
+
+
+def test_extract_and_structure_splits_returns_masks_without_mutating_channels(
+    monkeypatch,
+):
+    selector_key = neuroprobe_pipeline.split_selector_key(
+        lite=False,
+        nano=False,
+        binary_tasks=True,
+        eval_setting="within_session",
+        eval_name="speech",
+        fold_idx=0,
+        split_type="train",
+    )
+
+    channels = SimpleNamespace(name=np.array(["A", "B"], dtype=np.str_))
+    train_dataset = SimpleNamespace(electrode_labels=np.array(["A"], dtype=np.str_))
+    val_dataset = SimpleNamespace(electrode_labels=np.array(["B"], dtype=np.str_))
+    test_dataset = SimpleNamespace(electrode_labels=np.array(["A", "B"], dtype=np.str_))
+    fold = {
+        "train_dataset": train_dataset,
+        "val_dataset": val_dataset,
+        "test_dataset": test_dataset,
+    }
+
+    monkeypatch.setattr(
+        neuroprobe_pipeline,
+        "neuroprobe_config",
+        SimpleNamespace(NEUROPROBE_TASKS_MAPPING={"speech": object()}),
+    )
+    monkeypatch.setattr(
+        neuroprobe_pipeline, "_extract_splits", lambda **_kwargs: [fold]
+    )
+    monkeypatch.setattr(
+        neuroprobe_pipeline,
+        "_intervals_from_dataset",
+        lambda dataset: f"interval-{dataset.electrode_labels[0]}",
+    )
+
+    split_indices, split_channel_masks = (
+        neuroprobe_pipeline._extract_and_structure_splits(
+            all_subjects={1: object()},
+            all_channels={1: channels},
+            subject_id=1,
+            trial_id=1,
+            lite=False,
+            nano=False,
+            binary_tasks=True,
+            eval_setting="within_session",
+        )
+    )
+
+    assert selector_key in split_indices
+    assert selector_key in split_channel_masks
+    assert split_channel_masks[selector_key].tolist() == [True, False]
+    assert not hasattr(channels, selector_key)

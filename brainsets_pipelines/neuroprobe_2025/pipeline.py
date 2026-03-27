@@ -194,9 +194,12 @@ class Pipeline(BrainsetPipeline):
             )
             channels = _extract_channel_data(subject_obj)
             split_indices = {}
+            split_channel_masks = {}
             logging.info("Skipping split extraction (--no_splits)")
         else:
-            split_indices = self.iterate_extract_splits(subject_id, trial_id)
+            split_indices, split_channel_masks = self.iterate_extract_splits(
+                subject_id, trial_id
+            )
             channels = self.all_channels[subject_id]
             logging.info(f"Extracted {len(split_indices)} splits")
 
@@ -219,15 +222,21 @@ class Pipeline(BrainsetPipeline):
             seeg_data=seeg_data,
             channels=channels,
             # domain
-            splits=Data(domain=seeg_data.domain),
             domain=seeg_data.domain,
         )
 
         # Register all split intervals under data.splits using shared selector keys.
         if not self.args.no_splits:
+            splits = Data(domain=seeg_data.domain)
             self.update_status("Registering splits")
             for split_key, intervals in split_indices.items():
-                setattr(data.splits, split_key, intervals)
+                setattr(splits, split_key, intervals)
+            data.splits = splits
+            # Store split-specific channel masks separately from base channel metadata.
+            channel_splits = Data()
+            for split_key, split_mask in split_channel_masks.items():
+                setattr(channel_splits, split_key, split_mask)
+            data.channel_splits = channel_splits
 
         # save data to disk
         self.update_status("Storing")
@@ -238,7 +247,7 @@ class Pipeline(BrainsetPipeline):
 
     def iterate_extract_splits(
         self, subject_id: int, trial_id: int
-    ) -> Dict[str, Interval]:
+    ) -> Tuple[Dict[str, Interval], Dict[str, np.ndarray]]:
         self._prepare_worker_runtime()
         if not hasattr(self, "all_subjects"):
             # load all subjects and channels once
@@ -263,6 +272,7 @@ class Pipeline(BrainsetPipeline):
 
         all_combinations = product(*ALL_EVAL_SETTINGS.values())
         split_indices: Dict[str, Interval] = {}
+        split_channel_masks: Dict[str, np.ndarray] = {}
         for setting_combination in all_combinations:
             lite, nano, binary_tasks, eval_setting = setting_combination
             if lite and nano:  # lite and nano cannot be True at the same time
@@ -287,7 +297,7 @@ class Pipeline(BrainsetPipeline):
             self.update_status(
                 f"Extracting splits (lite={lite}, nano={nano}, binary_tasks={binary_tasks}, eval_setting={eval_setting})"
             )
-            _split_indices = _extract_and_structure_splits(
+            _split_indices, _split_channel_masks = _extract_and_structure_splits(
                 all_subjects=self.all_subjects,
                 all_channels=self.all_channels,
                 subject_id=subject_id,
@@ -299,8 +309,10 @@ class Pipeline(BrainsetPipeline):
             )
             for key, value in _split_indices.items():
                 split_indices[key] = value
+            for key, value in _split_channel_masks.items():
+                split_channel_masks[key] = value
 
-        return split_indices
+        return split_indices, split_channel_masks
 
 
 def get_brainset_description() -> BrainsetDescription:
@@ -393,8 +405,9 @@ def _extract_and_structure_splits(
     nano: bool,
     binary_tasks: bool,
     eval_setting: EvalSettingOption,
-) -> Dict[str, Interval]:
+) -> Tuple[Dict[str, Interval], Dict[str, np.ndarray]]:
     split_indices: Dict[str, Interval] = {}
+    split_channel_masks: Dict[str, np.ndarray] = {}
 
     assert (
         len(neuroprobe_config.NEUROPROBE_TASKS_MAPPING) > 0
@@ -431,18 +444,14 @@ def _extract_and_structure_splits(
                     split_type=split_type,
                 )
                 # Register split-specific channel mask for this fold.
-                setattr(
-                    channels,
-                    selector_key,
-                    np.isin(
-                        channels.name, _get_electrode_labels(fold[dataset_key])
-                    ).astype(bool),
-                )
+                split_channel_masks[selector_key] = np.isin(
+                    channels.name, _get_electrode_labels(fold[dataset_key])
+                ).astype(bool)
 
                 # Store split interval indices using the same selector key semantics.
                 split_indices[selector_key] = _intervals_from_dataset(fold[dataset_key])
 
-    return split_indices
+    return split_indices, split_channel_masks
 
 
 def _extract_splits(
