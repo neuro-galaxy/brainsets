@@ -199,7 +199,7 @@ def fetch_participants_tsv(dataset_id: str) -> Optional[pd.DataFrame]:
 
 
 def construct_s3_url_from_path(
-    dataset_id: str, 
+    dataset_id: str,
     data_file_path: str,
     recording_id: str,
 ) -> str:

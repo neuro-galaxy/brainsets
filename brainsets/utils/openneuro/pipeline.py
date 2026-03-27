@@ -509,12 +509,12 @@ class OpenNeuroEEGPipeline(OpenNeuroPipeline):
             brainset_id = "your_dataset_id"
             dataset_id = "dsXXXXXX"
             origin_version = "1.0.0"
-            
+
             CHANNEL_NAME_REMAPPING = {
-                "PSG_F3": "F3", 
+                "PSG_F3": "F3",
                 "PSG_F4": "F4",
             }
-            
+
             CHANNEL_TYPE_REMAPPING = {
                 "EEG": ["F3", "F4"],
                 "EOG": ["EOG"]
@@ -545,6 +545,7 @@ class OpenNeuroEEGPipeline(OpenNeuroPipeline):
 
     modality = "eeg"
     """Data modality for this pipeline."""
+
 
 class OpenNeuroIEEGPipeline(OpenNeuroPipeline):
     """
