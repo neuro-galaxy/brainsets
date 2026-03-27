@@ -198,28 +198,32 @@ def fetch_participants_tsv(dataset_id: str) -> Optional[pd.DataFrame]:
         raise
 
 
-def construct_s3_url_from_path(dataset_id: str, data_file_path: str) -> str:
-    """Construct S3 URL directly from a known file path.
-
-    This avoids S3 API calls by using the path that was already discovered.
-    Automatically detects and strips both _eeg and _ieeg suffixes.
+def construct_s3_url_from_path(
+    dataset_id: str, 
+    data_file_path: str,
+    recording_id: str,
+) -> str:
+    """
+    Construct an S3 URL for a given recording.
 
     Args:
         dataset_id: OpenNeuro dataset identifier
         data_file_path: Relative path to the EEG/iEEG file within the dataset
+        recording_id: Recording identifier
+
+    Example:
+        >>> construct_s3_url_from_path(
+        >>>     dataset_id="ds004019",
+        >>>     data_file_path="sub-01/ses-01/eeg/sub-01_ses-01_task-nap_run-1_eeg.edf",
+        >>>     recording_id="sub-01_ses-01_task-nap_run-1"
+        >>> )
+        's3://openneuro.org/ds004019/sub-01/ses-01/eeg/sub-01_ses-01_task-nap_run-1'
 
     Returns:
         S3 URL prefix for downloading the recording files
     """
     dataset_id = validate_dataset_id(dataset_id)
     parent_dir = str(Path(data_file_path).parent)
-    stem = Path(data_file_path).stem
-    if stem.endswith("_eeg"):
-        recording_id = stem[:-4]  # Remove "_eeg"
-    elif stem.endswith("_ieeg"):
-        recording_id = stem[:-5]  # Remove "_ieeg"
-    else:
-        recording_id = stem
     return f"s3://openneuro.org/{dataset_id}/{parent_dir}/{recording_id}"
 
 

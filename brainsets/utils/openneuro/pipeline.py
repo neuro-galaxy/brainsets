@@ -17,7 +17,7 @@ from typing import Optional
 import h5py
 import numpy as np
 import pandas as pd
-from temporaldata import ArrayDict, Data, Interval
+from temporaldata import Data, Interval
 
 try:
     from mne_bids import read_raw_bids
@@ -201,7 +201,11 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         manifest_list = []
         for rec in recordings:
-            s3_url = construct_s3_url_from_path(dataset_id, rec["fpath"])
+            s3_url = construct_s3_url_from_path(
+                dataset_id,
+                rec["fpath"],
+                rec["recording_id"],
+            )
 
             manifest_list.append(
                 {
@@ -490,60 +494,86 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
 
 class OpenNeuroEEGPipeline(OpenNeuroPipeline):
-    """Concrete pipeline class for OpenNeuro EEG dataset processing.
+    """
+    Pipeline base class for EEG data processing from OpenNeuro.
 
-    This class extends OpenNeuroPipeline with EEG-specific functionality,
-    including electrode renaming and modality channel mapping.
+    This class provides EEG-specific extensions on top of OpenNeuroPipeline,
+    supporting custom channel name and type remappings.
 
-    **Optional class attributes:**
-        - ELECTRODE_RENAME: Dict mapping old electrode names to new names
-        - MODALITY_CHANNELS: Dict mapping modality types to channel name lists
+    **Usage:**
 
-    **Channel configuration:**
-
-    For simple datasets with uniform channels, use class attributes:
+    For datasets where all recordings share a common electrode naming scheme
+    and channel configuration, specify these as class attributes:
 
         class Pipeline(OpenNeuroEEGPipeline):
-            brainset_id = "my_dataset_2024"
-            dataset_id = "ds005555"
-            ELECTRODE_RENAME = {"PSG_F3": "F3", "PSG_F4": "F4"}
-            MODALITY_CHANNELS = {"EEG": ["F3", "F4"], "EOG": ["EOG"]}
+            brainset_id = "your_dataset_id"
+            dataset_id = "dsXXXXXX"
+            origin_version = "1.0.0"
+            
+            CHANNEL_NAME_REMAPPING = {
+                "PSG_F3": "F3", 
+                "PSG_F4": "F4",
+            }
+            
+            CHANNEL_TYPE_REMAPPING = {
+                "EEG": ["F3", "F4"],
+                "EOG": ["EOG"]
+            }
 
-    For datasets with multiple channel configurations (e.g., different
-    acquisition types), override the methods instead:
+    For more complex datasets having variable channel naming or multiple
+    acquisition schemes, override the methods to dynamically supply
+    the necessary channel name and type remapping maps based on the recording id:
 
         class Pipeline(OpenNeuroEEGPipeline):
-            brainset_id = "my_dataset_2024"
-            dataset_id = "ds005555"
+            brainset_id = "your_dataset_id"
+            dataset_id = "dsXXXXXX"
 
-            def get_electrode_rename(self, recording_id):
+            def get_channel_name_remapping(self, recording_id):
                 if "acq-headband" in recording_id:
                     return {"HB_1": "AF7", "HB_2": "AF8"}
                 return {"PSG_F3": "F3", "PSG_F4": "F4"}
 
-            def get_modality_channels(self, recording_id):
+            def get_channel_type_remapping(self, recording_id):
                 if "acq-headband" in recording_id:
                     return {"EEG": ["AF7", "AF8"]}
                 return {"EEG": ["F3", "F4"], "EOG": ["EOG"]}
+
+    **Class Attributes:**
+        - CHANNEL_NAME_REMAPPING (dict, optional): Map old channel names to new ones.
+        - CHANNEL_TYPE_REMAPPING (dict, optional): Map channel types to channel lists.
     """
 
     modality = "eeg"
     """Data modality for this pipeline."""
 
-
 class OpenNeuroIEEGPipeline(OpenNeuroPipeline):
-    """Concrete pipeline class for OpenNeuro iEEG dataset processing.
+    """
+    Pipeline base class for iEEG data processing from OpenNeuro.
 
-    This class extends OpenNeuroPipeline with iEEG-specific functionality,
-    automatically reading channel and electrode information from BIDS sidecars.
+    This class provides iEEG-specific extensions on top of OpenNeuroPipeline,
+    leveraging BIDS-compliant sidecar files to define channel and electrode
+    configuration automatically.
 
-    iEEG datasets provide rich metadata via:
-    - _channels.tsv: Channel names, types, sampling rates, and status
-    - _electrodes.tsv: Electrode coordinates (x, y, z in MNI space)
-    - _coordsystem.json: Coordinate system information
+    **Usage:**
 
-    Channel configuration is automatic; no manual mapping needed. Override
-    the sidecar readers if your dataset has non-standard formats.
+    For most iEEG datasets where electrode and channel information are properly
+    defined in BIDS sidecar files, subclassing this pipeline is sufficient:
+
+        class Pipeline(OpenNeuroIEEGPipeline):
+            brainset_id = "your_dataset_id"
+            dataset_id = "dsXXXXXX"
+            origin_version = "1.0.0"
+
+    **Changing electrode names and types:**
+        - If you wish to change the names or types of electrodes (e.g., for harmonization or custom processing),
+          use the same approach as in OpenNeuroEEGPipeline:
+            - Set the `CHANNEL_NAME_REMAPPING`/`CHANNEL_TYPE_REMAPPING` class attribute, or
+            - Override `get_channel_name_remapping(self, recording_id)` / `get_channel_type_remapping(self, recording_id)`
+          with your desired logic.
+
+    **Class Attributes:**
+        - CHANNEL_NAME_REMAPPING (dict, optional): Map old electrode/channel names to new ones.
+        - CHANNEL_TYPE_REMAPPING (dict, optional): Map types to electrode/channel lists.
     """
 
     modality = "ieeg"
