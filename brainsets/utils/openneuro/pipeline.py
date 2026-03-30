@@ -221,7 +221,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             )
 
         manifest = pd.DataFrame(manifest_list)
-        manifest.set_index("recording_id").to_csv("manifest.csv")
         return manifest.set_index("recording_id")
 
     def download(self, manifest_item) -> dict:
@@ -243,7 +242,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         s3_url = manifest_item.s3_url
         recording_id = manifest_item.Index
         subject_id = manifest_item.subject_id
-        target_dir = self.raw_dir
+        root_dir = self.raw_dir
 
         if not getattr(self.args, "redownload", False):
             if self.modality == "eeg":
@@ -262,8 +261,8 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
                     }
 
         try:
-            download_recording(s3_url, target_dir)
-            download_dataset_description(self.dataset_id, target_dir)
+            download_recording(s3_url, root_dir)
+            download_dataset_description(self.dataset_id, root_dir)
         except Exception as e:
             raise RuntimeError(
                 f"Failed to download data for {subject_id} from {self.dataset_id}: {str(e)}"
