@@ -8,7 +8,6 @@
 
 from itertools import product
 import os
-import re
 import time
 import h5py
 import logging
@@ -21,7 +20,8 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from argparse import ArgumentParser, Namespace
-from typing import Dict, List, Literal, Tuple, Optional, get_args
+from typing import Dict, List, Literal, Tuple, Optional, NamedTuple, get_args
+from tqdm import tqdm
 
 from brainsets.pipeline import BrainsetPipeline
 from temporaldata import ArrayDict, Data, Interval, IrregularTimeSeries
@@ -56,7 +56,6 @@ FILENAME_MAP = lambda sub_id, trial_id: f"sub_{sub_id}_trial{trial_id:03d}"
 ASSET_PATH_MAP = (
     lambda sub_id, trial_id: f"data/subject_data/sub_{sub_id}/trial{trial_id:03d}/{FILENAME_MAP(sub_id, trial_id)}.h5.zip"
 )
-FILENAME_PATTERN = r"sub_(\d+)_trial(\d{3})"
 
 SUBSET_TIER_KEY_MAP = lambda lite, nano: (
     "lite" if lite else ("nano" if nano else "full")
@@ -69,6 +68,12 @@ ALL_EVAL_SETTINGS = {
     "binary_tasks": [True, False],
     "eval_setting": get_args(EvalSettingOption),
 }
+
+
+class DownloadedAsset(NamedTuple):
+    path: Path
+    subject_id: int
+    trial_id: int
 
 
 def split_selector_key(
@@ -121,7 +126,6 @@ class Pipeline(BrainsetPipeline):
             overwrite=bool(args and args.redownload),
         )
 
-        # construct manifest for selected mode
         manifest_list = [
             {
                 "subject_id": subject_id,
@@ -136,43 +140,34 @@ class Pipeline(BrainsetPipeline):
         return manifest
 
     def download(self, manifest_item):
-        # download subject data
         self.update_status("DOWNLOADING")
         extracted_path = _download_and_extract(
             self.raw_dir,
             ASSET_PATH_MAP(manifest_item.subject_id, manifest_item.trial_id),
             overwrite=bool(self.args and self.args.redownload),
         )
-        return extracted_path
+        return DownloadedAsset(
+            path=extracted_path,
+            subject_id=manifest_item.subject_id,
+            trial_id=manifest_item.trial_id,
+        )
 
-    def _prepare_worker_runtime(self) -> None:
-        # Worker processes do not share globals initialized during manifest creation.
+    def process(self, download_output):
         _prepare_neuroprobe_lib(self.raw_dir)
-
-    def process(self, fpath):
-        self._prepare_worker_runtime()
         self.update_status("Processing")
         self.processed_dir.mkdir(exist_ok=True, parents=True)
-        output_path = self.processed_dir / Path(fpath).name
+        output_path = self.processed_dir / download_output.path.name
         if output_path.exists() and not (self.args and self.args.reprocess):
             logging.info(f"Skipping processing for {output_path} because it exists")
             self.update_status("Skipped Processing")
             return
 
         brainset_description = get_brainset_description()
-
-        # extract subject_id and trial_id from input_file path
-        input_file_basename = os.path.basename(fpath)
-        match = re.match(FILENAME_PATTERN, input_file_basename)
-        if not match:
-            raise ValueError(
-                f"Input file name '{input_file_basename}' does not match expected pattern 'sub_x_trialyyy.h5'"
-            )
-        subject_id = int(match.group(1))
-        trial_id = int(match.group(2))
+        subject_id = download_output.subject_id
+        trial_id = download_output.trial_id
 
         logging.info(
-            f"Processing {fpath} to {self.processed_dir}\n"
+            f"Processing {download_output.path} to {self.processed_dir}\n"
             f"  subject_id: {subject_id}\n"
             f"  trial_id: {trial_id}\n"
             f"  no_splits: {self.args.no_splits}"
@@ -205,12 +200,11 @@ class Pipeline(BrainsetPipeline):
 
         # extract neural data
         self.update_status("Extracting neural data")
-        seeg_data = _extract_neural_data(fpath, channels)
+        seeg_data = _extract_neural_data(download_output.path, channels)
         logging.info(
             f"Loaded and registered {len(seeg_data)} samples of neural data with {len(channels)} channels"
         )
 
-        # register session
         self.update_status("Registering session")
         recording_id = FILENAME_MAP(subject_id, trial_id)
         data = Data(
@@ -240,7 +234,7 @@ class Pipeline(BrainsetPipeline):
 
         # save data to disk
         self.update_status("Storing")
-        path = self.processed_dir / Path(fpath).name
+        path = self.processed_dir / download_output.path.name
         with h5py.File(path, "w") as file:
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
         logging.info(f"Saved data to {path}")
@@ -248,7 +242,7 @@ class Pipeline(BrainsetPipeline):
     def iterate_extract_splits(
         self, subject_id: int, trial_id: int
     ) -> Tuple[Dict[str, Interval], Dict[str, np.ndarray]]:
-        self._prepare_worker_runtime()
+        _prepare_neuroprobe_lib(self.raw_dir)
         if not hasattr(self, "all_subjects"):
             # load all subjects and channels once
             # channels will be populated with subsets for each fold
@@ -318,7 +312,7 @@ class Pipeline(BrainsetPipeline):
 def get_brainset_description() -> BrainsetDescription:
     return BrainsetDescription(
         id="neuroprobe_2025",
-        origin_version="1.0.0",  # btb
+        origin_version="dataset=0.0.0; neuroprobe=0.1.7",
         derived_version="1.0.0",
         source="https://neuroprobe.dev/",
         description="High-resolution neural datasets enable foundation models for the next generation of "
@@ -368,6 +362,7 @@ def _extract_channel_data(subject) -> ArrayDict:
     channel_name_basis = np.array(
         list(subject.h5_neural_data_keys.keys()), dtype=np.str_
     )
+    localization_by_electrode = subject.localization_data.set_index("Electrode")
     channels = ArrayDict(
         id=np.arange(len(channel_name_basis)),
         name=channel_name_basis,  # e.g. T1bIc1
@@ -383,7 +378,7 @@ def _extract_channel_data(subject) -> ArrayDict:
     for col in subject.localization_data.columns:
         if col == "Electrode":
             continue
-        loc_series = subject.localization_data.set_index("Electrode")[col]
+        loc_series = localization_by_electrode[col]
         full_column = loc_series.reindex(channel_name_basis)
         # not all channels have localization data
         if pd.api.types.is_string_dtype(loc_series):
@@ -654,7 +649,7 @@ def _download_and_extract(raw_dir: Path, href: str, *, overwrite: bool) -> Path:
 
 
 def _ensure_common_assets(raw_dir: Path, assets: list[str], *, overwrite: bool) -> None:
-    for asset in assets:
+    for asset in tqdm(assets, desc="Downloading neuroprobe common assets"):
         _download_and_extract(raw_dir, asset, overwrite=overwrite)
 
 

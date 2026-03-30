@@ -68,7 +68,9 @@ def test_download_file_applies_timeout_and_retries(tmp_path, monkeypatch):
     assert not destination.with_suffix(".bin.tmp").exists()
 
 
-def test_process_prepares_worker_runtime_even_when_processing_is_skipped(tmp_path):
+def test_process_prepares_worker_runtime_even_when_processing_is_skipped(
+    tmp_path, monkeypatch
+):
     pipeline_instance = neuroprobe_pipeline.Pipeline.__new__(
         neuroprobe_pipeline.Pipeline
     )
@@ -78,15 +80,32 @@ def test_process_prepares_worker_runtime_even_when_processing_is_skipped(tmp_pat
     pipeline_instance.args = SimpleNamespace(reprocess=False, no_splits=False)
     pipeline_instance.update_status = lambda _status: None
 
-    input_file = tmp_path / "sub_1_trial001.h5"
+    input_file = tmp_path / "already_downloaded_asset.h5"
     input_file.touch()
     (pipeline_instance.processed_dir / input_file.name).touch()
 
-    prepared = []
-    pipeline_instance._prepare_worker_runtime = lambda: prepared.append(True)
+    prepared_raw_dirs = []
+    monkeypatch.setattr(
+        neuroprobe_pipeline,
+        "_prepare_neuroprobe_lib",
+        lambda raw_dir: prepared_raw_dirs.append(raw_dir),
+    )
 
-    neuroprobe_pipeline.Pipeline.process(pipeline_instance, input_file)
-    assert prepared == [True]
+    neuroprobe_pipeline.Pipeline.process(
+        pipeline_instance,
+        neuroprobe_pipeline.DownloadedAsset(
+            path=input_file,
+            subject_id=1,
+            trial_id=1,
+        ),
+    )
+    assert prepared_raw_dirs == [pipeline_instance.raw_dir]
+
+
+def test_get_brainset_description_records_dataset_and_neuroprobe_versions():
+    description = neuroprobe_pipeline.get_brainset_description()
+
+    assert description.origin_version == "dataset=0.0.0; neuroprobe=0.1.7"
 
 
 def test_iterate_extract_splits_prepares_and_deduplicates_subject_initialization(

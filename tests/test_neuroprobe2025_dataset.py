@@ -581,7 +581,7 @@ def test_domain_intervals_use_active_recording_ids_and_sampling_requires_split_m
 
     monkeypatch.setattr(ds, "get_recording", lambda rid: _FakeRecording(rid))
 
-    with pytest.raises(RuntimeError, match="split-selection mode"):
+    with pytest.raises(RuntimeError, match="benchmark mode"):
         ds.get_sampling_intervals()
 
     domain_intervals = ds.get_domain_intervals()

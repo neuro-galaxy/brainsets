@@ -152,16 +152,16 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
             from ``subset_tier/test_subject/test_session/split/label_mode/task/regime/fold``.
         transform: Optional sample transform.
         subset_tier: One of ``"full"``, ``"lite"``, ``"nano"``. Required in
-            split-selection mode; must be omitted in explicit-recording mode.
+            benchmark mode; must be omitted in explicit-recording mode.
         test_subject: Target test subject id (Neuroprobe semantics). Required in
-            split-selection mode; must be omitted in explicit-recording mode.
+            benchmark mode; must be omitted in explicit-recording mode.
         test_session: Target test trial/session id (Neuroprobe semantics). Required
-            in split-selection mode; must be omitted in explicit-recording mode.
+            in benchmark mode; must be omitted in explicit-recording mode.
         split: One of ``"train"``, ``"val"``, ``"test"``. Required in
-            split-selection mode; must be omitted in explicit-recording mode.
+            benchmark mode; must be omitted in explicit-recording mode.
         label_mode: One of ``"binary"``, ``"multiclass"``. Defaults to ``"binary"``
-            in split-selection mode.
-        task: Neuroprobe task name. Defaults to ``"speech"`` in split-selection mode.
+            in benchmark mode.
+        task: Neuroprobe task name. Defaults to ``"speech"`` in benchmark mode.
             Supported values are:
             ``"delta_volume"``, ``"face_num"``, ``"frame_brightness"``,
             ``"global_flow"``, ``"gpt2_surprisal"``, ``"local_flow"``,
@@ -169,12 +169,12 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
             ``"word_gap"``, ``"word_head_pos"``, ``"word_index"``,
             ``"word_length"``, ``"word_part_speech"``.
         regime: One of ``"SS-SM"``, ``"SS-DM"``, ``"DS-DM"``. Defaults to
-            ``"SS-SM"`` in split-selection mode. Neuroprobe regime semantics:
+            ``"SS-SM"`` in benchmark mode. Neuroprobe regime semantics:
             - ``"SS-SM"``: single-subject, single-session (within-session split)
             - ``"SS-DM"``: single-subject, different-session (cross-x split)
             - ``"DS-DM"``: different-subject, different-session (cross-x split)
-        fold: Fold index used only in split-selection mode. Defaults to ``0`` in
-            split-selection mode and must be omitted in explicit-recording mode.
+        fold: Fold index used only in benchmark mode. Defaults to ``0`` in
+            benchmark mode and must be omitted in explicit-recording mode.
             Valid values depend on regime:
             - ``within_session``: valid {0, 1}
             - ``cross_x``: forced to 0
@@ -285,7 +285,7 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
         """Return split-specific sampling intervals for this dataset instance."""
         if not self._use_split_selection:
             raise RuntimeError(
-                "get_sampling_intervals is only available in split-selection mode."
+                "get_sampling_intervals is only available in benchmark mode."
             )
         intervals: dict[str, Interval] = {}
         for rid in self.recording_ids:
@@ -355,7 +355,7 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
     def get_recording_hook(self, data: Data):
         """Apply split-specific channel inclusion mask when available."""
 
-        # If we're not using the split selection, return the original data object
+        # Explicit-recording mode does not apply benchmark split routing.
         if not self._use_split_selection:
             super().get_recording_hook(data)
             return
@@ -380,7 +380,7 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
         super().get_recording_hook(data)
 
     def describe_selection(self) -> dict[str, object]:
-        """Return a compact debug summary of the resolved split selection."""
+        """Return a compact debug summary of the resolved benchmark selection."""
         summary: dict[str, object] = {
             "uses_split_selection": self._use_split_selection,
             "active_recording_ids": list(self.recording_ids),
