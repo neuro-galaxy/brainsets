@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import h5py
 import numpy as np
+from temporaldata import RegularTimeSeries
 
 from brainsets_pipelines.neuroprobe_2025 import pipeline as neuroprobe_pipeline
 
@@ -24,6 +25,8 @@ def test_extract_neural_data_uses_sample_index_timestamps(tmp_path):
     neuroprobe_pipeline.neuroprobe_config = SimpleNamespace(SAMPLING_RATE=2.0)
     seeg_data = neuroprobe_pipeline._extract_neural_data(input_file, _Channels())
 
+    assert isinstance(seeg_data, RegularTimeSeries)
+    np.testing.assert_allclose(np.asarray(seeg_data.data), np.array([[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]))
     np.testing.assert_allclose(
         np.asarray(seeg_data.timestamps), np.array([0.0, 0.5, 1.0], dtype=np.float64)
     )

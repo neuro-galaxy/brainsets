@@ -24,7 +24,7 @@ from typing import Dict, List, Literal, Tuple, Optional, NamedTuple, get_args
 from tqdm import tqdm
 
 from brainsets.pipeline import BrainsetPipeline
-from temporaldata import ArrayDict, Data, Interval, IrregularTimeSeries
+from temporaldata import ArrayDict, Data, Interval, RegularTimeSeries
 from brainsets.descriptions import (
     BrainsetDescription,
     SubjectDescription,
@@ -573,7 +573,7 @@ def _intervals_from_dataset(dataset) -> Interval:
     )
 
 
-def _extract_neural_data(input_file: Path, channels: ArrayDict) -> IrregularTimeSeries:
+def _extract_neural_data(input_file: Path, channels: ArrayDict) -> RegularTimeSeries:
     with h5py.File(input_file, "r") as f:
         data = None
         # read channels in same order as in channels object
@@ -584,10 +584,9 @@ def _extract_neural_data(input_file: Path, channels: ArrayDict) -> IrregularTime
                 )
             data[:, c] = f["data"][key][:]
 
-    seeg_data = IrregularTimeSeries(
-        timestamps=np.arange(data.shape[0], dtype=np.float64)
-        / neuroprobe_config.SAMPLING_RATE,
+    seeg_data = RegularTimeSeries(
         data=data,
+        sampling_rate=float(neuroprobe_config.SAMPLING_RATE),
         domain="auto",
     )
 
