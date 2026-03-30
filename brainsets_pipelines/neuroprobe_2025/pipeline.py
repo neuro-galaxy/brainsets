@@ -362,7 +362,9 @@ def _extract_channel_data(subject) -> ArrayDict:
     channel_name_basis = np.array(
         list(subject.h5_neural_data_keys.keys()), dtype=np.str_
     )
-    localization_by_electrode = subject.localization_data.set_index("Electrode")
+    aligned_localization = subject.localization_data.set_index("Electrode").reindex(
+        channel_name_basis
+    )
     channels = ArrayDict(
         id=np.arange(len(channel_name_basis)),
         name=channel_name_basis,  # e.g. T1bIc1
@@ -375,16 +377,13 @@ def _extract_channel_data(subject) -> ArrayDict:
         type=np.ones(len(channel_name_basis)) * int(RecordingTech.STEREO_EEG),
     )
     # register localization data for each channel
-    for col in subject.localization_data.columns:
-        if col == "Electrode":
-            continue
-        loc_series = localization_by_electrode[col]
-        full_column = loc_series.reindex(channel_name_basis)
+    for col in aligned_localization.columns:
+        loc_series = aligned_localization[col]
         # not all channels have localization data
         if pd.api.types.is_string_dtype(loc_series):
-            full_column = full_column.fillna("").to_numpy().astype(np.str_)
+            full_column = loc_series.fillna("").to_numpy().astype(np.str_)
         elif pd.api.types.is_numeric_dtype(loc_series):
-            full_column = full_column.fillna(np.nan).to_numpy().astype(np.float32)
+            full_column = loc_series.fillna(np.nan).to_numpy().astype(np.float32)
         else:
             raise ValueError(f"Unsupported dtype: {loc_series.dtype}")
         setattr(channels, f"localization_{col}", full_column)
