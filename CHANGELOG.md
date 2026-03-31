@@ -9,13 +9,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Added generic data extraction helpers in `mne_utils` to handle MNE Raw objects ([#78](https://github.com/neuro-galaxy/brainsets/pull/78)).
 - Enriched `s3_utils` with additional functionalities to get data from public buckets ([#78](https://github.com/neuro-galaxy/brainsets/pull/78)).
 - Added new utility functions to split data into train/valid/test splits intersession, intrassession, and intersubject ([#83](https://github.com/neuro-galaxy/brainsets/pull/83)).
-- New OpenNeuro pipelines, 2 EEG and 1 iEEG: `klinzing_sleep_ds005555_2024`, `kochi_visualnaming_ds006914_2025`, `shirazi_hbnr1_ds005505_2024` ([#75](https://github.com/neuro-galaxy/brainsets/pull/75)).
+- Added new `bids_utils` helpers to fetch and group recordings, validate their availability, and load participants .tsv and .json sidecar files for BIDS-compliant datasets ([#107](https://github.com/neuro-galaxy/brainsets/pull/107)).
 
 ### Removed
 
 ### Changed
 - Suppress INFO logs from ray when calling `brainsets prepare` ([#70](https://github.com/neuro-galaxy/brainsets/pull/70))
 - Modified 'Kemp Sleep-EDF 2013' pipeline to use new splitting utilities ([#83](https://github.com/neuro-galaxy/brainsets/pull/83)).
+- Expanded `mne_utils` with robust channel extraction/remapping support and a validated `concatenate_recordings` workflow (gap checks, measurement date handling, and channel consistency checks) ([#107](https://github.com/neuro-galaxy/brainsets/pull/107)).
+- Exposed `--download-only` flag in `brainsets prepare --help` to allow downloading raw data without processing ([#98](https://github.com/neuro-galaxy/brainsets/pull/98)). 
+- Updated dandi version to 0.74.0 in pipelines due to deprecation from dandi ([#101](https://github.com/neuro-galaxy/brainsets/pull/101)).
 
 ## [0.2.0] - 2025-12-24
 ### Added
