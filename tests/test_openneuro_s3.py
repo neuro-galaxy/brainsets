@@ -352,6 +352,10 @@ class TestConstructS3UrlFromPath:
 
         assert "derivatives/sub-A/ses-01/func" in url
         assert url.endswith("recording_x")
+        assert (
+            url
+            == "s3://openneuro.org/ds000001/derivatives/sub-A/ses-01/func/recording_x"
+        )
 
 
 class TestDownloadRecording:
@@ -490,9 +494,8 @@ class TestValidateDatasetVersion:
         result = validate_dataset_version("ds005085", "1.0.0")
 
         assert result == "2.0.0"
-        assert "version" in caplog.text.lower()
-        assert "1.0.0" in caplog.text
-        assert "2.0.0" in caplog.text
+        assert "version '1.0.0' was used to create the brainset pipeline" in caplog.text
+        assert "but the latest available version on OpenNeuro is '2.0.0'" in caplog.text
 
     @patch("brainsets.utils.openneuro.openneuro_s3._graphql_query_openneuro")
     def test_queries_with_correct_variables(self, mock_graphql):
