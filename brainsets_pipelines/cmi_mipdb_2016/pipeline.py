@@ -30,7 +30,7 @@ from brainsets.utils.s3_utils import get_cached_s3_client, get_object_list
 from brainsets.utils.split import generate_folds, generate_string_kfold_assignment
 from brainsets.utils.mne_utils import (
     extract_measurement_date,
-    extract_eeg_signal,
+    extract_signal,
     extract_channels,
     extract_annotations,
 )
@@ -252,10 +252,11 @@ class Pipeline(BrainsetPipeline):
         )
 
         self.update_status("Extracting EEG signal and channels")
-        eeg_signal = extract_eeg_signal(raw)
+        eeg_signal = extract_signal(raw)
         channels = extract_channels(raw)
         sfp_path = self.raw_dir / "GSN_HydroCel_129.sfp"
-        channels.locations = extract_channel_locations(sfp_path, channels)
+        if not hasattr(channels, "pos"):
+            channels.pos = extract_channel_locations(sfp_path, channels)
 
         self.update_status("Extracting annotations")
         annotations = extract_annotations(raw)
