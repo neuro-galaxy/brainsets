@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 from pathlib import Path
 from typing import Callable, Literal, Optional
@@ -5,6 +6,8 @@ from temporaldata import Interval
 
 from torch_brain.dataset import Dataset
 from torch_brain.dataset.mixins import MultiChannelDatasetMixin
+
+logger = logging.getLogger(__name__)
 
 BEHAVIOR_LABELS = ["Eat", "Talk", "TV", "Computer/phone"]
 
@@ -89,10 +92,20 @@ class PetersonBruntonPoseTrajectory2022(MultiChannelDatasetMixin, Dataset):
             key = f"splits.all_active_behavior_fold_{self.fold_num}_{split}"
         else:
             raise ValueError(f"Invalid task_type '{self.task_type}'.")
-        return {
-            rid: self.get_recording(rid).get_nested_attribute(key)
-            for rid in self.recording_ids
-        }
+
+        result = {}
+        for rid in self.recording_ids:
+            recording = self.get_recording(rid)
+            try:
+                result[rid] = recording.get_nested_attribute(key)
+            except AttributeError:
+                logger.warning(
+                    f"Recording {rid} does not have intrasession split "
+                    f"'{key}' (likely too few trials for stratification). "
+                    f"Returning empty interval."
+                )
+                result[rid] = _empty_interval()
+        return result
 
     def _get_intersubject_or_intersession_intervals(
         self, split: Literal["train", "valid", "test"]

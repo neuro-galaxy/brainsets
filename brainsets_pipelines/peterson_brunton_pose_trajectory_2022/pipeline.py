@@ -166,8 +166,11 @@ class Pipeline(BrainsetPipeline):
 
         behavior_splits = {}
         if len(active_behavior_trials) > 0:
+            behavior_chunks = active_behavior_trials.subdivide(
+                step=30.0, drop_short=False
+            )
             behavior_splits = generate_stratified_folds_by_task(
-                active_behavior_trials,
+                behavior_chunks,
                 BEHAVIOR_TASK_CONFIGS,
                 "behavior_labels",
                 n_folds=3,
@@ -177,8 +180,11 @@ class Pipeline(BrainsetPipeline):
 
         active_vs_inactive_splits = {}
         if len(active_vs_inactive_trials) > 0:
+            avi_chunks = active_vs_inactive_trials.subdivide(
+                step=30.0, drop_short=False
+            )
             active_vs_inactive_splits = generate_stratified_folds_by_task(
-                active_vs_inactive_trials,
+                avi_chunks,
                 ACTIVE_VS_INACTIVE_TASK_CONFIGS,
                 "behavior_labels",
                 n_folds=3,

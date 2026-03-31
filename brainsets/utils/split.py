@@ -444,6 +444,16 @@ def generate_stratified_folds_by_task(
             )
             continue
 
+        task_labels = getattr(task_trials, label_field)
+        unique_labels, counts = np.unique(task_labels, return_counts=True)
+        undersized = {l: int(c) for l, c in zip(unique_labels, counts) if c < n_folds}
+        if undersized:
+            logging.warning(
+                f"Task {task_name}: categories {undersized} have fewer than "
+                f"{n_folds} samples, skipping"
+            )
+            continue
+
         folds = generate_stratified_folds(
             task_trials,
             stratify_by=label_field,
