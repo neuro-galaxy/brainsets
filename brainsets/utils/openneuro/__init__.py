@@ -6,31 +6,27 @@ This package provides utilities for working with OpenNeuro datasets:
 - OpenNeuroPipeline base class and EEG/iEEG subclasses for building pipelines
 """
 
-from .dataset import (
+from .openneuro_s3 import (
     OPENNEURO_S3_BUCKET,
-    check_recording_files_exist,
     construct_s3_url_from_path,
     download_dataset_description,
     download_recording,
     fetch_all_filenames,
-    fetch_eeg_recordings,
-    fetch_ieeg_recordings,
     fetch_participants_tsv,
     validate_dataset_id,
+    validate_dataset_version,
 )
 from .pipeline import OpenNeuroEEGPipeline, OpenNeuroIEEGPipeline, OpenNeuroPipeline
 
 __all__ = [
     "OPENNEURO_S3_BUCKET",
-    "validate_dataset_id",
-    "fetch_all_filenames",
-    "fetch_eeg_recordings",
-    "fetch_ieeg_recordings",
-    "fetch_participants_tsv",
     "construct_s3_url_from_path",
-    "download_recording",
     "download_dataset_description",
-    "check_recording_files_exist",
+    "download_recording",
+    "fetch_all_filenames",
+    "fetch_participants_tsv",
+    "validate_dataset_id",
+    "validate_dataset_version",
     "OpenNeuroPipeline",
     "OpenNeuroEEGPipeline",
     "OpenNeuroIEEGPipeline",
