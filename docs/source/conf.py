@@ -1,4 +1,5 @@
 import datetime
+import inspect
 
 import brainsets
 
@@ -59,3 +60,25 @@ html_copy_source = False
 html_show_sourcelink = True
 html_logo = "_static/brainsets_logo.png"
 html_favicon = "_static/brainsets_logo.png"
+
+import brainsets.taxonomy
+
+taxonomy_classes = [
+    name
+    for name, obj in inspect.getmembers(brainsets.taxonomy, inspect.isclass)
+    if obj.__module__.startswith("brainsets.taxonomy") and not name.startswith("_")
+]
+
+
+def rst_jinja_render(app, _, source):
+    if hasattr(app.builder, "templates"):
+        rst_context = {
+            "brainsets": brainsets,
+            "taxonomy": brainsets.taxonomy,
+            "taxonomy_classes": taxonomy_classes,
+        }
+        source[0] = app.builder.templates.render_string(source[0], rst_context)
+
+
+def setup(app):
+    app.connect("source-read", rst_jinja_render)
