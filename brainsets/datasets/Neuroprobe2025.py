@@ -302,7 +302,7 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
         """Recording sampling rate in Hz."""
         return 2048.0
 
-    def get_channel_arrays(self, recording_id: str) -> dict[str, np.ndarray | str]:
+    def get_channel_metadata(self, recording_id: str) -> dict[str, np.ndarray | str]:
         """Return normalized channel metadata arrays for one recording."""
         rec = self.get_recording(recording_id)
         channels = rec.channels

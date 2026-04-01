@@ -588,7 +588,7 @@ def test_domain_intervals_use_active_recording_ids_and_sampling_requires_split_m
     assert list(domain_intervals.keys()) == ["sub_1_trial001", "sub_2_trial004"]
 
 
-def test_get_channel_arrays_returns_full_arrays_with_included_mask(
+def test_get_channel_metadata_returns_full_arrays_with_included_mask(
     tmp_path, monkeypatch
 ):
     _write_default_recordings(tmp_path)
@@ -607,15 +607,14 @@ def test_get_channel_arrays_returns_full_arrays_with_included_mask(
         channels = _FakeChannels()
 
     monkeypatch.setattr(ds, "get_recording", lambda _rid: _FakeRecording())
-
-    channel_arrays = ds.get_channel_arrays("sub_1_trial001")
-    assert channel_arrays["ids"].tolist() == ["c0", "c1"]
-    assert channel_arrays["names"].tolist() == ["A", "B"]
-    assert channel_arrays["included_mask"].tolist() == [True, False]
-    assert channel_arrays["coords_type"] == "lip"
-    assert channel_arrays["indices"].tolist() == [0, 1]
-    assert channel_arrays["coords"] is not None
-    assert channel_arrays["coords"].shape == (2, 3)
+    channel_metadata = ds.get_channel_metadata("sub_1_trial001")
+    assert channel_metadata["ids"].tolist() == ["c0", "c1"]
+    assert channel_metadata["names"].tolist() == ["A", "B"]
+    assert channel_metadata["included_mask"].tolist() == [True, False]
+    assert channel_metadata["coords_type"] == "lip"
+    assert channel_metadata["indices"].tolist() == [0, 1]
+    assert channel_metadata["coords"] is not None
+    assert channel_metadata["coords"].shape == (2, 3)
 
 
 def test_get_channel_ids_use_recording_view_ids_without_suffix(tmp_path, monkeypatch):
