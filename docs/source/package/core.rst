@@ -1,11 +1,10 @@
 .. currentmodule:: brainsets.core
 
 brainsets.core
---------------
+==============
 
 Base Classes
-~~~~~~~~~~~~
-
+------------
 .. autosummary::
    :nosignatures:
    :toctree: ../generated
@@ -15,8 +14,7 @@ Base Classes
    Dictable
 
 Serialization Functions
-~~~~~~~~~~~~~~~~~~~~~~~
-
+-----------------------
 .. autosummary::
    :nosignatures:
    :toctree: ../generated
