@@ -97,8 +97,14 @@ dandi_utils_fns = _get_module_fns(brainsets.utils.dandi_utils)
 dir_utils_fns = _get_module_fns(brainsets.utils.dir_utils)
 split_fns = _get_module_fns(brainsets.utils.split)
 
+import glob as _glob
+
 _generated_dir = os.path.join(os.path.dirname(__file__), "generated")
 os.makedirs(_generated_dir, exist_ok=True)
+
+# Remove stale stubs so deleted or renamed symbols don't persist across builds
+for _stale in _glob.glob(os.path.join(_generated_dir, "*.rst")):
+    os.remove(_stale)
 
 
 def _write_class_stub(generated_dir, module, name):
