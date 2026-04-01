@@ -65,13 +65,14 @@ class Pipeline(OpenNeuroEEGPipeline):
         "from a clinical PSG system (Micromed) and a wearable EEG headband (Bitbrain) "
         "across 128 nights. It includes expert-consensus sleep stage labels."
     )
+    origin_version = "1.1.1"
 
-    def get_electrode_rename(self, recording_id):
+    def get_channel_name_remapping(self, recording_id):
         if "acq-headband" in recording_id:
             return HEADBAND_ELECTRODE_RENAME
         return PSG_ELECTRODE_RENAME
 
-    def get_modality_channels(self, recording_id):
+    def get_channel_type_remapping(self, recording_id):
         if "acq-headband" in recording_id:
             return HEADBAND_MODALITY_CHANNELS
         return PSG_MODALITY_CHANNELS
