@@ -1,37 +1,28 @@
-.. currentmodule:: brainsets
+.. currentmodule:: brainsets.core
 
-brainsets
----------
+brainsets.core
+--------------
 
 Base Classes
 ~~~~~~~~~~~~
 
-.. list-table::
-   :widths: 25 125
-   :align: left
+.. autosummary::
+   :nosignatures:
+   :toctree: ../generated
+   :template: autosummary/default.rst
 
-   * - :obj:`StringIntEnum <brainsets.core.StringIntEnum>`
-     - Base class for string-integer enums
-   * - :obj:`Dictable <brainsets.core.Dictable>`
-     - Base class for dataclasses that can be converted to dictionaries
-
-.. autoclass:: brainsets.core.StringIntEnum
-    :members:
-    :show-inheritance:
-    :undoc-members:
-
-.. autoclass:: brainsets.core.Dictable
-    :inherited-members:
-    :show-inheritance:
-    :undoc-members:
-
+   StringIntEnum
+   Dictable
 
 Serialization Functions
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autofunction:: brainsets.core.string_int_enum_serialize_fn
+.. autosummary::
+   :nosignatures:
+   :toctree: ../generated
+   :template: autosummary/function.rst
 
-.. autofunction:: brainsets.core.datetime_serialize_fn
+   string_int_enum_serialize_fn
+   datetime_serialize_fn
 
 .. autodata:: brainsets.core.serialize_fn_map
-
