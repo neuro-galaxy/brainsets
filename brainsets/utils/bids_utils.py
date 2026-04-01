@@ -6,8 +6,7 @@ For more information about BIDS, see the BIDS specification: https://bids-specif
 """
 
 from collections import defaultdict
-from typing import Optional
-from enum import Enum
+from typing import Optional, Literal
 from pathlib import Path
 import warnings
 import re
@@ -69,12 +68,8 @@ BIDS_ENTITY_SHORT_NAMES = {
     "desc": "desc",
 }
 
-
-class Modality(str, Enum):
-    """Supported BIDS modalities for this module."""
-
-    EEG = "eeg"
-    IEEG = "ieeg"
+SUPPORTED_MODALITIES = ["eeg", "ieeg"]
+ModalityLiteral = Literal[SUPPORTED_MODALITIES]
 
 
 def _check_mne_bids_available(func_name: str) -> None:
@@ -115,7 +110,7 @@ def fetch_eeg_recordings(
         This does not work if the subfolder is a string or Path object.
     """
     _check_mne_bids_available("fetch_eeg_recordings")
-    return _fetch_recordings(source, EEG_EXTENSIONS, Modality.EEG)
+    return _fetch_recordings(source, EEG_EXTENSIONS, "eeg")
 
 
 def fetch_ieeg_recordings(
@@ -147,7 +142,7 @@ def fetch_ieeg_recordings(
         This does not work if the subfolder is a string or Path object.
     """
     _check_mne_bids_available("fetch_ieeg_recordings")
-    return _fetch_recordings(source, IEEG_EXTENSIONS, Modality.IEEG)
+    return _fetch_recordings(source, IEEG_EXTENSIONS, "ieeg")
 
 
 def group_recordings_by_entity(
@@ -280,7 +275,9 @@ def check_ieeg_recording_files_exist(
 
 
 def build_bids_path(
-    bids_root: str | Path, recording_id: str, modality: Modality | str
+    bids_root: str | Path,
+    recording_id: str,
+    modality: ModalityLiteral,
 ) -> BIDSPath:
     """Build a mne_bids.BIDSPath for a given recording_id, modality, and BIDS root directory.
 
@@ -303,7 +300,7 @@ def build_bids_path(
         ValueError: If any unsupported BIDS entities are present in recording_id.
     """
     _check_mne_bids_available("build_bids_path")
-    normalized_modality = _normalize_modality(modality)
+    _validate_modality(modality)
 
     if not _is_bids_root(bids_root):
         raise ValueError(
@@ -326,8 +323,8 @@ def build_bids_path(
         acquisition=entities.get("acquisition"),
         run=entities.get("run"),
         description=entities.get("description"),
-        datatype=normalized_modality.value,
-        suffix=normalized_modality.value,
+        datatype=modality,
+        suffix=modality,
     )
 
 
@@ -460,7 +457,7 @@ def get_subject_info(
 def _fetch_recordings(
     source: BIDSPath | Path | str | list[BIDSPath | Path | str],
     extensions: set[str],
-    modality: Modality | str,
+    modality: ModalityLiteral,
 ) -> list[dict]:
     """
     Internal helper for discovering BIDS recordings that match provided file extensions and modality.
@@ -490,9 +487,9 @@ def _fetch_recordings(
 
     Raises:
         TypeError: If `source` is None or is not a valid type (BIDSPath, Path, str, or list thereof).
-        ValueError: If `source` is a directory that is not a valid BIDS root and isn't a BIDSPath.
+        ValueError: If `source` is a directory that is not a valid BIDS root and isn't a BIDSPath, or if modality is not supported.
     """
-    normalized_modality = _normalize_modality(modality)
+    _validate_modality(modality)
 
     # Determine the files to analyze
     if source is None:
@@ -503,7 +500,7 @@ def _fetch_recordings(
     if isinstance(source, (str, Path)):
         # If the source is a string or Path, check if it is a valid BIDS root directory
         if _is_bids_root(source):
-            source = BIDSPath(root=source, datatype=normalized_modality.value).match()
+            source = BIDSPath(root=source, datatype=modality).match()
         else:
             # If the source is not a valid BIDS root directory, raise an error
             raise ValueError(
@@ -513,7 +510,7 @@ def _fetch_recordings(
             )
 
     if isinstance(source, BIDSPath):
-        source = source.update(datatype=normalized_modality.value).match()
+        source = source.update(datatype=modality).match()
 
     if len(source) == 0:
         return []
@@ -529,7 +526,7 @@ def _fetch_recordings(
         if not isinstance(filepath, BIDSPath):
             filepath = get_bids_path_from_fname(filepath, check=False)
 
-        if filepath.datatype != normalized_modality.value:
+        if filepath.datatype != modality:
             continue
 
         components = []
@@ -593,7 +590,6 @@ def _check_recording_files_exist(
     Args:
         bids_root: BIDS root directory (e.g., '/path/to/bids/root')
         recording_id: Recording identifier (e.g., 'sub-1_task-Sleep_acq-headband')
-        modality: Modality (supported values: 'eeg', 'ieeg')
         extensions: Set of allowed file extensions (e.g., EEG_EXTENSIONS or IEEG_EXTENSIONS)
 
     Returns:
@@ -657,20 +653,25 @@ def _is_bids_root(path: str | Path) -> bool:
     return False
 
 
-def _normalize_modality(modality: Modality | str) -> Modality:
-    """Normalize and validate modality input."""
-    if isinstance(modality, Modality):
-        return modality
+def _validate_modality(modality: ModalityLiteral) -> None:
+    """Validate that the provided modality is supported both by this module and by the BIDS specification.
 
-    if isinstance(modality, str):
-        try:
-            return Modality(modality.lower())
-        except ValueError as err:
-            valid = ", ".join(m.value for m in Modality)
-            raise ValueError(
-                f"Unsupported modality '{modality}'. Expected one of: {valid}."
-            ) from err
+    Verifies that the modality string is one of the supported values defined in
+    SUPPORTED_MODALITIES. This function is used to ensure type safety
+    at runtime for modality parameters passed to functions.
 
-    raise TypeError(
-        f"modality must be a str or Modality, got {type(modality).__name__}."
-    )
+    Args:
+        modality: Modality string to validate. Must be one of the supported values in SUPPORTED_MODALITIES.
+
+    Raises:
+        ValueError: If modality is not one of the supported values in SUPPORTED_MODALITIES.
+
+    Examples:
+        >>> _validate_modality("eeg")  # No error
+        >>> _validate_modality("ieeg")  # No error
+        >>> _validate_modality("unsupported_modality")  # Raises ValueError
+    """
+    if modality.lower() not in SUPPORTED_MODALITIES:
+        raise ValueError(
+            f"Unsupported modality '{modality}'. Expected one of: {SUPPORTED_MODALITIES}."
+        )
