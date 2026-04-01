@@ -68,8 +68,8 @@ BIDS_ENTITY_SHORT_NAMES = {
     "desc": "desc",
 }
 
-SUPPORTED_MODALITIES = ["eeg", "ieeg"]
-ModalityLiteral = Literal[SUPPORTED_MODALITIES]
+_SUPPORTED_MODALITIES = ["eeg", "ieeg"]
+_ModalityLiteral = Literal[_SUPPORTED_MODALITIES]
 
 
 def _check_mne_bids_available(func_name: str) -> None:
@@ -277,7 +277,7 @@ def check_ieeg_recording_files_exist(
 def build_bids_path(
     bids_root: str | Path,
     recording_id: str,
-    modality: ModalityLiteral,
+    modality: _ModalityLiteral,
 ) -> BIDSPath:
     """Build a mne_bids.BIDSPath for a given recording_id, modality, and BIDS root directory.
 
@@ -457,7 +457,7 @@ def get_subject_info(
 def _fetch_recordings(
     source: BIDSPath | Path | str | list[BIDSPath | Path | str],
     extensions: set[str],
-    modality: ModalityLiteral,
+    modality: _ModalityLiteral,
 ) -> list[dict]:
     """
     Internal helper for discovering BIDS recordings that match provided file extensions and modality.
@@ -653,25 +653,26 @@ def _is_bids_root(path: str | Path) -> bool:
     return False
 
 
-def _validate_modality(modality: ModalityLiteral) -> None:
+def _validate_modality(modality: _ModalityLiteral) -> None:
     """Validate that the provided modality is supported both by this module and by the BIDS specification.
 
     Verifies that the modality string is one of the supported values defined in
-    SUPPORTED_MODALITIES. This function is used to ensure type safety
+    _SUPPORTED_MODALITIES. This function is used to ensure type safety
     at runtime for modality parameters passed to functions.
 
     Args:
-        modality: Modality string to validate. Must be one of the supported values in SUPPORTED_MODALITIES.
+        modality: Modality string to validate. Must be one of the supported values in _SUPPORTED_MODALITIES.
 
     Raises:
-        ValueError: If modality is not one of the supported values in SUPPORTED_MODALITIES.
+        ValueError: If modality is not one of the supported values in _SUPPORTED_MODALITIES.
 
     Examples:
         >>> _validate_modality("eeg")  # No error
         >>> _validate_modality("ieeg")  # No error
+        >>> _validate_modality("EEG")  # Raises ValueError
         >>> _validate_modality("unsupported_modality")  # Raises ValueError
     """
-    if modality.lower() not in SUPPORTED_MODALITIES:
+    if modality not in _SUPPORTED_MODALITIES:
         raise ValueError(
-            f"Unsupported modality '{modality}'. Expected one of: {SUPPORTED_MODALITIES}."
+            f"Unsupported modality '{modality}'. Expected one of: {_SUPPORTED_MODALITIES}."
         )

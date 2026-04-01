@@ -538,25 +538,30 @@ def _validate_channel_names_mapping(
 def _validate_channel_types_mapping(
     raw_data: "mne.io.BaseRaw",
     channel_names_mapping: dict[str, str],
-    channel_types_mapping: dict[str, list[str]] | None = None,
+    channel_types_mapping: dict[str, str] | None = None,
 ) -> dict[str, str]:
-    """Validate and return a channel type mapping.
+    """
+    Validate and return a mapping from original channel names to channel types.
 
-    Returns a mapping of original channel names to their types. If no type
-    mapping is provided, returns the types from the raw data. If a type
-    mapping is provided, it resolves whether the mapping keys refer to
-    original or renamed channel names and remaps accordingly.
+    This function checks and returns a dictionary mapping each original channel name
+    (as present in the raw data) to its associated type (e.g., 'eeg', 'ecog', etc.).
+    If `channel_types_mapping` is not provided, types are taken directly from the raw data.
+    If a type mapping is provided, it determines whether its keys refer to the original or
+    to the renamed channel names, using `channel_names_mapping` as necessary, and remaps
+    accordingly. Mixed use of both original and renamed names as keys is not permitted.
 
     Args:
         raw_data: MNE Raw object containing channel names and types.
-        channel_names_mapping: Optional channel name remapping (used for resolution).
-        channel_types_mapping: Optional dict mapping type (str) to list of channel names.
+        channel_names_mapping: Dictionary mapping original channel names to renamed ones.
+        channel_types_mapping: Optional dictionary mapping channel name (either original or renamed)
+                              to channel type (string).
 
     Returns:
-        Dict mapping original channel names to types.
+        Dictionary mapping original channel names to their types.
 
     Raises:
-        ValueError: If mapping keys are not consistent (mixed original/renamed).
+        ValueError: If channel_types_mapping uses a mix of original and renamed channel name keys,
+            or if there is inconsistency in mapping resolution.
     """
     raw_ch_names = np.array(raw_data.ch_names, dtype="U")
     raw_ch_types = np.array(raw_data.get_channel_types(), dtype="U")

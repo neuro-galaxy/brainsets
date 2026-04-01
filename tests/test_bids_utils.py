@@ -187,9 +187,10 @@ class TestValidateModality:
         with pytest.raises(ValueError, match="Unsupported modality"):
             _validate_modality("meg")
 
-    def test_accepts_uppercase_modality(self):
+    def test_raises_value_error_for_uppercase_modality(self):
         """Test that uppercase modalities raise ValueError (case-sensitive)."""
-        _validate_modality("EEG")
+        with pytest.raises(ValueError, match="Unsupported modality"):
+            _validate_modality("EEG")
 
     def test_raises_value_error_for_empty_string(self):
         """Test that empty string raises ValueError."""
