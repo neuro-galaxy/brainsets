@@ -533,7 +533,7 @@ def _validate_channel_names_mapping(
 
 def _validate_channel_types_mapping(
     raw_data: "mne.io.BaseRaw",
-    channel_names_mapping: dict[str, str] | None = None,
+    channel_names_mapping: dict[str, str],
     channel_types_mapping: dict[str, list[str]] | None = None,
 ) -> dict[str, str]:
     """Validate and return a channel type mapping.
@@ -582,7 +582,7 @@ def _validate_channel_types_mapping(
 
 def _validate_channel_pos_mapping(
     raw_data: "mne.io.BaseRaw",
-    channel_names_mapping: dict[str, str] | None = None,
+    channel_names_mapping: dict[str, str],
     channel_pos_mapping: dict[str, np.ndarray] | None = None,
 ) -> dict[str, np.ndarray] | None:
     """
