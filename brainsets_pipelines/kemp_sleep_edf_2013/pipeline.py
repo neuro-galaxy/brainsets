@@ -229,7 +229,7 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Extracting Channels")
         channels = extract_channels(
             raw_psg,
-            channel_types_mapping=CHANNEL_TYPE_REMAPPING,
+            type_channels_mapping=CHANNEL_TYPE_REMAPPING,
             ignore_channels=IGNORE_CHANNELS,
         )
 

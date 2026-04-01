@@ -297,7 +297,7 @@ def extract_signal(
 def extract_channels(
     recording_data: "mne.io.BaseRaw",
     channel_names_mapping: dict[str, str] | None = None,
-    channel_types_mapping: dict[str, list[str]] | None = None,
+    type_channels_mapping: dict[str, list[str]] | None = None,
     channel_pos_mapping: dict[str, np.ndarray] | None = None,
     ignore_channels: list[str] | None = None,
 ) -> ArrayDict:
@@ -315,7 +315,7 @@ def extract_channels(
         recording_data: MNE Raw object containing the electrophysiological data and metadata.
         channel_names_mapping: Optional dictionary mapping original channel names to new names
             (e.g., {"EEG01": "Fp1"}). Ensures renaming is unique.
-        channel_types_mapping: Optional dictionary mapping types (e.g., "eeg") to lists of channel names
+        type_channels_mapping: Optional dictionary mapping types (e.g., "eeg") to lists of channel names
             (e.g., {"eeg": ["C3", "C4"]}). See `_validate_channel_types_mapping` for remapping logic.
         channel_pos_mapping: Optional dictionary mapping channel names to 3D position numpy arrays.
             Falls back to using montage positions if not provided.
@@ -370,12 +370,15 @@ def extract_channels(
         recording_data, channel_names_mapping
     )
 
-    if channel_types_mapping is not None and not isinstance(
-        channel_types_mapping, dict
+    if type_channels_mapping is not None and not isinstance(
+        type_channels_mapping, dict
     ):
         raise TypeError(
-            f"channel_types_mapping must be a dictionary, got {type(channel_types_mapping).__name__}."
+            f"type_channels_mapping must be a dictionary, got {type(type_channels_mapping).__name__}."
         )
+    # Before validating, transpose the type channels mapping from types
+    # to lists of channel names to channel names to types
+    channel_types_mapping = _transpose_type_channels_mapping(type_channels_mapping)
     channel_types_mapping = _validate_channel_types_mapping(
         recording_data, channel_names_mapping, channel_types_mapping
     )
@@ -388,6 +391,7 @@ def extract_channels(
         recording_data, channel_names_mapping, channel_pos_mapping
     )
 
+    # Create a mask to select the channels to keep
     if ignore_channels is not None:
         channels_mask = ~np.isin(recording_data.ch_names, ignore_channels)
     else:
@@ -562,22 +566,16 @@ def _validate_channel_types_mapping(
             ch_name: ch_type for ch_name, ch_type in zip(raw_ch_names, raw_ch_types)
         }
 
-    # Build a lookup from channel names to types (from type_mapping)
-    ch_type_lookup = {
-        ch_name: ch_type
-        for ch_type, ch_list in channel_types_mapping.items()
-        for ch_name in ch_list
-    }
-
-    channel_types_mapping = {
-        ch_name: ch_type_lookup.get(
+    # Apply the mapping to the raw channel names and types
+    return {
+        ch_name: channel_types_mapping.get(
             ch_name,
-            ch_type_lookup.get(channel_names_mapping.get(ch_name, ch_name), ch_type),
+            channel_types_mapping.get(
+                channel_names_mapping.get(ch_name, ch_name), ch_type
+            ),
         )
         for ch_name, ch_type in zip(raw_ch_names, raw_ch_types)
     }
-
-    return channel_types_mapping
 
 
 def _validate_channel_pos_mapping(
@@ -622,3 +620,31 @@ def _validate_channel_pos_mapping(
     }
 
     return channel_pos_mapping
+
+
+def _transpose_type_channels_mapping(
+    type_channels_mapping: dict[str, list[str]] | None
+) -> dict[str, str] | None:
+    """
+    Convert a mapping of channel types to channel name lists into a mapping of channel names to types.
+
+    Given a dictionary where keys are channel types (e.g., "eeg", "eog") and values are lists of
+    channel names, this function inverts the mapping so keys are channel names and values are the
+    corresponding type for each channel.
+
+    Args:
+        type_channels_mapping (dict[str, list[str]] | None): Mapping from channel types to lists of channel names.
+            Example: {"eeg": ["C3", "C4"], "eog": ["EOG1"]}
+
+    Returns:
+        dict[str, str] | None: Mapping from channel names to their assigned type, or None if input is None.
+            Example: {"C3": "eeg", "C4": "eeg", "EOG1": "eog"}
+    """
+    if type_channels_mapping is None:
+        return None
+
+    return {
+        ch_name: ch_type
+        for ch_type, ch_list in type_channels_mapping.items()
+        for ch_name in ch_list
+    }
