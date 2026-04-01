@@ -1,7 +1,15 @@
+import os
 import datetime
 import inspect
 
 import brainsets
+import brainsets.taxonomy
+import brainsets.descriptions
+import brainsets.utils.mat_utils
+import brainsets.utils.dandi_utils
+import brainsets.utils.dir_utils
+import brainsets.utils.split
+import glob as glob
 
 author = "neuro-galaxy Team"
 project = "brainsets"
@@ -62,14 +70,6 @@ html_show_sourcelink = True
 html_logo = "_static/brainsets_logo.png"
 html_favicon = "_static/brainsets_logo.png"
 
-import os
-
-import brainsets.taxonomy
-import brainsets.descriptions
-import brainsets.utils.mat_utils
-import brainsets.utils.dandi_utils
-import brainsets.utils.dir_utils
-import brainsets.utils.split
 
 taxonomy_classes = [
     name
@@ -97,13 +97,12 @@ dandi_utils_fns = _get_module_fns(brainsets.utils.dandi_utils)
 dir_utils_fns = _get_module_fns(brainsets.utils.dir_utils)
 split_fns = _get_module_fns(brainsets.utils.split)
 
-import glob as _glob
 
 _generated_dir = os.path.join(os.path.dirname(__file__), "generated")
 os.makedirs(_generated_dir, exist_ok=True)
 
 # Remove stale stubs so deleted or renamed symbols don't persist across builds
-for _stale in _glob.glob(os.path.join(_generated_dir, "*.rst")):
+for _stale in glob.glob(os.path.join(_generated_dir, "*.rst")):
     os.remove(_stale)
 
 
