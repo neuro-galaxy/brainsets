@@ -585,20 +585,22 @@ def _validate_channel_pos_mapping(
     channel_names_mapping: dict[str, str] | None = None,
     channel_pos_mapping: dict[str, np.ndarray] | None = None,
 ) -> dict[str, np.ndarray] | None:
-    """Validate and return a channel position mapping.
+    """
+    Validate and return a channel position mapping.
 
-    Returns a mapping of original channel names to their positions (x, y, z).
-    If no position mapping is provided, returns an empty dict. If a position
-    mapping is provided, it resolves whether the mapping keys refer to
-    original or renamed channel names and remaps accordingly.
+    Constructs a mapping from the original channel names in the raw data to their 3D positions.
+    If no position mapping is provided (`channel_pos_mapping` is None), returns None.
+    If a mapping is provided, determines whether its keys are original or renamed channel names
+    (using `channel_names_mapping` if given), remapping as needed to match the original channel names.
 
     Args:
-        raw_data: MNE Raw object containing channel names.
-        channel_names_mapping: Optional channel name remapping (used for resolution).
-        channel_pos_mapping: Optional dict mapping channel names to position arrays.
+        raw_data: An MNE Raw object containing channel names.
+        channel_names_mapping: Optional dictionary mapping original channel names to new (renamed) channel names.
+        channel_pos_mapping: Optional dictionary mapping channel names (original or renamed) to position arrays (shape: (3,)).
 
     Returns:
-        Dict mapping original channel names to position arrays (shape: (3,)) or None if no mapping is provided.
+        A dictionary mapping original channel names to position arrays of shape (3,).
+        Returns None if no mapping is provided.
 
     Raises:
         ValueError: If mapping keys are not consistent (mixed original/renamed).
