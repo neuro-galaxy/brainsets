@@ -66,6 +66,10 @@ import os
 
 import brainsets.taxonomy
 import brainsets.descriptions
+import brainsets.utils.mat_utils
+import brainsets.utils.dandi_utils
+import brainsets.utils.dir_utils
+import brainsets.utils.split
 
 taxonomy_classes = [
     name
@@ -78,6 +82,19 @@ description_classes = [
     for name, obj in inspect.getmembers(brainsets.descriptions, inspect.isclass)
     if obj.__module__ == "brainsets.descriptions" and not name.startswith("_")
 ]
+
+def _get_module_fns(module):
+    return [
+        name
+        for name, obj in inspect.getmembers(module, inspect.isfunction)
+        if obj.__module__ == module.__name__ and not name.startswith("_")
+    ]
+
+
+mat_utils_fns = _get_module_fns(brainsets.utils.mat_utils)
+dandi_utils_fns = _get_module_fns(brainsets.utils.dandi_utils)
+dir_utils_fns = _get_module_fns(brainsets.utils.dir_utils)
+split_fns = _get_module_fns(brainsets.utils.split)
 
 _generated_dir = os.path.join(os.path.dirname(__file__), "generated")
 os.makedirs(_generated_dir, exist_ok=True)
@@ -103,6 +120,25 @@ for _name in taxonomy_classes:
     _write_class_stub(_generated_dir, "brainsets.taxonomy", _name)
 
 
+def _write_function_stub(generated_dir, module, name):
+    stub_path = os.path.join(generated_dir, f"{module}.{name}.rst")
+    underline = "=" * len(name)
+    with open(stub_path, "w") as f:
+        f.write(f"{name}\n{underline}\n\n")
+        f.write(f".. currentmodule:: {module}\n\n")
+        f.write(f".. autofunction:: {name}\n")
+
+
+for _name in mat_utils_fns:
+    _write_function_stub(_generated_dir, "brainsets.utils.mat_utils", _name)
+for _name in dandi_utils_fns:
+    _write_function_stub(_generated_dir, "brainsets.utils.dandi_utils", _name)
+for _name in dir_utils_fns:
+    _write_function_stub(_generated_dir, "brainsets.utils.dir_utils", _name)
+for _name in split_fns:
+    _write_function_stub(_generated_dir, "brainsets.utils.split", _name)
+
+
 def rst_jinja_render(app, _, source):
     if hasattr(app.builder, "templates"):
         rst_context = {
@@ -110,6 +146,10 @@ def rst_jinja_render(app, _, source):
             "taxonomy": brainsets.taxonomy,
             "taxonomy_classes": taxonomy_classes,
             "description_classes": description_classes,
+            "mat_utils_fns": mat_utils_fns,
+            "dandi_utils_fns": dandi_utils_fns,
+            "dir_utils_fns": dir_utils_fns,
+            "split_fns": split_fns,
         }
         source[0] = app.builder.templates.render_string(source[0], rst_context)
 
