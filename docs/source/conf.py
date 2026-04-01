@@ -29,6 +29,7 @@ templates_path = ["_templates"]
 
 add_module_names = False
 autodoc_member_order = "bysource"
+autosummary_generate = True
 
 suppress_warnings = ["autodoc.import_object"]
 
@@ -61,13 +62,45 @@ html_show_sourcelink = True
 html_logo = "_static/brainsets_logo.png"
 html_favicon = "_static/brainsets_logo.png"
 
+import os
+
 import brainsets.taxonomy
+import brainsets.descriptions
 
 taxonomy_classes = [
     name
     for name, obj in inspect.getmembers(brainsets.taxonomy, inspect.isclass)
     if obj.__module__.startswith("brainsets.taxonomy") and not name.startswith("_")
 ]
+
+description_classes = [
+    name
+    for name, obj in inspect.getmembers(brainsets.descriptions, inspect.isclass)
+    if obj.__module__ == "brainsets.descriptions" and not name.startswith("_")
+]
+
+_generated_dir = os.path.join(os.path.dirname(__file__), "generated")
+os.makedirs(_generated_dir, exist_ok=True)
+
+
+def _write_class_stub(generated_dir, module, name):
+    stub_path = os.path.join(generated_dir, f"{module}.{name}.rst")
+    underline = "=" * len(name)
+    with open(stub_path, "w") as f:
+        f.write(f"{name}\n{underline}\n\n")
+        f.write(f".. currentmodule:: {module}\n\n")
+        f.write(f".. autoclass:: {name}\n")
+        f.write(f"   :members:\n")
+        f.write(f"   :show-inheritance:\n")
+        f.write(f"   :undoc-members:\n")
+        f.write(f"   :member-order: bysource\n")
+
+
+for _name in description_classes:
+    _write_class_stub(_generated_dir, "brainsets.descriptions", _name)
+
+for _name in taxonomy_classes:
+    _write_class_stub(_generated_dir, "brainsets.taxonomy", _name)
 
 
 def rst_jinja_render(app, _, source):
@@ -76,6 +109,7 @@ def rst_jinja_render(app, _, source):
             "brainsets": brainsets,
             "taxonomy": brainsets.taxonomy,
             "taxonomy_classes": taxonomy_classes,
+            "description_classes": description_classes,
         }
         source[0] = app.builder.templates.render_string(source[0], rst_context)
 
