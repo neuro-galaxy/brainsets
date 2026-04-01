@@ -44,7 +44,7 @@ dir utils
    {% endfor %}
 
 split utils
-~~~~~
+~~~~~~~~~~~
 
 .. currentmodule:: brainsets.utils.split
 
