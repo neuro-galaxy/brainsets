@@ -83,6 +83,7 @@ description_classes = [
     if obj.__module__ == "brainsets.descriptions" and not name.startswith("_")
 ]
 
+
 def _get_module_fns(module):
     return [
         name
