@@ -59,13 +59,13 @@ If you encounter any bugs or have feature requests, please submit them to our
    package/brainsetpipeline
    package/descriptors
    package/taxonomy
+   package/processing
 
 .. toctree::
    :maxdepth: 3
    :caption: Utilities
-   
+
    package/utils
-   .. package/processing
 
 .. toctree::
    :maxdepth: 2

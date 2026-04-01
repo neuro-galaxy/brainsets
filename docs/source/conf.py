@@ -10,6 +10,7 @@ import brainsets.utils.dandi_utils
 import brainsets.utils.dir_utils
 import brainsets.utils.split
 import glob as glob
+import brainsets.processing
 
 author = "neuro-galaxy Team"
 project = "brainsets"
@@ -96,6 +97,7 @@ mat_utils_fns = _get_module_fns(brainsets.utils.mat_utils)
 dandi_utils_fns = _get_module_fns(brainsets.utils.dandi_utils)
 dir_utils_fns = _get_module_fns(brainsets.utils.dir_utils)
 split_fns = _get_module_fns(brainsets.utils.split)
+signal_processing_fns = _get_module_fns(brainsets.processing.signal)
 
 
 _generated_dir = os.path.join(os.path.dirname(__file__), "generated")
@@ -143,6 +145,8 @@ for _name in dir_utils_fns:
     _write_function_stub(_generated_dir, "brainsets.utils.dir_utils", _name)
 for _name in split_fns:
     _write_function_stub(_generated_dir, "brainsets.utils.split", _name)
+for _name in signal_processing_fns:
+    _write_function_stub(_generated_dir, "brainsets.processing.signal", _name)
 
 
 def rst_jinja_render(app, _, source):
@@ -156,6 +160,7 @@ def rst_jinja_render(app, _, source):
             "dandi_utils_fns": dandi_utils_fns,
             "dir_utils_fns": dir_utils_fns,
             "split_fns": split_fns,
+            "signal_processing_fns": signal_processing_fns,
         }
         source[0] = app.builder.templates.render_string(source[0], rst_context)
 
