@@ -146,6 +146,9 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
     split_ratios: tuple[float, float] = (0.9, 0.1)
     """Default train/valid time split ratios for recordings."""
+    
+    random_seed: int = 42
+    """Random seed for generating splits."""
 
     @cached_property
     def _participants_data(self) -> Optional[pd.DataFrame]:
@@ -459,20 +462,19 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             assignment_n_folds = 1
         else:
             assignment_n_folds = max(1, int(round(1.0 / valid_ratio)))
-        assignment_seed = 42
         assignment_fold_idx = 0
 
         subject_assignments = generate_string_kfold_assignment(
             string_id=subject_id,
             n_folds=assignment_n_folds,
             val_ratio=0.0,
-            seed=assignment_seed,
+            seed=self.random_seed,
         )
         session_assignments = generate_string_kfold_assignment(
             string_id=f"{subject_id}_{session_id}",
             n_folds=assignment_n_folds,
             val_ratio=0.0,
-            seed=assignment_seed,
+            seed=self.random_seed,
         )
 
         subject_assignment = subject_assignments[assignment_fold_idx]
