@@ -23,7 +23,7 @@ extensions = [
     "sphinx_autodoc_typehints",
     "sphinx_inline_tabs",
     "sphinx_copybutton",
-    "pyg_autosummary",
+    "custom_autosummary",
 ]
 
 html_theme = "furo"
