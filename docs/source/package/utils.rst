@@ -1,8 +1,8 @@
 brainsets.utils
 ---------------
 
-brainsets.utils.mat_utils
-~~~~~~~~~~~~~~~~~~~~~~~~~
+mat_utils
+~~~~~~~~~
 
 .. currentmodule:: brainsets.utils.mat_utils
 
@@ -13,8 +13,8 @@ brainsets.utils.mat_utils
 
    {% for name in brainsets.utils.mat_utils._functions %}
 
-brainsets.utils.dandi_utils
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+dandi_utils
+~~~~~~~~~~~
 
 .. currentmodule:: brainsets.utils.dandi_utils
 
@@ -25,8 +25,8 @@ brainsets.utils.dandi_utils
 
    {% for name in brainsets.utils.dandi_utils._functions %}
 
-brainsets.utils.dir_utils
-~~~~~~~~~~~~~~~~~~~~~~~~~
+dir_utils
+~~~~~~~~~
 
 .. currentmodule:: brainsets.utils.dir_utils
 
@@ -37,8 +37,8 @@ brainsets.utils.dir_utils
 
    {% for name in brainsets.utils.dir_utils._functions %}
 
-brainsets.utils.split_utils
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+split
+~~~~~
 
 .. currentmodule:: brainsets.utils.split
 
