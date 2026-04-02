@@ -9,6 +9,15 @@ import brainsets
 from brainsets.taxonomy import *
 from brainsets.taxonomy.mice import *
 
+_classes = [
+    "BrainsetDescription",
+    "SubjectDescription",
+    "SessionDescription",
+    "DeviceDescription",
+]
+
+__all__ = _classes
+
 
 @dataclass
 class BrainsetDescription(temporaldata.Data):
@@ -237,13 +246,3 @@ class DeviceDescription(temporaldata.Data):
     # Ophys
     imaging_depth: Optional[float] = None  # in um
     target_area: Optional[BrainRegion] = None
-
-
-_classes = [
-    "BrainsetDescription",
-    "SubjectDescription",
-    "SessionDescription",
-    "DeviceDescription",
-]
-
-__all__ = _classes

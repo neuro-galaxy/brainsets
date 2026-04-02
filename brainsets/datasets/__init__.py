@@ -1,12 +1,3 @@
-from .PerichMillerPopulation2018 import PerichMillerPopulation2018
-from .PeiPandarinathNLB2021 import PeiPandarinathNLB2021
-from .FlintSlutzkyAccurate2012 import FlintSlutzkyAccurate2012
-from .ChurchlandShenoyNeural2012 import ChurchlandShenoyNeural2012
-from .OdohertySabesNonhuman2017 import OdohertySabesNonhuman2017
-from .AllenVisualCodingOphys2016 import AllenVisualCodingOphys2016
-from .KempSleepEDF2013 import KempSleepEDF2013
-from .Neuroprobe2025 import Neuroprobe2025
-
 _electrophysiology_datasets = [
     "PerichMillerPopulation2018",
     "PeiPandarinathNLB2021",
@@ -33,3 +24,12 @@ __all__ = [
     *_ieeg_datasets,
     *_psg_datasets,
 ]
+
+from .PerichMillerPopulation2018 import PerichMillerPopulation2018
+from .PeiPandarinathNLB2021 import PeiPandarinathNLB2021
+from .FlintSlutzkyAccurate2012 import FlintSlutzkyAccurate2012
+from .ChurchlandShenoyNeural2012 import ChurchlandShenoyNeural2012
+from .OdohertySabesNonhuman2017 import OdohertySabesNonhuman2017
+from .AllenVisualCodingOphys2016 import AllenVisualCodingOphys2016
+from .KempSleepEDF2013 import KempSleepEDF2013
+from .Neuroprobe2025 import Neuroprobe2025

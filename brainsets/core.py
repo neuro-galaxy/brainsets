@@ -1,6 +1,23 @@
 from enum import Enum
 import datetime
 
+_functions = [
+    "string_int_enum_serialize_fn",
+    "datetime_serialize_fn",
+]
+
+_classes = [
+    "NestedEnumType",
+    "StringIntEnum",
+    "Dictable",
+]
+
+_constants = [
+    "serialize_fn_map",
+]
+
+__all__ = _functions + _classes + _constants
+
 
 class NestedEnumType(type(Enum)):
     def __new__(cls, clsname, bases, clsdict, parent=None):
@@ -134,20 +151,3 @@ serialize_fn_map = {
     datetime.datetime: datetime_serialize_fn,
 }
 r"""A dict that maps classes to their serialization functions"""
-
-_functions = [
-    "string_int_enum_serialize_fn",
-    "datetime_serialize_fn",
-]
-
-_classes = [
-    "NestedEnumType",
-    "StringIntEnum",
-    "Dictable",
-]
-
-_constants = [
-    "serialize_fn_map",
-]
-
-__all__ = _functions + _classes + _constants

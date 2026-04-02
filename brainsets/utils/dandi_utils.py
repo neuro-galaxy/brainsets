@@ -1,3 +1,14 @@
+_functions = [
+    "extract_metadata_from_nwb",
+    "extract_subject_from_nwb",
+    "extract_spikes_from_nwbfile",
+    "download_file",
+    "get_nwb_asset_list",
+]
+
+__all__ = _functions
+
+
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -136,14 +147,3 @@ def get_nwb_asset_list(dandiset_id: str):
     with parsed_url.navigate() as (client, dandiset, assets):
         asset_list = [x for x in assets if x.path.endswith(".nwb")]
     return asset_list
-
-
-_functions = [
-    "extract_metadata_from_nwb",
-    "extract_subject_from_nwb",
-    "extract_spikes_from_nwbfile",
-    "download_file",
-    "get_nwb_asset_list",
-]
-
-__all__ = _functions
