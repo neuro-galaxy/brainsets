@@ -44,7 +44,6 @@ intersphinx_mapping = {
     "h5py": ("http://docs.h5py.org/en/latest/", None),
     "temporaldata": ("https://temporaldata.readthedocs.io/en/latest/", None),
     "torch_brain": ("https://torch-brain.readthedocs.io/en/latest/", None),
-    "pydantic": ("https://pydantic.dev", None),
 }
 
 myst_enable_extensions = [
