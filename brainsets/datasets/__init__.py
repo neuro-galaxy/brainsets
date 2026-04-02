@@ -33,3 +33,4 @@ from .OdohertySabesNonhuman2017 import OdohertySabesNonhuman2017
 from .AllenVisualCodingOphys2016 import AllenVisualCodingOphys2016
 from .KempSleepEDF2013 import KempSleepEDF2013
 from .Neuroprobe2025 import Neuroprobe2025
+from .VollanMoserAlternating2025 import VollanMoserAlternating2025
