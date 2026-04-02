@@ -51,7 +51,7 @@ If you encounter any bugs or have feature requests, please submit them to our
    glossary/brainsets
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Package Reference
 
    package/brainsetpipeline
