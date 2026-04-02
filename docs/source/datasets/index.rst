@@ -10,11 +10,7 @@ Electrophysiology Datasets
    :toctree: ../_generated
    :template: autosummary/class_dataset.rst
 
-   PerichMillerPopulation2018
-   PeiPandarinathNLB2021
-   FlintSlutzkyAccurate2012
-   ChurchlandShenoyNeural2012
-   OdohertySabesNonhuman2017
+   {% for name in brainsets.datasets._classes_electrophysiology %}
 
 Calcium Imaging Datasets
 -------------------------
@@ -23,7 +19,7 @@ Calcium Imaging Datasets
    :toctree: ../_generated
    :template: autosummary/class_dataset.rst
 
-   AllenVisualCodingOphys2016
+   {% for name in brainsets.datasets._classes_calcium_imaging %}
 
 iEEG Datasets
 ------------------------------
@@ -32,7 +28,7 @@ iEEG Datasets
    :toctree: ../_generated
    :template: autosummary/class_dataset.rst
 
-   Neuroprobe2025
+   {% for name in brainsets.datasets._classes_ieeg %}
 
 PSG Datasets
 ------------------------------
@@ -41,4 +37,4 @@ PSG Datasets
    :toctree: ../_generated
    :template: autosummary/class_dataset.rst
 
-   KempSleepEDF2013
+   {% for name in brainsets.datasets._classes_psg %}
