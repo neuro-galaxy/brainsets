@@ -3,8 +3,8 @@
 brainsets.processing
 --------------------
 
-Signal
-~~~~~~
+brainsets.processing.signal
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. currentmodule:: brainsets.processing.signal
 
