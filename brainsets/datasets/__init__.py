@@ -7,7 +7,7 @@ from .AllenVisualCodingOphys2016 import AllenVisualCodingOphys2016
 from .KempSleepEDF2013 import KempSleepEDF2013
 from .Neuroprobe2025 import Neuroprobe2025
 
-_classes_electrophysiology = [
+_electrophysiology_datasets = [
     "PerichMillerPopulation2018",
     "PeiPandarinathNLB2021",
     "FlintSlutzkyAccurate2012",
@@ -15,21 +15,21 @@ _classes_electrophysiology = [
     "OdohertySabesNonhuman2017",
 ]
 
-_classes_calcium_imaging = [
+_calcium_imaging_datasets = [
     "AllenVisualCodingOphys2016",
 ]
 
-_classes_ieeg = [
+_ieeg_datasets = [
     "Neuroprobe2025",
 ]
 
-_classes_psg = [
+_psg_datasets = [
     "KempSleepEDF2013",
 ]
 
 __all__ = [
-    *_classes_electrophysiology,
-    *_classes_calcium_imaging,
-    *_classes_ieeg,
-    *_classes_psg,
+    *_electrophysiology_datasets,
+    *_calcium_imaging_datasets,
+    *_ieeg_datasets,
+    *_psg_datasets,
 ]
