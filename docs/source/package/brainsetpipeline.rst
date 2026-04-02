@@ -6,7 +6,7 @@ brainsets.pipeline
 .. autosummary::
    :nosignatures:
    :toctree: ../_generated
-   :template: autosummary/default.rst
+   :template: autosummary/class.rst
 
     BrainsetPipeline
 
