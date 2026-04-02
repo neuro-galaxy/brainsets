@@ -31,7 +31,7 @@ html_theme = "furo"
 html_static_path = ["_static"]
 templates_path = ["_templates"]
 
-add_module_names = False
+add_module_names = True
 autodoc_member_order = "bysource"
 autosummary_generate = True
 
