@@ -1,10 +1,10 @@
-import scipy
-from scipy import io as spio
-import numpy as np
-
 _functions = ["loadmat"]
 
 __all__ = _functions
+
+import scipy
+from scipy import io as spio
+import numpy as np
 
 
 def loadmat(filename):

@@ -1,9 +1,3 @@
-import hashlib
-import logging
-import numpy as np
-from typing import Dict, List, Optional, Tuple
-from temporaldata import Interval, Data
-
 _functions = [
     "split_one_epoch",
     "split_two_epochs",
@@ -17,6 +11,12 @@ _functions = [
 ]
 
 __all__ = _functions
+
+import hashlib
+import logging
+import numpy as np
+from typing import Dict, List, Optional, Tuple
+from temporaldata import Interval, Data
 
 
 def split_one_epoch(

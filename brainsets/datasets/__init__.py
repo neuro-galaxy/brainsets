@@ -18,12 +18,12 @@ _psg_datasets = [
     "KempSleepEDF2013",
 ]
 
-__all__ = [
-    *_electrophysiology_datasets,
-    *_calcium_imaging_datasets,
-    *_ieeg_datasets,
-    *_psg_datasets,
-]
+__all__ = (
+    _electrophysiology_datasets
+    + _calcium_imaging_datasets
+    + _ieeg_datasets
+    + _psg_datasets
+)
 
 from .PerichMillerPopulation2018 import PerichMillerPopulation2018
 from .PeiPandarinathNLB2021 import PeiPandarinathNLB2021

@@ -1,6 +1,3 @@
-from enum import Enum
-import datetime
-
 _functions = [
     "string_int_enum_serialize_fn",
     "datetime_serialize_fn",
@@ -17,6 +14,9 @@ _constants = [
 ]
 
 __all__ = _functions + _classes + _constants
+
+from enum import Enum
+import datetime
 
 
 class NestedEnumType(type(Enum)):

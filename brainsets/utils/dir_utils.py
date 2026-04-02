@@ -1,3 +1,12 @@
+_functions = [
+    "find_files_by_extension",
+    "make_directory",
+    "get_dir_tree",
+    "walk_directory",
+]
+
+__all__ = _functions
+
 import os
 import pathlib
 import shutil
@@ -10,15 +19,6 @@ from rich.markup import escape
 from rich.prompt import Confirm, Prompt
 from rich.text import Text
 from rich.tree import Tree
-
-_functions = [
-    "find_files_by_extension",
-    "make_directory",
-    "get_dir_tree",
-    "walk_directory",
-]
-
-__all__ = _functions
 
 
 def find_files_by_extension(folder_path, extension):
