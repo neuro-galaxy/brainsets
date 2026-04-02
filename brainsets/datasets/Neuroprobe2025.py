@@ -156,6 +156,8 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
     *Neuroprobe: Evaluating Intracranial Brain Responses to Naturalistic Stimuli.*
     `arXiv:2509.21671 <https://arxiv.org/abs/2509.21671>`_.
 
+    Data sources: `BrainTreeBank <https://braintreebank.dev>`_ and `Neuroprobe Benchmark <https://neuroprobe.dev>`_
+
     Args:
         root: Root directory containing processed Neuroprobe artifacts.
         recording_ids: Optional explicit recording-id subset to expose from disk.
