@@ -51,7 +51,7 @@ If you encounter any bugs or have feature requests, please submit them to our
    glossary/brainsets
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Package Reference
 
    package/core
@@ -59,11 +59,6 @@ If you encounter any bugs or have feature requests, please submit them to our
    package/descriptions
    package/taxonomy
    package/processing
-
-.. toctree::
-   :maxdepth: 3
-   :caption: Utilities
-
    package/utils
 
 .. toctree::

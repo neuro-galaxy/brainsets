@@ -15,8 +15,8 @@ mat utils
    {{ name }}
    {% endfor %}
 
-dandi utils
-~~~~~~~~~~~
+brainsets.utils.dandi_utils
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. currentmodule:: brainsets.utils.dandi_utils
 
@@ -29,8 +29,8 @@ dandi utils
    {{ name }}
    {% endfor %}
 
-dir utils
-~~~~~~~~~
+brainsets.utils.dir_utils
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. currentmodule:: brainsets.utils.dir_utils
 
@@ -43,8 +43,8 @@ dir utils
    {{ name }}
    {% endfor %}
 
-split utils
-~~~~~~~~~~~
+brainsets.utils.split_utils
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. currentmodule:: brainsets.utils.split
 
