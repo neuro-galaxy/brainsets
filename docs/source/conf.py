@@ -106,6 +106,12 @@ for _mod_name, _mod in [
             _f.write(f"{_name}\n{'=' * len(_name)}\n\n")
             _f.write(f".. currentmodule:: {_mod_name}\n\n")
             _f.write(f".. autofunction:: {_name}\n")
+    for _name in getattr(_mod, "_constants", []):
+        with open(os.path.join(_generated_dir, f"{_mod_name}.{_name}.rst"), "w") as _f:
+            _f.write(f"{_name}\n{'=' * len(_name)}\n\n")
+            _f.write(f".. currentmodule:: {_mod_name}\n\n")
+            _f.write(f".. autodata:: {_name}\n")
+            _f.write(f"   :no-value:\n")
 
 
 def rst_jinja_render(app, _, source):

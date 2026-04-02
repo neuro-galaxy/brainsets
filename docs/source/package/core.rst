@@ -21,5 +21,10 @@ brainsets.core
    {{ name }}
    {% endfor %}
 
-.. autodata:: brainsets.core.serialize_fn_map
-   :no-value:
+.. autosummary::
+   :nosignatures:
+   :toctree: ../_generated
+
+   {% for name in brainsets.core._constants %}
+   {{ name }}
+   {% endfor %}
