@@ -24,7 +24,7 @@ extensions = [
     "sphinx_inline_tabs",
     "sphinx.ext.mathjax",
     "sphinx_copybutton",
-    "custom_autosummary",
+    "custom_autosummary",  # local extension to expand `{% for name in module._list %}` blocks in rst files to render api tables and generate stub pages.
 ]
 
 html_theme = "furo"
