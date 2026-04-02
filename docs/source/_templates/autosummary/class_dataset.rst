@@ -3,7 +3,7 @@
 .. currentmodule:: {{ module }}
 
 .. autoclass:: {{ objname }}
-   :members:
    :show-inheritance:
-   :undoc-members:
+   :no-members:
+   :no-inherited-members:
    :member-order: bysource
