@@ -22,6 +22,7 @@ extensions = [
     "myst_parser",
     "sphinx_autodoc_typehints",
     "sphinx_inline_tabs",
+    "sphinx.ext.mathjax",
     "sphinx_copybutton",
     "custom_autosummary",
 ]
