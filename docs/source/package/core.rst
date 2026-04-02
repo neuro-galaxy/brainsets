@@ -22,3 +22,4 @@ brainsets.core
    {% endfor %}
 
 .. autodata:: brainsets.core.serialize_fn_map
+   :no-value:
