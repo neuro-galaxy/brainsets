@@ -49,6 +49,7 @@ intersphinx_mapping = {
     "h5py": ("http://docs.h5py.org/en/latest/", None),
     "temporaldata": ("https://temporaldata.readthedocs.io/en/latest/", None),
     "torch_brain": ("https://torch-brain.readthedocs.io/en/latest/", None),
+    "pydantic": ("https://pydantic.dev", None),
 }
 
 myst_enable_extensions = [
@@ -72,27 +73,24 @@ html_logo = "_static/brainsets_logo.png"
 html_favicon = "_static/brainsets_logo.png"
 
 
-taxonomy_classes = [
-    name
-    for name, obj in inspect.getmembers(brainsets.taxonomy, inspect.isclass)
-    if obj.__module__.startswith("brainsets.taxonomy") and not name.startswith("_")
-]
-
-description_classes = [
-    name
-    for name, obj in inspect.getmembers(brainsets.descriptions, inspect.isclass)
-    if obj.__module__ == "brainsets.descriptions" and not name.startswith("_")
-]
+def _get_module_classes(module):
+    return [
+        name
+        for name, obj in inspect.getmembers(module, inspect.isclass)
+        if obj.__module__.startswith(module.__name__) and not name.startswith("_")
+    ]
 
 
 def _get_module_fns(module):
     return [
         name
         for name, obj in inspect.getmembers(module, inspect.isfunction)
-        if obj.__module__ == module.__name__ and not name.startswith("_")
+        if obj.__module__.startswith(module.__name__) and not name.startswith("_")
     ]
 
 
+description_classes = _get_module_classes(brainsets.taxonomy)
+taxonomy_classes = _get_module_classes(brainsets.descriptions)
 mat_utils_fns = _get_module_fns(brainsets.utils.mat_utils)
 dandi_utils_fns = _get_module_fns(brainsets.utils.dandi_utils)
 dir_utils_fns = _get_module_fns(brainsets.utils.dir_utils)
