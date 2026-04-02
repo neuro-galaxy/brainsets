@@ -25,6 +25,15 @@ Calcium Imaging Datasets
 
    AllenVisualCodingOphys2016
 
+iEEG Datasets
+------------------------------
+.. autosummary::
+   :nosignatures:
+   :toctree: ../_generated
+   :template: autosummary/class_dataset.rst
+
+   Neuroprobe2025
+
 PSG Datasets
 ------------------------------
 .. autosummary::
