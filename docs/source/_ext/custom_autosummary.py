@@ -3,7 +3,6 @@ Monkey-patches ``sphinx.ext.autosummary`` to handle
 ``{% for name in module.attr %}`` lines inside ``.. autosummary::`` blocks.
 
 Patches both stub generation (find_autosummary_in_lines) and HTML table
-rendering (Autosummary.run) so that links actually appear in the built docs.
 
 Adapted from https://github.com/pyg-team/pyg_sphinx_theme/blob/master/pyg_sphinx_theme/extension/pyg.py
 """
