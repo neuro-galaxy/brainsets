@@ -93,3 +93,13 @@ def walk_directory(directory: pathlib.Path, tree: Tree) -> None:
                 mat="📊 ",
             )[path.suffix[1:]]
             tree.add(Text(icon) + text_filename)
+
+
+_functions = [
+    "find_files_by_extension",
+    "make_directory",
+    "get_dir_tree",
+    "walk_directory",
+]
+
+__all__ = _functions

@@ -49,3 +49,8 @@ def loadmat(filename):
 
     data = scipy.io.loadmat(filename, struct_as_record=False, squeeze_me=True)
     return _check_keys(data)
+
+
+_functions = ["loadmat"]
+
+__all__ = _functions

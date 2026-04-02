@@ -15,3 +15,16 @@ from .recording_tech import (
     RecordingTech,
     Hemisphere,
 )
+
+_classes = [
+    "Species",
+    "Sex",
+    "Task",
+    "Orientation_8_Classes",
+    "Macaque",
+    "Cre_line",
+    "RecordingTech",
+    "Hemisphere",
+]
+
+__all__ = _classes

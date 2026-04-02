@@ -167,3 +167,12 @@ def cube_to_long(
     )
 
     return trials, units
+
+
+_functions = [
+    "downsample_wideband",
+    "extract_bands",
+    "cube_to_long",
+]
+
+__all__ = _functions

@@ -237,3 +237,13 @@ class DeviceDescription(temporaldata.Data):
     # Ophys
     imaging_depth: Optional[float] = None  # in um
     target_area: Optional[BrainRegion] = None
+
+
+_classes = [
+    "BrainsetDescription",
+    "SubjectDescription",
+    "SessionDescription",
+    "DeviceDescription",
+]
+
+__all__ = _classes
