@@ -8,6 +8,6 @@ brainsets.taxonomy
    :toctree: ../_generated
    :template: autosummary/class.rst
 
-   {% for name in taxonomy_classes %}
+   {% for name in taxonomy__cls %}
    {{ name }}
    {% endfor %}

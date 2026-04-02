@@ -131,17 +131,18 @@ rst_context = {
 
 for module_name in modules:
     m = importlib.import_module(module_name)
-    context_name = "_".join(module_name.split(".")[1:])
+    # exclude starting "brainsets."
+    context_name = "__".join(module_name.removeprefix("brainsets.").split("."))
 
     classes = _get_module_classes(m)
     for c in classes:
         _write_class_stub(_generated_dir, module_name, c)
-    rst_context[f"{context_name}_classes"] = classes
+    rst_context[f"{context_name}__cls"] = classes
 
     fns = _get_module_fns(m)
     for f in fns:
         _write_function_stub(_generated_dir, module_name, f)
-    rst_context[f"{context_name}_fns"] = fns
+    rst_context[f"{context_name}__fns"] = fns
 
 
 def rst_jinja_render(app, _, source):
