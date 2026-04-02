@@ -135,7 +135,7 @@ def _from_recording_id(recording_id: str) -> tuple[int, int]:
 
 
 class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
-    """`Neuroprobe 2025 <https://neuroprobe.dev/>`_ iEEG benchmark dataset.
+    """Neuroprobe 2025 iEEG benchmark dataset.
 
     .. admonition:: Preprocessing
 
