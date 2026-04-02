@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Added the `Neuroprobe2025` dataset class and the `neuroprobe_2025` brainset pipeline ([#79](https://github.com/neuro-galaxy/brainsets/pull/79)).
 
 ### Removed
+- Remove `brainsets.utils.mat_utils` (legacy code) ([#119](https://github.com/neuro-galaxy/brainsets/pull/119))
 
 ### Changed
 - Suppress INFO logs from ray when calling `brainsets prepare` ([#70](https://github.com/neuro-galaxy/brainsets/pull/70))
