@@ -9,5 +9,3 @@ brainsets.descriptions
    :template: autosummary/class.rst
 
    {% for name in brainsets.descriptions._classes %}
-   {{ name }}
-   {% endfor %}

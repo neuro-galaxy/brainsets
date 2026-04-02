@@ -14,5 +14,3 @@ Signal
    :template: autosummary/function.rst
 
    {% for name in brainsets.processing.signal._functions %}
-   {{ name }}
-   {% endfor %}

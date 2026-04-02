@@ -12,8 +12,6 @@ brainsets.utils.mat_utils
    :template: autosummary/function.rst
 
    {% for name in brainsets.utils.mat_utils._functions %}
-   {{ name }}
-   {% endfor %}
 
 brainsets.utils.dandi_utils
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -26,8 +24,6 @@ brainsets.utils.dandi_utils
    :template: autosummary/function.rst
 
    {% for name in brainsets.utils.dandi_utils._functions %}
-   {{ name }}
-   {% endfor %}
 
 brainsets.utils.dir_utils
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -40,8 +36,6 @@ brainsets.utils.dir_utils
    :template: autosummary/function.rst
 
    {% for name in brainsets.utils.dir_utils._functions %}
-   {{ name }}
-   {% endfor %}
 
 brainsets.utils.split_utils
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -54,5 +48,3 @@ brainsets.utils.split_utils
    :template: autosummary/function.rst
 
    {% for name in brainsets.utils.split._functions %}
-   {{ name }}
-   {% endfor %}
