@@ -21,7 +21,7 @@ except ImportError:
 
 
 def _check_dandi_available(func_name: str) -> None:
-    """Raise ImportError if MNE is not available."""
+    """Raise ImportError if DANDI is not available."""
     if not DANDI_AVAILABLE:
         raise ImportError(
             f"{func_name} requires the dandi library which is not installed. "
@@ -145,7 +145,7 @@ def download_file(
     Args:
         path: path of the downloaded file within :obj:`raw_dir`
         url: URL of the DANDI asset
-        raw_dir: root directory of the downloaded the file
+        raw_dir: root directory where the file will be downloaded
         overwrite: Will overwrite existing file if :obj:`True`
             (default :obj:`False`)
 
@@ -173,12 +173,12 @@ def get_nwb_asset_list(dandiset_id: str) -> list:
     r"""Get a list of all remote NWB assets in the given dandiset
 
     Args:
-        dandiset_id: The dandset ID (e.g. 'DANDI:000688/draft')
+        dandiset_id: The dandiset ID (e.g. 'DANDI:000688/draft')
 
     Returns:
         A list of all remote NWB assets (``dandi.dandiapi.RemoteBlobAsset``) within this dandiset
     """
-    _check_dandi_available("download_file")
+    _check_dandi_available("get_nwb_asset_list")
     from dandi import dandiarchive
 
     parsed_url = dandiarchive.parse_dandi_url(dandiset_id)
