@@ -111,8 +111,8 @@ def _write_function_stub(generated_dir, module, name):
         f.write(f".. autofunction:: {name}\n")
 
 
-description_classes = _get_module_classes(brainsets.taxonomy)
-taxonomy_classes = _get_module_classes(brainsets.descriptions)
+description_classes = _get_module_classes(brainsets.descriptions)
+taxonomy_classes = _get_module_classes(brainsets.taxonomy)
 mat_utils_fns = _get_module_fns(brainsets.utils.mat_utils)
 dandi_utils_fns = _get_module_fns(brainsets.utils.dandi_utils)
 dir_utils_fns = _get_module_fns(brainsets.utils.dir_utils)
