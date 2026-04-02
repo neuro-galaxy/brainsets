@@ -115,6 +115,7 @@ def _write_function_stub(generated_dir, module, name):
 modules = [
     "brainsets.descriptions",
     "brainsets.taxonomy",
+    "brainsets.core",
     "brainsets.utils.mat_utils",
     "brainsets.utils.dandi_utils",
     "brainsets.utils.dir_utils",
@@ -148,39 +149,9 @@ for module_name in modules:
         _write_function_stub(_generated_dir, module_name, f)
     rst_context[f"{context_name}_fns"] = fns
 
-print(rst_context)
-# for _name in description_classes:
-#     _write_class_stub(_generated_dir, "brainsets.descriptions", _name)
-#
-# for _name in taxonomy_classes:
-#     _write_class_stub(_generated_dir, "brainsets.taxonomy", _name)
-#
-#
-# for _name in mat_utils_fns:
-#     _write_function_stub(_generated_dir, "brainsets.utils.mat_utils", _name)
-# for _name in dandi_utils_fns:
-#     _write_function_stub(_generated_dir, "brainsets.utils.dandi_utils", _name)
-# for _name in dir_utils_fns:
-#     _write_function_stub(_generated_dir, "brainsets.utils.dir_utils", _name)
-# for _name in split_fns:
-#     _write_function_stub(_generated_dir, "brainsets.utils.split", _name)
-# for _name in signal_processing_fns:
-#     _write_function_stub(_generated_dir, "brainsets.processing.signal", _name)
-
 
 def rst_jinja_render(app, _, source):
     if hasattr(app.builder, "templates"):
-        # rst_context = {
-        #     "brainsets": brainsets,
-        #     "taxonomy": brainsets.taxonomy,
-        #     "taxonomy_classes": taxonomy_classes,
-        #     "description_classes": description_classes,
-        #     "mat_utils_fns": mat_utils_fns,
-        #     "dandi_utils_fns": dandi_utils_fns,
-        #     "dir_utils_fns": dir_utils_fns,
-        #     "split_fns": split_fns,
-        #     "signal_processing_fns": signal_processing_fns,
-        # }
         source[0] = app.builder.templates.render_string(source[0], rst_context)
 
 

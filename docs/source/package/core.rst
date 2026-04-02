@@ -3,24 +3,21 @@
 brainsets.core
 ==============
 
-Base Classes
-------------
 .. autosummary::
    :nosignatures:
-   :toctree: ./_generated
+   :toctree: ../_generated
    :template: autosummary/default.rst
 
-   StringIntEnum
-   Dictable
+   {% for name in core_classes %}
+   {{ name }}
+   {% endfor %}
 
-Serialization Functions
------------------------
 .. autosummary::
    :nosignatures:
-   :toctree: ./_generated
+   :toctree: ../_generated
    :template: autosummary/function.rst
 
-   string_int_enum_serialize_fn
-   datetime_serialize_fn
+   {% for name in core_fns %}
+   {{ name }}
+   {% endfor %}
 
-.. autodata:: brainsets.core.serialize_fn_map

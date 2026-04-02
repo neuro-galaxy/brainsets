@@ -7,7 +7,7 @@ Electrophysiology Datasets
 --------------------------
 .. autosummary::
    :nosignatures:
-   :toctree: ./_generated
+   :toctree: ../_generated
    :template: autosummary/only_class.rst
 
    PerichMillerPopulation2018
@@ -20,7 +20,7 @@ Calcium Imaging Datasets
 -------------------------
 .. autosummary::
    :nosignatures:
-   :toctree: ./_generated
+   :toctree: ../_generated
    :template: autosummary/only_class.rst
 
    AllenVisualCodingOphys2016
@@ -29,7 +29,7 @@ PSG Datasets
 ------------------------------
 .. autosummary::
    :nosignatures:
-   :toctree: ./_generated
+   :toctree: ../_generated
    :template: autosummary/only_class.rst
 
    KempSleepEDF2013
