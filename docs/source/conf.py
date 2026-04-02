@@ -1,11 +1,17 @@
 import os
 import datetime
-import inspect
-import importlib
+import glob
+import jinja2
 
 import brainsets
 import brainsets.taxonomy
-import glob as glob
+import brainsets.descriptions
+import brainsets.core
+import brainsets.utils.mat_utils
+import brainsets.utils.dandi_utils
+import brainsets.utils.dir_utils
+import brainsets.utils.split
+import brainsets.processing.signal
 
 author = "neuro-galaxy Team"
 project = "brainsets"
@@ -68,86 +74,43 @@ html_logo = "_static/brainsets_logo.png"
 html_favicon = "_static/brainsets_logo.png"
 
 
-def _get_module_classes(module):
-    return [
-        name
-        for name, obj in inspect.getmembers(module, inspect.isclass)
-        if obj.__module__.startswith(module.__name__) and not name.startswith("_")
-    ]
-
-
-def _get_module_fns(module):
-    return [
-        name
-        for name, obj in inspect.getmembers(module, inspect.isfunction)
-        if obj.__module__.startswith(module.__name__) and not name.startswith("_")
-    ]
-
-
-def _write_class_stub(generated_dir, module, name):
-    stub_path = os.path.join(generated_dir, f"{module}.{name}.rst")
-    underline = "=" * len(name)
-    with open(stub_path, "w") as f:
-        f.write(f"{name}\n{underline}\n\n")
-        f.write(f".. currentmodule:: {module}\n\n")
-        f.write(f".. autoclass:: {name}\n")
-        f.write(f"   :members:\n")
-        f.write(f"   :show-inheritance:\n")
-        f.write(f"   :undoc-members:\n")
-        f.write(f"   :member-order: bysource\n")
-
-
-def _write_function_stub(generated_dir, module, name):
-    stub_path = os.path.join(generated_dir, f"{module}.{name}.rst")
-    underline = "=" * len(name)
-    with open(stub_path, "w") as f:
-        f.write(f"{name}\n{underline}\n\n")
-        f.write(f".. currentmodule:: {module}\n\n")
-        f.write(f".. autofunction:: {name}\n")
-
-
-modules = [
-    "brainsets.descriptions",
-    "brainsets.taxonomy",
-    "brainsets.core",
-    "brainsets.utils.mat_utils",
-    "brainsets.utils.dandi_utils",
-    "brainsets.utils.dir_utils",
-    "brainsets.utils.split",
-    "brainsets.processing.signal",
-]
-
+# Remove stale stubs so deleted or renamed symbols don't persist across builds
 _generated_dir = os.path.join(os.path.dirname(__file__), "_generated")
 os.makedirs(_generated_dir, exist_ok=True)
-
-# Remove stale stubs so deleted or renamed symbols don't persist across builds
 for _stale in glob.glob(os.path.join(_generated_dir, "*.rst")):
     os.remove(_stale)
 
-rst_context = {
-    "brainsets": brainsets,
-    "taxonomy": brainsets.taxonomy,
-}
-
-for module_name in modules:
-    m = importlib.import_module(module_name)
-    # exclude starting "brainsets."
-    context_name = "__".join(module_name.removeprefix("brainsets.").split("."))
-
-    classes = _get_module_classes(m)
-    for c in classes:
-        _write_class_stub(_generated_dir, module_name, c)
-    rst_context[f"{context_name}__cls"] = classes
-
-    fns = _get_module_fns(m)
-    for f in fns:
-        _write_function_stub(_generated_dir, module_name, f)
-    rst_context[f"{context_name}__fns"] = fns
+# Generate stubs at conf.py import time so they exist before autosummary scans
+# source files (autosummary pre-generation runs before source-read events fire,
+# so Jinja2-rendered content would otherwise be invisible to it).
+for _mod_name, _mod in [
+    ("brainsets.taxonomy", brainsets.taxonomy),
+    ("brainsets.descriptions", brainsets.descriptions),
+    ("brainsets.core", brainsets.core),
+    ("brainsets.utils.mat_utils", brainsets.utils.mat_utils),
+    ("brainsets.utils.dandi_utils", brainsets.utils.dandi_utils),
+    ("brainsets.utils.dir_utils", brainsets.utils.dir_utils),
+    ("brainsets.utils", brainsets.utils),
+    ("brainsets.processing", brainsets.processing),
+]:
+    for _name in getattr(_mod, "_classes", []):
+        with open(os.path.join(_generated_dir, f"{_mod_name}.{_name}.rst"), "w") as _f:
+            _f.write(f"{_name}\n{'=' * len(_name)}\n\n")
+            _f.write(f".. currentmodule:: {_mod_name}\n\n")
+            _f.write(f".. autoclass:: {_name}\n")
+            _f.write(
+                f"   :members:\n   :show-inheritance:\n   :undoc-members:\n   :member-order: bysource\n"
+            )
+    for _name in getattr(_mod, "_functions", []):
+        with open(os.path.join(_generated_dir, f"{_mod_name}.{_name}.rst"), "w") as _f:
+            _f.write(f"{_name}\n{'=' * len(_name)}\n\n")
+            _f.write(f".. currentmodule:: {_mod_name}\n\n")
+            _f.write(f".. autofunction:: {_name}\n")
 
 
 def rst_jinja_render(app, _, source):
-    if hasattr(app.builder, "templates"):
-        source[0] = app.builder.templates.render_string(source[0], rst_context)
+    rst_context = {"brainsets": brainsets}
+    source[0] = jinja2.Environment().from_string(source[0]).render(rst_context)
 
 
 def setup(app):

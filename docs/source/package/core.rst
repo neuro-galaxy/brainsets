@@ -8,7 +8,7 @@ brainsets.core
    :toctree: ../_generated
    :template: autosummary/class.rst
 
-   {% for name in core__cls %}
+   {% for name in brainsets.core._classes %}
    {{ name }}
    {% endfor %}
 
@@ -17,7 +17,7 @@ brainsets.core
    :toctree: ../_generated
    :template: autosummary/function.rst
 
-   {% for name in core__fns %}
+   {% for name in brainsets.core._functions %}
    {{ name }}
    {% endfor %}
 

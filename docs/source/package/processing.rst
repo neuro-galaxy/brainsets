@@ -13,6 +13,6 @@ Signal
    :toctree: ../_generated
    :template: autosummary/function.rst
 
-   {% for name in processing__signal__fns %}
+   {% for name in brainsets.processing.signal._functions %}
    {{ name }}
    {% endfor %}

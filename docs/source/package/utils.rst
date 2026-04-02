@@ -11,7 +11,7 @@ brainsets.utils.mat_utils
    :toctree: ../_generated
    :template: autosummary/function.rst
 
-   {% for name in utils__mat_utils__fns %}
+   {% for name in brainsets.utils.mat_utils._functions %}
    {{ name }}
    {% endfor %}
 
@@ -25,7 +25,7 @@ brainsets.utils.dandi_utils
    :toctree: ../_generated
    :template: autosummary/function.rst
 
-   {% for name in utils__dandi_utils__fns %}
+   {% for name in brainsets.utils.dandi_utils._functions %}
    {{ name }}
    {% endfor %}
 
@@ -39,7 +39,7 @@ brainsets.utils.dir_utils
    :toctree: ../_generated
    :template: autosummary/function.rst
 
-   {% for name in utils__dir_utils__fns %}
+   {% for name in brainsets.utils.dir_utils._functions %}
    {{ name }}
    {% endfor %}
 
@@ -53,6 +53,6 @@ brainsets.utils.split_utils
    :toctree: ../_generated
    :template: autosummary/function.rst
 
-   {% for name in utils__split__fns %}
+   {% for name in brainsets.utils.split._functions %}
    {{ name }}
    {% endfor %}
