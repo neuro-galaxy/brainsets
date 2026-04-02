@@ -8,6 +8,6 @@ brainsets.descriptions
    :toctree: ../_generated
    :template: autosummary/default.rst
 
-   {% for name in description_classes %}
+   {% for name in descriptions_classes %}
    {{ name }}
    {% endfor %}
