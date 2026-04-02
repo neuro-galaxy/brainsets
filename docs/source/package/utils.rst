@@ -1,8 +1,8 @@
 brainsets.utils
 ---------------
 
-mat utils
-~~~~~~~~~
+brainsets.utils.mat_utils
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. currentmodule:: brainsets.utils.mat_utils
 

@@ -21,3 +21,4 @@ brainsets.core
    {{ name }}
    {% endfor %}
 
+.. autodata:: brainsets.core.serialize_fn_map
