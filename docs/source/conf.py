@@ -90,8 +90,8 @@ for _mod_name, _mod in [
     ("brainsets.utils.mat_utils", brainsets.utils.mat_utils),
     ("brainsets.utils.dandi_utils", brainsets.utils.dandi_utils),
     ("brainsets.utils.dir_utils", brainsets.utils.dir_utils),
-    ("brainsets.utils", brainsets.utils),
-    ("brainsets.processing", brainsets.processing),
+    ("brainsets.utils.split", brainsets.utils.split),
+    ("brainsets.processing.signal", brainsets.processing.signal),
 ]:
     for _name in getattr(_mod, "_classes", []):
         with open(os.path.join(_generated_dir, f"{_mod_name}.{_name}.rst"), "w") as _f:
