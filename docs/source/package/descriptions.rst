@@ -5,9 +5,9 @@ brainsets.descriptions
 
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
-   :template: autosummary/default.rst
+   :toctree: ../_generated
+   :template: autosummary/class.rst
 
-   {% for name in description_classes %}
+   {% for name in descriptions__cls %}
    {{ name }}
    {% endfor %}

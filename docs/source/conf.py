@@ -1,16 +1,11 @@
 import os
 import datetime
 import inspect
+import importlib
 
 import brainsets
 import brainsets.taxonomy
-import brainsets.descriptions
-import brainsets.utils.mat_utils
-import brainsets.utils.dandi_utils
-import brainsets.utils.dir_utils
-import brainsets.utils.split
 import glob as glob
-import brainsets.processing
 
 author = "neuro-galaxy Team"
 project = "brainsets"
@@ -36,7 +31,7 @@ html_theme = "furo"
 html_static_path = ["_static"]
 templates_path = ["_templates"]
 
-add_module_names = False
+add_module_names = True
 autodoc_member_order = "bysource"
 autosummary_generate = True
 
@@ -49,6 +44,7 @@ intersphinx_mapping = {
     "h5py": ("http://docs.h5py.org/en/latest/", None),
     "temporaldata": ("https://temporaldata.readthedocs.io/en/latest/", None),
     "torch_brain": ("https://torch-brain.readthedocs.io/en/latest/", None),
+    "pydantic": ("https://pydantic.dev", None),
 }
 
 myst_enable_extensions = [
@@ -72,40 +68,20 @@ html_logo = "_static/brainsets_logo.png"
 html_favicon = "_static/brainsets_logo.png"
 
 
-taxonomy_classes = [
-    name
-    for name, obj in inspect.getmembers(brainsets.taxonomy, inspect.isclass)
-    if obj.__module__.startswith("brainsets.taxonomy") and not name.startswith("_")
-]
-
-description_classes = [
-    name
-    for name, obj in inspect.getmembers(brainsets.descriptions, inspect.isclass)
-    if obj.__module__ == "brainsets.descriptions" and not name.startswith("_")
-]
+def _get_module_classes(module):
+    return [
+        name
+        for name, obj in inspect.getmembers(module, inspect.isclass)
+        if obj.__module__.startswith(module.__name__) and not name.startswith("_")
+    ]
 
 
 def _get_module_fns(module):
     return [
         name
         for name, obj in inspect.getmembers(module, inspect.isfunction)
-        if obj.__module__ == module.__name__ and not name.startswith("_")
+        if obj.__module__.startswith(module.__name__) and not name.startswith("_")
     ]
-
-
-mat_utils_fns = _get_module_fns(brainsets.utils.mat_utils)
-dandi_utils_fns = _get_module_fns(brainsets.utils.dandi_utils)
-dir_utils_fns = _get_module_fns(brainsets.utils.dir_utils)
-split_fns = _get_module_fns(brainsets.utils.split)
-signal_processing_fns = _get_module_fns(brainsets.processing.signal)
-
-
-_generated_dir = os.path.join(os.path.dirname(__file__), "generated")
-os.makedirs(_generated_dir, exist_ok=True)
-
-# Remove stale stubs so deleted or renamed symbols don't persist across builds
-for _stale in glob.glob(os.path.join(_generated_dir, "*.rst")):
-    os.remove(_stale)
 
 
 def _write_class_stub(generated_dir, module, name):
@@ -121,13 +97,6 @@ def _write_class_stub(generated_dir, module, name):
         f.write(f"   :member-order: bysource\n")
 
 
-for _name in description_classes:
-    _write_class_stub(_generated_dir, "brainsets.descriptions", _name)
-
-for _name in taxonomy_classes:
-    _write_class_stub(_generated_dir, "brainsets.taxonomy", _name)
-
-
 def _write_function_stub(generated_dir, module, name):
     stub_path = os.path.join(generated_dir, f"{module}.{name}.rst")
     underline = "=" * len(name)
@@ -137,31 +106,47 @@ def _write_function_stub(generated_dir, module, name):
         f.write(f".. autofunction:: {name}\n")
 
 
-for _name in mat_utils_fns:
-    _write_function_stub(_generated_dir, "brainsets.utils.mat_utils", _name)
-for _name in dandi_utils_fns:
-    _write_function_stub(_generated_dir, "brainsets.utils.dandi_utils", _name)
-for _name in dir_utils_fns:
-    _write_function_stub(_generated_dir, "brainsets.utils.dir_utils", _name)
-for _name in split_fns:
-    _write_function_stub(_generated_dir, "brainsets.utils.split", _name)
-for _name in signal_processing_fns:
-    _write_function_stub(_generated_dir, "brainsets.processing.signal", _name)
+modules = [
+    "brainsets.descriptions",
+    "brainsets.taxonomy",
+    "brainsets.core",
+    "brainsets.utils.mat_utils",
+    "brainsets.utils.dandi_utils",
+    "brainsets.utils.dir_utils",
+    "brainsets.utils.split",
+    "brainsets.processing.signal",
+]
+
+_generated_dir = os.path.join(os.path.dirname(__file__), "_generated")
+os.makedirs(_generated_dir, exist_ok=True)
+
+# Remove stale stubs so deleted or renamed symbols don't persist across builds
+for _stale in glob.glob(os.path.join(_generated_dir, "*.rst")):
+    os.remove(_stale)
+
+rst_context = {
+    "brainsets": brainsets,
+    "taxonomy": brainsets.taxonomy,
+}
+
+for module_name in modules:
+    m = importlib.import_module(module_name)
+    # exclude starting "brainsets."
+    context_name = "__".join(module_name.removeprefix("brainsets.").split("."))
+
+    classes = _get_module_classes(m)
+    for c in classes:
+        _write_class_stub(_generated_dir, module_name, c)
+    rst_context[f"{context_name}__cls"] = classes
+
+    fns = _get_module_fns(m)
+    for f in fns:
+        _write_function_stub(_generated_dir, module_name, f)
+    rst_context[f"{context_name}__fns"] = fns
 
 
 def rst_jinja_render(app, _, source):
     if hasattr(app.builder, "templates"):
-        rst_context = {
-            "brainsets": brainsets,
-            "taxonomy": brainsets.taxonomy,
-            "taxonomy_classes": taxonomy_classes,
-            "description_classes": description_classes,
-            "mat_utils_fns": mat_utils_fns,
-            "dandi_utils_fns": dandi_utils_fns,
-            "dir_utils_fns": dir_utils_fns,
-            "split_fns": split_fns,
-            "signal_processing_fns": signal_processing_fns,
-        }
         source[0] = app.builder.templates.render_string(source[0], rst_context)
 
 

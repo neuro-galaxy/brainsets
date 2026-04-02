@@ -1,14 +1,14 @@
 .. currentmodule:: brainsets.datasets
 
-Datasets
+brainsets.datasets
 ==================
 
 Electrophysiology Datasets
 --------------------------
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
-   :template: autosummary/only_class.rst
+   :toctree: ../_generated
+   :template: autosummary/class_dataset.rst
 
    PerichMillerPopulation2018
    PeiPandarinathNLB2021
@@ -20,8 +20,8 @@ Calcium Imaging Datasets
 -------------------------
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
-   :template: autosummary/only_class.rst
+   :toctree: ../_generated
+   :template: autosummary/class_dataset.rst
 
    AllenVisualCodingOphys2016
 
@@ -29,7 +29,7 @@ PSG Datasets
 ------------------------------
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
-   :template: autosummary/only_class.rst
+   :toctree: ../_generated
+   :template: autosummary/class_dataset.rst
 
    KempSleepEDF2013

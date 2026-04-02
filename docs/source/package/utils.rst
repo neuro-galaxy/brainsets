@@ -1,58 +1,58 @@
 brainsets.utils
 ---------------
 
-mat utils
-~~~~~~~~~
+brainsets.utils.mat_utils
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. currentmodule:: brainsets.utils.mat_utils
 
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
+   :toctree: ../_generated
    :template: autosummary/function.rst
 
-   {% for name in mat_utils_fns %}
+   {% for name in utils__mat_utils__fns %}
    {{ name }}
    {% endfor %}
 
-dandi utils
-~~~~~~~~~~~
+brainsets.utils.dandi_utils
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. currentmodule:: brainsets.utils.dandi_utils
 
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
+   :toctree: ../_generated
    :template: autosummary/function.rst
 
-   {% for name in dandi_utils_fns %}
+   {% for name in utils__dandi_utils__fns %}
    {{ name }}
    {% endfor %}
 
-dir utils
-~~~~~~~~~
+brainsets.utils.dir_utils
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. currentmodule:: brainsets.utils.dir_utils
 
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
+   :toctree: ../_generated
    :template: autosummary/function.rst
 
-   {% for name in dir_utils_fns %}
+   {% for name in utils__dir_utils__fns %}
    {{ name }}
    {% endfor %}
 
-split utils
-~~~~~~~~~~~
+brainsets.utils.split_utils
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. currentmodule:: brainsets.utils.split
 
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
+   :toctree: ../_generated
    :template: autosummary/function.rst
 
-   {% for name in split_fns %}
+   {% for name in utils__split__fns %}
    {{ name }}
    {% endfor %}
