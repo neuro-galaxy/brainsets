@@ -5,13 +5,7 @@ import importlib
 
 import brainsets
 import brainsets.taxonomy
-import brainsets.descriptions
-import brainsets.utils.mat_utils
-import brainsets.utils.dandi_utils
-import brainsets.utils.dir_utils
-import brainsets.utils.split
 import glob as glob
-import brainsets.processing
 
 author = "neuro-galaxy Team"
 project = "brainsets"
