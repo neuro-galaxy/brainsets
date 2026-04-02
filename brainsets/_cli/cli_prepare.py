@@ -24,6 +24,9 @@ from .utils import (
 
 
 def complete_brainset(ctx, param, incomplete):
+    if ctx.params.get("local"):
+        return [CompletionItem(incomplete, type="dir")]
+
     try:
         names = get_available_brainsets()
     except Exception:
