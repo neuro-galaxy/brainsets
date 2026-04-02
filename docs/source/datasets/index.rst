@@ -13,7 +13,7 @@ Electrophysiology Datasets
    {% for name in brainsets.datasets._classes_electrophysiology %}
 
 Calcium Imaging Datasets
--------------------------
+------------------------
 .. autosummary::
    :nosignatures:
    :toctree: ../_generated
@@ -22,7 +22,7 @@ Calcium Imaging Datasets
    {% for name in brainsets.datasets._classes_calcium_imaging %}
 
 iEEG Datasets
-------------------------------
+-------------
 .. autosummary::
    :nosignatures:
    :toctree: ../_generated
@@ -31,7 +31,7 @@ iEEG Datasets
    {% for name in brainsets.datasets._classes_ieeg %}
 
 PSG Datasets
-------------------------------
+------------
 .. autosummary::
    :nosignatures:
    :toctree: ../_generated
