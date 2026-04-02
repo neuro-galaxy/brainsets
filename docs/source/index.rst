@@ -54,12 +54,12 @@ If you encounter any bugs or have feature requests, please submit them to our
    :maxdepth: 1
    :caption: Package Reference
 
-   package/core
    package/brainsetpipeline
    package/descriptions
    package/taxonomy
-   package/processing
    package/utils
+   package/core
+   package/processing
 
 .. toctree::
    :maxdepth: 2
