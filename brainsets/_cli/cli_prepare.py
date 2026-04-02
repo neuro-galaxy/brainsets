@@ -24,11 +24,11 @@ from .utils import (
 
 
 def complete_brainset(ctx, param, incomplete):
-    return [
-        CompletionItem(name)
-        for name in get_available_brainsets()
-        if name.startswith(incomplete)
-    ]
+    try:
+        names = get_available_brainsets()
+    except Exception:
+        return []
+    return [CompletionItem(name) for name in names if name.startswith(incomplete)]
 
 
 @click.command(
