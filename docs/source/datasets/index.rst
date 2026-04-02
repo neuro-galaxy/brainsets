@@ -1,6 +1,6 @@
 .. currentmodule:: brainsets.datasets
 
-Datasets
+brainsets.datasets
 ==================
 
 Electrophysiology Datasets
