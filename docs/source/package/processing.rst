@@ -10,7 +10,7 @@ Signal
 
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
+   :toctree: ./_generated
    :template: autosummary/function.rst
 
    {% for name in signal_processing_fns %}

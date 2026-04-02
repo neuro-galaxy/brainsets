@@ -5,7 +5,7 @@ brainsets.taxonomy
 
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
+   :toctree: ./_generated
    :template: autosummary/default.rst
 
    {% for name in taxonomy_classes %}

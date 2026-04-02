@@ -89,23 +89,6 @@ def _get_module_fns(module):
     ]
 
 
-description_classes = _get_module_classes(brainsets.taxonomy)
-taxonomy_classes = _get_module_classes(brainsets.descriptions)
-mat_utils_fns = _get_module_fns(brainsets.utils.mat_utils)
-dandi_utils_fns = _get_module_fns(brainsets.utils.dandi_utils)
-dir_utils_fns = _get_module_fns(brainsets.utils.dir_utils)
-split_fns = _get_module_fns(brainsets.utils.split)
-signal_processing_fns = _get_module_fns(brainsets.processing.signal)
-
-
-_generated_dir = os.path.join(os.path.dirname(__file__), "generated")
-os.makedirs(_generated_dir, exist_ok=True)
-
-# Remove stale stubs so deleted or renamed symbols don't persist across builds
-for _stale in glob.glob(os.path.join(_generated_dir, "*.rst")):
-    os.remove(_stale)
-
-
 def _write_class_stub(generated_dir, module, name):
     stub_path = os.path.join(generated_dir, f"{module}.{name}.rst")
     underline = "=" * len(name)
@@ -119,13 +102,6 @@ def _write_class_stub(generated_dir, module, name):
         f.write(f"   :member-order: bysource\n")
 
 
-for _name in description_classes:
-    _write_class_stub(_generated_dir, "brainsets.descriptions", _name)
-
-for _name in taxonomy_classes:
-    _write_class_stub(_generated_dir, "brainsets.taxonomy", _name)
-
-
 def _write_function_stub(generated_dir, module, name):
     stub_path = os.path.join(generated_dir, f"{module}.{name}.rst")
     underline = "=" * len(name)
@@ -133,6 +109,30 @@ def _write_function_stub(generated_dir, module, name):
         f.write(f"{name}\n{underline}\n\n")
         f.write(f".. currentmodule:: {module}\n\n")
         f.write(f".. autofunction:: {name}\n")
+
+
+description_classes = _get_module_classes(brainsets.taxonomy)
+taxonomy_classes = _get_module_classes(brainsets.descriptions)
+mat_utils_fns = _get_module_fns(brainsets.utils.mat_utils)
+dandi_utils_fns = _get_module_fns(brainsets.utils.dandi_utils)
+dir_utils_fns = _get_module_fns(brainsets.utils.dir_utils)
+split_fns = _get_module_fns(brainsets.utils.split)
+signal_processing_fns = _get_module_fns(brainsets.processing.signal)
+
+
+_generated_dir = os.path.join(os.path.dirname(__file__), "_generated")
+os.makedirs(_generated_dir, exist_ok=True)
+
+# Remove stale stubs so deleted or renamed symbols don't persist across builds
+for _stale in glob.glob(os.path.join(_generated_dir, "*.rst")):
+    os.remove(_stale)
+
+
+for _name in description_classes:
+    _write_class_stub(_generated_dir, "brainsets.descriptions", _name)
+
+for _name in taxonomy_classes:
+    _write_class_stub(_generated_dir, "brainsets.taxonomy", _name)
 
 
 for _name in mat_utils_fns:

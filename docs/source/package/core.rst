@@ -7,7 +7,7 @@ Base Classes
 ------------
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
+   :toctree: ./_generated
    :template: autosummary/default.rst
 
    StringIntEnum
@@ -17,7 +17,7 @@ Serialization Functions
 -----------------------
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
+   :toctree: ./_generated
    :template: autosummary/function.rst
 
    string_int_enum_serialize_fn

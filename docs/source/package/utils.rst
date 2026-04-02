@@ -8,7 +8,7 @@ mat utils
 
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
+   :toctree: ./_generated
    :template: autosummary/function.rst
 
    {% for name in mat_utils_fns %}
@@ -22,7 +22,7 @@ dandi utils
 
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
+   :toctree: ./_generated
    :template: autosummary/function.rst
 
    {% for name in dandi_utils_fns %}
@@ -36,7 +36,7 @@ dir utils
 
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
+   :toctree: ./_generated
    :template: autosummary/function.rst
 
    {% for name in dir_utils_fns %}
@@ -50,7 +50,7 @@ split utils
 
 .. autosummary::
    :nosignatures:
-   :toctree: ../generated
+   :toctree: ./_generated
    :template: autosummary/function.rst
 
    {% for name in split_fns %}
