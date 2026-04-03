@@ -83,7 +83,7 @@ Download and process a single brainset.
 
 .. code-block::
 
-    brainsets prepare BRAINSET [OPTIONS]
+    brainsets prepare [OPTIONS] BRAINSET
 
 **Arguments**
 
