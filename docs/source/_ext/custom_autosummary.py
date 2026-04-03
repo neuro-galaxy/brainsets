@@ -47,7 +47,7 @@ def _expand_for_lines(lines):
 
 _original_autosummary_run = autosummary_ext.Autosummary.run
 
-
+# Custom: expand {% for <var> in <module.attr> %} into toctree table
 def _patched_autosummary_run(self):
     """Expand {% for %} lines in directive content before building the table."""
     expanded = _expand_for_lines(list(self.content))
