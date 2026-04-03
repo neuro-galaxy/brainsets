@@ -33,10 +33,10 @@ def config(ctx, raw_dir, processed_dir):
             "deprecated. Use `brainsets config set` instead.",
             err=True,
         )
-        ctx.invoke(set, raw_dir=raw_dir, processed_dir=processed_dir)
+        ctx.invoke(set_config, raw_dir=raw_dir, processed_dir=processed_dir)
 
 
-@config.command()
+@config.command(name="set")
 @click.option(
     "--raw-dir",
     help="Path for storing raw data.",
@@ -49,7 +49,7 @@ def config(ctx, raw_dir, processed_dir):
     type=click.Path(file_okay=False, dir_okay=True),
     required=False,
 )
-def set(raw_dir: Optional[Path], processed_dir: Optional[Path]):
+def set_config(raw_dir: Optional[Path], processed_dir: Optional[Path]):
     """Set raw and processed data directories."""
 
     # Get missing args from user prompts
