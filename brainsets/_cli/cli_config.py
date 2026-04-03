@@ -5,7 +5,9 @@ from prompt_toolkit import prompt
 from prompt_toolkit.shortcuts import CompleteStyle
 from prompt_toolkit.completion import PathCompleter
 
-from .utils import CONFIG_FILE, load_config, save_config, expand_path
+from brainsets.config import CONFIG_FILE, load_config, save_config
+
+from .utils import expand_path
 
 
 @click.group(invoke_without_command=True)

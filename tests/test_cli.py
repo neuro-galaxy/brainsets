@@ -10,7 +10,7 @@ from brainsets._cli.cli_completion import (
     _detect_shell,
     SHELL_COMPLETION_FILENAMES,
 )
-from brainsets._cli.utils import CONFIG_FILE
+from brainsets.config import CONFIG_FILE
 
 
 class TestDetectShell:

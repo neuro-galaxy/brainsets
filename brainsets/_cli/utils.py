@@ -1,12 +1,11 @@
 import os
-from typing import Callable, List, Optional, Union
+from typing import Union
 import click
-import yaml
 from pathlib import Path
 import brainsets_pipelines
-from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
 
-CONFIG_FILE = Path.home() / ".brainsets.yaml"
+from brainsets.config import CONFIG_FILE, load_config as _load_config
+
 PIPELINES_PATH = Path(brainsets_pipelines.__path__[0])
 
 
@@ -17,43 +16,15 @@ def expand_path(path: Union[str, Path]) -> Path:
     return Path(os.path.abspath(os.path.expandvars(os.path.expanduser(path))))
 
 
-def load_config(path: Path = CONFIG_FILE, raise_cli_error: bool = True):
-    if path.exists():
-        with open(path, "r") as f:
-            ret = yaml.safe_load(f)
-
-        if raise_cli_error:
-            _validate_config(ret)
-        else:
-            try:
-                _validate_config(ret)
-            except:
-                return None
-
-        return ret
-    elif raise_cli_error:
+def load_config(path: Path = CONFIG_FILE):
+    """Load config or raise a :class:`click.ClickException` on failure."""
+    config = _load_config(path)
+    if config is None:
         raise click.ClickException(
-            f"Config not found at {path}. Please run `brainsets config`"
+            f"Config not found or invalid at {path}. "
+            "Please run `brainsets config set`."
         )
-    else:
-        return None
-
-
-def _validate_config(config: dict):
-    if "raw_dir" not in config:
-        raise click.ClickException(
-            "'raw_dir' missing in config. Please run `brainsets config`."
-        )
-    if "processed_dir" not in config:
-        raise click.ClickException(
-            "'processed_dir' missing in config. Please run `brainsets config`."
-        )
-
-
-def save_config(config):
-    with open(CONFIG_FILE, "w") as f:
-        yaml.safe_dump(config, f, default_flow_style=False)
-    return CONFIG_FILE
+    return config
 
 
 def get_available_brainsets():
