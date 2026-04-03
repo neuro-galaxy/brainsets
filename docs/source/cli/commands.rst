@@ -138,13 +138,4 @@ Download and process a single brainset.
 
     Print debugging information.
 
-Additional arguments are passed through to the pipeline.
-
-**Examples**
-
-.. code-block::
-
-    brainsets prepare pei_pandarinath_nlb_2021
-    brainsets prepare pei_pandarinath_nlb_2021 --download-only
-    brainsets prepare pei_pandarinath_nlb_2021 --cores 8 --raw-dir ~/data/raw --processed-dir ~/data/processed
-    brainsets prepare ./my_local_pipeline --local
+Any additional arguments are passed through to the pipeline.
