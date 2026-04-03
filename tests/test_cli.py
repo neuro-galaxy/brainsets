@@ -100,9 +100,7 @@ class TestConfigCommand:
         processed_dir = str(tmp_path / "processed")
         mock_config = {"raw_dir": raw_dir, "processed_dir": processed_dir}
 
-        with patch(
-            "brainsets._cli.cli_config.load_config", return_value=mock_config
-        ):
+        with patch("brainsets._cli.cli_config.load_config", return_value=mock_config):
             result = runner.invoke(cli, ["config", "show"])
             assert result.exit_code == 0, f"CLI failed with: {result.output}"
             assert f"Config file: {CONFIG_FILE}" in result.output
@@ -124,9 +122,10 @@ class TestConfigCommand:
         raw_dir = tmp_path / "raw"
         processed_dir = tmp_path / "processed"
 
-        with patch(
-            "brainsets._cli.cli_config.load_config", return_value=None
-        ), patch("brainsets._cli.cli_config.save_config", return_value=CONFIG_FILE):
+        with (
+            patch("brainsets._cli.cli_config.load_config", return_value=None),
+            patch("brainsets._cli.cli_config.save_config", return_value=CONFIG_FILE),
+        ):
             result = runner.invoke(
                 cli,
                 [
