@@ -20,5 +20,6 @@ brainsets.core
 .. autosummary::
    :nosignatures:
    :toctree: ../_generated
+   :template: autosummary/data.rst
 
    {% for name in brainsets.core._constants %}
