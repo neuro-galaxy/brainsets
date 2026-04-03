@@ -14,8 +14,11 @@ def load_config(path: Path = CONFIG_FILE) -> Optional[dict]:
     if not path.exists():
         return None
 
-    with open(path, "r") as f:
-        config = yaml.safe_load(f)
+    try:
+        with open(path, "r") as f:
+            config = yaml.safe_load(f)
+    except (OSError, yaml.YAMLError):
+        return None
 
     if not isinstance(config, dict):
         return None

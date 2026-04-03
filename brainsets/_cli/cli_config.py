@@ -73,7 +73,7 @@ def set(raw_dir: Optional[Path], processed_dir: Optional[Path]):
     processed_dir.mkdir(parents=True, exist_ok=True)
 
     # Save config
-    cfg = load_config(raise_cli_error=False)
+    cfg = load_config()
     config_exists = cfg is not None
     if not config_exists:
         cfg = {}
@@ -93,7 +93,7 @@ def set(raw_dir: Optional[Path], processed_dir: Optional[Path]):
 @config.command()
 def show():
     """Display current configuration."""
-    cfg = load_config(raise_cli_error=False)
+    cfg = load_config()
     if cfg is None:
         raise click.ClickException(
             f"Config not found at {CONFIG_FILE}. Please run `brainsets config set`."
