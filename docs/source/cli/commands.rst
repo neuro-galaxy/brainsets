@@ -77,7 +77,7 @@ List all pipelines provided by the installed package.
 
 
 brainsets prepare
-------------------
+-----------------
 
 Download and process a single brainset.
 
@@ -92,7 +92,7 @@ Download and process a single brainset.
 ``BRAINSET``
 
     Name of the brainset to prepare (see ``brainsets list``). When used with ``--local``,
-this should be the path to a local pipeline directory.
+    this should be the path to a local pipeline directory.
 
 **Options**
 
