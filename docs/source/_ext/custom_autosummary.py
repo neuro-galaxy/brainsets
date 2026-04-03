@@ -20,6 +20,14 @@ import sphinx.ext.autosummary.generate as autosummary
 _list_arg_re = re.compile(r"^\s*{%\s*for\s+\S+\s+in\s+(.*?)\s*%}\s*$")
 
 
+def _normalize_entry(entry) -> str:
+    """Normalize an autosummary list entry to a plain object name."""
+    name = str(entry).strip()
+    if name.startswith("~"):
+        name = name[1:]
+    return name
+
+
 def _expand_for_lines(lines):
     """Expand ``{% for name in module.attr %}`` lines to actual names."""
     expanded = []
@@ -31,7 +39,7 @@ def _expand_for_lines(lines):
             mod = importlib.import_module(module_name)
             indent = len(line) - len(line.lstrip())
             for entry in getattr(mod, obj_name):
-                expanded.append(" " * indent + f"~{module_name}.{entry}")
+                expanded.append(" " * indent + _normalize_entry(entry))
         else:
             expanded.append(line)
     return expanded
@@ -99,7 +107,7 @@ def monkey_patch_find_autosummary_in_lines(
                 for entry in getattr(mod, obj_name):
                     documented.append(
                         autosummary.AutosummaryEntry(
-                            f"{module_name}.{entry}",
+                            f"{module_name}.{_normalize_entry(entry)}",
                             toctree,
                             template,
                             recursive,
