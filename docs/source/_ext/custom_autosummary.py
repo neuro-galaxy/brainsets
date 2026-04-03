@@ -43,7 +43,7 @@ _original_autosummary_run = autosummary_ext.Autosummary.run
 def _patched_autosummary_run(self):
     """Expand {% for %} lines in directive content before building the table."""
     expanded = _expand_for_lines(list(self.content))
-    self.content = StringList(expanded, source="<pyg_autosummary expanded>")
+    self.content = StringList(expanded, source="<custom_autosummary expanded>")
     return _original_autosummary_run(self)
 
 
