@@ -11,7 +11,7 @@ Command line interface for downloading and processing neural data with brainsets
 
 .. code-block::
 
-    brainsets [COMMAND] [OPTIONS]
+    brainsets [OPTIONS] [COMMAND] [ARGS]
 
 **Commands**
 
