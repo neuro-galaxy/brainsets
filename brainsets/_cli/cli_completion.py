@@ -42,7 +42,7 @@ def install_completion(ctx, param, value):
     if shell not in SUPPORTED_SHELLS:
         raise click.ClickException(
             f"Could not detect a supported shell (got '{shell}'). "
-            "Supported shells: bash, zsh."
+            "Supported shells: {SUPPORTED_SHELLS}."
         )
 
     script = _get_completion_script(ctx.command, shell)
