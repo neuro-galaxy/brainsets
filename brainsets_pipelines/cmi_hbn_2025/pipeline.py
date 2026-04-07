@@ -14,7 +14,7 @@ import pandas as pd
 from brainsets import serialize_fn_map
 from brainsets.utils.openneuro import OpenNeuroEEGPipeline
 from brainsets.utils.openneuro.pipeline import _openneuro_parser
-from brainsets.utils.openneuro.dataset import fetch_participants_tsv
+from brainsets.utils.bids_utils import load_participants_tsv
 
 RELEASES = {
     1: "ds005505",
@@ -50,6 +50,7 @@ class Pipeline(OpenNeuroEEGPipeline):
         "passive and active tasks including resting state, movie watching, "
         "and cognitive tasks."
     )
+    origin_version = "1.0.1"
     MODALITY_CHANNELS = MODALITY_CHANNELS
     parser = parser
 
