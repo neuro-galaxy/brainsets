@@ -48,6 +48,7 @@ from brainsets.utils.mne_utils import (
     extract_signal,
     extract_measurement_date,
     extract_channels,
+    extract_annotations,
 )
 from brainsets.utils.split import generate_string_kfold_assignment
 from brainsets.utils.openneuro import (
@@ -357,6 +358,9 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             ignore_channels=self.IGNORE_CHANNELS,
         )
 
+        if raw.annotations:
+            annotations = extract_annotations(raw)
+
         self.update_status("Creating Data Object")
         data_kwargs = {
             "brainset": brainset_description,
@@ -367,6 +371,8 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             "domain": signal.domain,
         }
         data_kwargs[self.modality] = signal
+        if annotations:
+            data_kwargs["annotations"] = annotations
 
         data = Data(**data_kwargs)
         data.splits = self.generate_splits(
