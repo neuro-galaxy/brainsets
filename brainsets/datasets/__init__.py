@@ -5,6 +5,7 @@ from .ChurchlandShenoyNeural2012 import ChurchlandShenoyNeural2012
 from .OdohertySabesNonhuman2017 import OdohertySabesNonhuman2017
 from .AllenVisualCodingOphys2016 import AllenVisualCodingOphys2016
 from .KempSleepEDF2013 import KempSleepEDF2013
+from .Neuroprobe2025 import Neuroprobe2025
 from .KlinzingSleepDS0055552024 import KlinzingSleepDS0055552024
 from .ShiraziHBNR1DS0055052024 import ShiraziHBNR1DS0055052024
 from .KochiVisualNamingDS0069142025 import KochiVisualNamingDS0069142025
