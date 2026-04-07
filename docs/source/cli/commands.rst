@@ -33,6 +33,14 @@ Command line interface for downloading and processing neural data with brainsets
 
     Download and process a single brainset.
 
+**Options**
+
+.. rst-class:: cli-option
+
+``--install-completion``
+
+    Install shell tab-completion for the ``brainsets`` command.
+
 
 brainsets config
 ----------------
