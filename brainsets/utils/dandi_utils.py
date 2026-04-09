@@ -1,5 +1,4 @@
 _functions = [
-    "extract_metadata_from_nwb",
     "extract_subject_from_nwb",
     "extract_spikes_from_nwbfile",
     "download_file",
