@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Removed
 - Remove `brainsets.utils.dir_utils` (legacy code) ([#120](https://github.com/neuro-galaxy/brainsets/pull/120)).
+- Removed `dandi_utils.extract_metadata_from_nwb` (unused, undocumented function) ([#117](https://github.com/neuro-galaxy/brainsets/pull/117))
 
 ### Changed
 - Suppress INFO logs from ray when calling `brainsets prepare` ([#70](https://github.com/neuro-galaxy/brainsets/pull/70)).
@@ -22,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Expanded `mne_utils` with robust channel extraction/remapping support and a validated `concatenate_recordings` workflow (gap checks, measurement date handling, and channel consistency checks) ([#107](https://github.com/neuro-galaxy/brainsets/pull/107)).
 - Exposed `--download-only` flag in `brainsets prepare --help` to allow downloading raw data without processing ([#98](https://github.com/neuro-galaxy/brainsets/pull/98)).
 - Updated dandi version to 0.74.0 in pipelines due to deprecation from dandi ([#101](https://github.com/neuro-galaxy/brainsets/pull/101)).
+- `BrainsetPipeline` runner automatically creates `raw_dir` and `processed_dir` ([#125](https://github.com/neuro-galaxy/brainsets/pull/125))
 
 ## [0.2.0] - 2025-12-24
 ### Added
