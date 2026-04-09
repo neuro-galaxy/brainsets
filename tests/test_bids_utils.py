@@ -19,7 +19,6 @@ try:
     from brainsets.utils.bids_utils import (
         EEG_EXTENSIONS,
         IEEG_EXTENSIONS,
-        Modality,
         fetch_eeg_recordings,
         fetch_ieeg_recordings,
         check_eeg_recording_files_exist,
@@ -29,11 +28,11 @@ try:
         group_recordings_by_entity,
         load_participants_tsv,
         _fetch_recordings,
+        _validate_modality,
     )
 except ImportError:
     EEG_EXTENSIONS = None
     IEEG_EXTENSIONS = None
-    Modality = None
     fetch_eeg_recordings = None
     fetch_ieeg_recordings = None
     check_eeg_recording_files_exist = None
@@ -43,6 +42,7 @@ except ImportError:
     group_recordings_by_entity = None
     load_participants_tsv = None
     _fetch_recordings = None
+    _validate_modality = None
 
 
 # ============================================================================
@@ -171,6 +171,34 @@ def _make_participants_df(tsv_content: str) -> pd.DataFrame:
 
 
 @pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
+class TestValidateModality:
+    """Test the _validate_modality internal validation function."""
+
+    def test_accepts_valid_eeg_modality(self):
+        """Test that 'eeg' modality is accepted without raising an error."""
+        _validate_modality("eeg")
+
+    def test_accepts_valid_ieeg_modality(self):
+        """Test that 'ieeg' modality is accepted without raising an error."""
+        _validate_modality("ieeg")
+
+    def test_raises_value_error_for_unsupported_modality(self):
+        """Test that unsupported modalities raise ValueError."""
+        with pytest.raises(ValueError, match="Unsupported modality"):
+            _validate_modality("meg")
+
+    def test_raises_value_error_for_uppercase_modality(self):
+        """Test that uppercase modalities raise ValueError (case-sensitive)."""
+        with pytest.raises(ValueError, match="Unsupported modality"):
+            _validate_modality("EEG")
+
+    def test_raises_value_error_for_empty_string(self):
+        """Test that empty string raises ValueError."""
+        with pytest.raises(ValueError, match="Unsupported modality"):
+            _validate_modality("")
+
+
+@pytest.mark.skipif(not MNE_BIDS_AVAILABLE, reason="mne_bids not installed")
 class TestFetchRecordings:
     """Test the _fetch_recordings internal function and its wrappers."""
 
@@ -225,14 +253,14 @@ class TestFetchRecordings:
             TypeError,
             match="'source' must be a BIDSPath, Path, or string, or a list of those types. None was provided.",
         ):
-            _fetch_recordings(None, EEG_EXTENSIONS, Modality.EEG)
+            _fetch_recordings(None, EEG_EXTENSIONS, "eeg")
 
     def test_accepts_list_of_strings_and_paths_sources(self, eeg_source_paths):
         """Test that _fetch_recordings handles both string and Path source types."""
         recordings = _fetch_recordings(
             eeg_source_paths,
             EEG_EXTENSIONS,
-            Modality.EEG,
+            "eeg",
         )
 
         assert len(recordings) == 2
@@ -255,12 +283,12 @@ class TestFetchRecordings:
             recordings_from_path = _fetch_recordings(
                 source=bids_root,
                 extensions=EEG_EXTENSIONS,
-                modality=Modality.EEG,
+                modality="eeg",
             )
             recordings_from_str = _fetch_recordings(
                 source=str(bids_root),
                 extensions=EEG_EXTENSIONS,
-                modality=Modality.EEG,
+                modality="eeg",
             )
 
             ids_from_path = sorted(r["recording_id"] for r in recordings_from_path)
@@ -317,7 +345,7 @@ class TestFetchRecordings:
                 _fetch_recordings(
                     source=subject_folder,
                     extensions=EEG_EXTENSIONS,
-                    modality=Modality.EEG,
+                    modality="eeg",
                 )
 
             with pytest.raises(
@@ -326,7 +354,7 @@ class TestFetchRecordings:
                 _fetch_recordings(
                     source=str(subject_folder),
                     extensions=EEG_EXTENSIONS,
-                    modality=Modality.EEG,
+                    modality="eeg",
                 )
         finally:
             shutil.rmtree(bids_root, ignore_errors=True)
@@ -345,7 +373,7 @@ class TestFetchRecordings:
         recordings = _fetch_recordings(
             mixed_extension_paths,
             EEG_EXTENSIONS,
-            Modality.EEG,
+            "eeg",
         )
 
         assert len(recordings) == 3
@@ -745,7 +773,7 @@ class TestBuildBidsPath:
             bids_path = build_bids_path(
                 bids_root=bids_root,
                 recording_id="sub-01_ses-02_task-rest_acq-ecog_run-03_desc-preproc",
-                modality=Modality.IEEG,
+                modality="ieeg",
             )
 
             assert bids_path.root == bids_root
@@ -766,7 +794,7 @@ class TestBuildBidsPath:
             bids_path = build_bids_path(
                 bids_root=bids_root,
                 recording_id="sub-01_task-rest",
-                modality=Modality.EEG,
+                modality="eeg",
             )
 
             assert bids_path.subject == "01"
@@ -788,7 +816,7 @@ class TestBuildBidsPath:
             bids_path = build_bids_path(
                 bids_root,
                 "sub-01_ses-02_acq-ecog_run-03_desc-preproc",
-                Modality.EEG,
+                "eeg",
             )
             assert bids_path.subject == "01"
             assert bids_path.task is None
@@ -802,7 +830,7 @@ class TestBuildBidsPath:
         The function requires only subject to construct a valid BIDSPath.
         """
         try:
-            bids_path = build_bids_path(bids_root, "sub-01", Modality.EEG)
+            bids_path = build_bids_path(bids_root, "sub-01", "eeg")
             assert bids_path.subject == "01"
             assert bids_path.task is None
         finally:
@@ -822,7 +850,7 @@ class TestBuildBidsPath:
         try:
             recording_id = "sub-01_task-rest_foo-bar_eeg.edf"
             with pytest.raises(ValueError, match="Unsupported BIDS entity"):
-                build_bids_path(bids_root, recording_id, Modality.EEG)
+                build_bids_path(bids_root, recording_id, "eeg")
         finally:
             shutil.rmtree(bids_root, ignore_errors=True)
 
@@ -837,7 +865,7 @@ class TestBuildBidsPath:
                 build_bids_path(
                     bids_root=invalid_bids_root,
                     recording_id=recording_id,
-                    modality=Modality.EEG,
+                    modality="eeg",
                 )
         finally:
             shutil.rmtree(invalid_bids_root, ignore_errors=True)
