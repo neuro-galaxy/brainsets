@@ -140,9 +140,11 @@ def run():
     if pipeline_cls.parser is not None:
         pipeline_args = pipeline_cls.parser.parse_args(remaining_args)
 
-    # Set raw and processed dir
+    # Set and create raw and processed dir
     raw_dir = args.raw_dir / pipeline_cls.brainset_id
+    raw_dir.mkdir(parents=True, exist_ok=True)
     processed_dir = args.processed_dir / pipeline_cls.brainset_id
+    processed_dir.mkdir(parents=True, exist_ok=True)
 
     manifest = pipeline_cls.get_manifest(
         raw_dir=raw_dir,
