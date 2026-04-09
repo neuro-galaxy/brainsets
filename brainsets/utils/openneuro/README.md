@@ -229,12 +229,12 @@ def process(self, download_output):
         data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
 ```
 
-### `_generate_splits(domain, subject_id, session_id)`
+### `generate_splits(domain, subject_id, session_id)`
 
 Customize how train/validation splits are created:
 
 ```python
-def _generate_splits(self, domain, subject_id, session_id):
+def generate_splits(self, domain, subject_id, session_id):
     # Custom split logic here
     # Return a Data object with split information
     ...
