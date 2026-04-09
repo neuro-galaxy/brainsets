@@ -29,7 +29,7 @@ class BrainsetPipeline(ABC):
     **Handling pipeline-specific command line arguments:**
         - Subclasses can define pipeline-specific command-line arguments by setting :attr:`parser`.
         - The runner will automatically parse any extra CLI arguments using this parser.
-        - The parsed arguments are passed to the :meth:`get_manifest()` as the `args` method parameter, and to the :meth:`download` and :meth:`process` methods via class attribute :attr:`args`.
+        - The parsed arguments are available via :attr:`self.args` in all methods.
 
     Examples
     --------
@@ -42,8 +42,7 @@ class BrainsetPipeline(ABC):
     ...     brainset_id = "my_brainset"
     ...     parser = parser
     ...
-    ...     @classmethod
-    ...     def get_manifest(cls, raw_dir, processed_dir, args):
+    ...     def get_manifest(self):
     ...         # Return DataFrame of assets to process
     ...         return pd.DataFrame(...)
     ...
@@ -64,8 +63,7 @@ class BrainsetPipeline(ABC):
     command-line arguments.
     If set by a subclass, the runner will automatically parse any extra
     command-line arguments using this parser. The parsed arguments are then
-    passed to `get_manifest()` as a method argument, and to the `download()` and
-    `process()` methods via `self.args`.
+    available via `self.args` in all pipeline methods.
     """
     args: Optional[Namespace]
     """Pipeline-specific arguments parsed from the command line. Set by the runner
@@ -84,39 +82,38 @@ class BrainsetPipeline(ABC):
 
     def __init__(
         self,
-        raw_dir: Path,
-        processed_dir: Path,
-        args: Optional[Namespace],
-        tracker_handle: Optional[ray.actor.ActorHandle] = None,
+        raw_dir: Optional[Path] = None,
+        processed_dir: Optional[Path] = None,
+        args: Optional[Namespace] = None,
         download_only: bool = False,
+        *,
+        _state_dict: Optional[dict] = None,
+        _tracker_handle: Optional[ray.actor.ActorHandle] = None,
     ):
-        self.raw_dir = raw_dir
-        self.processed_dir = processed_dir
-        self.args = args
-        self._tracker_handle = tracker_handle
-        self._download_only = download_only
+        # Two construction paths:
+        # 1. Normal: called directly with explicit args (root process).
+        # 2. Clone: called with _state_dict to recreate an instance from
+        #    an existing pipeline's state (used to propagate object state from get_manifest).
+        if _state_dict is not None:
+            self.__dict__.update(_state_dict)
+        else:
+            assert isinstance(raw_dir, Path)
+            assert isinstance(processed_dir, Path)
+            self.raw_dir = raw_dir
+            self.processed_dir = processed_dir
+            self.args = args
+            self._download_only = download_only
 
-    @classmethod
+        self._tracker_handle = _tracker_handle
+
     @abstractmethod
-    def get_manifest(
-        cls,
-        raw_dir: Path,
-        args: Optional[Namespace],
-    ) -> pd.DataFrame:
+    def get_manifest(self) -> pd.DataFrame:
         r"""Returns a :obj:`pandas.DataFrame`, which is a table of assets to be
         downloaded and processed. Each row will be passed individually to the
         :meth:`download` and :meth:`process` methods.
 
         The index of this DataFrame will be used to identify assets for when user wants
         to process a single asset.
-
-        Parameters
-        ----------
-        raw_dir: Path
-            Raw data directory assigned to this brainset by the pipeline runner.
-        args: Optional[Namespace]
-            Pipeline-specific arguments parsed from the command line. Set by the runner
-            if :attr:`parser` is defined by subclass.
 
         Returns
         -------

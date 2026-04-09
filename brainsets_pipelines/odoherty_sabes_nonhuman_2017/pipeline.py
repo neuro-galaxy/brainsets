@@ -37,24 +37,23 @@ class Pipeline(BrainsetPipeline):
     brainset_id = "odoherty_sabes_nonhuman_2017"
     parser = parser
 
-    @classmethod
-    def get_manifest(cls, raw_dir, args) -> pd.DataFrame:
-        raw_dir.mkdir(exist_ok=True, parents=True)
+    def get_manifest(self) -> pd.DataFrame:
+        self.raw_dir.mkdir(exist_ok=True, parents=True)
 
         # list files to download
         r_fd = os.popen(f"zenodo_get -w - 3854034")
         manifest_out = r_fd.read()
         exit_code = r_fd.close()
         if exit_code is not None and exit_code != 0:
-            raise RuntimeError("zenodo_get (list) failed with exit code {exit_code}")
+            raise RuntimeError(f"zenodo_get (list) failed with exit code {exit_code}")
 
         # fetch md5sums
-        exit_code = os.system(f'cd "{raw_dir}" && zenodo_get -m 3854034')
+        exit_code = os.system(f'cd "{self.raw_dir}" && zenodo_get -m 3854034')
         if exit_code != 0:
             raise RuntimeError("zenodo_get (md5) failed")
 
         # parse md5sums
-        with open(raw_dir / "md5sums.txt", "r") as f:
+        with open(self.raw_dir / "md5sums.txt", "r") as f:
             md5sums = {}
             for line in f:
                 line = line.strip()
