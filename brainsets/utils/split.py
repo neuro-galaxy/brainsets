@@ -8,7 +8,7 @@ __all__ = _functions
 import hashlib
 import logging
 import numpy as np
-from typing import Dict, List, Optional, Tuple
+from typing import List
 from temporaldata import Interval, Data
 
 
