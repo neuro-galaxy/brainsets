@@ -447,6 +447,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         if not np.isclose(sum(self.split_ratios), 1.0):
             raise ValueError("split_ratios must sum to 1.0")
 
+        # intrasession (causal) split
         starts = np.asarray(domain.start)
         ends = np.asarray(domain.end)
         durations = ends - starts
@@ -457,6 +458,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         train = Interval(start=starts.copy(), end=train_ends)
         valid = Interval(start=train_ends, end=valid_ends)
 
+        # n_folds for assignment
         valid_ratio = self.split_ratios[1]
         if valid_ratio <= 0:
             assignment_n_folds = 1
@@ -464,23 +466,24 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             assignment_n_folds = max(1, int(round(1.0 / valid_ratio)))
         assignment_fold_idx = 0
 
+        # intersubject split
         subject_assignments = generate_string_kfold_assignment(
             string_id=subject_id,
             n_folds=assignment_n_folds,
             val_ratio=0.0,
             seed=self.random_seed,
         )
+        subject_assignment = subject_assignments[assignment_fold_idx]
+        if subject_assignment == "test":
+            subject_assignment = "valid"
+
+        # intersession split
         session_assignments = generate_string_kfold_assignment(
             string_id=f"{subject_id}_{session_id}",
             n_folds=assignment_n_folds,
             val_ratio=0.0,
             seed=self.random_seed,
         )
-
-        subject_assignment = subject_assignments[assignment_fold_idx]
-        if subject_assignment == "test":
-            subject_assignment = "valid"
-
         session_assignment = session_assignments[assignment_fold_idx]
         if session_assignment == "test":
             session_assignment = "valid"
