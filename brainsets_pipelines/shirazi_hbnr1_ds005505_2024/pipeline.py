@@ -10,7 +10,7 @@
 
 from brainsets.utils.openneuro import OpenNeuroEEGPipeline
 
-CHANNEL_TYPE_REMAPPING = {"EEG": [f"E{i}" for i in range(1, 129)] + ["Cz"]}
+TYPE_CHANNELS_REMAPPING = {"EEG": [f"E{i}" for i in range(1, 129)] + ["Cz"]}
 
 
 class Pipeline(OpenNeuroEEGPipeline):
@@ -22,4 +22,4 @@ class Pipeline(OpenNeuroEEGPipeline):
         "resting state, movie watching, and cognitive tasks."
     )
     origin_version = "1.0.1"
-    CHANNEL_TYPE_REMAPPING = CHANNEL_TYPE_REMAPPING
+    TYPE_CHANNELS_REMAPPING = TYPE_CHANNELS_REMAPPING

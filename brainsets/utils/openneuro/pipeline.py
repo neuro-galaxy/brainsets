@@ -97,7 +97,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
     Class attributes and override points are provided to support common customization
     such as channel name and type remapping, ignored channels, and data splits. See documentation
-    for CHANNEL_NAME_REMAPPING, CHANNEL_TYPE_REMAPPING, and IGNORE_CHANNELS for more details.
+    for CHANNEL_NAME_REMAPPING, TYPE_CHANNELS_REMAPPING, and IGNORE_CHANNELS for more details.
     """
 
     parser = _openneuro_parser
@@ -131,11 +131,11 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     get_channel_name_remapping() instead.
     """
 
-    CHANNEL_TYPE_REMAPPING: Optional[dict[str, list[str]]] = None
+    TYPE_CHANNELS_REMAPPING: Optional[dict[str, list[str]]] = None
     """Optional dict mapping channel types to lists of channel names.
 
     For more complex configurations (e.g., per-recording mappings), override
-    get_channel_type_remapping() instead.
+    get_type_channels_remapping() instead.
     """
 
     IGNORE_CHANNELS: Optional[list[str]] = None
@@ -356,7 +356,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         channels = extract_channels(
             raw,
             channel_names_mapping=self.get_channel_name_remapping(recording_id),
-            channel_types_mapping=self.get_channel_type_remapping(recording_id),
+            type_channels_mapping=self.get_type_channels_remapping(recording_id),
             ignore_channels=self.IGNORE_CHANNELS,
         )
 
@@ -416,22 +416,22 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         """
         return self.CHANNEL_NAME_REMAPPING
 
-    def get_channel_type_remapping(
+    def get_type_channels_remapping(
         self,
         recording_id: str | None = None,
-    ) -> Optional[dict[str, str]]:
+    ) -> Optional[dict[str, list[str]]]:
         """Return channel type remapping for a given recording.
 
         Override this method to provide per-recording channel type remappings.
-        The default implementation returns the class-level CHANNEL_TYPE_REMAPPING attribute.
+        The default implementation returns the class-level TYPE_CHANNELS_REMAPPING attribute.
 
         Args:
             recording_id: The recording identifier
 
         Returns:
-            Dict mapping channel types to lists of channel names
+            Dict mapping channel types to lists of channel names, or None
         """
-        return self.CHANNEL_TYPE_REMAPPING
+        return self.TYPE_CHANNELS_REMAPPING
 
     def generate_splits(self, domain, subject_id: str, session_id: str) -> Data:
         """Generate default train/valid splits and assignment labels.
@@ -516,7 +516,7 @@ class OpenNeuroEEGPipeline(OpenNeuroPipeline):
                 "PSG_F4": "F4",
             }
 
-            CHANNEL_TYPE_REMAPPING = {
+            TYPE_CHANNELS_REMAPPING = {
                 "EEG": ["F3", "F4"],
                 "EOG": ["EOG"]
             }
@@ -534,14 +534,14 @@ class OpenNeuroEEGPipeline(OpenNeuroPipeline):
                     return {"HB_1": "AF7", "HB_2": "AF8"}
                 return {"PSG_F3": "F3", "PSG_F4": "F4"}
 
-            def get_channel_type_remapping(self, recording_id):
+            def get_type_channels_remapping(self, recording_id):
                 if "acq-headband" in recording_id:
                     return {"EEG": ["AF7", "AF8"]}
                 return {"EEG": ["F3", "F4"], "EOG": ["EOG"]}
 
     **Class Attributes:**
         - CHANNEL_NAME_REMAPPING (dict, optional): Map old channel names to new ones.
-        - CHANNEL_TYPE_REMAPPING (dict, optional): Map channel types to channel lists.
+        - TYPE_CHANNELS_REMAPPING (dict, optional): Map channel types to channel lists.
     """
 
     modality = "eeg"
@@ -569,13 +569,13 @@ class OpenNeuroIEEGPipeline(OpenNeuroPipeline):
     **Changing electrode names and types:**
         - If you wish to change the names or types of electrodes (e.g., for harmonization or custom processing),
           use the same approach as in OpenNeuroEEGPipeline:
-            - Set the `CHANNEL_NAME_REMAPPING`/`CHANNEL_TYPE_REMAPPING` class attribute, or
-            - Override `get_channel_name_remapping(self, recording_id)` / `get_channel_type_remapping(self, recording_id)`
+            - Set the `CHANNEL_NAME_REMAPPING`/`TYPE_CHANNELS_REMAPPING` class attribute, or
+            - Override `get_channel_name_remapping(self, recording_id)` / `get_type_channels_remapping(self, recording_id)`
           with your desired logic.
 
     **Class Attributes:**
         - CHANNEL_NAME_REMAPPING (dict, optional): Map old electrode/channel names to new ones.
-        - CHANNEL_TYPE_REMAPPING (dict, optional): Map types to electrode/channel lists.
+        - TYPE_CHANNELS_REMAPPING (dict, optional): Map types to electrode/channel lists.
     """
 
     modality = "ieeg"

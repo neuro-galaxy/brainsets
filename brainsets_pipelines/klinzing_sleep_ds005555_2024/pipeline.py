@@ -72,7 +72,7 @@ class Pipeline(OpenNeuroEEGPipeline):
             return HEADBAND_ELECTRODE_RENAME
         return PSG_ELECTRODE_RENAME
 
-    def get_channel_type_remapping(self, recording_id):
+    def get_type_channels_remapping(self, recording_id):
         if "acq-headband" in recording_id:
             return HEADBAND_MODALITY_CHANNELS
         return PSG_MODALITY_CHANNELS
