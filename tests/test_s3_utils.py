@@ -12,6 +12,8 @@ from brainsets.utils.s3_utils import (
     UNSIGNED,
     ClientError,
     clear_cached_s3_client,
+    download_public_object,
+    fetch_public_object,
     get_cached_s3_client,
     get_object_list,
     download_prefix,
@@ -189,6 +191,122 @@ class TestListObjects:
         assert "/file1.edf" in result
         assert "" not in result
         assert len(result) == 1
+
+
+class TestFetchPublicObject:
+    def test_returns_object_body(self):
+        mock_client = MagicMock()
+        mock_body = MagicMock()
+        mock_body.read.return_value = b"file is loaded"
+        mock_client.get_object.return_value = {"Body": mock_body}
+
+        result = fetch_public_object(
+            "my-bucket", "path/to/object.txt", s3_client=mock_client
+        )
+
+        assert result == b"file is loaded"
+        mock_client.get_object.assert_called_once_with(
+            Bucket="my-bucket", Key="path/to/object.txt"
+        )
+
+    def test_raises_file_not_found_when_missing(self):
+        mock_client = MagicMock()
+        mock_client.get_object.side_effect = ClientError(
+            {"Error": {"Code": "NoSuchKey", "Message": "Not Found"}}, "GetObject"
+        )
+
+        with pytest.raises(FileNotFoundError, match="my-bucket/path/to/key"):
+            fetch_public_object("my-bucket", "path/to/key", s3_client=mock_client)
+
+    def test_raises_file_not_found_on_404_code(self):
+        mock_client = MagicMock()
+        mock_client.get_object.side_effect = ClientError(
+            {"Error": {"Code": "404", "Message": "Not Found"}}, "GetObject"
+        )
+
+        with pytest.raises(FileNotFoundError):
+            fetch_public_object("b", "k", s3_client=mock_client)
+
+    def test_raises_runtime_error_on_other_client_error(self):
+        mock_client = MagicMock()
+        mock_client.get_object.side_effect = ClientError(
+            {"Error": {"Code": "403", "Message": "Forbidden"}}, "GetObject"
+        )
+
+        with pytest.raises(RuntimeError, match="Failed to fetch"):
+            fetch_public_object("b", "k", s3_client=mock_client)
+
+    @patch("brainsets.utils.s3_utils.get_cached_s3_client")
+    def test_uses_cached_client_when_none_provided(self, mock_get_client):
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_body = MagicMock()
+        mock_body.read.return_value = b"x"
+        mock_client.get_object.return_value = {"Body": mock_body}
+
+        fetch_public_object("bucket", "key")
+
+        mock_get_client.assert_called_once()
+        mock_client.get_object.assert_called_once()
+
+
+class TestDownloadPublicObject:
+    def test_writes_file(self, tmp_path):
+        mock_client = MagicMock()
+        dest = tmp_path / "nested" / "out.txt"
+
+        result = download_public_object(
+            "my-bucket", "path/key.txt", dest, s3_client=mock_client
+        )
+
+        assert result == dest
+        mock_client.download_file.assert_called_once_with(
+            "my-bucket", "path/key.txt", str(dest)
+        )
+        assert dest.parent.is_dir()
+
+    def test_raises_file_not_found_when_missing(self, tmp_path):
+        mock_client = MagicMock()
+        mock_client.download_file.side_effect = ClientError(
+            {"Error": {"Code": "NoSuchKey", "Message": "Not Found"}}, "GetObject"
+        )
+        dest = tmp_path / "missing.txt"
+
+        with pytest.raises(FileNotFoundError):
+            download_public_object("b", "k", dest, s3_client=mock_client)
+
+        assert not dest.exists()
+
+    def test_removes_partial_file_on_failure(self, tmp_path):
+        from pathlib import Path
+
+        mock_client = MagicMock()
+
+        def fail_download(*args, **kwargs):
+            dest = Path(args[2])
+            dest.write_bytes(b"partial")
+            raise ClientError(
+                {"Error": {"Code": "403", "Message": "Forbidden"}}, "GetObject"
+            )
+
+        mock_client.download_file.side_effect = fail_download
+        dest = tmp_path / "out.bin"
+
+        with pytest.raises(RuntimeError, match="Failed to download"):
+            download_public_object("b", "k", dest, s3_client=mock_client)
+
+        assert not dest.exists()
+
+    @patch("brainsets.utils.s3_utils.get_cached_s3_client")
+    def test_uses_cached_client_when_none_provided(self, mock_get_client, tmp_path):
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        dest = tmp_path / "f.txt"
+
+        download_public_object("bucket", "key", dest)
+
+        mock_get_client.assert_called_once()
+        mock_client.download_file.assert_called_once()
 
 
 class TestDownloadPrefix:

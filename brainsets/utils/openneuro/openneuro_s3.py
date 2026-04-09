@@ -21,6 +21,7 @@ except ImportError:
 
 from brainsets.utils.s3_utils import (
     download_prefix_from_url,
+    download_public_object,
     get_cached_s3_client,
     get_object_list,
 )
@@ -243,7 +244,9 @@ def download_recording(s3_url: str, target_dir: Path) -> list[Path]:
     return download_prefix_from_url(s3_url, target_dir)
 
 
-def download_dataset_description(dataset_id: str, target_dir: Path) -> Path:
+def download_dataset_description(
+    dataset_id: str, target_dir: Path, overwrite: bool = False
+) -> Path:
     """Download dataset_description.json from OpenNeuro S3.
 
     This file is required for mne-bids to recognize a valid BIDS dataset.
@@ -263,31 +266,15 @@ def download_dataset_description(dataset_id: str, target_dir: Path) -> Path:
     target_dir = Path(target_dir)
     target_path = target_dir / "dataset_description.json"
 
-    if target_path.exists():
+    if target_path.exists() and not overwrite:
         return target_path
 
     s3_client = get_cached_s3_client()
     key = f"{dataset_id}/dataset_description.json"
-
-    try:
-        response = s3_client.get_object(Bucket=OPENNEURO_S3_BUCKET, Key=key)
-        content = response["Body"].read()
-
-        target_dir.mkdir(parents=True, exist_ok=True)
-        with open(target_path, "wb") as f:
-            f.write(content)
-
-        return target_path
-
-    except ClientError as e:
-        error_code = e.response.get("Error", {}).get("Code", "")
-        if error_code in ("NoSuchKey", "404"):
-            raise RuntimeError(
-                f"dataset_description.json not found for {dataset_id} on OpenNeuro S3"
-            ) from e
-        raise RuntimeError(
-            f"Failed to download dataset_description.json for {dataset_id}: {e}"
-        ) from e
+    target_path = download_public_object(
+        OPENNEURO_S3_BUCKET, key, target_path, s3_client, overwrite
+    )
+    return target_path
 
 
 def _graphql_query_openneuro(query: str, variables: dict | None = None) -> dict:

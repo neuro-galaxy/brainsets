@@ -142,6 +142,103 @@ def get_object_list(
     return keys
 
 
+def _client_error_is_no_such_key(error: BaseException) -> bool:
+    if not BOTO_AVAILABLE or not isinstance(error, ClientError):
+        return False
+    code = error.response.get("Error", {}).get("Code", "")
+    return code in ("NoSuchKey", "404")
+
+
+def fetch_public_object(
+    bucket: str,
+    key: str,
+    s3_client: "BaseClient | None" = None,
+) -> bytes:
+    """Return the body of a single object from a public (anonymous-read) bucket.
+
+    Uses the same unsigned S3 client as other helpers in this module.
+
+    Args:
+        bucket: S3 bucket name
+        key: Full object key (no leading slash)
+        s3_client: Optional pre-configured S3 client
+
+    Returns:
+        Raw object bytes
+
+    Raises:
+        FileNotFoundError: If the object does not exist
+        RuntimeError: On other S3 or network failures
+        ImportError: If boto3/botocore is not installed
+    """
+    _check_boto_available("fetch_public_object")
+    if s3_client is None:
+        s3_client = get_cached_s3_client()
+
+    try:
+        response = s3_client.get_object(Bucket=bucket, Key=key)
+        return response["Body"].read()
+    except ClientError as e:
+        if _client_error_is_no_such_key(e):
+            raise FileNotFoundError(
+                f"s3://{bucket}/{key} not found or access denied"
+            ) from e
+        raise RuntimeError(f"Failed to fetch s3://{bucket}/{key}: {e}") from e
+
+
+def download_public_object(
+    bucket: str,
+    key: str,
+    dest_path: str | Path,
+    s3_client: "BaseClient | None" = None,
+    overwrite: bool = False,
+) -> Path:
+    """Download a single object from a public (anonymous-read) bucket to a file.
+
+    Parent directories of ``dest_path`` are created if needed. Overwrites
+    ``dest_path`` if it already exists.
+
+    Args:
+        bucket: S3 bucket name
+        key: Full object key (no leading slash)
+        dest_path: Local file path to write
+        s3_client: Optional pre-configured S3 client
+
+    Returns:
+        ``dest_path`` as a resolved :class:`~pathlib.Path`
+
+    Raises:
+        FileNotFoundError: If the object does not exist
+        RuntimeError: On other S3 or network failures
+        ImportError: If boto3/botocore is not installed
+    """
+    _check_boto_available("download_public_object")
+    if s3_client is None:
+        s3_client = get_cached_s3_client()
+
+    dest_path = Path(dest_path)
+
+    if dest_path.exists() and not overwrite:
+        return dest_path
+
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        s3_client.download_file(bucket, key, str(dest_path))
+    except ClientError as e:
+        if _client_error_is_no_such_key(e):
+            if dest_path.is_file():
+                dest_path.unlink(missing_ok=True)
+            raise FileNotFoundError(
+                f"s3://{bucket}/{key} not found or access denied"
+            ) from e
+        if dest_path.is_file():
+            dest_path.unlink(missing_ok=True)
+        raise RuntimeError(f"Failed to download s3://{bucket}/{key}: {e}") from e
+
+    return dest_path
+
+
 def download_prefix(
     bucket: str,
     prefix: str,

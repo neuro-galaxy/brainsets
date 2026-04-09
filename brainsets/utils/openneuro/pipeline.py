@@ -245,6 +245,12 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         subject_id = manifest_item.subject_id
         root_dir = self.raw_dir
 
+        download_dataset_description(
+            self.dataset_id,
+            root_dir,
+            overwrite=getattr(self.args, "redownload", False),
+        )
+
         if not getattr(self.args, "redownload", False):
             if self.modality == "eeg":
                 if check_eeg_recording_files_exist(self.raw_dir, recording_id):
@@ -263,7 +269,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         try:
             download_recording(s3_url, root_dir)
-            download_dataset_description(self.dataset_id, root_dir)
+
         except Exception as e:
             raise RuntimeError(
                 f"Failed to download data for {subject_id} from {self.dataset_id}: {str(e)}"
