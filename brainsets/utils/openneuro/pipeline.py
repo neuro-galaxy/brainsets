@@ -434,10 +434,19 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         return self.TYPE_CHANNELS_REMAPPING
 
     def generate_splits(self, domain, subject_id: str, session_id: str) -> Data:
-        """Generate default train/valid splits and assignment labels.
-
-        Subclasses can override this method to customize split behavior.
         """
+        Generate default intrasession train/valid splits using a causal (sequential) strategy.
+        This method also assigns subject and session split labels used for intersubject 
+        and intersession model training, respectively.
+   
+        These splits assume that the data represents a continuous recording 
+        without any underlying trial structure or event segmentation; these splits are 
+        mostly suitable for pretraining large models.
+        
+        Subclasses can override this method to implement alternative or more task-specific 
+        splitting behaviors.
+        """
+   
         if len(self.split_ratios) != 2:
             raise ValueError(
                 "split_ratios must contain exactly two values (train, valid)"
