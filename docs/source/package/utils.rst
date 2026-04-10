@@ -1,13 +1,26 @@
-
 brainsets.utils
 ---------------
 
-.. automodule:: brainsets.utils.dandi_utils
-    :members:
-    :show-inheritance:
-    :undoc-members:
+dandi_utils
+~~~~~~~~~~~
 
-.. automodule:: brainsets.utils.dir_utils
-    :members:
-    :show-inheritance:
-    :undoc-members:
+.. currentmodule:: brainsets.utils.dandi_utils
+
+.. autosummary::
+   :nosignatures:
+   :toctree: ../_generated
+   :template: autosummary/function.rst
+
+   {% for name in brainsets.utils.dandi_utils._functions %}
+
+split
+~~~~~
+
+.. currentmodule:: brainsets.utils.split
+
+.. autosummary::
+   :nosignatures:
+   :toctree: ../_generated
+   :template: autosummary/function.rst
+
+   {% for name in brainsets.utils.split._functions %}
