@@ -200,7 +200,7 @@ class Pipeline(BrainsetPipeline):
             id="vollan_moser_alternating_2025",
             origin_version="sharing_v4",
             derived_version="1.0.0",
-            source="https://doi.org/10.6084/m9.figshare.28443963",
+            source="https://doi.org/10.25493/R5FR-EDG",
             description="Neuropixels recordings from MEC and hippocampus in rats "
             "performing spatial navigation tasks (open field, linear track, M-maze, "
             "wagon wheel) and during sleep. Includes grid cells, head direction cells, "

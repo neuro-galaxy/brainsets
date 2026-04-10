@@ -31,8 +31,8 @@ class VollanMoserAlternating2025(SpikingDatasetMixin, Dataset):
 
     **References**
 
-    Vollan, A. Z. et al.
-    *Grid cell-to-place cell transformation by attractor dynamics.*
+    Vollan, A. Z., Gardner, R. J., Moser, M.-B. & Moser, E. I.
+    *Left-right-alternating theta sweeps in the entorhinal-hippocampal spatial map.*
     Dataset: `EBRAINS <https://search.kg.ebrains.eu/instances/4080b78d-edc5-4ae4-8144-7f6de79930ea>`_.
 
     Args:
