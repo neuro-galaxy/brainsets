@@ -291,7 +291,7 @@ class Pipeline(BrainsetPipeline):
             id="vollan_moser_alternating_2025",
             origin_version="sharing_v4",
             derived_version="1.0.0",
-            source="https://doi.org/10.6084/m9.figshare.28443963",
+            source="https://doi.org/10.25493/R5FR-EDG",
             description="Neuropixels recordings from MEC and hippocampus in rats "
             "performing spatial navigation tasks (open field, linear track, M-maze, "
             "wagon wheel) and during sleep. Includes grid cells, head direction cells, "
@@ -434,8 +434,11 @@ def extract_navigation_units_and_spikes(ds, domain):
         if isinstance(region_units, list) and len(region_units) == 0:
             continue
 
-        # With simplify_cells=True, this is a list of dicts
-        if not isinstance(region_units, list):
+        # With simplify_cells=True, this is usually a list of dicts, but a
+        # single MATLAB struct element may be returned as a bare dict.
+        if isinstance(region_units, dict):
+            region_units = [region_units]
+        elif not isinstance(region_units, list):
             continue
 
         for i, u in enumerate(region_units):

@@ -925,7 +925,7 @@ vollan_moser_alternating_2025
                          <pre>@article{vollan2025theta,
     title={Left-right-alternating theta sweeps in the entorhinal-hippocampal spatial map},
     author={Vollan, Abraham Z and Gardner, Richard J and Moser, May-Britt and Moser, Edvard I},
-    year={2025}
+    year={2025},
     }
     </pre>
                          <button class="copy-button" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copy" width="44" height="44" viewBox="0 0 24 24" stroke-width="1.5" stroke="#000000" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -966,7 +966,11 @@ vollan_moser_alternating_2025
        </tr>
        <tr>
            <td><strong>Total recording time</strong></td>
-           <td>34.9 hours</td>
+           <td>63.3 hours (34.9 hours after speed filtering)</td>
+       </tr>
+       <tr>
+           <td><strong>Average recording length</strong></td>
+           <td>41.1 min</td>
        </tr>
        <tr>
            <th colspan="2" align="center"><i class="fa-solid fa-brain"></i> Neural Data</th>
@@ -982,6 +986,10 @@ vollan_moser_alternating_2025
        <tr>
            <td><strong>Total number of units</strong></td>
            <td>45,821</td>
+       </tr>
+       <tr>
+           <td><strong>Average units per recording</strong></td>
+           <td>898.5</td>
        </tr>
        <tr>
            <td><strong>Total number of spikes</strong></td>

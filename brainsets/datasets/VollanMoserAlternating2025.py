@@ -25,7 +25,7 @@ class VollanMoserAlternating2025(SpikingDatasetMixin, Dataset):
 
     **Dataset Statistics**
 
-    - **Subjects:** 17
+    - **Subjects:** 19
     - **Total Sessions:** 51 (31 Open Field, 7 Linear Track, 2 Wagon Wheel, 1 M-Maze, 1 Novel Open Field, 9 Sleep)
     - **Recording Tech:** Neuropixels
 
