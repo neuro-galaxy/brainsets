@@ -123,12 +123,14 @@ class Pipeline(BrainsetPipeline):
                 session_type = "sleep"
                 data_category = "sleep"
 
-            manifest_list.append({
-                "session_id": session_id,
-                "session_type": session_type,
-                "data_category": data_category,
-                "fname": fname,
-            })
+            manifest_list.append(
+                {
+                    "session_id": session_id,
+                    "session_type": session_type,
+                    "data_category": data_category,
+                    "fname": fname,
+                }
+            )
 
         manifest = pd.DataFrame(manifest_list).set_index("session_id")
         return manifest
@@ -159,7 +161,8 @@ class Pipeline(BrainsetPipeline):
                         print(
                             f"\r  {manifest_item.fname}: "
                             f"{downloaded / 1e6:.0f} / {total / 1e6:.0f} MB ({pct}%)",
-                            end="", flush=True,
+                            end="",
+                            flush=True,
                         )
             if total:
                 print()
@@ -347,6 +350,7 @@ class Pipeline(BrainsetPipeline):
 # Helper functions
 # ---------------------------------------------------------------------------
 
+
 def build_domain_from_timestamps(t):
     """Build an Interval domain from speed-filtered timestamps.
 
@@ -386,11 +390,19 @@ def extract_navigation_behavior(ds, domain):
 
     # id (decoded internal direction) may be empty if LMT model was not fitted
     id_raw = ds["id"].flatten()
-    id_arr = id_raw.astype(np.float32) if len(id_raw) == n else np.full(n, np.nan, dtype=np.float32)
+    id_arr = (
+        id_raw.astype(np.float32)
+        if len(id_raw) == n
+        else np.full(n, np.nan, dtype=np.float32)
+    )
 
     # theta may also be empty in some sessions
     theta_raw = ds["theta"].flatten()
-    theta_arr = theta_raw.astype(np.float32) if len(theta_raw) == n else np.full(n, np.nan, dtype=np.float32)
+    theta_arr = (
+        theta_raw.astype(np.float32)
+        if len(theta_raw) == n
+        else np.full(n, np.nan, dtype=np.float32)
+    )
 
     behavior = IrregularTimeSeries(
         timestamps=t,
@@ -427,15 +439,17 @@ def extract_navigation_units_and_spikes(ds, domain):
             continue
 
         for i, u in enumerate(region_units):
-            unit_meta.append({
-                "id": f"{location}_{i}",
-                "location": location,
-                "probe_id": int(u["probeId"]),
-                "shank": int(u["shank"]),
-                "shank_pos": float(u["shankPos"]),
-                "mean_rate": float(u["meanRate"]),
-                "is_grid": int(u.get("isGrid", 0)),
-            })
+            unit_meta.append(
+                {
+                    "id": f"{location}_{i}",
+                    "location": location,
+                    "probe_id": int(u["probeId"]),
+                    "shank": int(u["shank"]),
+                    "shank_pos": float(u["shankPos"]),
+                    "mean_rate": float(u["meanRate"]),
+                    "is_grid": int(u.get("isGrid", 0)),
+                }
+            )
 
             spike_times = u["spikeTimes"].flatten().astype(np.float64)
             if len(spike_times) > 0:
@@ -475,14 +489,16 @@ def extract_probe_channel_maps(ds):
     for probe_idx, pm in enumerate(probe_maps):
         n_channels = len(pm["xcoords"])
         for ch in range(n_channels):
-            channel_meta.append({
-                "probe_id": probe_idx + 1,
-                "channel_index": ch,
-                "x_um": float(pm["xcoords"][ch]),
-                "y_um": float(pm["ycoords"][ch]),
-                "shank": int(pm["shankInd"][ch]),
-                "connected": bool(pm["connected"][ch]),
-            })
+            channel_meta.append(
+                {
+                    "probe_id": probe_idx + 1,
+                    "channel_index": ch,
+                    "x_um": float(pm["xcoords"][ch]),
+                    "y_um": float(pm["ycoords"][ch]),
+                    "shank": int(pm["shankInd"][ch]),
+                    "connected": bool(pm["connected"][ch]),
+                }
+            )
 
     return ArrayDict.from_dataframe(pd.DataFrame(channel_meta))
 
@@ -533,17 +549,17 @@ def extract_sleep_units_and_spikes(ds, domain):
     spike_unit_index_list = []
 
     for i, u in enumerate(sleep_units):
-        unit_meta.append({
-            "id": f"unit_{i}",
-        })
+        unit_meta.append(
+            {
+                "id": f"unit_{i}",
+            }
+        )
 
         spike_times = u["spikeTimes"]
         if isinstance(spike_times, np.ndarray) and spike_times.size > 0:
             spike_times = spike_times.flatten().astype(np.float64)
             spike_timestamps_list.append(spike_times)
-            spike_unit_index_list.append(
-                np.full(len(spike_times), i, dtype=np.int64)
-            )
+            spike_unit_index_list.append(np.full(len(spike_times), i, dtype=np.int64))
 
     units = ArrayDict.from_dataframe(pd.DataFrame(unit_meta))
 
