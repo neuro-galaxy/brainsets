@@ -1015,18 +1015,18 @@ vollan_moser_alternating_2025
        </tr>
        <tr>
            <td><strong>Raw data size</strong></td>
-           <td>14.9 GB</td>
+           <td>16.4 GB</td>
        </tr>
        <tr>
            <td><strong>Processed data size</strong></td>
-           <td>4.4 GB</td>
+           <td>4.5 GB</td>
        </tr>
         <tr>
            <th colspan="2" align="center"><i class="fa-solid fa-triangle-exclamation"></i>Notes</th>
        </tr>
        <tr>
            <td><strong>Warning</strong></td>
-           <td>Navigation data is not contiguous. All timeseries have been speed-filtered to discard samples when the animal's locomotion speed was below 5 cm/s, resulting in gaps. Some sessions have empty <code>id</code> and <code>theta</code> fields (filled with NaN) where the LMT model was not fitted.</td>
+           <td>Navigation data is not contiguous. All timeseries have been speed-filtered to discard samples when the animal's locomotion speed was below 5 cm/s, resulting in gaps, these are identified in the recording.domain data. Some sessions have empty <code>id</code> and <code>theta</code> fields (filled with NaN) where the LMT model was not fitted.</td>
        </tr>
    </table>
    </div>
