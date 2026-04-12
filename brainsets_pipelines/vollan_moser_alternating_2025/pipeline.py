@@ -358,6 +358,14 @@ def build_domain_from_timestamps(t):
     interval) and creates separate intervals for each contiguous segment.
     """
     t = t.flatten().astype(np.float64)
+    if len(t) == 0:
+        return Interval(
+            start=np.array([], dtype=np.float64),
+            end=np.array([], dtype=np.float64),
+        )
+    if len(t) == 1:
+        return Interval(start=t[:1], end=t[:1] + 0.01)
+
     dt_nominal = np.median(np.diff(t))
     gap_threshold = 2.0 * dt_nominal
 

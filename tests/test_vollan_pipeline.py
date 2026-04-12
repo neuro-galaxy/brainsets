@@ -40,14 +40,22 @@ def test_build_domain_with_gaps():
 
 
 def test_build_domain_single_sample():
-    """A single timestamp should produce one interval of length dt_nominal."""
+    """A single timestamp should produce one interval."""
     t = np.array([5.0])
-    # With a single sample there's no diff, but the function uses np.median(np.diff(t))
-    # which will be empty — let's check it doesn't crash.
-    # Actually np.median of empty array returns nan, so let's test with 2 samples.
-    t = np.array([5.0, 5.01])
     domain = build_domain_from_timestamps(t)
+
     assert len(domain.start) == 1
+    assert domain.start[0] == pytest.approx(5.0)
+    assert domain.end[0] == pytest.approx(5.01)
+
+
+def test_build_domain_empty():
+    """Empty timestamps should return an empty domain."""
+    t = np.array([], dtype=np.float64)
+    domain = build_domain_from_timestamps(t)
+
+    assert len(domain.start) == 0
+    assert len(domain.end) == 0
 
 
 # ---------------------------------------------------------------------------
