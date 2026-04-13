@@ -5,8 +5,11 @@ from temporaldata import Interval
 from brainsets_pipelines.vollan_moser_alternating_2025.pipeline import (
     build_domain_from_timestamps,
     build_sleep_domain,
-    extract_navigation_behavior,
+    extract_navigation_samples,
     extract_navigation_units_and_spikes,
+    extract_theta_chunks,
+    LMT_POPULATIONS,
+    LMT_VARIABLES,
 )
 
 
@@ -108,11 +111,11 @@ def test_build_sleep_domain_empty_both_raises():
 
 
 # ---------------------------------------------------------------------------
-# extract_navigation_behavior
+# extract_navigation_samples
 # ---------------------------------------------------------------------------
 
 
-def _make_nav_ds(n=100, include_id=True, include_theta=True):
+def _make_nav_ds(n=100, include_id=True, include_theta=True, include_lmt=False):
     """Helper to create a minimal navigation Dsession dict."""
     t = np.arange(0, n * 0.01, 0.01, dtype=np.float64)[:n]
     ds = {
@@ -121,42 +124,123 @@ def _make_nav_ds(n=100, include_id=True, include_theta=True):
         "y": np.random.randn(n).astype(np.float32),
         "z": np.random.randn(n).astype(np.float32),
         "hd": np.random.randn(n).astype(np.float32),
+        "speed": np.random.randn(n).astype(np.float32),
         "id": np.random.randn(n).astype(np.float32) if include_id else np.array([]),
         "theta": (
             np.random.randn(n).astype(np.float32) if include_theta else np.array([])
         ),
     }
+    if include_lmt:
+        ds["lmt"] = {
+            "mec": {
+                "theta": {"XA": np.random.randn(n, 1).astype(np.float32)},
+                "hd": {"XA": np.random.randn(n, 1).astype(np.float32)},
+                "id": {"XA": np.random.randn(n, 1).astype(np.float32)},
+                "pos": {"XA": np.random.randn(n, 2).astype(np.float32)},
+            },
+        }
     return ds, t
 
 
-def test_extract_behavior_all_fields_present():
+def test_extract_samples_all_fields_present():
     ds, t = _make_nav_ds(n=50)
     domain = build_domain_from_timestamps(t)
-    behavior = extract_navigation_behavior(ds, domain)
+    samples = extract_navigation_samples(ds, domain)
 
-    assert behavior.timestamps.shape[0] == 50
-    assert behavior.x.shape[0] == 50
-    assert not np.any(np.isnan(behavior.id))
-    assert not np.any(np.isnan(behavior.theta))
+    assert samples.timestamps.shape[0] == 50
+    assert samples.x.shape[0] == 50
+    assert samples.speed.shape[0] == 50
+    assert not np.any(np.isnan(samples.id))
+    assert not np.any(np.isnan(samples.theta))
 
 
-def test_extract_behavior_missing_id_fills_nan():
+def test_extract_samples_missing_id_fills_nan():
     """When LMT model was not fitted, id should be filled with NaN."""
     ds, t = _make_nav_ds(n=50, include_id=False)
     domain = build_domain_from_timestamps(t)
-    behavior = extract_navigation_behavior(ds, domain)
+    samples = extract_navigation_samples(ds, domain)
 
-    assert behavior.id.shape[0] == 50
-    assert np.all(np.isnan(behavior.id))
+    assert samples.id.shape[0] == 50
+    assert np.all(np.isnan(samples.id))
 
 
-def test_extract_behavior_missing_theta_fills_nan():
+def test_extract_samples_missing_theta_fills_nan():
     ds, t = _make_nav_ds(n=50, include_theta=False)
     domain = build_domain_from_timestamps(t)
-    behavior = extract_navigation_behavior(ds, domain)
+    samples = extract_navigation_samples(ds, domain)
 
-    assert behavior.theta.shape[0] == 50
-    assert np.all(np.isnan(behavior.theta))
+    assert samples.theta.shape[0] == 50
+    assert np.all(np.isnan(samples.theta))
+
+
+def test_extract_samples_lmt_fields_present():
+    """When LMT data is present, the corresponding fields should be populated."""
+    ds, t = _make_nav_ds(n=50, include_lmt=True)
+    domain = build_domain_from_timestamps(t)
+    samples = extract_navigation_samples(ds, domain)
+
+    # MEC population should have real data
+    assert not np.any(np.isnan(samples.lmt_mec_id))
+    assert not np.any(np.isnan(samples.lmt_mec_pos_x))
+    assert not np.any(np.isnan(samples.lmt_mec_pos_y))
+    assert not np.any(np.isnan(samples.lmt_mec_theta))
+    assert not np.any(np.isnan(samples.lmt_mec_hd))
+
+    # HC and MEC_HC populations should be NaN-padded (not in mock data)
+    assert np.all(np.isnan(samples.lmt_hc_id))
+    assert np.all(np.isnan(samples.lmt_mec_hc_pos_x))
+
+
+def test_extract_samples_no_lmt_all_nan():
+    """When no LMT data exists, all LMT fields should be NaN."""
+    ds, t = _make_nav_ds(n=50, include_lmt=False)
+    domain = build_domain_from_timestamps(t)
+    samples = extract_navigation_samples(ds, domain)
+
+    for pop in LMT_POPULATIONS:
+        for var in LMT_VARIABLES:
+            if var == "pos":
+                assert np.all(np.isnan(getattr(samples, f"lmt_{pop}_{var}_x")))
+                assert np.all(np.isnan(getattr(samples, f"lmt_{pop}_{var}_y")))
+            else:
+                assert np.all(np.isnan(getattr(samples, f"lmt_{pop}_{var}")))
+
+
+# ---------------------------------------------------------------------------
+# extract_theta_chunks
+# ---------------------------------------------------------------------------
+
+
+def test_extract_theta_chunks_present():
+    """Theta chunks should be extracted when present."""
+    n_cycles = 100
+    ds = {
+        "thetaChunks": {
+            "tStart": np.arange(n_cycles, dtype=np.float64),
+            "id": np.random.randn(n_cycles),
+            "L": np.random.randn(n_cycles, 30),
+            "P": np.random.randn(n_cycles, 30),
+        }
+    }
+    t = np.arange(0, 10.0, 0.01)
+    domain = build_domain_from_timestamps(t)
+    tc = extract_theta_chunks(ds, domain)
+
+    assert tc.timestamps.shape[0] == n_cycles
+    assert tc.id.shape[0] == n_cycles
+    assert tc.L.shape == (n_cycles, 30)
+    assert tc.P.shape == (n_cycles, 30)
+
+
+def test_extract_theta_chunks_missing():
+    """When thetaChunks is absent, should return empty IrregularTimeSeries."""
+    ds = {}
+    t = np.arange(0, 1.0, 0.01)
+    domain = build_domain_from_timestamps(t)
+    tc = extract_theta_chunks(ds, domain)
+
+    assert tc.timestamps.shape[0] == 0
+    assert tc.L.shape == (0, 30)
 
 
 # ---------------------------------------------------------------------------
