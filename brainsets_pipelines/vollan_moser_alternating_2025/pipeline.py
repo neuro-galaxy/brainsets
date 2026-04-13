@@ -455,7 +455,7 @@ def extract_navigation_units_and_spikes(ds, domain):
                     "id": f"{location}_{i}",
                     "location": location,
                     "probe_id": int(u["probeId"]),
-                    "shank": int(u["shank"]),
+                    "shank_id": int(u["shank"]),
                     "shank_pos": float(u["shankPos"]),
                     "mean_rate": float(u["meanRate"]),
                     "is_grid": int(u.get("isGrid", 0)),
@@ -506,7 +506,7 @@ def extract_probe_channel_maps(ds):
                     "channel_index": ch,
                     "x_um": float(pm["xcoords"][ch]),
                     "y_um": float(pm["ycoords"][ch]),
-                    "shank": int(pm["shankInd"][ch]),
+                    "shank_id": int(pm["shankInd"][ch]),
                     "connected": bool(pm["connected"][ch]),
                 }
             )
