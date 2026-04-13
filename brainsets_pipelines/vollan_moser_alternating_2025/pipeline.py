@@ -276,6 +276,21 @@ class Pipeline(BrainsetPipeline):
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
 
     def _process_sleep(self, fpath, session_id):
+        """Process a sleep session from ``Dsleep``.
+
+        Sleep sessions have a fundamentally different structure to navigation
+        sessions and should be treated as independent.  The raw ``Dsleep``
+        struct contains only spike times within identified SWS/REM epochs and
+        minimal unit identifiers — there is no shared 10 ms timebase, no
+        tracking data, no LMT results, and no probe channel maps.  None of
+        the fields on navigation sessions (``samples``, ``theta_chunks``,
+        ``probe_channels``) are present here.
+
+        Stored fields:
+            ``spikes``   spike timestamps and unit indices
+            ``units``    unit metadata (id only)
+            ``domain``   union of SWS and REM epoch intervals
+        """
         store_path = self.processed_dir / f"{session_id}.h5"
         if store_path.exists() and not self.args.reprocess:
             self.update_status("Skipped Processing")
