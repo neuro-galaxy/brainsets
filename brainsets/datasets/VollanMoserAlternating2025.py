@@ -29,6 +29,65 @@ class VollanMoserAlternating2025(SpikingDatasetMixin, Dataset):
     - **Total Sessions:** 51 (31 Open Field, 7 Linear Track, 2 Wagon Wheel, 1 M-Maze, 1 Novel Open Field, 9 Sleep)
     - **Recording Tech:** Neuropixels
 
+    **Navigation sessions** (42 sessions) contain:
+
+    ``rec.spikes``
+        Spike timestamps and unit indices.
+
+    ``rec.units``
+        Per-unit metadata: ``id``, ``location`` (mec/hc), ``probe_id``,
+        ``shank_id``, ``shank_pos``, ``mean_rate``, ``ks2_label``, ``is_grid``.
+
+    ``rec.samples``
+        All variables on the shared 10 ms timebase (speed-filtered at 5 cm/s)
+        in a single flat ``IrregularTimeSeries``:
+
+        *Observed tracking variables:*
+
+        - ``x`` -- head x-position relative to arena centre (m)
+        - ``y`` -- head y-position relative to arena centre (m)
+        - ``z`` -- head z-position relative to floor (m)
+        - ``hd`` -- 2D head direction / azimuth (rad)
+        - ``speed`` -- horizontal head speed (m/s)
+        - ``theta`` -- instantaneous theta phase (rad)
+        - ``id`` -- decoded internal direction (rad, from the LMT model)
+
+        *LMT decoded variables* (for each population ``{pop}`` in
+        ``mec``, ``hc``, ``mec_hc``):
+
+        - ``lmt_{pop}_theta`` -- theta phase (fixed; largely duplicates ``theta``)
+        - ``lmt_{pop}_hd`` -- head direction (fixed; largely duplicates ``hd``)
+        - ``lmt_{pop}_id`` -- internal direction (latent)
+        - ``lmt_{pop}_pos_x`` -- decoded x-position (latent)
+        - ``lmt_{pop}_pos_y`` -- decoded y-position (latent)
+
+        Populations not present for a given animal are NaN-padded so all
+        sessions share the same field schema.
+
+    ``rec.theta_chunks``
+        Theta-cycle-binned timeseries (separate timebase, one sample per
+        theta cycle): ``id``, ``L`` (log-likelihood, n_cycles x 30),
+        ``P`` (probability, n_cycles x 30).
+
+    ``rec.probe_channels``
+        Probe channel geometry: ``probe_id``, ``channel_index``,
+        ``x_um``, ``y_um``, ``shank_id``, ``connected``.
+
+    **Sleep sessions** (9 sessions) have a fundamentally different structure
+    and should be treated independently.  They contain only:
+
+    ``rec.spikes``
+        Spike timestamps and unit indices within SWS/REM epochs.
+
+    ``rec.units``
+        Minimal unit metadata (``id`` only).
+
+    ``rec.domain``
+        Union of SWS and REM epoch intervals.
+
+    None of the navigation fields (``samples``, ``theta_chunks``,
+    ``probe_channels``) are present on sleep sessions.
+
     **References**
 
     Vollan, A. Z., Gardner, R. J., Moser, M.-B. & Moser, E. I.

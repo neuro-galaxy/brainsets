@@ -1004,19 +1004,19 @@ vollan_moser_alternating_2025
            <td><span class="code-tag">data.spikes</span><span class="code-tag">data.units</span></td>
        </tr>
        <tr>
-           <th colspan="2" align="center"><i class="fa-solid fa-bolt-lightning"></i> Behavioral Data</th>
+           <th colspan="2" align="center"><i class="fa-solid fa-bolt-lightning"></i> Behavioral &amp; Model Data</th>
        </tr>
         <tr>
            <td><strong>Description</strong></td>
-           <td>Rats performing spatial navigation tasks in various arena types. Behavioral data includes head position (x, y, z), head direction, theta phase, and decoded internal direction. All timeseries are speed-filtered (threshold 5 cm/s). Sleep sessions contain SWS and REM epochs without behavioral data.</td>
+           <td>Rats performing spatial navigation tasks in various arena types. All timeseries on the shared 10 ms clock are stored in a single flat <code>data.samples</code> object. This includes observed tracking (head position, direction, speed, theta phase) and LMT model outputs (decoded internal direction and position per neural population). A separate <code>data.theta_chunks</code> stores per-theta-cycle decoded variables. Sleep sessions contain only SWS/REM epoch spikes &mdash; none of the navigation fields (<code>samples</code>, <code>theta_chunks</code>, <code>probe_channels</code>) are present and they should be treated as structurally independent.</td>
        </tr>
        <tr>
            <td><strong>Task</strong></td>
            <td>Open Field, Linear Track, M-Maze, Wagon Wheel, Sleep</td>
        </tr>
        <tr>
-           <td><strong>Available fields</strong></td>
-           <td><span class="code-tag">data.behavior.x</span><span class="code-tag">data.behavior.y</span><span class="code-tag">data.behavior.z</span><span class="code-tag">data.behavior.hd</span><span class="code-tag">data.behavior.theta</span><span class="code-tag">data.behavior.id</span></td>
+           <td><strong>Available fields (navigation)</strong></td>
+           <td><span class="code-tag">data.samples.x</span><span class="code-tag">data.samples.y</span><span class="code-tag">data.samples.z</span><span class="code-tag">data.samples.hd</span><span class="code-tag">data.samples.speed</span><span class="code-tag">data.samples.theta</span><span class="code-tag">data.samples.id</span><span class="code-tag">data.samples.lmt_{pop}_theta</span><span class="code-tag">data.samples.lmt_{pop}_hd</span><span class="code-tag">data.samples.lmt_{pop}_id</span><span class="code-tag">data.samples.lmt_{pop}_pos_x</span><span class="code-tag">data.samples.lmt_{pop}_pos_y</span><span class="code-tag">data.theta_chunks</span><span class="code-tag">data.probe_channels</span></td>
        </tr>
        <tr>
            <th colspan="2" align="center"><i class="fa-solid fa-database"></i> File Sizes</th>
@@ -1034,7 +1034,7 @@ vollan_moser_alternating_2025
        </tr>
        <tr>
            <td><strong>Warning</strong></td>
-           <td>Navigation data is not contiguous. All timeseries have been speed-filtered to discard samples when the animal's locomotion speed was below 5 cm/s, resulting in gaps, these are identified in the recording.domain data. Some sessions have empty <code>id</code> and <code>theta</code> fields (filled with NaN) where the LMT model was not fitted.</td>
+           <td>Navigation data is not contiguous. All timeseries have been speed-filtered to discard samples when the animal's locomotion speed was below 5 cm/s, resulting in gaps identified in <code>domain</code>. Some sessions have empty <code>id</code> and <code>theta</code> fields (filled with NaN) where the LMT model was not fitted. LMT population fields (<code>lmt_{pop}_*</code>) are NaN-padded when a population is absent for a given animal. Sleep sessions have a fundamentally different structure &mdash; they contain only spikes and unit IDs within SWS/REM epochs.</td>
        </tr>
    </table>
    </div>
