@@ -290,6 +290,10 @@ class Pipeline(BrainsetPipeline):
         # shank_pos ↔ y_um to associate units with channels if needed.
         probe_channels = extract_probe_channel_maps(ds)
 
+        # Extract theta-cycle-binned timeseries (different timebase)
+        self.update_status("Extracting theta chunks")
+        theta_chunks = extract_theta_chunks(ds, domain)
+
         data = Data(
             brainset=BRAINSET_DESCRIPTION,
             subject=subject,
@@ -298,8 +302,10 @@ class Pipeline(BrainsetPipeline):
             # neural activity
             spikes=spikes,
             units=units,
-            # behavior
-            behavior=behavior,
+            # all variables on the shared 10ms timebase
+            samples=samples,
+            # theta-cycle-binned timeseries (separate timebase)
+            theta_chunks=theta_chunks,
             # metadata
             probe_channels=probe_channels,
             # domain
@@ -664,6 +670,45 @@ def build_sleep_domain(ds):
     assert domain.is_sorted()
     assert domain.is_disjoint()
     return domain
+
+
+def extract_theta_chunks(ds, domain):
+    """Extract theta-cycle-binned timeseries from ``Dsession.thetaChunks``.
+
+    This is on a **different timebase** to the 10 ms samples — one sample per
+    theta cycle (~6–10 Hz, so roughly 39k cycles for a typical session).
+
+    Stored fields:
+        ``id``   decoded internal direction value per theta cycle
+        ``L``    log-likelihood distribution over direction bins (n_cycles × 30)
+        ``P``    probability distribution over direction bins (n_cycles × 30)
+
+    The original struct also contains ``iStart``, ``iStartInterp`` (indices
+    into the 10 ms timebase) which we do not store since the cycle start
+    times (``tStart``, used as timestamps) are sufficient.
+    """
+    tc = ds.get("thetaChunks")
+    if tc is None:
+        return IrregularTimeSeries(
+            timestamps=np.array([], dtype=np.float64),
+            id=np.array([], dtype=np.float32),
+            L=np.zeros((0, 30), dtype=np.float32),
+            P=np.zeros((0, 30), dtype=np.float32),
+            domain=domain,
+        )
+
+    t_start = np.asarray(tc["tStart"]).flatten().astype(np.float64)
+    id_arr = np.asarray(tc["id"]).flatten().astype(np.float32)
+    L = np.asarray(tc["L"], dtype=np.float32)
+    P = np.asarray(tc["P"], dtype=np.float32)
+
+    return IrregularTimeSeries(
+        timestamps=t_start,
+        id=id_arr,
+        L=L,
+        P=P,
+        domain=domain,
+    )
 
 
 def extract_sleep_units_and_spikes(ds, domain):
