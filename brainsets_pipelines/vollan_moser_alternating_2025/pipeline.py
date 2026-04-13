@@ -109,6 +109,16 @@ BRAINSET_DESCRIPTION = BrainsetDescription(
     "and other spatially tuned neurons.",
 )
 
+# The three LMT populations that may appear in Dsession.lmt.
+# Not every session has all three — animals with a single implant will only
+# have the corresponding population key.
+LMT_POPULATIONS = ["mec", "hc", "mec_hc"]
+
+# The four LMT decoded variables and the suffixes used to flatten them into
+# the samples namespace.  1D variables get a single field; 2D variables (pos)
+# are split into _x and _y.
+LMT_VARIABLES = ["theta", "hd", "id", "pos"]
+
 
 class Pipeline(BrainsetPipeline):
     brainset_id = "vollan_moser_alternating_2025"
@@ -194,6 +204,39 @@ class Pipeline(BrainsetPipeline):
             raise ValueError(f"Cannot infer session type from path: {fpath}")
 
     def _process_navigation(self, fpath, session_id, session_type):
+        """Process a navigation session from ``Dsession``.
+
+        Navigation sessions contain all timeseries data sampled on a shared
+        10 ms clock (``Dsession.t``), speed-filtered to exclude periods when
+        the rat was below 5 cm/s.  These are stored in a single flat
+        ``IrregularTimeSeries`` called **samples** with the following fields:
+
+        Observed tracking variables (from ``Dsession`` root):
+            ``x``        head x-position relative to arena centre (m)
+            ``y``        head y-position relative to arena centre (m)
+            ``z``        head z-position relative to floor (m)
+            ``hd``       2D head direction / azimuth (rad)
+            ``speed``    horizontal head speed (m/s)
+            ``theta``    instantaneous theta phase (rad)
+            ``id``       decoded internal direction from the LMT model (rad)
+
+        LMT decoded variables (from ``Dsession.lmt.{pop}.{var}.XA``):
+            For each population ``pop`` in {mec, hc, mec_hc} and each variable
+            ``var`` in {theta, hd, id, pos}, the decoded values are stored as
+            ``lmt_{pop}_{var}`` (1D variables) or ``lmt_{pop}_{var}_x`` /
+            ``lmt_{pop}_{var}_y`` (2D variables like pos).  For "fixed"
+            variables (theta, hd) XA is the observed signal passed into the
+            model, so ``lmt_{pop}_theta`` ≈ ``theta`` and ``lmt_{pop}_hd`` ≈
+            ``hd``.  For "latent" variables (id, pos) XA is the model's
+            decoded output.  Populations not present for a given animal are
+            NaN-padded so that all sessions share the same schema.
+
+        Additionally, a separate **theta_chunks** ``IrregularTimeSeries`` is
+        stored on the theta-cycle timebase (one sample per cycle) with fields:
+            ``id``       decoded internal direction per theta cycle
+            ``L``        log-likelihood distribution (n_cycles × 30)
+            ``P``        probability distribution (n_cycles × 30)
+        """
         store_path = self.processed_dir / f"{session_id}.h5"
         if store_path.exists() and not self.args.reprocess:
             self.update_status("Skipped Processing")
@@ -231,9 +274,10 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Building domain")
         domain = build_domain_from_timestamps(ds["t"])
 
-        # Extract behavior timeseries
-        self.update_status("Extracting behavior")
-        behavior = extract_navigation_behavior(ds, domain)
+        # Extract all variables on the shared 10ms timebase into one flat
+        # IrregularTimeSeries (observed tracking + LMT decoded variables).
+        self.update_status("Extracting samples")
+        samples = extract_navigation_samples(ds, domain)
 
         # Extract units and spikes
         self.update_status("Extracting units and spikes")
@@ -401,38 +445,100 @@ def build_domain_from_timestamps(t):
     return domain
 
 
-def extract_navigation_behavior(ds, domain):
-    """Extract behavior timeseries (x, y, z, hd, theta, id) from Dsession."""
+def extract_navigation_samples(ds, domain):
+    """Extract all variables on the shared 10 ms timebase into one flat
+    ``IrregularTimeSeries``.
+
+    The original ``Dsession`` stores these as separate top-level fields (for
+    observed variables) and nested structs (for LMT model outputs).  We
+    flatten everything into a single object so that all variables sharing the
+    same timestamps live together without duplicating the time array.
+
+    Observed tracking variables (from ``Dsession`` root):
+        ``x``        head x-position relative to arena centre (m)
+        ``y``        head y-position relative to arena centre (m)
+        ``z``        head z-position relative to floor (m)
+        ``hd``       2D head direction / azimuth (rad)
+        ``speed``    horizontal head speed (m/s)
+        ``theta``    instantaneous theta phase (rad)
+        ``id``       decoded internal direction (rad).  This is itself an LMT
+                     output (``Dsession.id`` = "decoded internal direction
+                     (based on LMT model)") but is provided at the top level
+                     of ``Dsession`` by the original authors.
+
+    LMT decoded variables (from ``Dsession.lmt.{pop}.{var}.XA``):
+        The LMT model is fitted separately for up to three neural populations
+        (``mec``, ``hc``, ``mec_hc``).  For each population, four variables
+        are decoded:
+
+        - ``theta`` (fixed, 1D circular) — theta phase passed into the model;
+          largely duplicates the observed ``theta`` field above.
+        - ``hd`` (fixed, 1D circular) — head direction passed into the model;
+          largely duplicates the observed ``hd`` field above.
+        - ``id`` (latent, 1D circular) — decoded internal direction.
+        - ``pos`` (latent, 2D linear) — decoded 2D position, split into
+          ``_x`` and ``_y`` suffixes.
+
+        These are stored as ``lmt_{pop}_{var}`` for 1D variables and
+        ``lmt_{pop}_{var}_x`` / ``lmt_{pop}_{var}_y`` for 2D variables.
+        For example: ``lmt_mec_id``, ``lmt_hc_pos_x``, ``lmt_mec_hc_theta``.
+
+        Not every session has all three populations — animals with a single
+        implant will only have the corresponding population in ``Dsession.lmt``.
+        Missing populations are NaN-padded so that all sessions share the same
+        field schema.
+    """
     t = ds["t"].flatten().astype(np.float64)
     n = len(t)
 
-    # id (decoded internal direction) may be empty if LMT model was not fitted
-    id_raw = ds["id"].flatten()
-    id_arr = (
-        id_raw.astype(np.float32)
-        if len(id_raw) == n
-        else np.full(n, np.nan, dtype=np.float32)
-    )
+    def _get_or_nan(field_name):
+        """Read a root-level Dsession field, NaN-pad if empty or missing."""
+        raw = ds.get(field_name)
+        if raw is None:
+            return np.full(n, np.nan, dtype=np.float32)
+        raw = np.asarray(raw).flatten()
+        if len(raw) == n:
+            return raw.astype(np.float32)
+        return np.full(n, np.nan, dtype=np.float32)
 
-    # theta may also be empty in some sessions
-    theta_raw = ds["theta"].flatten()
-    theta_arr = (
-        theta_raw.astype(np.float32)
-        if len(theta_raw) == n
-        else np.full(n, np.nan, dtype=np.float32)
-    )
+    # -- Observed tracking variables --
+    fields = {
+        "x": ds["x"].flatten().astype(np.float32),
+        "y": ds["y"].flatten().astype(np.float32),
+        "z": ds["z"].flatten().astype(np.float32),
+        "hd": ds["hd"].flatten().astype(np.float32),
+        "speed": _get_or_nan("speed"),
+        "theta": _get_or_nan("theta"),
+        "id": _get_or_nan("id"),
+    }
 
-    behavior = IrregularTimeSeries(
-        timestamps=t,
-        x=ds["x"].flatten().astype(np.float32),
-        y=ds["y"].flatten().astype(np.float32),
-        z=ds["z"].flatten().astype(np.float32),
-        hd=ds["hd"].flatten().astype(np.float32),
-        theta=theta_arr,
-        id=id_arr,
-        domain=domain,
-    )
-    return behavior
+    # -- LMT decoded variables --
+    lmt = ds.get("lmt")
+    for pop_name in LMT_POPULATIONS:
+        pop = lmt.get(pop_name) if isinstance(lmt, dict) else None
+
+        for var_name in LMT_VARIABLES:
+            if var_name == "pos":
+                # 2D variable — two fields
+                suffixes = ["_x", "_y"]
+            else:
+                # 1D variable — one field
+                suffixes = [""]
+
+            if pop is not None and var_name in pop:
+                xa = np.asarray(pop[var_name]["XA"], dtype=np.float32)
+                if xa.ndim == 1:
+                    xa = xa[:, np.newaxis]
+                for dim_idx, suffix in enumerate(suffixes):
+                    key = f"lmt_{pop_name}_{var_name}{suffix}"
+                    fields[key] = xa[:, dim_idx]
+            else:
+                # NaN-pad missing populations / variables
+                for suffix in suffixes:
+                    key = f"lmt_{pop_name}_{var_name}{suffix}"
+                    fields[key] = np.full(n, np.nan, dtype=np.float32)
+
+    return IrregularTimeSeries(timestamps=t, domain=domain, **fields)
 
 
 def extract_navigation_units_and_spikes(ds, domain):
