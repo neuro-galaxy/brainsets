@@ -183,8 +183,6 @@ class Pipeline(BrainsetPipeline):
             raise ValueError(f"Cannot infer session type from path: {fpath}")
 
     def _process_navigation(self, fpath, session_id, session_type):
-        self.processed_dir.mkdir(exist_ok=True, parents=True)
-
         store_path = self.processed_dir / f"{session_id}.h5"
         if store_path.exists() and not self.args.reprocess:
             self.update_status("Skipped Processing")
