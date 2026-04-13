@@ -237,7 +237,11 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Extracting units and spikes")
         units, spikes = extract_navigation_units_and_spikes(ds, domain)
 
-        # Extract probe channel maps as metadata
+        # Extract probe channel maps as metadata.
+        # Note: the raw data does not provide a direct unit→channel mapping.
+        # Units have probe_id and shank_id/shank_pos; channels have probe_id,
+        # shank, and x/y coords. Join on probe_id + shank_id and nearest
+        # shank_pos ↔ y_um to associate units with channels if needed.
         probe_channels = extract_probe_channel_maps(ds)
 
         data = Data(
