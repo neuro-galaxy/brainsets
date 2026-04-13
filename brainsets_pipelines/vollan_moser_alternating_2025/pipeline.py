@@ -33,6 +33,7 @@ parser.add_argument("--reprocess", action="store_true")
 
 
 BUCKET_URL = "https://data-proxy.ebrains.eu/api/v1/buckets/d-4080b78d-edc5-4ae4-8144-7f6de79930ea"
+BUCKET_VERSION = "sharing_v4"
 
 # Hardcoded file list — this is a fixed published dataset.
 MANIFEST_FILES = [
@@ -100,7 +101,7 @@ SESSION_TYPE_TO_TASK = {
 
 BRAINSET_DESCRIPTION = BrainsetDescription(
     id="vollan_moser_alternating_2025",
-    origin_version="sharing_v4",
+    origin_version=BUCKET_VERSION,
     derived_version="1.0.0",
     source="https://doi.org/10.25493/R5FR-EDG",
     description="Neuropixels recordings from MEC and hippocampus in rats "
