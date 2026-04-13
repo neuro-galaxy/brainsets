@@ -458,6 +458,7 @@ def extract_navigation_units_and_spikes(ds, domain):
                     "shank_id": int(u["shank"]),
                     "shank_pos": float(u["shankPos"]),
                     "mean_rate": float(u["meanRate"]),
+                    "ks2_label": str(u.get("ks2Label", "")),
                     "is_grid": int(u.get("isGrid", 0)),
                 }
             )
