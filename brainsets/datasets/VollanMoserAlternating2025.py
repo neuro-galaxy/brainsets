@@ -4,6 +4,114 @@ from pathlib import Path
 from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
 
+class _RecordingGroup(list):
+    """A list of recording IDs that also supports attribute access for sub-groups.
+
+    Iterating or indexing works like a normal list.  Named sub-groups are
+    accessible as attributes and are themselves ``_RecordingGroup`` instances::
+
+        >>> RECORDING_IDS.navigation          # all 42 nav sessions
+        >>> RECORDING_IDS.navigation.of       # 31 open-field sessions
+        >>> RECORDING_IDS.sleep               # 9 sleep sessions
+        >>> list(RECORDING_IDS)               # all 51 sessions
+    """
+
+    def __init__(self, ids=None, **subgroups):
+        flat = list(ids or [])
+        for sub_ids in subgroups.values():
+            flat.extend(sub_ids)
+        super().__init__(flat)
+        for name, sub in subgroups.items():
+            if isinstance(sub, _RecordingGroup):
+                setattr(self, name, sub)
+            else:
+                setattr(self, name, _RecordingGroup(sub))
+
+    def __repr__(self):
+        return f"_RecordingGroup({len(self)} recordings)"
+
+
+RECORDING_IDS = _RecordingGroup(
+    sleep=_RecordingGroup(
+        [
+            "sleep_25691_1",
+            "sleep_25843_2",
+            "sleep_25953_5",
+            "sleep_26034_3",
+            "sleep_26648_2",
+            "sleep_27765_3",
+            "sleep_28063_5",
+            "sleep_28229_2",
+            "sleep_28304_2",
+        ]
+    ),
+    navigation=_RecordingGroup(
+        of=_RecordingGroup(
+            [
+                "of_24365_2",
+                "of_24666_1",
+                "of_25127_1",
+                "of_25691_1",
+                "of_25691_2",
+                "of_25843_1",
+                "of_25843_2",
+                "of_25843_5",
+                "of_25953_4",
+                "of_25953_5",
+                "of_25954_1",
+                "of_26018_2",
+                "of_26034_3",
+                "of_26035_1",
+                "of_26648_1",
+                "of_26648_2",
+                "of_26820_2",
+                "of_27764_1",
+                "of_27765_1",
+                "of_27765_2",
+                "of_27765_3",
+                "of_28063_1",
+                "of_28063_4",
+                "of_28063_5",
+                "of_28229_2",
+                "of_28229_3",
+                "of_28258_4",
+                "of_28304_1",
+                "of_28304_2",
+                "of_29502_1",
+                "of_29502_3",
+            ]
+        ),
+        lt=_RecordingGroup(
+            [
+                "lt_26648_1",
+                "lt_27764_1",
+                "lt_27765_2",
+                "lt_28063_1",
+                "lt_28229_3",
+                "lt_28304_1",
+                "lt_29502_3",
+            ]
+        ),
+        mmaze=_RecordingGroup(
+            [
+                "mmaze_29502_1",
+            ]
+        ),
+        ww=_RecordingGroup(
+            [
+                "ww_25691_1",
+                "ww_25843_1",
+            ]
+        ),
+        of_novel=_RecordingGroup(
+            [
+                "of_novel_25843_5",
+            ]
+        ),
+    ),
+)
+
+
 class VollanMoserAlternating2025(SpikingDatasetMixin, Dataset):
     """Neuropixels recordings from MEC and hippocampus in rats during spatial navigation
     and sleep.
@@ -96,19 +204,51 @@ class VollanMoserAlternating2025(SpikingDatasetMixin, Dataset):
 
     Args:
         root (str): Root directory for the dataset.
-        recording_ids (list[str], optional): List of recording IDs to load.
+        recording_ids (list[str] or str, optional): Recording IDs to load.
+            Defaults to all sessions.  Can be:
+
+            - A **list** of individual recording IDs.
+            - A **string shorthand**: ``"all"`` (default), ``"sleep"``,
+              ``"navigation"``, ``"of"``, ``"lt"``, ``"mmaze"``, ``"ww"``,
+              ``"of_novel"``.
+            - A ``RECORDING_IDS`` sub-group for finer control::
+
+                  from brainsets.datasets.VollanMoserAlternating2025 import RECORDING_IDS
+                  ds = VollanMoserAlternating2025(root, recording_ids=RECORDING_IDS.navigation.of)
+
         transform (Callable, optional): Data transformation to apply.
         dirname (str, optional): Subdirectory for the dataset. Defaults to "vollan_moser_alternating_2025".
     """
 
+    # Map string shorthands to RECORDING_IDS sub-groups.
+    _SHORTHAND = {
+        "all": None,
+        "sleep": lambda: list(RECORDING_IDS.sleep),
+        "navigation": lambda: list(RECORDING_IDS.navigation),
+        "of": lambda: list(RECORDING_IDS.navigation.of),
+        "lt": lambda: list(RECORDING_IDS.navigation.lt),
+        "mmaze": lambda: list(RECORDING_IDS.navigation.mmaze),
+        "ww": lambda: list(RECORDING_IDS.navigation.ww),
+        "of_novel": lambda: list(RECORDING_IDS.navigation.of_novel),
+    }
+
     def __init__(
         self,
         root: str,
-        recording_ids: Optional[list[str]] = None,
+        recording_ids=None,
         transform: Optional[Callable] = None,
         dirname: str = "vollan_moser_alternating_2025",
         **kwargs,
     ):
+        if isinstance(recording_ids, str):
+            if recording_ids not in self._SHORTHAND:
+                raise ValueError(
+                    f"Unknown recording_ids shorthand: {recording_ids!r}. "
+                    f"Valid options: {', '.join(repr(k) for k in self._SHORTHAND)}."
+                )
+            resolver = self._SHORTHAND[recording_ids]
+            recording_ids = resolver() if resolver is not None else None
+
         super().__init__(
             dataset_dir=Path(root) / dirname,
             recording_ids=recording_ids,
