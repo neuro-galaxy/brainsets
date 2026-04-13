@@ -350,8 +350,12 @@ class Pipeline(BrainsetPipeline):
 def build_domain_from_timestamps(t):
     """Build an Interval domain from speed-filtered timestamps.
 
-    Detects gaps in the timestamp array (where dt > 2x the nominal sampling
-    interval) and creates separate intervals for each contiguous segment.
+    In this dataset, ``ds["t"]`` contains timestamps of position samples that
+    have already been speed-filtered (stationary periods removed). This means
+    the array can have large gaps wherever the animal was below the speed
+    threshold. We detect those gaps (where dt > 2x the nominal sampling
+    interval) and create separate Interval segments for each contiguous block
+    of movement.
     """
     t = t.flatten().astype(np.float64)
     if len(t) == 0:
