@@ -4,6 +4,7 @@ _electrophysiology_datasets = [
     "FlintSlutzkyAccurate2012",
     "ChurchlandShenoyNeural2012",
     "OdohertySabesNonhuman2017",
+    "VollanMoserAlternating2025",
 ]
 
 _calcium_imaging_datasets = [
