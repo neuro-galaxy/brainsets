@@ -160,49 +160,44 @@ class Pipeline(BrainsetPipeline):
     def download(self, manifest_item):
         # Each file is downloaded individually from the ebrains data-proxy API
         fpath = self.raw_dir / manifest_item.fname
-        if fpath.exists() and not self.args.redownload:
-            return fpath
+        if not fpath.exists() or self.args.redownload:
+            fpath.parent.mkdir(parents=True, exist_ok=True)
+            url = f"{BUCKET_URL}/{BUCKET_VERSION}/{manifest_item.fname}"
 
-        fpath.parent.mkdir(parents=True, exist_ok=True)
-        url = f"{BUCKET_URL}/sharing_v4/{manifest_item.fname}"
+            self.update_status("DOWNLOADING")
+            logging.info(f"Downloading {manifest_item.fname}")
+            with requests.get(url, stream=True) as response:
+                response.raise_for_status()
+                total = int(response.headers.get("content-length", 0))
+                downloaded = 0
+                with open(fpath, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total:
+                            pct = downloaded * 100 // total
+                            print(
+                                f"\r  {manifest_item.fname}: "
+                                f"{downloaded / 1e6:.0f} / {total / 1e6:.0f} MB"
+                                f" ({pct}%)",
+                                end="",
+                                flush=True,
+                            )
+                if total:
+                    print()
 
-        self.update_status("DOWNLOADING")
-        logging.info(f"Downloading {manifest_item.fname}")
-        with requests.get(url, stream=True) as response:
-            response.raise_for_status()
-            total = int(response.headers.get("content-length", 0))
-            downloaded = 0
-            with open(fpath, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    if total:
-                        pct = downloaded * 100 // total
-                        print(
-                            f"\r  {manifest_item.fname}: "
-                            f"{downloaded / 1e6:.0f} / {total / 1e6:.0f} MB ({pct}%)",
-                            end="",
-                            flush=True,
-                        )
-            if total:
-                print()
+        # Pass session metadata through to process() so it doesn't have to
+        # re-derive session_id and session_type from the file path.
+        return fpath, manifest_item.Index, manifest_item.session_type
 
-        return fpath
-
-    def process(self, fpath):
+    def process(self, download_output):
+        fpath, session_id, session_type = download_output
         fpath = Path(fpath)
-        # Infer data category and session type from file path
-        # Navigation: .../navigation/<session_type>/<animal>_<rec>.mat
-        # Sleep: .../sleep/<animal>_<rec>.mat
-        if fpath.parent.parent.name == "navigation":
-            session_type = fpath.parent.name  # of, mmaze, lt, ww, of_novel
-            session_id = f"{session_type}_{fpath.stem}"
-            self._process_navigation(fpath, session_id, session_type)
-        elif fpath.parent.name == "sleep":
-            session_id = f"sleep_{fpath.stem}"
+
+        if session_type == "sleep":
             self._process_sleep(fpath, session_id)
         else:
-            raise ValueError(f"Cannot infer session type from path: {fpath}")
+            self._process_navigation(fpath, session_id, session_type)
 
     def _process_navigation(self, fpath, session_id, session_type):
         """Process a navigation session from ``Dsession``.
