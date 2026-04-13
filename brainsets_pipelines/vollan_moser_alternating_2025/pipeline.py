@@ -98,6 +98,17 @@ SESSION_TYPE_TO_TASK = {
     "sleep": Task.SLEEP,
 }
 
+BRAINSET_DESCRIPTION = BrainsetDescription(
+    id="vollan_moser_alternating_2025",
+    origin_version="sharing_v4",
+    derived_version="1.0.0",
+    source="https://doi.org/10.25493/R5FR-EDG",
+    description="Neuropixels recordings from MEC and hippocampus in rats "
+    "performing spatial navigation tasks (open field, linear track, M-maze, "
+    "wagon wheel) and during sleep. Includes grid cells, head direction cells, "
+    "and other spatially tuned neurons.",
+)
+
 
 class Pipeline(BrainsetPipeline):
     brainset_id = "vollan_moser_alternating_2025"
@@ -195,17 +206,6 @@ class Pipeline(BrainsetPipeline):
         # Extract animal ID from filename (e.g. "29502" from "29502_1.mat")
         animal_id = fpath.stem.split("_")[0]
 
-        brainset_description = BrainsetDescription(
-            id="vollan_moser_alternating_2025",
-            origin_version="sharing_v4",
-            derived_version="1.0.0",
-            source="https://doi.org/10.25493/R5FR-EDG",
-            description="Neuropixels recordings from MEC and hippocampus in rats "
-            "performing spatial navigation tasks (open field, linear track, M-maze, "
-            "wagon wheel) and during sleep. Includes grid cells, head direction cells, "
-            "and other spatially tuned neurons.",
-        )
-
         subject = SubjectDescription(
             id=animal_id,
             species=Species.RATTUS_NORVEGICUS,
@@ -245,7 +245,7 @@ class Pipeline(BrainsetPipeline):
         probe_channels = extract_probe_channel_maps(ds)
 
         data = Data(
-            brainset=brainset_description,
+            brainset=BRAINSET_DESCRIPTION,
             subject=subject,
             session=session_description,
             device=device_description,
@@ -285,17 +285,6 @@ class Pipeline(BrainsetPipeline):
 
         animal_id = fpath.stem.split("_")[0]
 
-        brainset_description = BrainsetDescription(
-            id="vollan_moser_alternating_2025",
-            origin_version="sharing_v4",
-            derived_version="1.0.0",
-            source="https://doi.org/10.25493/R5FR-EDG",
-            description="Neuropixels recordings from MEC and hippocampus in rats "
-            "performing spatial navigation tasks (open field, linear track, M-maze, "
-            "wagon wheel) and during sleep. Includes grid cells, head direction cells, "
-            "and other spatially tuned neurons.",
-        )
-
         subject = SubjectDescription(
             id=animal_id,
             species=Species.RATTUS_NORVEGICUS,
@@ -322,7 +311,7 @@ class Pipeline(BrainsetPipeline):
         units, spikes = extract_sleep_units_and_spikes(ds, domain)
 
         data = Data(
-            brainset=brainset_description,
+            brainset=BRAINSET_DESCRIPTION,
             subject=subject,
             session=session_description,
             device=device_description,
