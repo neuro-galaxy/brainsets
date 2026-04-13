@@ -216,7 +216,9 @@ class Pipeline(BrainsetPipeline):
 
         session_description = SessionDescription(
             id=session_id,
-            recording_date=datetime.datetime(2025, 1, 1),
+            recording_date=datetime.datetime(
+                1970, 1, 1, tzinfo=datetime.timezone.utc
+            ),  # placeholder date since actual recording dates are not provided
             task=task,
         )
 
@@ -293,7 +295,9 @@ class Pipeline(BrainsetPipeline):
 
         session_description = SessionDescription(
             id=session_id,
-            recording_date=datetime.datetime(2025, 1, 1),
+            recording_date=datetime.datetime(
+                1970, 1, 1, tzinfo=datetime.timezone.utc
+            ),  # placeholder date since actual recording dates are not provided
             task=Task.SLEEP,
         )
 
