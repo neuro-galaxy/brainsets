@@ -270,8 +270,6 @@ class Pipeline(BrainsetPipeline):
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
 
     def _process_sleep(self, fpath, session_id):
-        self.processed_dir.mkdir(exist_ok=True, parents=True)
-
         store_path = self.processed_dir / f"{session_id}.h5"
         if store_path.exists() and not self.args.reprocess:
             self.update_status("Skipped Processing")
@@ -433,6 +431,8 @@ def extract_navigation_units_and_spikes(ds, domain):
     spike_unit_index_list = []
     unit_idx = 0
 
+    # units_struct contains only "mec" and "hc" keys (medial entorhinal
+    # cortex and hippocampus) — these are the two recorded brain regions.
     for location in ["mec", "hc"]:
         region_units = units_struct[location]
 
