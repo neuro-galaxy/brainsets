@@ -136,8 +136,6 @@ class Pipeline(BrainsetPipeline):
         return manifest
 
     def download(self, manifest_item):
-        self.raw_dir.mkdir(parents=True, exist_ok=True)
-
         # Each file is downloaded individually from the ebrains data-proxy API
         fpath = self.raw_dir / manifest_item.fname
         if fpath.exists() and not self.args.redownload:
