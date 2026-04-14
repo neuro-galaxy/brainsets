@@ -13,4 +13,6 @@ class KlinzingSleepDS0055552024(OpenNeuroDataset):
         **kwargs,
     ):
         dataset_dir = "klinzing_sleep_ds005555_2024"
-        super().__init__(root, dataset_dir, recording_ids, transform, split_type, **kwargs)
+        super().__init__(
+            root, dataset_dir, recording_ids, transform, split_type, **kwargs
+        )
