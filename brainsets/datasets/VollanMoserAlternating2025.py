@@ -1,7 +1,6 @@
 from typing import Callable, Optional, Literal
 from pathlib import Path
 
-import numpy as np
 from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
 
@@ -113,45 +112,6 @@ RECORDING_IDS = _RecordingGroup(
 )
 
 
-def _bin_spikes_single(rec) -> "np.ndarray":
-    """Vectorized spike binning for a single navigation recording.
-
-    Each spike is assigned to the sample bin whose timestamp is closest,
-    via a single ``searchsorted``.  The result is converted to a dense
-    ``(T, N_units)`` count matrix using ``np.bincount`` (much faster than
-    ``np.add.at``).
-
-    Spikes that fall in speed-filtered gaps (between domain segments) are
-    not explicitly discarded — they get assigned to the nearest sample bin
-    at a segment boundary.  In practice this is harmless because the
-    original spike extraction already restricts spikes to domain intervals.
-    """
-    t = rec.samples.timestamps[:]
-    spike_t = rec.spikes.timestamps[:]
-    spike_u = rec.spikes.unit_index[:]
-    n_units = len(rec.units.id)
-    n_bins = len(t)
-
-    if len(spike_t) == 0:
-        return np.zeros((n_bins, n_units), dtype=np.int32)
-
-    # Assign each spike to the nearest sample bin.
-    # searchsorted gives the insertion point; compare left and right to
-    # pick the closer neighbour.
-    idx = np.searchsorted(t, spike_t, side="right")
-    idx = np.clip(idx, 1, n_bins)  # ensure left neighbour exists
-    # Pick left (idx-1) unless right (idx) is closer and in bounds
-    left = idx - 1
-    right = np.minimum(idx, n_bins - 1)
-    pick_right = np.abs(spike_t - t[right]) < np.abs(spike_t - t[left])
-    bin_idx = np.where(pick_right, right, left)
-
-    # Dense count matrix via bincount
-    flat = bin_idx * n_units + spike_u
-    counts = np.bincount(flat, minlength=n_bins * n_units)
-    return counts[: n_bins * n_units].reshape(n_bins, n_units).astype(np.int32)
-
-
 class VollanMoserAlternating2025(SpikingDatasetMixin, Dataset):
     """Neuropixels recordings from MEC and hippocampus in rats during spatial navigation
     and sleep.
@@ -220,13 +180,6 @@ class VollanMoserAlternating2025(SpikingDatasetMixin, Dataset):
     ``rec.probe_channels``
         Probe channel geometry: ``probe_id``, ``channel_index``,
         ``x_um``, ``y_um``, ``shank_id``, ``connected``.
-
-    **Methods:**
-
-    ``ds.bin_spikes()`` / ``ds.get_spike_counts(recording_id)``
-        Computes a ``(T, N_units)`` int32 spike count matrix on the same
-        10 ms timebase as ``rec.samples``.  ``bin_spikes()`` precomputes all
-        recordings; ``get_spike_counts()`` computes lazily for one.
 
     **Sleep sessions** (9 sessions) have a fundamentally different structure
     and should be treated independently.  They contain only:
@@ -305,41 +258,6 @@ class VollanMoserAlternating2025(SpikingDatasetMixin, Dataset):
         )
 
         self.spiking_dataset_mixin_uniquify_unit_ids = True
-        self._spike_counts_cache: dict[str, "np.ndarray"] = {}
-
-    def bin_spikes(self):
-        """Bin spikes into the same 10 ms time bins as ``samples`` for all
-        loaded navigation recordings.
-
-        Computes a ``(T, N_units)`` int32 spike count matrix for each
-        recording and caches the results.  Sleep recordings are skipped
-        (they have no ``samples``).  Already-computed recordings are skipped.
-
-        Access counts via :meth:`get_spike_counts`::
-
-            ds.bin_spikes()
-            counts = ds.get_spike_counts("of_25691_2")  # (T, N_units) int32
-            rates = counts / 0.01                        # Hz
-        """
-        for rid in self.recording_ids:
-            if rid in self._spike_counts_cache:
-                continue
-            rec = self.get_recording(rid)
-            if not hasattr(rec, "samples"):
-                continue
-            self._spike_counts_cache[rid] = _bin_spikes_single(rec)
-
-    def get_spike_counts(self, recording_id: str) -> "np.ndarray":
-        """Return the ``(T, N_units)`` spike count matrix for a recording.
-
-        Computes and caches on first call.  Call :meth:`bin_spikes` first to
-        precompute all recordings at once, or call this directly for a single
-        recording.
-        """
-        if recording_id not in self._spike_counts_cache:
-            rec = self.get_recording(recording_id)
-            self._spike_counts_cache[recording_id] = _bin_spikes_single(rec)
-        return self._spike_counts_cache[recording_id]
 
     def get_sampling_intervals(
         self,
