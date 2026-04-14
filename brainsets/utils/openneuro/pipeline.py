@@ -372,11 +372,14 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         data_kwargs[self.modality] = signal
 
         data = Data(**data_kwargs)
+
+        self.update_status("Creating Splits")
         data.splits = self.generate_splits(
             domain=data.domain,
             subject_id=subject_id,
             session_id=session_description.id,
         )
+        
         return data, store_path
 
     def process(self, download_output: dict) -> None:
@@ -433,20 +436,33 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         """
         return self.TYPE_CHANNELS_REMAPPING
 
-    def generate_splits(self, domain, subject_id: str, session_id: str) -> Data:
+    def generate_splits(self, domain: Interval, subject_id: str, session_id: str) -> Data:
         """
         Generate default intrasession train/valid splits using a causal (sequential) strategy.
         This method also assigns subject and session split labels used for intersubject 
         and intersession model training, respectively.
-   
+
         These splits assume that the data represents a continuous recording 
         without any underlying trial structure or event segmentation; these splits are 
         mostly suitable for pretraining large models.
         
         Subclasses can override this method to implement alternative or more task-specific 
         splitting behaviors.
+
+        Args:
+            domain: The interval domain (e.g., Interval or similar) representing the start and end 
+                times of the continuous recording to be split.
+            subject_id (str): The identifier for the subject.
+            session_id (str): The identifier for the session.
+
+        Returns:
+            Data: A Data object with train/valid splits assigned, and with split assignment 
+                labels for both intersubject and intersession strategies.
+
+        Raises:
+            ValueError: If split_ratios does not contain exactly two values, contains negative values, 
+                or does not sum to 1.0.
         """
-   
         if len(self.split_ratios) != 2:
             raise ValueError(
                 "split_ratios must contain exactly two values (train, valid)"
