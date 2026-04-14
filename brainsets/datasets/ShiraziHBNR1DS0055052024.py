@@ -12,7 +12,7 @@ class ShiraziHBNR1DS0055052024(OpenNeuroDataset):
         split_type: SplitType = "intrasession",
         **kwargs,
     ):
-        dataset_dir = "kochi_visualnaming_ds006914_2025"
+        dataset_dir = "shirazi_hbn_r1_ds005505_2024"
         super().__init__(
             root, dataset_dir, recording_ids, transform, split_type, **kwargs
         )
