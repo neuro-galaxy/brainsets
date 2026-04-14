@@ -149,7 +149,7 @@ def _bin_spikes_single(rec) -> "np.ndarray":
     # Dense count matrix via bincount
     flat = bin_idx * n_units + spike_u
     counts = np.bincount(flat, minlength=n_bins * n_units)
-    return counts[:n_bins * n_units].reshape(n_bins, n_units).astype(np.int32)
+    return counts[: n_bins * n_units].reshape(n_bins, n_units).astype(np.int32)
 
 
 class VollanMoserAlternating2025(SpikingDatasetMixin, Dataset):
