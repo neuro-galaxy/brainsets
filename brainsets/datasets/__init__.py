@@ -18,11 +18,16 @@ _psg_datasets = [
     "KempSleepEDF2013",
 ]
 
+_openneuro_datasets = [
+    "OpenNeuroDataset",
+]
+
 __all__ = (
     _electrophysiology_datasets
     + _calcium_imaging_datasets
     + _ieeg_datasets
     + _psg_datasets
+    + _openneuro_datasets
 )
 
 from .PerichMillerPopulation2018 import PerichMillerPopulation2018
@@ -33,3 +38,4 @@ from .OdohertySabesNonhuman2017 import OdohertySabesNonhuman2017
 from .AllenVisualCodingOphys2016 import AllenVisualCodingOphys2016
 from .KempSleepEDF2013 import KempSleepEDF2013
 from .Neuroprobe2025 import Neuroprobe2025
+from .OpenNeuroBase import OpenNeuroDataset

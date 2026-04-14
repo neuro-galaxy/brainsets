@@ -1,5 +1,4 @@
 from pathlib import Path
-import logging
 from typing import Callable, Literal, Optional, get_args
 
 from temporaldata import Interval
