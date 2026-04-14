@@ -235,7 +235,7 @@ class VollanMoserAlternating2025(SpikingDatasetMixin, Dataset):
     def __init__(
         self,
         root: str,
-        recording_ids=None,
+        recording_ids: Optional[list[str] or str] = None,
         transform: Optional[Callable] = None,
         dirname: str = "vollan_moser_alternating_2025",
         **kwargs,
