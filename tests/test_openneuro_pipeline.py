@@ -601,36 +601,36 @@ class TestChannelRemapping:
         )
         assert result is None
 
-    def test_get_channel_type_remapping_returns_class_attribute(self):
-        """get_channel_type_remapping returns CHANNEL_TYPE_REMAPPING when defined."""
+    def test_get_type_channels_remapping_returns_class_attribute(self):
+        """get_type_channels_remapping returns TYPE_CHANNELS_REMAPPING when defined."""
 
         class CustomEEGPipeline(OpenNeuroEEGPipeline):
             dataset_id = "ds005085"
             brainset_id = "test"
             origin_version = "1.0.0"
-            CHANNEL_TYPE_REMAPPING = {"EEG": ["F3", "F4"], "EOG": ["EOG"]}
+            TYPE_CHANNELS_REMAPPING = {"EEG": ["F3", "F4"], "EOG": ["EOG"]}
 
         pipeline = CustomEEGPipeline(
             raw_dir=Path("/tmp/raw"),
             processed_dir=Path("/tmp/processed"),
             args=Namespace(redownload=False, reprocess=False),
         )
-        assert pipeline.get_channel_type_remapping() == {
+        assert pipeline.get_type_channels_remapping() == {
             "EEG": ["F3", "F4"],
             "EOG": ["EOG"],
         }
 
-    def test_get_channel_type_remapping_returns_none_by_default(
+    def test_get_type_channels_remapping_returns_none_by_default(
         self, eeg_pipeline_instance
     ):
-        """get_channel_type_remapping returns None when not defined."""
-        assert eeg_pipeline_instance.get_channel_type_remapping() is None
+        """get_type_channels_remapping returns None when not defined."""
+        assert eeg_pipeline_instance.get_type_channels_remapping() is None
 
-    def test_get_channel_type_remapping_accepts_recording_id(
+    def test_get_type_channels_remapping_accepts_recording_id(
         self, eeg_pipeline_instance
     ):
-        """get_channel_type_remapping accepts recording_id parameter."""
-        result = eeg_pipeline_instance.get_channel_type_remapping(
+        """get_type_channels_remapping accepts recording_id parameter."""
+        result = eeg_pipeline_instance.get_type_channels_remapping(
             recording_id="rec-001"
         )
         assert result is None
@@ -834,7 +834,7 @@ class TestProcessCommon:
             brainset_id = "test"
             origin_version = "1.0.0"
             CHANNEL_NAME_REMAPPING = {"EEG_1": "F3", "EEG_4": "F4"}
-            CHANNEL_TYPE_REMAPPING = {
+            TYPE_CHANNELS_REMAPPING = {
                 "EEG": ["F3", "EEG_2", "EEG_3", "F4"],
                 "EOG": ["EOG_L", "EOG_R", "EOG"],
                 "EMG": ["EMG"],
