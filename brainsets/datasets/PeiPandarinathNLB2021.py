@@ -24,8 +24,8 @@ class PeiPandarinathNLB2021(SpikingDatasetMixin, Dataset):
         dirname: str = "pei_pandarinath_nlb_2021",
         **kwargs,
     ):
-        root = root or get_processed_dir()
-
+        if root is None:
+            root = get_processed_dir()
         super().__init__(
             dataset_dir=Path(root) / dirname,
             recording_ids=recording_ids,

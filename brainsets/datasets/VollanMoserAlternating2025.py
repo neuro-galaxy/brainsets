@@ -242,8 +242,8 @@ class VollanMoserAlternating2025(SpikingDatasetMixin, Dataset):
         dirname: str = "vollan_moser_alternating_2025",
         **kwargs,
     ):
-        root = root or get_processed_dir()
-
+        if root is None:
+            root = get_processed_dir()
         if isinstance(recording_ids, str):
             if recording_ids not in self._SHORTHAND:
                 raise ValueError(

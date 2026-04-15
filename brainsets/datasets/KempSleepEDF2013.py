@@ -44,8 +44,8 @@ class KempSleepEDF2013(Dataset):
         dirname: str = "kemp_sleep_edf_2013",
         **kwargs,
     ):
-        root = root or get_processed_dir()
-
+        if root is None:
+            root = get_processed_dir()
         super().__init__(
             dataset_dir=Path(root) / dirname,
             recording_ids=recording_ids,

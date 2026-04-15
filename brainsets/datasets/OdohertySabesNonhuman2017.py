@@ -56,8 +56,8 @@ class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
         dirname: str = "odoherty_sabes_nonhuman_2017",
         **kwargs,
     ):
-        root = root or get_processed_dir()
-
+        if root is None:
+            root = get_processed_dir()
         super().__init__(
             dataset_dir=Path(root) / dirname,
             recording_ids=recording_ids,

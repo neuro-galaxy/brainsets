@@ -26,7 +26,8 @@ class AllenVisualCodingOphys2016(CalciumImagingDatasetMixin, Dataset):
         dirname: str = "allen_visual_coding_ophys_2016",
         **kwargs,
     ):
-        root = root or get_processed_dir()
+        if root is None:
+            root = get_processed_dir()
 
         super().__init__(
             dataset_dir=Path(root) / dirname,
