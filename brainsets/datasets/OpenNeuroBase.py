@@ -36,9 +36,9 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
         self,
         root: str,
         dataset_dir: str,
+        split_type: SplitType,
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
-        split_type: SplitType = "intrasession",
         **kwargs,
     ):
         if split_type not in VALID_SPLIT_TYPES:
