@@ -227,8 +227,8 @@ class Neuroprobe2025(MultiChannelDatasetMixin, Dataset):
         dirname: str = "neuroprobe_2025",
         **kwargs,
     ):
-        if root is None:
-            root = get_processed_dir()
+        root = root or get_processed_dir()
+
         # Resolve and validate constructor inputs before touching dataset records.
         self._dataset_dir = Path(root) / dirname
 

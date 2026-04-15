@@ -58,8 +58,8 @@ class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):
         dirname: str = "churchland_shenoy_neural_2012",
         **kwargs,
     ):
-        if root is None:
-            root = get_processed_dir()
+        root = root or get_processed_dir()
+
         super().__init__(
             dataset_dir=Path(root) / dirname,
             recording_ids=recording_ids,
