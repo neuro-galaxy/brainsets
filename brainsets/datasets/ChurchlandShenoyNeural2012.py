@@ -3,7 +3,7 @@ from pathlib import Path
 
 from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
-from brainsets.config import get_processed_dir
+from ._utils import get_processed_dir
 
 
 class ChurchlandShenoyNeural2012(SpikingDatasetMixin, Dataset):

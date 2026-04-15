@@ -5,7 +5,7 @@ from temporaldata import Data
 
 from torch_brain.dataset import Dataset
 
-from brainsets.config import get_processed_dir
+from ._utils import get_processed_dir
 
 FoldType = Literal["intrasession", "intersubject", "intersession"]
 VALID_FOLD_TYPES = get_args(FoldType)

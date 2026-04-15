@@ -10,7 +10,7 @@ from temporaldata import Data, Interval
 
 from torch_brain.dataset import Dataset, MultiChannelDatasetMixin
 
-from brainsets.config import get_processed_dir
+from ._utils import get_processed_dir
 
 SubsetTier = Literal["full", "lite", "nano"]
 LabelMode = Literal["binary", "multiclass"]

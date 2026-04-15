@@ -33,14 +33,3 @@ def save_config(config: dict, path: Path = CONFIG_FILE) -> Path:
     with open(path, "w") as f:
         yaml.safe_dump(config, f, default_flow_style=False)
     return path
-
-
-def get_processed_dir(path: Path = CONFIG_FILE) -> str:
-    """Return ``processed_dir`` from config, or raise if unavailable."""
-    config = load_config(path)
-    if config is None:
-        raise FileNotFoundError(
-            f"Config not found at {path}. "
-            "Please run `brainsets config set` or pass `root` explicitly."
-        )
-    return config["processed_dir"]
