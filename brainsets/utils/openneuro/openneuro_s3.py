@@ -224,7 +224,7 @@ def construct_s3_url_from_path(
     """
     dataset_id = validate_dataset_id(dataset_id)
     parent_dir = str(Path(data_file_path).parent)
-    return f"s3://openneuro.org/{dataset_id}/{parent_dir}/{recording_id}"
+    return f"s3://{OPENNEURO_S3_BUCKET}/{dataset_id}/{parent_dir}/{recording_id}"
 
 
 def download_recording(s3_url: str, target_dir: Path) -> list[Path]:
