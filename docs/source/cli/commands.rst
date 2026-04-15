@@ -57,7 +57,7 @@ Manage brainsets configuration.
 
 .. rst-class:: cli-option
 
-``brainsets config set``
+``brainsets config set [OPTIONS]``
 
     Set raw and processed data directories.
 
