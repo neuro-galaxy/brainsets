@@ -13,6 +13,7 @@ OpenNeuro S3 → Download → Process → Save to HDF5
 ```
 
 **Your pipeline handles:**
+
 - 🔍 Discovering recordings from OpenNeuro's S3 bucket based on modality (EEG or iEEG)
 - ⬇️ Downloading BIDS-compliant files
 - 🔧 Processing: extracting data (signal) and metadata (channel names and types)
@@ -45,10 +46,12 @@ uv run brainsets prepare my_sleep_study_2024
 
 Before diving into details, check out working implementations:
 
-| Example | Use When | Complexity |
-|---------|----------|------------|
-| [`shirazi_hbnr1_ds005505_2024`](../../../brainsets_pipelines/shirazi_hbnr1_ds005505_2024/pipeline.py) | All recordings have identical channels | ⭐ Simple |
-| [`klinzing_sleep_ds005555_2024`](../../../brainsets_pipelines/klinzing_sleep_ds005555_2024/pipeline.py) | Different recordings need different channel mappings | ⭐⭐⭐ Complex |
+
+| Example                                                                                                 | Use When                                             | Complexity  |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ----------- |
+| `[shirazi_hbnr1_ds005505_2024](../../../brainsets_pipelines/shirazi_hbnr1_ds005505_2024/pipeline.py)`   | All recordings have identical channels               | ⭐ Simple    |
+| `[klinzing_sleep_ds005555_2024](../../../brainsets_pipelines/klinzing_sleep_ds005555_2024/pipeline.py)` | Different recordings need different channel mappings | ⭐⭐⭐ Complex |
+
 
 ---
 
@@ -85,11 +88,31 @@ brainset_id = "klinzing_sleep_ds005555_2024"
 origin_version = "1.0.0"
 ```
 
-> Why? OpenNeuro datasets are versioned. A newer version might have different subjects, missing files, or structural changes. Hardcoding the exact version lets you record which version of the data your pipeline was originally built and tested with—even if code may break if the dataset structure changes on OpenNeuro after your creation, at least you will know which version was intended.
->
-> **If a newer version exists on OpenNeuro, the code will download the latest version, but this can introduce errors or inconsistencies if the dataset structure or data has changed since the pipeline was created. The code will continue running in this case, but it will emit a warning to alert you to this version mismatch. Always check for version changes and be aware that results may differ from your original pipeline development.**
+**Why hardcode?** OpenNeuro datasets are versioned. A newer version might have different subjects, missing files, or structural changes. Hardcoding ensures you record which version your pipeline was originally built and tested with—so if the dataset evolves, you know what version was intended.
 
-**How to find it:** Visit https://openneuro.org/datasets/<dataset_id> and note the latest snapshot version. For a summary of what changed between versions, check the `CHANGES` file in the dataset, which documents all modifications across snapshots.
+**What happens on mismatch?** If a newer version exists on OpenNeuro when your pipeline runs, the code will download the latest version but emit a warning:
+
+```
+⚠️ Dataset version '1.0.0' was used to create the brainset pipeline for dataset 'ds005555',
+but the latest available version on OpenNeuro is '1.2.0'.
+Downloading data or running the pipeline now will use the latest version,
+which may differ from the original version used, potentially causing errors or inconsistencies.
+Check the CHANGES file of the dataset for details about the differences between versions.
+```
+
+**How to find the version:** 
+1. Visit [https://openneuro.org](https://openneuro.org/) and navigate to your dataset
+2. Look for "Snapshots" or "Version History"
+3. Note the latest version tag (e.g., `1.0.0`, `2.1.3`)
+4. For details on changes between versions, check the `CHANGES` file in the dataset
+
+**When versions don't match:**
+
+| Option | When | How |
+|--------|------|-----|
+| Ignore warning | Changes are minor/unrelated to your pipeline | Just run it |
+| Update version | You've tested with the new version | Update `origin_version`, test thoroughly, and re-create your pipeline |
+| Use old version | Changes break your pipeline | Download from OpenNeuro archives manually |
 
 ---
 
@@ -98,6 +121,7 @@ origin_version = "1.0.0"
 Want to customize? These are all optional:
 
 ### `description` (str)
+
 Human-readable description that appears in metadata:
 
 ```python
@@ -108,6 +132,7 @@ description = (
 ```
 
 ### `subject_ids` (list[str])
+
 Process only specific subjects (default: all):
 
 ```python
@@ -115,6 +140,7 @@ subject_ids = ["sub-01", "sub-02", "sub-03"]
 ```
 
 ### `derived_version` (str)
+
 Version of your processed brainset (default: `"1.0.0"`):
 
 ```python
@@ -124,6 +150,7 @@ derived_version = "1.0.0"
 Increment this when you change processing logic or channel configs.
 
 ### `split_ratios` (tuple[float, float])
+
 Train/validation time split (default: `(0.9, 0.1)`):
 
 ```python
@@ -134,6 +161,7 @@ split_ratios = (0.8, 0.2)  # 80% train, 20% validation
 
 Rename raw channel names from the original dataset to standardized names.  
 **Dictionary structure:**  
+
 - **Keys** are the original/recorded channel names as strings (e.g., those found in the raw data).  
 - **Values** are the standardized names to which you wish to map them as strings.
 
@@ -145,16 +173,18 @@ CHANNEL_NAME_REMAPPING = {
 }
 ```
 
-### `CHANNEL_TYPE_REMAPPING` (dict)
+### `TYPE_CHANNELS_REMAPPING` (dict)
+
 Group channels by physiological type.
 
 **Dictionary structure:**  
+
 - **Keys:** Strings representing physiological channel types (e.g., `"EEG"`, `"EOG"`, `"EMG"`).
 - **Values:** Lists of string channel names that belong to the given type.  
-  These names can be either the original channel names as found in the raw dataset or the standardized names you have mapped them to.
+These names can be either the original channel names as found in the raw dataset or the standardized names you have mapped them to.
 
 ```python
-CHANNEL_TYPE_REMAPPING = {
+TYPE_CHANNELS_REMAPPING = {
     "EEG": ["F3", "F4", "C3", "C4"],
     "EOG": ["EOG"],
     "EMG": ["EMG"],
@@ -189,12 +219,12 @@ def get_channel_name_remapping(self, recording_id):
     }
 ```
 
-### `get_channel_type_remapping(recording_id)`
+### `get_type_channels_remapping(recording_id)`
 
 Return different channel groupings based on the recording:
 
 ```python
-def get_channel_type_remapping(self, recording_id):
+def get_type_channels_remapping(self, recording_id):
     if "acq-headband" in recording_id:
         return {
             "EEG": ["AF7", "AF8"],
@@ -242,157 +272,6 @@ def generate_splits(self, domain, subject_id, session_id):
 
 ---
 
-## Command-Line Control
-
-### `--redownload`
-Force re-download even if files exist:
-
-```bash
-uv run brainsets prepare <my_brainset_id> --redownload
-```
-
-Use when files were corrupted or incomplete.
-
-### `--reprocess`
-Force re-processing even if output exists:
-
-```bash
-uv run brainsets prepare <my_brainset_id> --reprocess
-```
-
-Use when you changed processing logic or channel configs.
-
----
-
-## The Version Hardcoding Story
-
-### Why Hardcode?
-
-Imagine this:
-- **Today (2024)**: You create a pipeline using OpenNeuro ds005555 version 1.0.0
-- **Tomorrow (2025)**: Someone runs your pipeline
-- **Problem**: OpenNeuro now has version 1.2.0 with different subjects
-
-If you hardcoded the version, you'd get a clear warning:
-
-```
-⚠️ Dataset version '1.0.0' was used to create the pipeline,
-but the latest available version is '1.2.0'.
-Check the CHANGES file for differences.
-```
-
-If you **didn't** hardcode it, your pipeline silently uses different data. 😱
-
-### How to Check Versions
-
-1. Visit https://openneuro.org/datasets/ds005555
-2. Look for "Snapshots" or "Version History"
-3. Note the latest version tag (e.g., `1.0.0`, `2.1.3`)
-
-### When Versions Mismatch
-
-You'll see this warning:
-
-```
-WARNING: Dataset version '1.0.0' was used to create the brainset pipeline for 
-dataset 'ds005555', but the latest available version on OpenNeuro is '1.2.0'. 
-Downloading data or running the pipeline now will use the latest version, 
-which may differ from the original version used, potentially causing errors 
-or inconsistencies. Check the CHANGES file of the dataset for details about 
-the differences between versions.
-```
-
-**Options:**
-
-| Option | When | How |
-|--------|------|-----|
-| Ignore warning | Changes are minor/unrelated | Just run it |
-| Update version | You tested with new version | Update `origin_version`, test thoroughly |
-| Use old version | Changes break your pipeline | Download from OpenNeuro archives |
-
----
-
-## Real Implementation Examples
-
-### Example 1: Minimal EEG Pipeline
-
-```python
-# /// brainset-pipeline
-# python-version = "3.11"
-# dependencies = [
-#   "mne==1.11.0",
-#   "mne-bids==0.18",
-#   "boto3>=1.42.32",
-#   "requests==2.32.5",
-# ]
-# ///
-
-from brainsets.utils.openneuro import OpenNeuroEEGPipeline
-
-class Pipeline(OpenNeuroEEGPipeline):
-    brainset_id = "minimal_example_2024"
-    dataset_id = "ds005505"
-    origin_version = "1.0.0"
-    
-    description = "HBN EEG dataset with 128 channels"
-    
-    CHANNEL_NAME_REMAPPING = {
-        f"E{i}": f"E{i}" for i in range(1, 128)
-    }
-    
-    CHANNEL_TYPE_REMAPPING = {
-        "EEG": [f"E{i}" for i in range(1, 128)] + ["Cz"],
-    }
-```
-
-### Example 2: Complex EEG Pipeline (Multiple Acquisition Types)
-
-```python
-# /// brainset-pipeline
-# python-version = "3.11"
-# dependencies = [
-#   "mne==1.11.0",
-#   "mne-bids==0.18",
-#   "boto3>=1.42.32",
-#   "requests==2.32.5",
-# ]
-# ///
-
-from brainsets.utils.openneuro import OpenNeuroEEGPipeline
-
-# Define channel configs for different acquisition types
-HEADBAND = {
-    "names": {"HB_1": "AF7", "HB_2": "AF8", "HB_PULSE": "PULSE"},
-    "types": {"EEG": ["AF7", "AF8"], "PPG": ["PULSE"]},
-}
-
-PSG = {
-    "names": {
-        "PSG_F3": "F3", "PSG_F4": "F4", "PSG_C3": "C3", "PSG_C4": "C4",
-        "PSG_O1": "O1", "PSG_O2": "O2", "PSG_EOG": "EOG", "PSG_EMG": "EMG",
-    },
-    "types": {
-        "EEG": ["F3", "F4", "C3", "C4", "O1", "O2"],
-        "EOG": ["EOG"],
-        "EMG": ["EMG"],
-    },
-}
-
-class Pipeline(OpenNeuroEEGPipeline):
-    brainset_id = "klinzing_sleep_ds005555_2024"
-    dataset_id = "ds005555"
-    origin_version = "1.0.0"
-    description = "PSG + wearable EEG sleep recordings"
-    
-    def get_channel_name_remapping(self, recording_id):
-        return HEADBAND["names"] if "acq-headband" in recording_id else PSG["names"]
-    
-    def get_channel_type_remapping(self, recording_id):
-        return HEADBAND["types"] if "acq-headband" in recording_id else PSG["types"]
-```
-
----
-
 ## What's Next?
 
 1. ✅ Pick a dataset from [OpenNeuro](https://openneuro.org/)
@@ -402,4 +281,4 @@ class Pipeline(OpenNeuroEEGPipeline):
 5. ✅ Run: `uv run brainsets <my_brainset_id>`
 6. ✅ Done!
 
-Questions? Check the base class docstrings in [`pipeline.py`](pipeline.py) for detailed API docs.
+Questions? Check the base class docstrings in `[pipeline.py](pipeline.py)` for detailed API docs.
