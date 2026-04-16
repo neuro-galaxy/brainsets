@@ -16,6 +16,7 @@ from brainsets.utils.openneuro.openneuro_s3 import (
     ClientError,
     validate_dataset_id,
     validate_dataset_version,
+    fetch_species,
     validate_subject_ids,
     fetch_all_filenames,
     fetch_participants_tsv,
@@ -23,6 +24,7 @@ from brainsets.utils.openneuro.openneuro_s3 import (
     download_recording,
     download_dataset_description,
     _graphql_query_openneuro,
+    _validate_species,
     OPENNEURO_S3_BUCKET,
 )
 
@@ -69,6 +71,19 @@ def graphql_ok_response(tag: str) -> dict:
             "dataset": {
                 "latestSnapshot": {
                     "tag": tag,
+                }
+            }
+        }
+    }
+
+
+def graphql_species_response(species: str) -> dict:
+    """Helper to generate valid GraphQL species response structure."""
+    return {
+        "data": {
+            "dataset": {
+                "metadata": {
+                    "species": species,
                 }
             }
         }
@@ -522,6 +537,65 @@ class TestValidateDatasetVersion:
 
 
 # ============================================================================
+# Tests for fetch_species
+# ============================================================================
+
+
+class TestFetchSpecies:
+    """Tests for OpenNeuro species fetching via GraphQL."""
+
+    @patch("brainsets.utils.openneuro.openneuro_s3._graphql_query_openneuro")
+    def test_returns_homo_sapiens_for_human_alias(self, mock_graphql):
+        """Normalizes human aliases to canonical homo sapiens."""
+        mock_graphql.return_value = graphql_species_response("homo sapiens")
+
+        result = fetch_species("ds005085")
+
+        assert result == "homo sapiens"
+
+    @patch("brainsets.utils.openneuro.openneuro_s3._graphql_query_openneuro")
+    def test_returns_unknown_for_non_human_species(self, mock_graphql):
+        """Returns unknown for non-human species values."""
+        mock_graphql.return_value = graphql_species_response("mus musculus")
+
+        result = fetch_species("ds005085")
+
+        assert result == "unknown"
+
+    @patch("brainsets.utils.openneuro.openneuro_s3._graphql_query_openneuro")
+    def test_queries_with_correct_variables(self, mock_graphql):
+        """GraphQL is queried with the correct dataset ID."""
+        mock_graphql.return_value = graphql_species_response("mus musculus")
+
+        fetch_species("ds005085")
+
+        call_args = mock_graphql.call_args
+        assert call_args[0][1]["datasetId"] == "ds005085"
+
+
+# ============================================================================
+# Tests for _validate_species
+# ============================================================================
+
+
+class TestValidateSpecies:
+    """Tests for species normalization to homo sapiens or unknown."""
+
+    @pytest.mark.parametrize(
+        "species",
+        ["homo", "homo sapiens", "human", "humans", "H. sapiens", "  HUMAN  "],
+    )
+    def test_returns_homo_sapiens_for_supported_aliases(self, species):
+        """Supported aliases normalize to canonical homo sapiens."""
+        assert _validate_species(species) == "homo sapiens"
+
+    @pytest.mark.parametrize("species", ["mus musculus", "canis lupus", "", None, 42])
+    def test_returns_unknown_for_non_human_or_invalid_values(self, species):
+        """Non-human or invalid values normalize to unknown."""
+        assert _validate_species(species) == "unknown"
+
+
+# ============================================================================
 # Tests for validate_subject_ids
 # ============================================================================
 
@@ -565,9 +639,7 @@ class TestValidateSubjectId:
         assert result == ["sub-01", "sub-02", "sub-10", "sub-01", "sub-02"]
 
     @patch("brainsets.utils.openneuro.openneuro_s3.fetch_participants_tsv")
-    def test_preserves_order_and_allows_mixed_inputs(
-        self, mock_fetch_participants
-    ):
+    def test_preserves_order_and_allows_mixed_inputs(self, mock_fetch_participants):
         """Return order matches the order of requested subject_ids."""
         df = pd.DataFrame(
             {"age": [25, 30, 40], "sex": ["M", "F", "M"]},
@@ -579,9 +651,7 @@ class TestValidateSubjectId:
         assert result == ["sub-10", "sub-01", "sub-02"]
 
     @patch("brainsets.utils.openneuro.openneuro_s3.fetch_participants_tsv")
-    def test_raises_value_error_when_subjects_missing(
-        self, mock_fetch_participants
-    ):
+    def test_raises_value_error_when_subjects_missing(self, mock_fetch_participants):
         """Raises ValueError listing all missing subject_ids."""
         df = pd.DataFrame(
             {"age": [25, 30], "sex": ["M", "F"]},

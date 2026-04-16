@@ -167,7 +167,9 @@ def validate_subject_ids(dataset_id: str, subject_ids: list[str]) -> list[str]:
 
     participants = [str(x) for x in df.index.tolist()]
     participant_set = set(participants)
-    participant_to_canonical = {participant: participant for participant in participants}
+    participant_to_canonical = {
+        participant: participant for participant in participants
+    }
 
     # Map numeric suffix -> canonical participant_id (helps match '1' to 'sub-01').
     numeric_to_participant: dict[int, str] = {}
@@ -194,7 +196,10 @@ def validate_subject_ids(dataset_id: str, subject_ids: list[str]) -> list[str]:
             if m:
                 requested_numeric = int(m.group(1))
 
-        if requested_numeric is not None and requested_numeric in numeric_to_participant:
+        if (
+            requested_numeric is not None
+            and requested_numeric in numeric_to_participant
+        ):
             canonical_ids.append(numeric_to_participant[requested_numeric])
             continue
 
@@ -276,6 +281,38 @@ def fetch_participants_tsv(dataset_id: str) -> Optional[pd.DataFrame]:
         if error_code in ("NoSuchKey", "404"):
             return None
         raise
+
+
+def fetch_species(dataset_id: str) -> str:
+    """
+    Fetch species metadata for an OpenNeuro dataset from GraphQL.
+
+    Args:
+        dataset_id: The OpenNeuro dataset identifier (e.g., 'ds005555').
+
+    Returns:
+        The canonical human species name ('homo sapiens') if the dataset species is recognized
+        as human; otherwise, returns 'unknown'.
+    """
+    query = """
+        query Dataset($datasetId: ID!) {
+            dataset(id: $datasetId) {
+                metadata {
+                    species
+                }
+            }
+        }
+    """
+    variables = {
+        "datasetId": dataset_id,
+    }
+
+    response = _graphql_query_openneuro(
+        query,
+        variables,
+    )
+    species = response["data"]["dataset"]["metadata"]["species"]
+    return _validate_species(species)
 
 
 def construct_s3_url_from_path(
@@ -415,3 +452,30 @@ def _graphql_query_openneuro(query: str, variables: dict | None = None) -> dict:
             raise Exception(f"Query failed with status code {response.status_code}")
 
     return _graphql_query(query, variables)
+
+
+def _validate_species(species: str | None) -> str:
+    """
+    Normalize species names to 'homo sapiens' or 'unknown'.
+
+    Args:
+        species: The input species name (string or None).
+
+    Returns:
+        str: 'homo sapiens' if the input matches a recognized alias for humans,
+            otherwise 'unknown'.
+    """
+    if not isinstance(species, str):
+        return "unknown"
+
+    normalized_species = species.strip().lower()
+    homo_sapiens_aliases = {
+        "homo",
+        "homo sapiens",
+        "human",
+        "humans",
+        "h. sapiens",
+    }
+    if normalized_species in homo_sapiens_aliases:
+        return "homo sapiens"
+    return "unknown"

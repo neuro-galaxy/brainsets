@@ -56,6 +56,7 @@ from brainsets.utils.openneuro import (
     download_recording,
     fetch_all_filenames,
     fetch_participants_tsv,
+    fetch_species,
     validate_dataset_id,
     validate_dataset_version,
     validate_subject_ids,
@@ -335,9 +336,12 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         )
 
         subject_info = get_subject_info(subject_id, self._participants_data)
+        species = fetch_species(self.dataset_id)
         subject_description = SubjectDescription(
             id=subject_id,
-            species=Species.HOMO_SAPIENS,
+            species=(
+                Species.HOMO_SAPIENS if species == "homo sapiens" else Species.UNKNOWN
+            ),
             age=subject_info.get("age"),
             sex=subject_info.get("sex"),
         )
