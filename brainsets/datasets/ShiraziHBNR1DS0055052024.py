@@ -7,9 +7,9 @@ class ShiraziHBNR1DS0055052024(OpenNeuroDataset):
     def __init__(
         self,
         root: str,
+        split_type: SplitType,
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
-        split_type: SplitType = "intrasession",
         **kwargs,
     ):
         dataset_dir = "shirazi_hbn_r1_ds005505_2024"

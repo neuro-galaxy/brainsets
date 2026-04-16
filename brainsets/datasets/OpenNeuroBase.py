@@ -23,13 +23,11 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
     Args:
         root: Root directory containing processed OpenNeuro dataset artifacts.
         dataset_dir: Relative dataset directory within the root path.
-        recording_ids: Optional explicit recording-id subset to expose from disk.
-            If omitted, the dataset uses all available recordings.
-        transform: Optional sample transform.
         split_type (SplitType): The split strategy to use, must be one of
             'intrasession', 'intersubject', or 'intersession'.
         recording_ids (Optional[list[str]]): List of recording IDs to include,
             or None to use all available recordings.
+        transform (Optional[Callable]): Optional sample transform.
     """
 
     def __init__(

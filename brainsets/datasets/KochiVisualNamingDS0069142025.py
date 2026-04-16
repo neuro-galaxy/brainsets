@@ -7,9 +7,9 @@ class KochiVisualNamingDS0069142025(OpenNeuroDataset):
     def __init__(
         self,
         root: str,
+        split_type: SplitType,
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
-        split_type: SplitType = "intrasession",
         **kwargs,
     ):
         dataset_dir = "kochi_visualnaming_ds006914_2025"

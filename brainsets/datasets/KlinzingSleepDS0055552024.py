@@ -7,9 +7,9 @@ class KlinzingSleepDS0055552024(OpenNeuroDataset):
     def __init__(
         self,
         root: str,
+        split_type: SplitType,
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
-        split_type: SplitType = "intrasession",
         **kwargs,
     ):
         dataset_dir = "klinzing_sleep_ds005555_2024"
