@@ -58,7 +58,7 @@ PSG_MODALITY_CHANNELS = {
 
 
 class Pipeline(OpenNeuroEEGPipeline):
-    brainset_id = "klinzing_sleep_ds005555_2024"
+    brainset_id = "klinzing_sleep_ds005555"
     dataset_id = "ds005555"
     description = (
         "The Bitbrain Open Access Sleep (BOAS) dataset contains simultaneous recordings "

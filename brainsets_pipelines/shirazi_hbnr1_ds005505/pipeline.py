@@ -14,7 +14,7 @@ TYPE_CHANNELS_REMAPPING = {"EEG": [f"E{i}" for i in range(1, 129)] + ["Cz"]}
 
 
 class Pipeline(OpenNeuroEEGPipeline):
-    brainset_id = "shirazi_hbnr1_ds005505_2024"
+    brainset_id = "shirazi_hbnr1_ds005505"
     dataset_id = "ds005505"
     description = (
         "Healthy Brain Network (HBN) EEG dataset containing recordings from "

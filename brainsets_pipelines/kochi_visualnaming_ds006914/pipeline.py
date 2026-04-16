@@ -12,7 +12,7 @@ from brainsets.utils.openneuro import OpenNeuroIEEGPipeline
 
 
 class Pipeline(OpenNeuroIEEGPipeline):
-    brainset_id = "kochi_visualnaming_ds006914_2025"
+    brainset_id = "kochi_visualnaming_ds006914"
     dataset_id = "ds006914"
     description = (
         "Visual Naming EC - A large-scale intracranial EEG (iEEG) dataset with 110 subjects "
