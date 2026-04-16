@@ -19,7 +19,6 @@ _psg_datasets = [
 ]
 
 _openneuro_datasets = [
-    "OpenNeuroDataset",
     "KlinzingSleepDS0055552024",
     "KochiVisualNamingDS0069142025",
     "ShiraziHBNR1DS0055052024",
@@ -41,7 +40,6 @@ from .OdohertySabesNonhuman2017 import OdohertySabesNonhuman2017
 from .AllenVisualCodingOphys2016 import AllenVisualCodingOphys2016
 from .KempSleepEDF2013 import KempSleepEDF2013
 from .Neuroprobe2025 import Neuroprobe2025
-from .OpenNeuroBase import OpenNeuroDataset
 from .KlinzingSleepDS0055552024 import KlinzingSleepDS0055552024
 from .KochiVisualNamingDS0069142025 import KochiVisualNamingDS0069142025
 from .ShiraziHBNR1DS0055052024 import ShiraziHBNR1DS0055052024
