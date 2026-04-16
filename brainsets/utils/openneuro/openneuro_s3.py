@@ -117,7 +117,14 @@ def validate_dataset_version(dataset_id: str, dataset_version: str) -> str:
         variables,
     )
 
-    latest_snapshot_tag = response["data"]["dataset"]["latestSnapshot"]["tag"]
+    dataset = response.get("data", {}).get("dataset")
+    latest_snapshot_tag = ((dataset or {}).get("latestSnapshot") or {}).get("tag")
+    if not latest_snapshot_tag:
+        raise RuntimeError(
+            f"Could not resolve latest snapshot tag for dataset '{dataset_id}'. "
+            "The dataset may be missing, private, or the API response format changed."
+        )
+
     if latest_snapshot_tag != dataset_version:
         logging.warning(
             f"Dataset version '{dataset_version}' was used to create the brainset pipeline for dataset '{dataset_id}', "
