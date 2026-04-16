@@ -278,7 +278,7 @@ def generate_splits(self, domain, subject_id, session_id):
 2. ✅ Copy the minimal example above
 3. ✅ Update `dataset_id`, `brainset_id`, `origin_version`
 4. ✅ Add channel name and/or type mappings if needed
-5. ✅ Run: `uv run brainsets <my_brainset_id>`
+5. ✅ Run: `uv run brainsets prepare <my_brainset_id>`
 6. ✅ Done!
 
 Questions? Check the base class docstrings in `[pipeline.py](pipeline.py)` for detailed API docs.
