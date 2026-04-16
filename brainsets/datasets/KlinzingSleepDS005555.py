@@ -3,7 +3,7 @@ from typing import Callable, Optional
 from brainsets.datasets.OpenNeuroBase import OpenNeuroDataset, SplitType
 
 
-class ShiraziHBNR1DS0055052024(OpenNeuroDataset):
+class KlinzingSleepDS005555(OpenNeuroDataset):
     def __init__(
         self,
         root: str,
@@ -12,7 +12,7 @@ class ShiraziHBNR1DS0055052024(OpenNeuroDataset):
         transform: Optional[Callable] = None,
         **kwargs,
     ):
-        dataset_dir = "shirazi_hbn_r1_ds005505_2024"
+        dataset_dir = "klinzing_sleep_ds005555"
         super().__init__(
             root=root,
             dataset_dir=dataset_dir,

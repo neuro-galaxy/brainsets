@@ -63,10 +63,10 @@ Before diving into details, check out working implementations in the `brainsets_
    * - Example
      - Use When
      - Complexity
-   * - `shirazi_hbnr1_ds005505_2024 <https://github.com/neuro-galaxy/brainsets/blob/main/brainsets_pipelines/shirazi_hbnr1_ds005505_2024/pipeline.py>`_
+   * - `shirazi_hbnr1_ds005505 <https://github.com/neuro-galaxy/brainsets/blob/main/brainsets_pipelines/shirazi_hbnr1_ds005505/pipeline.py>`_
      - All recordings have identical channels
      - Simple ⭐
-   * - `klinzing_sleep_ds005555_2024 <https://github.com/neuro-galaxy/brainsets/blob/main/brainsets_pipelines/klinzing_sleep_ds005555_2024/pipeline.py>`_
+   * - `klinzing_sleep_ds005555 <https://github.com/neuro-galaxy/brainsets/blob/main/brainsets_pipelines/klinzing_sleep_ds005555/pipeline.py>`_
      - Different recordings need different channel mappings
      - Complex ⭐⭐⭐
 
