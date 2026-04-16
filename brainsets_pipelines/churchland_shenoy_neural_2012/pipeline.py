@@ -78,7 +78,7 @@ class Pipeline(BrainsetPipeline):
         brainset_description = BrainsetDescription(
             id="churchland_shenoy_neural_2012",
             origin_version="dandi/000070/draft",
-            derived_version="1.0.0",
+            derived_version="2.0.0",
             source="https://dandiarchive.org/dandiset/000070",
             description="Monkeys recordings of Motor Cortex (M1) and dorsal Premotor Cortex"
             " (PMd) using two 96 channel high density Utah Arrays (Blackrock Microsystems) "
