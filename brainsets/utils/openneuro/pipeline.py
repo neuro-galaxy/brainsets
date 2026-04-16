@@ -252,6 +252,14 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         subject_id = manifest_item.subject_id
         root_dir = self.raw_dir
 
+        # if the dataset_description.json file does not exist or the redownload flag is set, download it
+        # dataset_description.json is required for mne-bids to recognize a valid BIDS dataset
+        dataset_description_exists = (
+            self.raw_dir / "dataset_description.json"
+        ).exists()
+        if not dataset_description_exists or getattr(self.args, "redownload", False):
+            download_dataset_description(self.dataset_id, root_dir)
+
         if not getattr(self.args, "redownload", False):
             if self.modality == "eeg":
                 if check_eeg_recording_files_exist(self.raw_dir, recording_id):
@@ -270,7 +278,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         try:
             download_recording(s3_url, root_dir)
-            download_dataset_description(self.dataset_id, root_dir)
         except Exception as e:
             raise RuntimeError(
                 f"Failed to download data for {subject_id} from {self.dataset_id}: {str(e)}"
