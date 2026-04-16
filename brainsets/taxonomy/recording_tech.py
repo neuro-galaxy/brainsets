@@ -30,6 +30,8 @@ class RecordingTech(StringIntEnum):
 
     POLYSOMNOGRAPHY = 50
 
+    MEG = 60
+
 
 class Hemisphere(StringIntEnum):
     UNKNOWN = 0
