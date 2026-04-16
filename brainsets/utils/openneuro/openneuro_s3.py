@@ -8,6 +8,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional
 import logging
+import re
 import requests
 import pandas as pd
 
@@ -126,6 +127,85 @@ def validate_dataset_version(dataset_id: str, dataset_version: str) -> str:
             f"Check the CHANGES file of the dataset for details about the differences between versions."
         )
     return latest_snapshot_tag
+
+
+def validate_subject_ids(dataset_id: str, subject_ids: list[str]) -> list[str]:
+    """
+    Validate that OpenNeuro subjects exist in the dataset's participants.tsv.
+
+    OpenNeuro/BIDS datasets typically store participant identifiers in a `participants.tsv`
+    file under the `participant_id` column (often values like `sub-01`).
+
+    This function fetches `participants.tsv` from OpenNeuro S3 and verifies that each
+    requested subject exists in the `participant_id` column.
+
+    Args:
+        dataset_id: The OpenNeuro dataset identifier (e.g., 'ds005555').
+        subject_ids: List of subject identifiers to validate. Supports values like:
+            - 'sub-01' (direct match against `participant_id`)
+            - '01' or '1' (matched by numeric suffix, tolerant to zero-padding)
+            - 'sub01', 'sub_01' (numeric suffix match)
+            - Any other string (direct match only)
+
+    Returns:
+        A list of canonical participant IDs (as stored in the TSV) in the same order
+        as `subject_ids`.
+
+    Raises:
+        ValueError: If any requested subject IDs are not present in participants.tsv.
+        RuntimeError: If participants.tsv cannot be fetched/does not exist.
+    """
+    dataset_id = validate_dataset_id(dataset_id)
+    if len(subject_ids) == 0:
+        return []
+
+    df = fetch_participants_tsv(dataset_id)
+    if df is None:
+        raise RuntimeError(
+            f"participants.tsv not found (or missing participant_id column) for dataset {dataset_id} on OpenNeuro S3."
+        )
+
+    participants = [str(x) for x in df.index.tolist()]
+    participant_set = set(participants)
+    participant_to_canonical = {participant: participant for participant in participants}
+
+    # Map numeric suffix -> canonical participant_id (helps match '1' to 'sub-01').
+    numeric_to_participant: dict[int, str] = {}
+    for pid in participants:
+        m = re.match(r"^sub[-_]?(\d+)$", pid, flags=re.IGNORECASE)
+        if m:
+            numeric_to_participant.setdefault(int(m.group(1)), pid)
+
+    canonical_ids: list[str] = []
+    missing: list[str] = []
+
+    for requested in subject_ids:
+        requested = str(requested).strip()
+        if requested in participant_set:
+            canonical_ids.append(participant_to_canonical[requested])
+            continue
+
+        # Try numeric matching on the subject identifier.
+        requested_numeric: Optional[int] = None
+        if requested.isdigit():
+            requested_numeric = int(requested)
+        else:
+            m = re.match(r"^sub[-_]?(\d+)$", requested, flags=re.IGNORECASE)
+            if m:
+                requested_numeric = int(m.group(1))
+
+        if requested_numeric is not None and requested_numeric in numeric_to_participant:
+            canonical_ids.append(numeric_to_participant[requested_numeric])
+            continue
+
+        missing.append(requested)
+
+    if missing:
+        raise ValueError(
+            f"Requested subject_ids not found in participants list for dataset {dataset_id}: {missing}"
+        )
+
+    return canonical_ids
 
 
 def fetch_all_filenames(dataset_id: str) -> list[str]:

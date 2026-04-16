@@ -15,6 +15,7 @@ from .openneuro_s3 import (
     fetch_participants_tsv,
     validate_dataset_id,
     validate_dataset_version,
+    validate_subject_ids,
 )
 from .pipeline import OpenNeuroEEGPipeline, OpenNeuroIEEGPipeline, OpenNeuroPipeline
 
@@ -27,6 +28,7 @@ __all__ = [
     "fetch_participants_tsv",
     "validate_dataset_id",
     "validate_dataset_version",
+    "validate_subject_ids",
     "OpenNeuroPipeline",
     "OpenNeuroEEGPipeline",
     "OpenNeuroIEEGPipeline",

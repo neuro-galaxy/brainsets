@@ -58,6 +58,7 @@ from brainsets.utils.openneuro import (
     fetch_participants_tsv,
     validate_dataset_id,
     validate_dataset_version,
+    validate_subject_ids,
 )
 
 _openneuro_parser = ArgumentParser()
@@ -183,6 +184,9 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         """
         dataset_id = validate_dataset_id(cls.dataset_id)
         validate_dataset_version(dataset_id, cls.origin_version)
+
+        if cls.subject_ids is not None:
+            cls.subject_ids = validate_subject_ids(dataset_id, cls.subject_ids)
 
         all_files = fetch_all_filenames(dataset_id)
         modality = cls.modality

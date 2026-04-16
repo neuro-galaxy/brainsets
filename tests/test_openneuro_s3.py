@@ -16,6 +16,7 @@ from brainsets.utils.openneuro.openneuro_s3 import (
     ClientError,
     validate_dataset_id,
     validate_dataset_version,
+    validate_subject_ids,
     fetch_all_filenames,
     fetch_participants_tsv,
     construct_s3_url_from_path,
@@ -518,6 +519,88 @@ class TestValidateDatasetVersion:
         for record in caplog.records:
             if record.levelno >= 30:  # WARNING level and above
                 assert "version" not in record.message.lower()
+
+
+# ============================================================================
+# Tests for validate_subject_ids
+# ============================================================================
+
+
+class TestValidateSubjectId:
+    """Tests for OpenNeuro-style subject ID validation."""
+
+    @patch("brainsets.utils.openneuro.openneuro_s3.fetch_participants_tsv")
+    def test_returns_empty_when_no_subject_ids(self, mock_fetch_participants):
+        """Empty input returns empty output without fetching participants.tsv."""
+        result = validate_subject_ids("5085", [])
+        assert result == []
+        mock_fetch_participants.assert_not_called()
+
+    @patch("brainsets.utils.openneuro.openneuro_s3.fetch_participants_tsv")
+    def test_matches_direct_participant_ids(self, mock_fetch_participants):
+        """Direct matches against participants.tsv participant_id are returned."""
+        df = pd.DataFrame(
+            {"age": [25, 30, 40], "sex": ["M", "F", "M"]},
+            index=["sub-01", "sub-02", "sub-10"],
+        )
+        mock_fetch_participants.return_value = df
+
+        result = validate_subject_ids("ds005085", ["sub-01", "sub-10"])
+        assert result == ["sub-01", "sub-10"]
+
+    @patch("brainsets.utils.openneuro.openneuro_s3.fetch_participants_tsv")
+    def test_matches_numeric_and_normalizes_common_subject_formats(
+        self, mock_fetch_participants
+    ):
+        """Numeric and sub-<number> variants are matched against TSV."""
+        df = pd.DataFrame(
+            {"age": [25, 30, 40], "sex": ["M", "F", "M"]},
+            index=["sub-01", "sub-02", "sub-10"],
+        )
+        mock_fetch_participants.return_value = df
+
+        # - int/string numeric input matched by suffix
+        # - sub01/sub_02 matched by numeric suffix regex
+        result = validate_subject_ids("5085", ["1", "02", 10, "sub01", "sub_02"])
+        assert result == ["sub-01", "sub-02", "sub-10", "sub-01", "sub-02"]
+
+    @patch("brainsets.utils.openneuro.openneuro_s3.fetch_participants_tsv")
+    def test_preserves_order_and_allows_mixed_inputs(
+        self, mock_fetch_participants
+    ):
+        """Return order matches the order of requested subject_ids."""
+        df = pd.DataFrame(
+            {"age": [25, 30, 40], "sex": ["M", "F", "M"]},
+            index=["sub-01", "sub-02", "sub-10"],
+        )
+        mock_fetch_participants.return_value = df
+
+        result = validate_subject_ids("5085", ["sub-10", 1, "sub_02"])
+        assert result == ["sub-10", "sub-01", "sub-02"]
+
+    @patch("brainsets.utils.openneuro.openneuro_s3.fetch_participants_tsv")
+    def test_raises_value_error_when_subjects_missing(
+        self, mock_fetch_participants
+    ):
+        """Raises ValueError listing all missing subject_ids."""
+        df = pd.DataFrame(
+            {"age": [25, 30], "sex": ["M", "F"]},
+            index=["sub-01", "sub-02"],
+        )
+        mock_fetch_participants.return_value = df
+
+        with pytest.raises(ValueError, match="not found in participants list"):
+            validate_subject_ids("5085", ["sub-01", "sub-03", "3"])
+
+    @patch("brainsets.utils.openneuro.openneuro_s3.fetch_participants_tsv")
+    def test_raises_runtime_error_when_participants_tsv_missing(
+        self, mock_fetch_participants
+    ):
+        """Raises RuntimeError when participants.tsv is unavailable."""
+        mock_fetch_participants.return_value = None
+
+        with pytest.raises(RuntimeError, match="participants\\.tsv not found"):
+            validate_subject_ids("5085", ["sub-01"])
 
 
 # ============================================================================
