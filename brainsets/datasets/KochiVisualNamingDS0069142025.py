@@ -14,5 +14,10 @@ class KochiVisualNamingDS0069142025(OpenNeuroDataset):
     ):
         dataset_dir = "kochi_visualnaming_ds006914_2025"
         super().__init__(
-            root, dataset_dir, recording_ids, transform, split_type, **kwargs
+            root=root,
+            dataset_dir=dataset_dir,
+            recording_ids=recording_ids,
+            transform=transform,
+            split_type=split_type,
+            **kwargs,
         )

@@ -14,5 +14,10 @@ class ShiraziHBNR1DS0055052024(OpenNeuroDataset):
     ):
         dataset_dir = "shirazi_hbn_r1_ds005505_2024"
         super().__init__(
-            root, dataset_dir, recording_ids, transform, split_type, **kwargs
+            root=root,
+            dataset_dir=dataset_dir,
+            recording_ids=recording_ids,
+            transform=transform,
+            split_type=split_type,
+            **kwargs,
         )
