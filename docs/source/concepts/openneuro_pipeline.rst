@@ -96,7 +96,7 @@ A descriptive ID for your processed brainset. Recommended naming scheme:
 
 .. code-block:: python
 
-    brainset_id = "klinzing_sleep_ds005555_2024"
+    brainset_id = "klinzing_sleep_ds005555"
     #             └─ institution
     #                        └─ dataset nickname
     #                                    └─ year
