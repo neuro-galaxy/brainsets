@@ -228,7 +228,6 @@ def fetch_all_filenames(dataset_id: str) -> list[str]:
 
     Args:
         dataset_id: The OpenNeuro dataset identifier
-        tag: The dataset version tag (currently ignored for S3 access)
 
     Returns:
         List of relative filenames in the dataset (excluding directories)
