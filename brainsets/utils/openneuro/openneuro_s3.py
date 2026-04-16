@@ -283,9 +283,10 @@ def fetch_participants_tsv(dataset_id: str) -> Optional[pd.DataFrame]:
         return df
 
     except ClientError as e:
-        error_code = e.response.get("Error", {}).get("Code", "")
-        if error_code in ("NoSuchKey", "404"):
-            return None
+        if BOTO_AVAILABLE:
+            error_code = e.response.get("Error", {}).get("Code", "")
+            if error_code in ("NoSuchKey", "404"):
+                return None
         raise
 
 
@@ -403,7 +404,9 @@ def download_dataset_description(dataset_id: str, target_dir: Path) -> Path:
         return target_path
 
     except ClientError as e:
-        error_code = e.response.get("Error", {}).get("Code", "")
+        error_code = ""
+        if BOTO_AVAILABLE:
+            error_code = e.response.get("Error", {}).get("Code", "")
         if error_code in ("NoSuchKey", "404"):
             raise RuntimeError(
                 f"dataset_description.json not found for {dataset_id} on OpenNeuro S3"
