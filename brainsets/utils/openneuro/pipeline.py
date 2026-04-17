@@ -187,9 +187,9 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         validate_dataset_version(dataset_id, cls.origin_version)
 
         if cls.subject_ids is not None:
-            subject_ids = validate_subject_ids(dataset_id, cls.subject_ids)
+            validated_subject_ids = validate_subject_ids(dataset_id, cls.subject_ids)
         else:
-            subject_ids = None
+            validated_subject_ids = None
 
         all_files = fetch_all_filenames(dataset_id)
         modality = cls.modality
@@ -201,11 +201,13 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         else:
             raise ValueError(f"Unknown modality: {modality}")
 
-        if subject_ids is not None:
-            recordings = [r for r in recordings if r["subject_id"] in subject_ids]
+        if validated_subject_ids is not None:
+            recordings = [
+                r for r in recordings if r["subject_id"] in validated_subject_ids
+            ]
             if not recordings:
                 raise ValueError(
-                    f"No recordings were found for subject_ids {subject_ids} in dataset {dataset_id}"
+                    f"No recordings were found for subject_ids {validated_subject_ids} in dataset {dataset_id}"
                 )
 
         manifest_list = []
