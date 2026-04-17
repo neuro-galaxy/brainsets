@@ -315,12 +315,14 @@ class TestGetManifest:
 
     @patch("brainsets.utils.openneuro.pipeline.validate_dataset_id")
     @patch("brainsets.utils.openneuro.pipeline.validate_dataset_version")
+    @patch("brainsets.utils.openneuro.pipeline.validate_subject_ids")
     @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
     @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
     def test_get_manifest_with_subject_filter(
         self,
         mock_fetch_eeg,
         mock_fetch_files,
+        mock_validate_subject_ids,
         mock_validate_version,
         mock_validate_id,
         temp_dir,
@@ -335,6 +337,7 @@ class TestGetManifest:
 
         mock_validate_id.return_value = "ds005085"
         mock_validate_version.return_value = "1.0.0"
+        mock_validate_subject_ids.return_value = ["sub-01"]
         mock_fetch_files.return_value = [
             "sub-01/eeg/rec-001_eeg.edf",
             "sub-02/eeg/rec-001_eeg.edf",
@@ -408,12 +411,14 @@ class TestGetManifest:
 
     @patch("brainsets.utils.openneuro.pipeline.validate_dataset_id")
     @patch("brainsets.utils.openneuro.pipeline.validate_dataset_version")
+    @patch("brainsets.utils.openneuro.pipeline.validate_subject_ids")
     @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
     @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
     def test_get_manifest_raises_on_no_matching_subjects(
         self,
         mock_fetch_eeg,
         mock_fetch_files,
+        mock_validate_subject_ids,
         mock_validate_version,
         mock_validate_id,
         temp_dir,
@@ -428,16 +433,17 @@ class TestGetManifest:
 
         mock_validate_id.return_value = "ds005085"
         mock_validate_version.return_value = "1.0.0"
-        mock_fetch_files.return_value = ["sub-01/eeg/rec.edf"]
+        mock_validate_subject_ids.return_value = ["sub-99"]
+        mock_fetch_files.return_value = ["sub-01/eeg/rec-001.edf"]
         mock_fetch_eeg.return_value = [
             {
                 "subject_id": "sub-01",
                 "recording_id": "rec-001",
-                "fpath": "sub-01/eeg/rec.edf",
+                "fpath": "sub-01/eeg/rec-001.edf",
             },
         ]
 
-        with pytest.raises(ValueError, match="None of the requested subjects"):
+        with pytest.raises(ValueError, match="No recordings were found"):
             FilteredPipeline.get_manifest(temp_dir, None)
 
 

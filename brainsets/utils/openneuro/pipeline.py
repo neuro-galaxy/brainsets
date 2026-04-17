@@ -205,8 +205,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             recordings = [r for r in recordings if r["subject_id"] in subject_ids]
             if not recordings:
                 raise ValueError(
-                    f"None of the requested subjects {subject_ids} "
-                    f"were found in dataset {dataset_id}"
+                    f"No recordings were found for subject_ids {subject_ids} in dataset {dataset_id}"
                 )
 
         manifest_list = []
