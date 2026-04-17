@@ -778,7 +778,7 @@ peterson_brunton_pose_trajectory_2022
        </tr>
        <tr>
            <td><strong>Raw data size</strong></td>
-           <td>TBA</td>
+           <td>788 GB</td>
        </tr>
        <tr>
            <td><strong>Processed data size</strong></td>
