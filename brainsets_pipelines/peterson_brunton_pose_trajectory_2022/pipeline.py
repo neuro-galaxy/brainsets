@@ -244,16 +244,7 @@ class Pipeline(BrainsetPipeline):
                 participants = json.load(f)
         par = str(nwbfile.subject.subject_id).replace("sub-", "").strip()
         part = participants.get(par)
-        if part is not None:
-            subject = extract_subject_from_nwb(
-                nwbfile,
-                subject_id=f"AJILE12_P{par}",
-                species=Species.HOMO_SAPIENS,
-                sex=Sex.from_string(part["sex"]),
-                age=part["age"] * 365.25,
-            )
-        else:
-            subject = extract_subject_from_nwb(nwbfile)
+        subject = extract_subject_from_nwb(nwbfile)
 
         recording_date = nwbfile.session_start_time.strftime("%Y%m%d")
         subject_num = (
