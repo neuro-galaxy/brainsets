@@ -47,10 +47,39 @@ def _check_dandi_available(func_name: str) -> None:
         )
 
 
+def _normalize_subject_species(nwbfile: NWBFile) -> str | Species:
+    subject = getattr(nwbfile, "subject", None)
+    raw_species = getattr(subject, "species", None) if subject is not None else None
+    if raw_species is None:
+        return Species.UNKNOWN
+
+    normalized_species = str(raw_species).strip()
+    if not normalized_species:
+        return Species.UNKNOWN
+    if "NCBITaxon" in normalized_species:
+        normalized_species = "NCBITaxon_" + normalized_species.split("_")[-1]
+    return normalized_species
+
+
+def _normalize_subject_sex(nwbfile: NWBFile) -> str | Sex:
+    subject = getattr(nwbfile, "subject", None)
+    raw_sex = getattr(subject, "sex", None) if subject is not None else None
+    if raw_sex is None:
+        return Sex.UNKNOWN
+
+    normalized_sex = str(raw_sex).strip()
+    if not normalized_sex:
+        return Sex.UNKNOWN
+    return normalized_sex
+
+
 def extract_subject_from_nwb(nwbfile: NWBFile):
     r"""Extract a :obj:`SubjectDescription <brainsets.descriptions.SubjectDescription>` from an NWBFile
 
-    The resultant description will include ``id``, ``species``, and ``sex``
+    The resultant description includes ``id``, ``species``, and ``sex``.
+    This helper assumes ``subject_id`` exists in the source NWB file. When
+    ``species`` or ``sex`` is missing/blank, it uses UNKNOWN placeholders so
+    downstream processing can continue.
 
     Args:
         nwbfile: An open NWB file handle
@@ -59,23 +88,12 @@ def extract_subject_from_nwb(nwbfile: NWBFile):
         A :obj:`SubjectDescription <brainsets.descriptions.SubjectDescription>`
     """
 
-    # DANDI has requirements for metadata included in `subject`
-    # - subject_id: A subject identifier must be provided.
-    # - species: either a latin binomial or NCBI taxonomic identifier.
-    # - sex: must be "M", "F", "O" (other), or "U" (unknown).
-    # - date_of_birth or age: this does not appear to be enforced, so will be skipped.
-    species = nwbfile.subject.species
-
-    if "NCBITaxon" in species:
-        species = "NCBITaxon_" + species.split("_")[-1]
-    if sex is None:
-        sex = Sex.from_string(nwbfile.subject.sex)
-
+    # Some files in the wild omit optional subject fields even when the
+    # recording itself is valid, so we preserve processability with UNKNOWNs.
     return SubjectDescription(
-        id=subject_id,
-        species=species,
-        sex=sex,
-        age=age,
+        id=str(nwbfile.subject.subject_id).strip().lower(),
+        species=_normalize_subject_species(nwbfile),
+        sex=_normalize_subject_sex(nwbfile),
     )
 
 

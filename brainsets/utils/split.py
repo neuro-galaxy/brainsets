@@ -200,12 +200,12 @@ def generate_string_kfold_assignment(
 
 def generate_stratified_folds_by_task(
     trials: Interval,
-    task_configs: Dict[str, List[str]],
+    task_configs: dict[str, list[str]],
     label_field: str,
     n_folds: int = 5,
     val_ratio: float = 0.2,
     seed: int = 42,
-) -> Dict[str, Interval]:
+) -> dict[str, Interval]:
     if not hasattr(trials, label_field):
         raise ValueError(
             f"Trials must have a '{label_field}' attribute for task filtering."

@@ -1,5 +1,5 @@
 # /// brainset-pipeline
-# python-version = "3.11"
+# python-version = "3.12"
 # dependencies = [
 #   "mne~=1.11.0",
 #   "dandi==0.74.0",
@@ -31,7 +31,7 @@ from brainsets.descriptions import (
 )
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.taxonomy import Hemisphere
-from brainsets.taxonomy import RecordingTech, Sex, Species, Task
+from brainsets.taxonomy import RecordingTech, Task
 from brainsets.utils.dandi_utils import (
     download_file,
     extract_ecog_from_nwb,
@@ -236,15 +236,15 @@ class Pipeline(BrainsetPipeline):
         nwbfile = io.read()
 
         self.processed_dir.mkdir(exist_ok=True, parents=True)
+        subject = extract_subject_from_nwb(nwbfile)
 
         participants_path = Path(__file__).parent / "participants.json"
         participants = {}
         if participants_path.exists():
             with open(participants_path) as f:
                 participants = json.load(f)
-        par = str(nwbfile.subject.subject_id).replace("sub-", "").strip()
+        par = str(subject.id).replace("sub-", "").strip()
         part = participants.get(par)
-        subject = extract_subject_from_nwb(nwbfile)
 
         recording_date = nwbfile.session_start_time.strftime("%Y%m%d")
         subject_num = (
