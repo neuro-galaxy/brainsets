@@ -12,7 +12,7 @@ from abc import ABC
 from argparse import ArgumentParser, Namespace
 from functools import cached_property
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TypedDict
 
 import h5py
 import numpy as np
@@ -74,6 +74,16 @@ def _require_mne_bids(func_name: str) -> None:
             f"{func_name} requires mne-bids, which is not installed. "
             "Install it with `pip install mne-bids`."
         )
+
+
+class OpenNeuroContext(TypedDict):
+    """Typed structure for shared OpenNeuro context data (cached per dataset per process)."""
+
+    validated_dataset_id: str
+    validated_dataset_version: str
+    validated_subject_ids: Optional[list[str]]
+    participants_data: Optional[pd.DataFrame]
+    species: str
 
 
 class OpenNeuroPipeline(BrainsetPipeline, ABC):
@@ -152,15 +162,49 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     random_seed: int = 42
     """Random seed for generating splits."""
 
-    @cached_property
-    def _participants_data(self) -> Optional[pd.DataFrame]:
-        """Lazy-load participants.tsv data, cached for the pipeline run.
+    _shared_context_cache: dict[str, OpenNeuroContext] = {}
+    """Class-level cache of shared OpenNeuro context, keyed by dataset_id."""
+
+    @classmethod
+    def _shared_openneuro_context(cls) -> OpenNeuroContext:
+        """
+        Returns cached OpenNeuro context for this pipeline class.
+
+        Cached per dataset_id (within current process):
+        - validated_dataset_id
+        - validated_dataset_version
+        - validated_subject_ids
+        - participants_data
+        - species
 
         Returns:
-            DataFrame with participant information indexed by participant_id,
-            or None if participants.tsv doesn't exist.
+            OpenNeuroContext dictionary with all validated/fetched metadata
         """
-        return fetch_participants_tsv(self.dataset_id)
+        dataset_id = cls.dataset_id
+        if dataset_id in cls._shared_context_cache:
+            return cls._shared_context_cache[dataset_id]
+
+        validated_dataset_id = validate_dataset_id(dataset_id)
+        validated_dataset_version = validate_dataset_version(
+            validated_dataset_id, cls.origin_version
+        )
+
+        if cls.subject_ids is not None:
+            validated_subject_ids = validate_subject_ids(
+                validated_dataset_id, cls.subject_ids
+            )
+        else:
+            validated_subject_ids = None
+
+        ctx: OpenNeuroContext = {
+            "validated_dataset_id": validated_dataset_id,
+            "validated_dataset_version": validated_dataset_version,
+            "validated_subject_ids": validated_subject_ids,
+            "participants_data": fetch_participants_tsv(validated_dataset_id),
+            "species": fetch_species(validated_dataset_id),
+        }
+        cls._shared_context_cache[dataset_id] = ctx
+        return ctx
 
     @classmethod
     def get_manifest(cls, raw_dir: Path, args: Optional[Namespace]) -> pd.DataFrame:
@@ -179,15 +223,11 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
                 - recording_id: Recording identifier (index)
                 - s3_url: S3 URL for downloading
         """
-        dataset_id = validate_dataset_id(cls.dataset_id)
-        validate_dataset_version(dataset_id, cls.origin_version)
+        ctx = cls._shared_openneuro_context()
+        validated_dataset_id = ctx["validated_dataset_id"]
+        validated_subject_ids = ctx["validated_subject_ids"]
 
-        if cls.subject_ids is not None:
-            validated_subject_ids = validate_subject_ids(dataset_id, cls.subject_ids)
-        else:
-            validated_subject_ids = None
-
-        all_files = fetch_all_filenames(dataset_id)
+        all_files = fetch_all_filenames(validated_dataset_id)
         modality = cls.modality
 
         if modality == "eeg":
@@ -203,13 +243,13 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             ]
             if not recordings:
                 raise ValueError(
-                    f"No recordings were found for subject_ids {validated_subject_ids} in dataset {dataset_id}"
+                    f"No recordings were found for subject_ids {validated_subject_ids} in dataset {validated_dataset_id}"
                 )
 
         manifest_list = []
         for rec in recordings:
             s3_url = construct_s3_url_from_path(
-                dataset_id,
+                validated_dataset_id,
                 rec["fpath"],
                 rec["recording_id"],
             )
@@ -224,7 +264,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         if not manifest_list:
             raise ValueError(
-                f"No {modality.upper()} recordings found in dataset {dataset_id}"
+                f"No {modality.upper()} recordings found in dataset {validated_dataset_id}"
             )
 
         manifest = pd.DataFrame(manifest_list)
@@ -244,9 +284,12 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         self.update_status("DOWNLOADING")
         self.raw_dir.mkdir(exist_ok=True, parents=True)
 
+        ctx = type(self)._shared_openneuro_context()
+        validated_dataset_id = ctx["validated_dataset_id"]
+
         s3_url = manifest_item.s3_url
-        recording_id = manifest_item.Index
         subject_id = manifest_item.subject_id
+        recording_id = manifest_item.Index
         root_dir = self.raw_dir
 
         # if the dataset_description.json file does not exist or the redownload flag is set, download it
@@ -277,7 +320,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             download_recording(s3_url, root_dir)
         except Exception as e:
             raise RuntimeError(
-                f"Failed to download data for {subject_id} from {self.dataset_id}: {str(e)}"
+                f"Failed to download data for {subject_id} from {validated_dataset_id}: {str(e)}"
             ) from e
 
         return {
@@ -321,6 +364,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         )
 
         self.update_status("Extracting Metadata")
+        ctx = type(self)._shared_openneuro_context()
         source = f"https://openneuro.org/datasets/{self.dataset_id}"
         dataset_description = (
             self.description
@@ -330,17 +374,14 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         brainset_description = BrainsetDescription(
             id=self.brainset_id,
-            # validate and update the dataset version
-            origin_version=validate_dataset_version(
-                self.dataset_id, self.origin_version
-            ),
+            origin_version=ctx["validated_dataset_version"],
             derived_version=self.derived_version,
             source=source,
             description=dataset_description,
         )
 
-        subject_info = get_subject_info(subject_id, self._participants_data)
-        species = fetch_species(self.dataset_id)
+        subject_info = get_subject_info(subject_id, ctx["participants_data"])
+        species = ctx["species"]
         subject_description = SubjectDescription(
             id=subject_id,
             species=(
