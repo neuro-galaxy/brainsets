@@ -187,22 +187,27 @@ def validate_subject_ids(dataset_id: str, subject_ids: list[str]) -> list[str]:
 
     canonical_ids: list[str] = []
     missing: list[str] = []
-
     for requested in subject_ids:
+        # Normalize the requested subject identifier to string and strip any whitespace
         requested = str(requested).strip()
+        # Directly check if the requested ID exists among known participant IDs
         if requested in participant_set:
             canonical_ids.append(participant_to_canonical[requested])
             continue
 
-        # Try numeric matching on the subject identifier.
+        # Try to extract a numeric part for matching (e.g., match '1' or 'sub-01' to 'sub-01')
         requested_numeric: Optional[int] = None
         if requested.isdigit():
+            # If the requested ID is purely numeric, use its integer value
             requested_numeric = int(requested)
         else:
+            # Otherwise, try to match formats like 'sub-01' or 'sub_01'
             m = re.match(r"^sub[-_]?(\d+)$", requested, flags=re.IGNORECASE)
             if m:
+                # Extract the numeric part as integer
                 requested_numeric = int(m.group(1))
 
+        # Use the numeric match to find the canonical participant ID, if possible
         if (
             requested_numeric is not None
             and requested_numeric in numeric_to_participant
@@ -210,6 +215,7 @@ def validate_subject_ids(dataset_id: str, subject_ids: list[str]) -> list[str]:
             canonical_ids.append(numeric_to_participant[requested_numeric])
             continue
 
+        # If no match found, add to missing list for error reporting
         missing.append(requested)
 
     if missing:
