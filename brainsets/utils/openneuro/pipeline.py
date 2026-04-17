@@ -238,10 +238,8 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         Returns:
             Dictionary with keys:
-                - recording_id: Recording identifier
-                - subject_id: Subject identifier
-                - session_id: Session identifier or None
-                - fpath: Local file path where data was downloaded
+                - subject_id: Subject identifier (e.g., 'sub-01')
+                - recording_id: Recording identifier (index)
         """
         self.update_status("DOWNLOADING")
         self.raw_dir.mkdir(exist_ok=True, parents=True)
