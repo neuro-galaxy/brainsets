@@ -175,13 +175,9 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         Returns:
             DataFrame with columns:
-                - recording_id: Recording identifier (index)
                 - subject_id: Subject identifier (e.g., 'sub-01')
-                - session_id: Session identifier or None
-                - task_id: Task identifier (e.g., 'Sleep')
-                - data_file: Relative path to data file (modality-specific key)
+                - recording_id: Recording identifier (index)
                 - s3_url: S3 URL for downloading
-                - fpath: Local file path for downloaded data
         """
         dataset_id = validate_dataset_id(cls.dataset_id)
         validate_dataset_version(dataset_id, cls.origin_version)
