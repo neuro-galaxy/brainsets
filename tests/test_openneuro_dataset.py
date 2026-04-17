@@ -153,7 +153,7 @@ class TestGetSamplingIntervalsBasic:
     def test_split_assignment_none_delegates_to_parent(
         self, mock_parent_init, monkeypatch
     ):
-        """When split_assignment=None, delegates to parent implementation."""
+        """When split=None, delegates to parent implementation."""
         ds = _make_dataset(split_type="intrasession")
         expected_result = {"rec-001": Interval(0.0, 10.0)}
 
@@ -162,7 +162,7 @@ class TestGetSamplingIntervalsBasic:
             "get_sampling_intervals",
             return_value=expected_result,
         ) as mock_parent:
-            result = ds.get_sampling_intervals(split_assignment=None)
+            result = ds.get_sampling_intervals(split=None)
 
         assert result == expected_result
         mock_parent.assert_called_once()
@@ -170,18 +170,18 @@ class TestGetSamplingIntervalsBasic:
     @pytest.mark.parametrize(
         ("invalid_assignment", "expected_msg_fragment"),
         [
-            ("invalid", "Invalid split_assignment 'invalid'"),
-            ("train_split", "Invalid split_assignment 'train_split'"),
-            ("", "Invalid split_assignment ''"),
+            ("invalid", "Invalid split 'invalid'"),
+            ("train_split", "Invalid split 'train_split'"),
+            ("", "Invalid split ''"),
         ],
     )
     def test_rejects_invalid_split_assignment(
         self, invalid_assignment, expected_msg_fragment, mock_parent_init
     ):
-        """Invalid split_assignment raises ValueError."""
+        """Invalid split raises ValueError."""
         ds = _make_dataset(split_type="intrasession")
         with pytest.raises(ValueError, match=expected_msg_fragment):
-            ds.get_sampling_intervals(split_assignment=invalid_assignment)
+            ds.get_sampling_intervals(split=invalid_assignment)
 
 
 # ============================================================================
@@ -192,10 +192,8 @@ class TestGetSamplingIntervalsBasic:
 class TestGetSamplingIntervalsIntrasession:
     """Tests for intrasession split strategy."""
 
-    @pytest.mark.parametrize("split_assignment", ["train", "valid", "test"])
-    def test_intrasession_happy_path(
-        self, split_assignment, mock_parent_init, monkeypatch
-    ):
+    @pytest.mark.parametrize("split", ["train", "valid", "test"])
+    def test_intrasession_happy_path(self, split, mock_parent_init, monkeypatch):
         """Intrasession returns per-recording interval from splits.<assignment>."""
         ds = _make_dataset(split_type="intrasession")
         interval_1 = Interval(start=0.0, end=5.0)
@@ -204,25 +202,25 @@ class TestGetSamplingIntervalsIntrasession:
         recordings = {
             "rec-001": _make_recording(
                 "rec-001",
-                attributes={f"splits.{split_assignment}": interval_1},
+                attributes={f"splits.{split}": interval_1},
             ),
             "rec-002": _make_recording(
                 "rec-002",
-                attributes={f"splits.{split_assignment}": interval_2},
+                attributes={f"splits.{split}": interval_2},
             ),
         }
 
         monkeypatch.setattr(ds, "get_recording", lambda rid: recordings[rid])
-        result = ds.get_sampling_intervals(split_assignment=split_assignment)
+        result = ds.get_sampling_intervals(split=split)
 
         assert result == {
             "rec-001": interval_1,
             "rec-002": interval_2,
         }
 
-    @pytest.mark.parametrize("split_assignment", ["train", "valid", "test"])
+    @pytest.mark.parametrize("split", ["train", "valid", "test"])
     def test_intrasession_missing_split_raises_key_error(
-        self, split_assignment, mock_parent_init, monkeypatch
+        self, split, mock_parent_init, monkeypatch
     ):
         """Intrasession raises KeyError with helpful message when split is missing."""
         ds = _make_dataset(split_type="intrasession")
@@ -231,14 +229,13 @@ class TestGetSamplingIntervalsIntrasession:
 
         with pytest.raises(
             KeyError,
-            match="Missing required split attribute.*rec-001.*splits."
-            + split_assignment,
+            match="Missing required split attribute.*rec-001.*splits." + split,
         ):
-            ds.get_sampling_intervals(split_assignment=split_assignment)
+            ds.get_sampling_intervals(split=split)
 
-    @pytest.mark.parametrize("split_assignment", ["train", "valid", "test"])
+    @pytest.mark.parametrize("split", ["train", "valid", "test"])
     def test_intrasession_wraps_attribute_error_as_key_error(
-        self, split_assignment, mock_parent_init, monkeypatch
+        self, split, mock_parent_init, monkeypatch
     ):
         """Intrasession wraps AttributeError as KeyError."""
         ds = _make_dataset(split_type="intrasession")
@@ -248,10 +245,9 @@ class TestGetSamplingIntervalsIntrasession:
 
         with pytest.raises(
             KeyError,
-            match="Missing required split attribute.*rec-001.*splits."
-            + split_assignment,
+            match="Missing required split attribute.*rec-001.*splits." + split,
         ):
-            ds.get_sampling_intervals(split_assignment=split_assignment)
+            ds.get_sampling_intervals(split=split)
 
 
 # ============================================================================
@@ -262,24 +258,22 @@ class TestGetSamplingIntervalsIntrasession:
 class TestGetSamplingIntervalsIntersubject:
     """Tests for intersubject split strategy."""
 
-    @pytest.mark.parametrize("split_assignment", ["train", "valid", "test"])
-    def test_intersubject_happy_path(
-        self, split_assignment, mock_parent_init, monkeypatch
-    ):
+    @pytest.mark.parametrize("split", ["train", "valid", "test"])
+    def test_intersubject_happy_path(self, split, mock_parent_init, monkeypatch):
         """Intersubject filters by assignment and returns rec.domain."""
         ds = _make_dataset(split_type="intersubject")
         domain_1 = Interval(start=0.0, end=100.0)
         domain_2 = Interval(start=100.0, end=200.0)
         domain_3 = Interval(start=200.0, end=300.0)
 
-        # Set up recordings where only rec-001 and rec-003 match split_assignment
+        # Set up recordings where only rec-001 and rec-003 match split
         # rec-002 always has a different assignment for contrast
-        other_assignment = "test" if split_assignment != "test" else "train"
+        other_assignment = "test" if split != "test" else "train"
 
         recordings = {
             "rec-001": _make_recording(
                 "rec-001",
-                attributes={"splits.intersubject_assignment": split_assignment},
+                attributes={"splits.intersubject_assignment": split},
                 domain=domain_1,
             ),
             "rec-002": _make_recording(
@@ -289,13 +283,13 @@ class TestGetSamplingIntervalsIntersubject:
             ),
             "rec-003": _make_recording(
                 "rec-003",
-                attributes={"splits.intersubject_assignment": split_assignment},
+                attributes={"splits.intersubject_assignment": split},
                 domain=domain_3,
             ),
         }
 
         monkeypatch.setattr(ds, "get_recording", lambda rid: recordings[rid])
-        result = ds.get_sampling_intervals(split_assignment=split_assignment)
+        result = ds.get_sampling_intervals(split=split)
 
         # Only rec-001 and rec-003 should match the assignment
         assert result == {
@@ -327,7 +321,7 @@ class TestGetSamplingIntervalsIntersubject:
         }
 
         monkeypatch.setattr(ds, "get_recording", lambda rid: recordings[rid])
-        result = ds.get_sampling_intervals(split_assignment="test")
+        result = ds.get_sampling_intervals(split="test")
 
         assert result == {}
 
@@ -349,13 +343,13 @@ class TestGetSamplingIntervalsIntersubject:
         )
 
         monkeypatch.setattr(ds, "get_recording", lambda rid: recording)
-        result = ds.get_sampling_intervals(split_assignment="train")
+        result = ds.get_sampling_intervals(split="train")
 
         assert result == {"rec-001": domain}
 
-    @pytest.mark.parametrize("split_assignment", ["train", "valid", "test"])
+    @pytest.mark.parametrize("split", ["train", "valid", "test"])
     def test_intersubject_missing_assignment_raises_key_error(
-        self, split_assignment, mock_parent_init, monkeypatch
+        self, split, mock_parent_init, monkeypatch
     ):
         """Intersubject raises KeyError with helpful message when assignment is missing."""
         ds = _make_dataset(split_type="intersubject")
@@ -366,7 +360,7 @@ class TestGetSamplingIntervalsIntersubject:
             KeyError,
             match="Missing required split attribute.*rec-001.*splits.intersubject_assignment",
         ):
-            ds.get_sampling_intervals(split_assignment=split_assignment)
+            ds.get_sampling_intervals(split=split)
 
 
 # ============================================================================
@@ -377,23 +371,21 @@ class TestGetSamplingIntervalsIntersubject:
 class TestGetSamplingIntervalsIntersession:
     """Tests for intersession split strategy."""
 
-    @pytest.mark.parametrize("split_assignment", ["train", "valid", "test"])
-    def test_intersession_happy_path(
-        self, split_assignment, mock_parent_init, monkeypatch
-    ):
+    @pytest.mark.parametrize("split", ["train", "valid", "test"])
+    def test_intersession_happy_path(self, split, mock_parent_init, monkeypatch):
         """Intersession filters by assignment and returns rec.domain."""
         ds = _make_dataset(split_type="intersession")
         domain_1 = Interval(start=0.0, end=50.0)
         domain_2 = Interval(start=50.0, end=100.0)
 
-        # Set up recordings where only rec-001 matches split_assignment
+        # Set up recordings where only rec-001 matches split
         # rec-002 always has a different assignment for contrast
-        other_assignment = "test" if split_assignment != "test" else "train"
+        other_assignment = "test" if split != "test" else "train"
 
         recordings = {
             "rec-001": _make_recording(
                 "rec-001",
-                attributes={"splits.intersession_assignment": split_assignment},
+                attributes={"splits.intersession_assignment": split},
                 domain=domain_1,
             ),
             "rec-002": _make_recording(
@@ -404,13 +396,13 @@ class TestGetSamplingIntervalsIntersession:
         }
 
         monkeypatch.setattr(ds, "get_recording", lambda rid: recordings[rid])
-        result = ds.get_sampling_intervals(split_assignment=split_assignment)
+        result = ds.get_sampling_intervals(split=split)
 
         assert result == {"rec-001": domain_1}
 
-    @pytest.mark.parametrize("split_assignment", ["train", "valid", "test"])
+    @pytest.mark.parametrize("split", ["train", "valid", "test"])
     def test_intersession_missing_assignment_raises_key_error(
-        self, split_assignment, mock_parent_init, monkeypatch
+        self, split, mock_parent_init, monkeypatch
     ):
         """Intersession raises KeyError with helpful message when assignment is missing."""
         ds = _make_dataset(split_type="intersession")
@@ -421,7 +413,7 @@ class TestGetSamplingIntervalsIntersession:
             KeyError,
             match="Missing required split attribute.*rec-001.*splits.intersession_assignment",
         ):
-            ds.get_sampling_intervals(split_assignment=split_assignment)
+            ds.get_sampling_intervals(split=split)
 
 
 # ============================================================================
@@ -443,4 +435,4 @@ class TestDefensiveBehavior:
             ValueError,
             match="Invalid split_type 'bad_split_type'",
         ):
-            ds.get_sampling_intervals(split_assignment="train")
+            ds.get_sampling_intervals(split="train")

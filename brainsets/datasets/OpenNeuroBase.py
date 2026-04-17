@@ -54,15 +54,15 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
         )
 
     def get_sampling_intervals(
-        self, split_assignment: Optional[SplitAssignmentType] = None
+        self, split: Optional[SplitAssignmentType] = None
     ) -> dict[str, Interval]:
         """Returns a dictionary of sampling intervals for each recording.
         This represents the intervals that can be sampled from each session.
 
-        If split_assignment is None, all recordings are mapped to their full domain.
+        If split is None, all recordings are mapped to their full domain.
 
         Args:
-            split_assignment (Optional[SplitAssignmentType]): One of "train", "valid", "test" to filter intervals
+            split (Optional[SplitAssignmentType]): One of "train", "valid", "test" to filter intervals
                 for that split, or None to retrieve full domains for all recordings.
 
         Returns:
@@ -72,16 +72,16 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
             ValueError: If `split_assignment` or `self.split_type` is not a valid option.
             KeyError: If a required split or assignment attribute is missing in a recording.
         """
-        if split_assignment is None:
+        if split is None:
             return super().get_sampling_intervals()
 
-        if split_assignment not in VALID_SPLIT_ASSIGNMENT_TYPES:
+        if split not in VALID_SPLIT_ASSIGNMENT_TYPES:
             raise ValueError(
-                f"Invalid split_assignment '{split_assignment}'. Must be one of {VALID_SPLIT_ASSIGNMENT_TYPES}."
+                f"Invalid split '{split}'. Must be one of {VALID_SPLIT_ASSIGNMENT_TYPES}."
             )
 
         if self.split_type == "intrasession":
-            split_key = f"splits.{split_assignment}"
+            split_key = f"splits.{split}"
             intervals = {}
             for rid in self.recording_ids:
                 rec = self.get_recording(rid)
@@ -95,19 +95,19 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
             return intervals
 
         if self.split_type in ("intersubject", "intersession"):
-            assignment_key = f"splits.{self.split_type}_assignment"
+            split_key = f"splits.{self.split_type}_assignment"
             intervals = {}
             for rid in self.recording_ids:
                 rec = self.get_recording(rid)
                 assignment = None
                 try:
-                    assignment = str(rec.get_nested_attribute(assignment_key))
+                    assignment = str(rec.get_nested_attribute(split_key))
                 except (AttributeError, KeyError) as exc:
                     raise KeyError(
                         f"Missing required split attribute for Recording {rid}. "
-                        f"Expected {assignment_key} split attribute in its metadata. "
+                        f"Expected {split_key} split attribute in its metadata. "
                     ) from exc
-                if assignment == split_assignment:
+                if assignment == split:
                     intervals[rid] = rec.domain
             return intervals
 
