@@ -40,6 +40,7 @@ logging.basicConfig(level=logging.INFO)
 
 REPO_ID = "pnpl/LibriBrain"
 SUBDATASETS = [f"Sherlock{i}" for i in range(1, 8)]
+# TODO: could add a validation for the subdataset, and accept sherlock1 or 1 or sherlock_1, etc
 MEG_SUFFIX = "_meg.fif"
 
 parser = ArgumentParser()
@@ -84,7 +85,16 @@ class Pipeline(BrainsetPipeline):
                 if hasattr(info, "rfilename")
             ]
 
-            fif_paths = [p for p in all_paths if p.endswith(MEG_SUFFIX)]
+            # Select only the raw meg data (excluding preprocessed and serialized data)
+            raw_meg_prefix = f"{subdataset}/sub-"
+            fif_paths = [
+                p
+                for p in all_paths
+                if p.startswith(raw_meg_prefix)
+                and "/ses-" in p
+                and "/meg/" in p
+                and p.endswith(MEG_SUFFIX)
+            ]
 
             for fif_path in fif_paths:
                 prefix = fif_path.removesuffix(MEG_SUFFIX)
@@ -183,6 +193,7 @@ class Pipeline(BrainsetPipeline):
             recording_date=recording_date,
         )
 
+        # TODO: add device type or model
         device_description = DeviceDescription(
             id=sidecar.get("InstitutionName", "unknown_meg_device"),
             recording_tech=RecordingTech.MEG,
@@ -193,9 +204,12 @@ class Pipeline(BrainsetPipeline):
 
         self.update_status("Extracting Channels")
         channels = extract_channels(raw)
+        # FIXME Reverif MEG channel types
 
         self.update_status("Extracting Events")
         events = _extract_events(events_path)
+        # TODO add all annotations of an event, in addition to the onset and duration
+        # TODO add event type to the events object (word, phoneme, silence)
 
         data = Data(
             brainset=brainset_description,
@@ -238,12 +252,12 @@ def _extract_events(events_path: Path) -> Interval:
     """Extract events from a BIDS _events.tsv file into an Interval object."""
     df = pd.read_csv(events_path, sep="\t")
 
-    if "onset" not in df.columns or "duration" not in df.columns:
+    if "timemeg" not in df.columns or "duration" not in df.columns:
         raise ValueError(
-            f"Events file missing required 'onset'/'duration' columns: {events_path}"
+            f"Events file missing required 'timemeg'/'duration' columns: {events_path}"
         )
 
-    starts = df["onset"].values.astype(np.float64)
+    starts = df["timemeg"].values.astype(np.float64)
     durations = df["duration"].values.astype(np.float64)
     ends = starts + durations
 
