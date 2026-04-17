@@ -12,6 +12,7 @@ Electrophysiology Datasets
 
    PerichMillerPopulation2018
    PeiPandarinathNLB2021
+   PetersonBruntonPoseTrajectory2022
    FlintSlutzkyAccurate2012
    ChurchlandShenoyNeural2012
    OdohertySabesNonhuman2017
