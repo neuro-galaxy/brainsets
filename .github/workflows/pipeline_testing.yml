@@ -70,9 +70,3 @@ jobs:
       run: |
         uv run brainsets config set --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare vollan_moser_alternating_2025 -s sleep_25691_1
-
-    - name: Download peterson_brunton_pose_trajectory_2022
-      run: |
-        uv run brainsets config --raw-dir data/raw --processed-dir data/processed
-        uv run brainsets prepare peterson_brunton_pose_trajectory_2022 -s sub-01_ses-7
-
