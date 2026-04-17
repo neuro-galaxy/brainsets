@@ -58,7 +58,9 @@ class TestExtractSubjectFromNwb:
 
 class TestExtractEcogFromNwb:
 
-    def test_extract_ecog_infers_hemisphere_from_electrodes_and_marks_bad_channels(self):
+    def test_extract_ecog_infers_hemisphere_from_electrodes_and_marks_bad_channels(
+        self,
+    ):
         signal = np.array(
             [
                 [0.1, 0.2, 0.3],
@@ -84,7 +86,9 @@ class TestExtractEcogFromNwb:
             np.asarray(channels.hemisphere),
             np.full(3, int(Hemisphere.LEFT)),
         )
-        np.testing.assert_array_equal(np.asarray(channels.bad), np.array([False, True, False]))
+        np.testing.assert_array_equal(
+            np.asarray(channels.bad), np.array([False, True, False])
+        )
         np.testing.assert_array_equal(
             np.asarray(channels.group),
             np.array(["grid", "depth", "grid"]),
