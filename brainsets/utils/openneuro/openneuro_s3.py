@@ -456,7 +456,14 @@ def _graphql_query_openneuro(query: str, variables: dict | None = None) -> dict:
             GRAPHQL_ENDPOINT, json={"query": query, "variables": variables}
         )
         if response.status_code == 200:
-            return response.json()
+            json_response = response.json()
+            # Check for "errors" key in the GraphQL response
+            if "errors" in json_response and json_response["errors"]:
+                raise Exception(
+                    f"GraphQL query returned errors: {json_response['errors']}"
+                )
+            return json_response
+
         else:
             raise Exception(f"Query failed with status code {response.status_code}")
 
