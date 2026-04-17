@@ -61,3 +61,8 @@ jobs:
         uv run brainsets config --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare kemp_sleep_edf_2013 -s sleep_cassette_SC4002E0-PSG
 
+    - name: Download peterson_brunton_pose_trajectory_2022
+      run: |
+        uv run brainsets config --raw-dir data/raw --processed-dir data/processed
+        uv run brainsets prepare peterson_brunton_pose_trajectory_2022 -s sub-01_ses-7
+
