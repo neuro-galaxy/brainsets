@@ -31,6 +31,7 @@ __all__ = (
     + _ieeg_datasets
     + _psg_datasets
     + _openneuro_datasets
+    + ["OpenNeuroDataset", "OpenNeuroSplitType"]
 )
 
 from .PerichMillerPopulation2018 import PerichMillerPopulation2018
@@ -45,3 +46,4 @@ from .KlinzingSleepDS005555 import KlinzingSleepDS005555
 from .KochiVisualNamingDS006914 import KochiVisualNamingDS006914
 from .ShiraziHBNR1DS005505 import ShiraziHBNR1DS005505
 from .VollanMoserAlternating2025 import VollanMoserAlternating2025
+from .OpenNeuroBase import OpenNeuroDataset, OpenNeuroSplitType

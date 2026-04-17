@@ -4,10 +4,10 @@ from typing import Callable, Literal, Optional, get_args
 from temporaldata import Interval
 from torch_brain.dataset import MultiChannelDatasetMixin, Dataset
 
-SplitType = Literal["intrasession", "intersubject", "intersession"]
+OpenNeuroSplitType = Literal["intrasession", "intersubject", "intersession"]
 SplitAssignmentType = Literal["train", "valid", "test"]
 
-VALID_SPLIT_TYPES = get_args(SplitType)
+VALID_SPLIT_TYPES = get_args(OpenNeuroSplitType)
 VALID_SPLIT_ASSIGNMENT_TYPES = get_args(SplitAssignmentType)
 
 
@@ -34,7 +34,7 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
         self,
         root: str,
         dataset_dir: str,
-        split_type: SplitType,
+        split_type: OpenNeuroSplitType,
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
         **kwargs,

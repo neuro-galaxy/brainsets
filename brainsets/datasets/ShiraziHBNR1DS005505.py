@@ -1,13 +1,13 @@
 from typing import Callable, Optional
 
-from brainsets.datasets.OpenNeuroBase import OpenNeuroDataset, SplitType
+from brainsets.datasets.OpenNeuroBase import OpenNeuroDataset, OpenNeuroSplitType
 
 
 class ShiraziHBNR1DS005505(OpenNeuroDataset):
     def __init__(
         self,
         root: str,
-        split_type: SplitType,
+        split_type: OpenNeuroSplitType,
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
         **kwargs,
