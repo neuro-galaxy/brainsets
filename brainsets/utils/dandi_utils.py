@@ -256,14 +256,14 @@ def _hemisphere_from_nwb(nwbfile: NWBFile, n_channels: int) -> Hemisphere:
             continue
         texts = np.asarray([str(v).strip().lower() for v in vals])
         left = np.any(
-            (texts == "l") | (texts == "left") | np.char.find(texts.astype(str), "left")
-            >= 0
+            (texts == "l")
+            | (texts == "left")
+            | (np.char.find(texts.astype(str), "left") >= 0)
         )
         right = np.any(
             (texts == "r")
             | (texts == "right")
-            | np.char.find(texts.astype(str), "right")
-            >= 0
+            | (np.char.find(texts.astype(str), "right") >= 0)
         )
         if left and not right:
             return Hemisphere.LEFT

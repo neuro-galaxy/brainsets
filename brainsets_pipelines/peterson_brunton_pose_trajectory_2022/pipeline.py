@@ -55,11 +55,6 @@ parser.add_argument(
     default=500.0,
     help="ECoG resample rate in Hz",
 )
-parser.add_argument(
-    "--filter_ecog",
-    action="store_true",
-    help="Apply 70–150 Hz bandpass and Hilbert envelope",
-)
 
 # Priority order for simplifying multi-label active behaviors to a single label
 ACTIVE_BEHAVIOR_PRIORITY = ["Eat", "Talk", "TV", "Computer/phone", "Other activity"]
@@ -476,7 +471,7 @@ def resample_ecog_ajile(
     times_out = np.arange(n_out) / resample_rate_hz
     domain = Interval(start=np.array([times_out[0]]), end=np.array([times_out[-1]]))
     return RegularTimeSeries(
-        ecogs=data_out,
+        signal=data_out,
         sampling_rate=resample_rate_hz,
         domain=domain,
     )
@@ -484,7 +479,7 @@ def resample_ecog_ajile(
 
 def ajile_extract_pose_from_nwb(
     nwbfile: NWBFile,
-) -> Tuple[Interval, RegularTimeSeries]:
+) -> RegularTimeSeries:
     r_wrist = nwbfile.processing["behavior"].data_interfaces["Position"]["R_Wrist"]
     l_wrist = nwbfile.processing["behavior"].data_interfaces["Position"]["L_Wrist"]
     l_ear = nwbfile.processing["behavior"].data_interfaces["Position"]["L_Ear"]

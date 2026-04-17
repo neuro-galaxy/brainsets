@@ -13,6 +13,7 @@ _calcium_imaging_datasets = [
 
 _ieeg_datasets = [
     "Neuroprobe2025",
+    "PetersonBruntonPoseTrajectory2022",
 ]
 
 _psg_datasets = [
@@ -35,4 +36,8 @@ from .AllenVisualCodingOphys2016 import AllenVisualCodingOphys2016
 from .KempSleepEDF2013 import KempSleepEDF2013
 from .Neuroprobe2025 import Neuroprobe2025
 from .VollanMoserAlternating2025 import VollanMoserAlternating2025
-from .PetersonBruntonPoseTrajectory2022 import PetersonBruntonPoseTrajectory2022
+from .PetersonBruntonPoseTrajectory2022 import (
+    PetersonBruntonPoseTrajectory2022,
+    PetersonBruntonSplitType,
+    PetersonBruntonTaskType,
+)

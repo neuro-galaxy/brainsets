@@ -9,20 +9,12 @@ from torch_brain.dataset.mixins import MultiChannelDatasetMixin
 
 logger = logging.getLogger(__name__)
 
-BEHAVIOR_LABELS = ["Eat", "Talk", "TV", "Computer/phone"]
+PetersonBruntonSplitType = Literal["intersubject", "intersession", "intrasession"]
+PetersonBruntonTaskType = Literal["active_vs_inactive", "behavior", "pose_estimation"]
 
 
 def _empty_interval() -> Interval:
     return Interval(start=np.array([]), end=np.array([]))
-
-
-def _behavior_trials_for_task(recording, task_type: str) -> Interval:
-    if task_type == "active_vs_inactive":
-        return recording.active_vs_inactive_trials
-    # behavior and pose_estimation share the same active-behavior intervals
-    trials = recording.active_behavior_trials
-    mask = np.isin(trials.behavior_labels, BEHAVIOR_LABELS)
-    return trials.select_by_mask(mask)
 
 
 class PetersonBruntonPoseTrajectory2022(MultiChannelDatasetMixin, Dataset):
@@ -32,12 +24,8 @@ class PetersonBruntonPoseTrajectory2022(MultiChannelDatasetMixin, Dataset):
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
         fold_num: Optional[int] = None,
-        split_type: Optional[
-            Literal["intersubject", "intersession", "intrasession"]
-        ] = None,
-        task_type: Optional[
-            Literal["active_vs_inactive", "behavior", "pose_estimation"]
-        ] = "behavior",
+        split_type: Optional[PetersonBruntonSplitType] = None,
+        task_type: Optional[PetersonBruntonTaskType] = "behavior",
         dirname: str = "peterson_brunton_pose_trajectory_2022",
         uniquify_channel_ids_session: bool = True,
         uniquify_channel_ids_subject: bool = False,
