@@ -1,6 +1,7 @@
 _functions = [
     "extract_subject_from_nwb",
     "extract_spikes_from_nwbfile",
+    "extract_ecog_from_nwb",
     "download_file",
     "get_nwb_asset_list",
 ]
@@ -9,14 +10,21 @@ __all__ = _functions
 
 
 from pathlib import Path
+from typing import Optional, Tuple, Union
+
 import numpy as np
 import pandas as pd
 from pynwb import NWBFile
-
-from temporaldata import ArrayDict, IrregularTimeSeries
+from temporaldata import (
+    ArrayDict,
+    Interval,
+    IrregularTimeSeries,
+    RegularTimeSeries,
+)
 
 from brainsets.descriptions import SubjectDescription
 from brainsets.taxonomy import (
+    Hemisphere,
     RecordingTech,
     Sex,
     Species,
@@ -39,10 +47,45 @@ def _check_dandi_available(func_name: str) -> None:
         )
 
 
+def _normalize_subject_species(nwbfile: NWBFile) -> str | Species:
+    subject = getattr(nwbfile, "subject", None)
+    raw_species = getattr(subject, "species", None) if subject is not None else None
+    if raw_species is None:
+        return Species.UNKNOWN
+
+    normalized_species = str(raw_species).strip()
+    if not normalized_species:
+        return Species.UNKNOWN
+    if "NCBITaxon" in normalized_species:
+        normalized_species = "NCBITaxon_" + normalized_species.split("_")[-1]
+    try:
+        return Species.from_string(normalized_species)
+    except ValueError:
+        return normalized_species
+
+
+def _normalize_subject_sex(nwbfile: NWBFile) -> str | Sex:
+    subject = getattr(nwbfile, "subject", None)
+    raw_sex = getattr(subject, "sex", None) if subject is not None else None
+    if raw_sex is None:
+        return Sex.UNKNOWN
+
+    normalized_sex = str(raw_sex).strip()
+    if not normalized_sex:
+        return Sex.UNKNOWN
+    try:
+        return Sex.from_string(normalized_sex)
+    except ValueError:
+        return normalized_sex
+
+
 def extract_subject_from_nwb(nwbfile: NWBFile):
     r"""Extract a :obj:`SubjectDescription <brainsets.descriptions.SubjectDescription>` from an NWBFile
 
-    The resultant description will include ``id``, ``species``, and ``sex``
+    The resultant description includes ``id``, ``species``, and ``sex``.
+    This helper assumes ``subject_id`` exists in the source NWB file. When
+    ``species`` or ``sex`` is missing/blank, it uses UNKNOWN placeholders so
+    downstream processing can continue.
 
     Args:
         nwbfile: An open NWB file handle
@@ -51,20 +94,12 @@ def extract_subject_from_nwb(nwbfile: NWBFile):
         A :obj:`SubjectDescription <brainsets.descriptions.SubjectDescription>`
     """
 
-    # DANDI has requirements for metadata included in `subject`
-    # - subject_id: A subject identifier must be provided.
-    # - species: either a latin binomial or NCBI taxonomic identifier.
-    # - sex: must be "M", "F", "O" (other), or "U" (unknown).
-    # - date_of_birth or age: this does not appear to be enforced, so will be skipped.
-    species = nwbfile.subject.species
-
-    if "NCBITaxon" in species:
-        species = "NCBITaxon_" + species.split("_")[-1]
-
+    # Some files in the wild omit optional subject fields even when the
+    # recording itself is valid, so we preserve processability with UNKNOWNs.
     return SubjectDescription(
-        id=nwbfile.subject.subject_id.lower(),
-        species=Species.from_string(species),
-        sex=Sex.from_string(nwbfile.subject.sex),
+        id=str(nwbfile.subject.subject_id).strip().lower(),
+        species=_normalize_subject_species(nwbfile),
+        sex=_normalize_subject_sex(nwbfile),
     )
 
 
@@ -147,10 +182,15 @@ def download_file(
     url: str,
     raw_dir: str | Path,
     overwrite: bool = False,
+    skip_existing: bool = False,
 ) -> Path:
     r"""Download a file from DANDI
 
     Full path of the downloaded path will be ``raw_dir / path``.
+
+    The three download modes are evaluated in priority order:
+    ``overwrite=True`` always re-downloads, ``skip_existing=True``
+    skips already-present files, and the default refreshes metadata.
 
     Args:
         path: path of the downloaded file within :obj:`raw_dir`
@@ -158,6 +198,8 @@ def download_file(
         raw_dir: root directory where the file will be downloaded
         overwrite: Will overwrite existing file if :obj:`True`
             (default :obj:`False`)
+        skip_existing: Skip download if the file already exists on disk
+            (default :obj:`False`). Ignored when ``overwrite`` is :obj:`True`.
 
     """
     _check_dandi_available("download_file")
@@ -167,14 +209,19 @@ def download_file(
     asset_path = Path(path)
     download_dir = raw_dir / asset_path.parent
     download_dir.mkdir(exist_ok=True, parents=True)
+    existing_mode = (
+        dandi.download.DownloadExisting.OVERWRITE
+        if overwrite
+        else (
+            dandi.download.DownloadExisting.SKIP
+            if skip_existing
+            else dandi.download.DownloadExisting.REFRESH
+        )
+    )
     dandi.download.download(
         url,
         download_dir,
-        existing=(
-            dandi.download.DownloadExisting.REFRESH
-            if not overwrite
-            else dandi.download.DownloadExisting.OVERWRITE
-        ),
+        existing=existing_mode,
     )
     return raw_dir / asset_path
 
@@ -195,3 +242,124 @@ def get_nwb_asset_list(dandiset_id: str) -> list:
     with parsed_url.navigate() as (client, dandiset, assets):
         asset_list = [x for x in assets if x.path.endswith(".nwb")]
     return asset_list
+
+
+def _normalize_hemisphere_input(value: Union[Hemisphere, str]) -> Hemisphere:
+    if isinstance(value, Hemisphere):
+        return value
+    s = str(value).strip().upper()
+    if s == "L":
+        return Hemisphere.LEFT
+    if s == "R":
+        return Hemisphere.RIGHT
+    try:
+        return Hemisphere.from_string(value)
+    except ValueError:
+        return Hemisphere.UNKNOWN
+
+
+def _hemisphere_from_nwb(nwbfile: NWBFile) -> Hemisphere:
+    colnames = getattr(nwbfile.electrodes, "colnames", [])
+    for col in ("hemisphere", "location"):
+        if col not in colnames:
+            continue
+        vals = nwbfile.electrodes[col][:]
+        if vals is None or len(vals) == 0:
+            continue
+        texts = np.asarray([str(v).strip().lower() for v in vals])
+        left = np.any(
+            (texts == "l")
+            | (texts == "left")
+            | (np.char.find(texts.astype(str), "left") >= 0)
+        )
+        right = np.any(
+            (texts == "r")
+            | (texts == "right")
+            | (np.char.find(texts.astype(str), "right") >= 0)
+        )
+        if left and not right:
+            return Hemisphere.LEFT
+        if right and not left:
+            return Hemisphere.RIGHT
+        break
+    if hasattr(nwbfile, "subject") and nwbfile.subject is not None:
+        subj = nwbfile.subject
+        for attr in ("hemisphere", "location"):
+            if not hasattr(subj, attr):
+                continue
+            val = getattr(subj, attr)
+            if val is None:
+                continue
+            v = str(val).strip().lower()
+            if v in ("l", "left"):
+                return Hemisphere.LEFT
+            if v in ("r", "right"):
+                return Hemisphere.RIGHT
+    return Hemisphere.UNKNOWN
+
+
+def extract_ecog_from_nwb(
+    nwbfile: NWBFile,
+    subject_hemisphere: Optional[Union[Hemisphere, str]] = None,
+) -> Tuple[RegularTimeSeries, ArrayDict]:
+    """Extract ECoG data from NWB file at native sampling rate.
+
+    Hemisphere is taken from subject_hemisphere if provided, otherwise from the
+    NWB file (electrodes table "location"/"hemisphere" or subject metadata).
+
+    Warning: The entire ECoG signal is loaded into RAM as float64. For long
+    recordings with many channels this can require tens of GB of memory.
+    """
+    if "ElectricalSeries" not in nwbfile.acquisition:
+        raise KeyError("NWB file has no acquisition['ElectricalSeries']")
+
+    electrical_series = nwbfile.acquisition["ElectricalSeries"]
+    sampling_rate = float(electrical_series.rate)
+    electrodes = nwbfile.electrodes
+    n_channels = electrical_series.data.shape[1]
+
+    data_out = np.asarray(electrical_series.data, dtype=np.float64)
+    n_samples = data_out.shape[0]
+    times_out = np.arange(n_samples) / sampling_rate
+
+    good = np.ones(n_channels, dtype=bool)
+    if hasattr(electrodes, "good") and electrodes.good is not None:
+        good = np.asarray(electrodes["good"][:]).astype(bool)
+    bad_channels = ~good
+
+    if subject_hemisphere is not None:
+        hemisphere = _normalize_hemisphere_input(subject_hemisphere)
+    else:
+        hemisphere = _hemisphere_from_nwb(nwbfile)
+
+    colnames = getattr(electrodes, "colnames", [])
+    if "group_name" in colnames:
+        group_names = np.asarray(electrodes["group_name"][:])
+    else:
+        group_names = np.array([""] * n_channels)
+
+    channel_meta = []
+    for i in range(n_channels):
+        grp = str(group_names[i]) if i < len(group_names) else ""
+        channel_meta.append(
+            {
+                "id": f"electrode_{i}",
+                "index": i,
+                "hemisphere": int(hemisphere),
+                "group": grp,
+                "surface": False,
+                "type": "ECOG",
+                "bad": bool(bad_channels[i]),
+            }
+        )
+    channels = ArrayDict.from_dataframe(
+        pd.DataFrame(channel_meta), unsigned_to_long=True
+    )
+
+    domain = Interval(start=np.array([times_out[0]]), end=np.array([times_out[-1]]))
+    ecog_rts = RegularTimeSeries(
+        signal=data_out,
+        sampling_rate=sampling_rate,
+        domain=domain,
+    )
+    return ecog_rts, channels

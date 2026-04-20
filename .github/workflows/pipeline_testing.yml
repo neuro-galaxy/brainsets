@@ -70,4 +70,3 @@ jobs:
       run: |
         uv run brainsets config set --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare vollan_moser_alternating_2025 -s sleep_25691_1
-

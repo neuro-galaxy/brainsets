@@ -3,6 +3,7 @@ import pytest
 from temporaldata import Data, Interval
 from brainsets.utils.split import (
     generate_stratified_folds,
+    generate_stratified_folds_by_task,
     generate_string_kfold_assignment,
 )
 
@@ -449,3 +450,111 @@ class TestGenerateStringKfoldAssignment:
             if non_test_total > 0:
                 actual_ratio = fold_counts[k]["valid"] / non_test_total
                 assert abs(actual_ratio - val_ratio) < 0.1
+
+
+class TestGenerateStratifiedFoldsByTask:
+    def test_generate_stratified_folds_by_task_returns_namespaced_splits(self):
+        labels = np.array(["A"] * 6 + ["B"] * 6 + ["C"] * 6 + ["D"] * 6, dtype=str)
+        start = np.arange(len(labels), dtype=float)
+        end = start + 1.0
+
+        rng = np.random.default_rng(42)
+        perm = rng.permutation(len(labels))
+        trials = Interval(
+            start=start[perm],
+            end=end[perm],
+            behavior_labels=labels[perm],
+        )
+
+        task_configs = {
+            "active_task": ["A", "B"],
+            "inactive_task": ["C", "D"],
+        }
+        n_folds = 3
+        splits = generate_stratified_folds_by_task(
+            trials=trials,
+            task_configs=task_configs,
+            label_field="behavior_labels",
+            n_folds=n_folds,
+            val_ratio=0.25,
+            seed=7,
+        )
+
+        assert len(splits) == len(task_configs) * n_folds * 3
+
+        for task_name, include_labels in task_configs.items():
+            expected_labels = set(include_labels)
+            task_trial_count = np.isin(labels, include_labels).sum()
+
+            for fold_idx in range(n_folds):
+                fold_total = 0
+                for split_type in ("train", "valid", "test"):
+                    key = f"{task_name}_fold_{fold_idx}_{split_type}"
+                    assert key in splits
+
+                    split = splits[key]
+                    fold_total += len(split)
+                    split_labels = set(np.asarray(getattr(split, "behavior_labels")))
+                    assert split_labels.issubset(expected_labels)
+
+                assert fold_total == task_trial_count
+
+    def test_generate_stratified_folds_by_task_missing_label_field(self):
+        start = np.arange(6, dtype=float)
+        end = start + 1.0
+        trials = Interval(start=start, end=end)
+
+        with pytest.raises(ValueError, match="must have a 'behavior_labels' attribute"):
+            generate_stratified_folds_by_task(
+                trials=trials,
+                task_configs={"task_a": ["A"]},
+                label_field="behavior_labels",
+                n_folds=3,
+            )
+
+    def test_generate_stratified_folds_by_task_skips_undersized_tasks(self):
+        labels = np.array(
+            ["A"] * 5 + ["B"] * 4 + ["S"] * 2 + ["U"] * 3 + ["V"] * 2,
+            dtype=str,
+        )
+        start = np.arange(len(labels), dtype=float)
+        end = start + 1.0
+        trials = Interval(start=start, end=end, behavior_labels=labels)
+
+        splits = generate_stratified_folds_by_task(
+            trials=trials,
+            task_configs={
+                "valid_task": ["A", "B"],
+                "too_small_task": ["S"],
+                "undersized_categories_task": ["U", "V"],
+            },
+            label_field="behavior_labels",
+            n_folds=3,
+            val_ratio=0.2,
+            seed=42,
+        )
+
+        assert len(splits) == 9
+        assert all(key.startswith("valid_task_") for key in splits)
+
+    def test_generate_stratified_folds_by_task_returns_empty_when_all_tasks_skipped(
+        self,
+    ):
+        labels = np.array(["S"] * 2 + ["U"] * 1, dtype=str)
+        start = np.arange(len(labels), dtype=float)
+        end = start + 1.0
+        trials = Interval(start=start, end=end, behavior_labels=labels)
+
+        splits = generate_stratified_folds_by_task(
+            trials=trials,
+            task_configs={
+                "tiny_task": ["S"],
+                "tinier_task": ["U"],
+            },
+            label_field="behavior_labels",
+            n_folds=3,
+            val_ratio=0.2,
+            seed=42,
+        )
+
+        assert splits == {}

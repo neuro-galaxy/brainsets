@@ -688,6 +688,112 @@ pei_pandarinath_nlb_2021
    </table>
    </div>
 
+peterson_brunton_pose_trajectory_2022
+-------------------------------------
+
+**Downloading data using brainsets cli** ::
+
+
+    brainsets prepare peterson_brunton_pose_trajectory_2022
+
+
+**Brainset Card**
+
+.. raw:: html
+
+  <div class="brainset-card">
+   <table>
+       <colgroup>
+           <col style="width: 30%">
+           <col style="width: 70%">
+       </colgroup>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-circle-info"></i>Data Source</th>
+       </tr>
+       <tr>
+           <td><strong>Publication(s)</strong></td>
+           <td>
+               <a href="https://doi.org/10.1038/s41597-022-01280-y">10.1038/s41597-022-01280-y</a>
+           </td>
+       </tr>
+       <tr>
+           <td><strong>Data Source</strong></td>
+           <td><a href="https://dandiarchive.org/dandiset/000055">https://dandiarchive.org/dandiset/000055</a></td>
+       </tr>
+       <tr>
+           <td><strong>License</strong></td>
+           <td><a href="https://spdx.org/licenses/CC-BY-4.0.html">Creative Commons Attribution 4.0 International</a></td>
+       </tr>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-user"></i>Subjects</th>
+       </tr>
+       <tr>
+           <td><strong>Number of subjects</strong></td>
+           <td>12</td>
+       </tr>
+       <tr>
+           <td><strong>Species</strong></td>
+           <td>Homo sapiens</td>
+       </tr>
+       <tr>
+           <td><strong>Number of recordings</strong></td>
+           <td>55</td>
+       </tr>
+       <tr>
+           <td><strong>Total recording time</strong></td>
+           <td>1280 hours</td>
+       </tr>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-brain"></i> Neural Data</th>
+       </tr>
+       <tr>
+           <td><strong>Neural Modality</strong></td>
+           <td>ECoG (intracranial electrophysiology)</td>
+       </tr>
+       <tr>
+           <td><strong>Device</strong></td>
+           <td>Clinical ECoG grids, strips, and depth electrodes</td>
+       </tr>
+       <tr>
+           <td><strong>Available fields</strong></td>
+           <td><span class="code-tag">data.ecog</span><span class="code-tag">data.channels</span></td>
+       </tr>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-bolt-lightning"></i> Behavioral Data</th>
+       </tr>
+       <tr>
+           <td><strong>Description</strong></td>
+           <td>Naturalistic upper-body movements during long-term clinical epilepsy monitoring with synchronized pose trajectories and coarse behavior labels.</td>
+       </tr>
+       <tr>
+           <td><strong>Task</strong></td>
+           <td>Free behavior (naturalistic daily activities)</td>
+       </tr>
+       <tr>
+           <td><strong>Available fields</strong></td>
+           <td><span class="code-tag">data.pose</span><span class="code-tag">data.active_behavior_trials</span><span class="code-tag">data.active_vs_inactive_trials</span></td>
+       </tr>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-database"></i> File Sizes</th>
+       </tr>
+       <tr>
+           <td><strong>Raw data size</strong></td>
+           <td>788 GB</td>
+       </tr>
+       <tr>
+           <td><strong>Processed data size</strong></td>
+           <td>TBA</td>
+       </tr>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-triangle-exclamation"></i>Notes</th>
+       </tr>
+       <tr>
+           <td><strong>Warning</strong></td>
+           <td>Pipeline emits ECoG, pose, and behavior intervals with intrasession, intersession, and intersubject split assignments for downstream training workflows.</td>
+       </tr>
+   </table>
+   </div>
+
 perich_miller_population_2018
 ------------------------------
 

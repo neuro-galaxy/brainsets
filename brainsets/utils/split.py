@@ -1,5 +1,6 @@
 _functions = [
     "generate_stratified_folds",
+    "generate_stratified_folds_by_task",
     "generate_string_kfold_assignment",
 ]
 
@@ -10,6 +11,8 @@ import logging
 import numpy as np
 from typing import List
 from temporaldata import Interval, Data
+
+logger = logging.getLogger(__name__)
 
 
 def _create_interval_split(intervals: Interval, indices: np.ndarray) -> Interval:
@@ -73,6 +76,14 @@ def generate_stratified_folds(
         raise ValueError(
             f"Not enough samples ({len(class_labels)}) for {n_folds} folds."
         )
+
+    unique_labels, counts = np.unique(class_labels, return_counts=True)
+    for label, count in zip(unique_labels, counts):
+        if count < n_folds:
+            raise ValueError(
+                f"Stratification category '{label}' has only {count} samples, "
+                f"need at least {n_folds} for {n_folds}-fold split."
+            )
 
     outer_splitter = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
     folds = []
@@ -188,3 +199,80 @@ def generate_string_kfold_assignment(
             else:
                 assignments.append("train")
     return assignments
+
+
+def generate_stratified_folds_by_task(
+    trials: Interval,
+    task_configs: dict[str, list[str]],
+    label_field: str,
+    n_folds: int = 5,
+    val_ratio: float = 0.2,
+    seed: int = 42,
+) -> dict[str, Interval]:
+    """Generate stratified k-fold splits for multiple tasks from a shared pool of trials.
+
+    For each task in ``task_configs``, the trials are filtered to only those whose
+    ``label_field`` value appears in the task's include list. The filtered subset is
+    then split into stratified folds via :func:`generate_stratified_folds`. Tasks
+    whose filtered trial count or per-category count is below ``n_folds`` are
+    skipped with a warning.
+
+    Args:
+        trials: Interval with a ``label_field`` attribute containing per-trial labels.
+        task_configs: Mapping from task name to the list of label values to include.
+        label_field: Attribute name on ``trials`` used for filtering and stratification.
+        n_folds: Number of cross-validation folds.
+        val_ratio: Fraction of train+valid used for validation.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        Dict mapping ``"{task_name}_fold_{k}_{train|valid|test}"`` to ``Interval``.
+    """
+    if not hasattr(trials, label_field):
+        raise ValueError(
+            f"Trials must have a '{label_field}' attribute for task filtering."
+        )
+
+    all_labels = getattr(trials, label_field)
+    splits_dict: dict[str, Interval] = {}
+
+    for task_name, include_labels in task_configs.items():
+        logger.info(f"Generating {task_name} k-fold train/valid/test splits")
+        task_mask = np.isin(all_labels, include_labels)
+        task_trials = trials.select_by_mask(task_mask)
+
+        if len(task_trials) < n_folds:
+            logger.warning(
+                f"Task {task_name} has only {len(task_trials)} trials, "
+                f"skipping (need at least {n_folds})"
+            )
+            continue
+
+        task_labels = getattr(task_trials, label_field)
+        unique_labels, counts = np.unique(task_labels, return_counts=True)
+        undersized = {
+            label: int(count)
+            for label, count in zip(unique_labels, counts)
+            if count < n_folds
+        }
+        if undersized:
+            logger.warning(
+                f"Task {task_name}: categories {undersized} have fewer than "
+                f"{n_folds} samples, skipping"
+            )
+            continue
+
+        folds = generate_stratified_folds(
+            task_trials,
+            stratify_by=label_field,
+            n_folds=n_folds,
+            val_ratio=val_ratio,
+            seed=seed,
+        )
+
+        for k, fold_data in enumerate(folds):
+            splits_dict[f"{task_name}_fold_{k}_train"] = fold_data.train
+            splits_dict[f"{task_name}_fold_{k}_valid"] = fold_data.valid
+            splits_dict[f"{task_name}_fold_{k}_test"] = fold_data.test
+
+    return splits_dict
