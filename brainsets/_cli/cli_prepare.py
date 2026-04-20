@@ -13,18 +13,32 @@ try:  # Python 3.11+
 except ModuleNotFoundError:  # Python <3.11
     import tomli as tomllib  # type: ignore[import-not-found]
 
+from click.shell_completion import CompletionItem
+
+from brainsets.config import CONFIG_FILE, load_config
+
 from .utils import (
     PIPELINES_PATH,
-    load_config,
     get_available_brainsets,
     expand_path,
 )
 
 
+def complete_brainset(ctx, param, incomplete):
+    if ctx.params.get("local"):
+        return [CompletionItem(incomplete, type="dir")]
+
+    try:
+        names = get_available_brainsets()
+    except Exception:
+        return []
+    return [CompletionItem(name) for name in names if name.startswith(incomplete)]
+
+
 @click.command(
     context_settings=dict(ignore_unknown_options=True, allow_extra_args=True)
 )
-@click.argument("brainset", type=str)
+@click.argument("brainset", type=str, shell_complete=complete_brainset)
 @click.option("-c", "--cores", default=4, help="Number of cores to use. (default 4)")
 @click.option(
     "--raw-dir",
@@ -94,6 +108,11 @@ def prepare(
     # Get raw and processed dirs
     if raw_dir is None or processed_dir is None:
         config = load_config()
+        if config is None:
+            raise click.ClickException(
+                f"Config not found or invalid at {CONFIG_FILE}. "
+                "Please run `brainsets config set`."
+            )
         raw_dir = expand_path(raw_dir or config["raw_dir"])
         processed_dir = expand_path(processed_dir or config["processed_dir"])
     else:

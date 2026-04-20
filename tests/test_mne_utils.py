@@ -251,6 +251,53 @@ class TestExtractChannels:
         result = extract_channels(mock_raw)
         assert result.type.dtype.kind == "U"
 
+    def test_typeerror_raised_for_non_dict_mappings(self):
+        """Test that TypeError is raised if a mapping is provided and is not a dict."""
+        mock_raw = create_mock_raw()
+        # Non-dict inputs for the mapping arguments
+        non_dicts = [
+            ["not", "a", "dict"],  # list
+            "not a dict",  # str
+            123,  # int
+            (1, 2, 3),  # tuple
+        ]
+        # channel_names_mapping
+        for bad_value in non_dicts:
+            with pytest.raises(
+                TypeError, match="channel_names_mapping must be a dictionary"
+            ):
+                extract_channels(mock_raw, channel_names_mapping=bad_value)
+        # type_channels_mapping
+        for bad_value in non_dicts:
+            with pytest.raises(
+                TypeError, match="type_channels_mapping must be a dictionary"
+            ):
+                extract_channels(mock_raw, type_channels_mapping=bad_value)
+        # channel_pos_mapping
+        for bad_value in non_dicts:
+            with pytest.raises(
+                TypeError, match="channel_pos_mapping must be a dictionary"
+            ):
+                extract_channels(mock_raw, channel_pos_mapping=bad_value)
+
+    def test_accepts_none_for_all_mappings(self):
+        """Test that extract_channels accepts None for all three mapping arguments."""
+        mock_raw = create_mock_raw(
+            ch_names=["A", "B", "C"], ch_types=["eeg", "eog", "emg"], n_channels=3
+        )
+        # All mappings as None
+        result = extract_channels(
+            mock_raw,
+            channel_names_mapping=None,
+            type_channels_mapping=None,
+            channel_pos_mapping=None,
+        )
+        # Should simply return the raw names/types
+        np.testing.assert_array_equal(result.id, np.array(["A", "B", "C"], dtype="U"))
+        np.testing.assert_array_equal(
+            result.type, np.array(["eeg", "eog", "emg"], dtype="U")
+        )
+
     # ---------- Channel name mapping tests ----------
     def test_name_mapping_applied(self):
         """Test that channel name mapping is correctly applied."""
@@ -276,7 +323,7 @@ class TestExtractChannels:
         )
         type_mapping = {"eog": ["CH0"], "emg": ["CH2"]}
 
-        result = extract_channels(mock_raw, channel_types_mapping=type_mapping)
+        result = extract_channels(mock_raw, type_channels_mapping=type_mapping)
 
         expected = np.array(["eog", "eeg", "emg"], dtype="U")
         np.testing.assert_array_equal(result.type, expected)
@@ -295,7 +342,7 @@ class TestExtractChannels:
         result = extract_channels(
             mock_raw,
             channel_names_mapping=name_mapping,
-            channel_types_mapping=type_mapping,
+            type_channels_mapping=type_mapping,
         )
 
         expected_types = np.array(["eog", "eog", "emg"], dtype="U")
@@ -542,7 +589,7 @@ class TestExtractChannels:
         )
         type_mapping = {"eog": ["CH0"], "emg": ["CH2"]}
         result = extract_channels(
-            mock_raw, channel_types_mapping=type_mapping, ignore_channels=["CH1"]
+            mock_raw, type_channels_mapping=type_mapping, ignore_channels=["CH1"]
         )
         assert len(result.type) == 2
         expected_types = np.array(["eog", "emg"], dtype="U")
@@ -599,7 +646,7 @@ class TestExtractChannels:
             ch_names=ch_names, ch_types=["eeg", "eog"], n_channels=2
         )
         # "emg" is not relevant, but should not cause an error
-        result = extract_channels(mock_raw, channel_types_mapping=type_mapping)
+        result = extract_channels(mock_raw, type_channels_mapping=type_mapping)
         expected_types = np.array(["eeg", "eog"], dtype="U")
         np.testing.assert_array_equal(result.type, expected_types)
 
@@ -610,7 +657,7 @@ class TestExtractChannels:
         mock_raw = create_mock_raw(
             ch_names=ch_names, ch_types=["eeg", "eog", "emg"], n_channels=3
         )
-        result = extract_channels(mock_raw, channel_types_mapping=type_mapping)
+        result = extract_channels(mock_raw, type_channels_mapping=type_mapping)
         # Only A is in mapping, others keep original type
         expected_types = np.array(["resp", "eog", "emg"], dtype="U")
         np.testing.assert_array_equal(result.type, expected_types)
@@ -627,7 +674,7 @@ class TestExtractChannels:
         result = extract_channels(
             mock_raw,
             channel_names_mapping=name_mapping,
-            channel_types_mapping=type_mapping,
+            type_channels_mapping=type_mapping,
         )
         # X gets "eeg" from type_mapping, C and D get "emg" from type_mapping, Y falls back to original type
         expected_ids = np.array(["X", "Y", "C", "D"], dtype="U")
@@ -648,7 +695,7 @@ class TestExtractChannels:
         result = extract_channels(
             mock_raw,
             channel_names_mapping=name_mapping,
-            channel_types_mapping=type_mapping,
+            type_channels_mapping=type_mapping,
             channel_pos_mapping=pos_mapping,
         )
         np.testing.assert_array_equal(result.id, np.array(ch_names, dtype="U"))

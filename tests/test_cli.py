@@ -6,6 +6,140 @@ from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
 
 from brainsets._cli.cli import cli
+from brainsets._cli.cli_completion import (
+    _detect_shell,
+    SHELL_COMPLETION_FILENAMES,
+)
+from brainsets.config import CONFIG_FILE
+
+
+class TestDetectShell:
+    """Tests for _detect_shell."""
+
+    @pytest.mark.parametrize(
+        "shell_env, expected",
+        [
+            ("/bin/bash", "bash"),
+            ("/usr/bin/zsh", "zsh"),
+            ("/bin/sh", "sh"),
+        ],
+    )
+    def test_detects_shell_from_env(self, shell_env, expected):
+        with patch.dict("os.environ", {"SHELL": shell_env}):
+            assert _detect_shell() == expected
+
+
+class TestInstallCompletion:
+    """Tests for the --install-completion flag via the CLI."""
+
+    def test_installs_bash_completion(self, tmp_path):
+        runner = CliRunner()
+        comp_dir = tmp_path / "bash-completions"
+
+        with (
+            patch("brainsets._cli.cli_completion._detect_shell", return_value="bash"),
+            patch.dict(
+                "brainsets._cli.cli_completion.SHELL_COMPLETION_DIRS",
+                {"bash": comp_dir},
+            ),
+        ):
+            result = runner.invoke(cli, ["--install-completion"])
+
+        assert result.exit_code == 0
+        assert "Completion installed for bash" in result.output
+        assert "Restart your shell" in result.output
+
+        written = (comp_dir / SHELL_COMPLETION_FILENAMES["bash"]).read_text()
+        assert "_BRAINSETS_COMPLETE" in written
+
+    def test_installs_zsh_completion(self, tmp_path):
+        runner = CliRunner()
+        comp_dir = tmp_path / "zfunc"
+
+        with (
+            patch("brainsets._cli.cli_completion._detect_shell", return_value="zsh"),
+            patch.dict(
+                "brainsets._cli.cli_completion.SHELL_COMPLETION_DIRS",
+                {"zsh": comp_dir},
+            ),
+        ):
+            result = runner.invoke(cli, ["--install-completion"])
+
+        assert result.exit_code == 0
+        assert "Completion installed for zsh" in result.output
+        assert "fpath" in result.output
+
+        written = (comp_dir / SHELL_COMPLETION_FILENAMES["zsh"]).read_text()
+        assert "_BRAINSETS_COMPLETE" in written
+
+    def test_creates_completion_dir_if_missing(self, tmp_path):
+        runner = CliRunner()
+        comp_dir = tmp_path / "deep" / "nested" / "dir"
+
+        with (
+            patch("brainsets._cli.cli_completion._detect_shell", return_value="bash"),
+            patch.dict(
+                "brainsets._cli.cli_completion.SHELL_COMPLETION_DIRS",
+                {"bash": comp_dir},
+            ),
+        ):
+            result = runner.invoke(cli, ["--install-completion"])
+
+        assert result.exit_code == 0
+        assert comp_dir.exists()
+        assert (comp_dir / SHELL_COMPLETION_FILENAMES["bash"]).is_file()
+
+
+class TestConfigCommand:
+    """Tests for the 'brainsets config' command group."""
+
+    def test_config_show(self, tmp_path):
+        """Test `brainsets config show` displays current configuration."""
+        runner = CliRunner()
+        raw_dir = str(tmp_path / "raw")
+        processed_dir = str(tmp_path / "processed")
+        mock_config = {"raw_dir": raw_dir, "processed_dir": processed_dir}
+
+        with patch("brainsets._cli.cli_config.load_config", return_value=mock_config):
+            result = runner.invoke(cli, ["config", "show"])
+            assert result.exit_code == 0, f"CLI failed with: {result.output}"
+            assert f"Config file: {CONFIG_FILE}" in result.output
+            assert f"Raw data dir: {raw_dir}" in result.output
+            assert f"Processed data dir: {processed_dir}" in result.output
+
+    def test_config_show_no_config(self):
+        """Test `brainsets config show` errors when no config exists."""
+        runner = CliRunner()
+
+        with patch("brainsets._cli.cli_config.load_config", return_value=None):
+            result = runner.invoke(cli, ["config", "show"])
+            assert result.exit_code != 0
+            assert "Config not found" in result.output
+
+    def test_config_set_with_options(self, tmp_path):
+        """Test `brainsets config set --raw-dir ... --processed-dir ...`."""
+        runner = CliRunner()
+        raw_dir = tmp_path / "raw"
+        processed_dir = tmp_path / "processed"
+
+        with (
+            patch("brainsets._cli.cli_config.load_config", return_value=None),
+            patch("brainsets._cli.cli_config.save_config", return_value=CONFIG_FILE),
+        ):
+            result = runner.invoke(
+                cli,
+                [
+                    "config",
+                    "set",
+                    "--raw-dir",
+                    str(raw_dir),
+                    "--processed-dir",
+                    str(processed_dir),
+                ],
+            )
+            assert result.exit_code == 0, f"CLI failed with: {result.output}"
+            assert f"Raw data dir: {raw_dir}" in result.output
+            assert f"Processed data dir: {processed_dir}" in result.output
 
 
 class TestPrepareCommand:
