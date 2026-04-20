@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Added shell completion for brainsets CLI tools ([#116](https://github.com/neuro-galaxy/brainsets/pull/116)).
 - Added the `Neuroprobe2025` dataset class and the `neuroprobe_2025` brainset pipeline ([#79](https://github.com/neuro-galaxy/brainsets/pull/79)).
 - Added new brainset `vollan_moser_alternating_2025`, a hippocampus/MEC dataset from the paper [Left–right-alternating theta sweeps in entorhinal–hippocampal maps of space](https://www.nature.com/articles/s41586-024-08527-1). See [#127](https://github.com/neuro-galaxy/brainsets/pull/127).
-- Added the `peterson_brunton_pose_trajectory_2022` (AJILE12). ([#87](https://github.com/neuro-galaxy/brainsets/pull/87)).
+- Added the `peterson_brunton_pose_trajectory_2022` pipeline and `PetersonBruntonPoseTrajectory2022` dataset class (AJILE12: ECoG + pose trajectories). Also added shared ECoG extraction utilities (`extract_ecog_from_nwb`) and task-aware stratified splitting (`generate_stratified_folds_by_task`). ([#87](https://github.com/neuro-galaxy/brainsets/pull/87)).
 
 ### Removed
 - Remove `brainsets.utils.dir_utils` (legacy code) ([#120](https://github.com/neuro-galaxy/brainsets/pull/120)).

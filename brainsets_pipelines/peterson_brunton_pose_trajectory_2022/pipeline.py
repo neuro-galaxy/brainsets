@@ -33,6 +33,7 @@ from brainsets.pipeline import BrainsetPipeline
 from brainsets.taxonomy import Hemisphere
 from brainsets.taxonomy import RecordingTech, Task
 from brainsets.utils.dandi_utils import (
+    _normalize_hemisphere_input,
     download_file,
     extract_ecog_from_nwb,
     extract_subject_from_nwb,
@@ -44,7 +45,7 @@ from brainsets.utils.split import (
     generate_stratified_folds_by_task,
 )
 
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
@@ -76,6 +77,36 @@ ACTIVE_VS_INACTIVE_TASK_CONFIGS = {
         "Inactive",
     ],
 }
+
+AJILE_KEYPOINTS = [
+    "r_wrist",
+    "l_wrist",
+    "l_ear",
+    "l_elbow",
+    "l_shoulder",
+    "nose",
+    "r_ear",
+    "r_elbow",
+    "r_shoulder",
+]
+
+# NWB keypoint names mapped to internal attribute names
+AJILE_NWB_KEYPOINT_NAMES = [
+    "R_Wrist",
+    "L_Wrist",
+    "L_Ear",
+    "L_Elbow",
+    "L_Shoulder",
+    "Nose",
+    "R_Ear",
+    "R_Elbow",
+    "R_Shoulder",
+]
+
+TRIAL_CHUNK_DURATION_SEC = 30.0
+SPLIT_N_FOLDS = 3
+SPLIT_VAL_RATIO = 0.2
+SPLIT_SEED = 42
 
 
 class Pipeline(BrainsetPipeline):
@@ -139,14 +170,20 @@ class Pipeline(BrainsetPipeline):
         active_vs_inactive_trials: Interval,
         pose_valid_domain: Interval,
     ) -> Data:
+        # Uses nested splits.{task}_fold_{k}_{split} keys rather than the
+        # set_train_domain/set_valid_domain/set_test_domain convention because
+        # this dataset has multiple tasks × multiple folds.
         subject_assignments = generate_string_kfold_assignment(
-            string_id=subject_id, n_folds=3, val_ratio=0.2, seed=42
+            string_id=subject_id,
+            n_folds=SPLIT_N_FOLDS,
+            val_ratio=SPLIT_VAL_RATIO,
+            seed=SPLIT_SEED,
         )
         session_assignments = generate_string_kfold_assignment(
             string_id=f"{subject_id}_{session_id}",
-            n_folds=3,
-            val_ratio=0.2,
-            seed=42,
+            n_folds=SPLIT_N_FOLDS,
+            val_ratio=SPLIT_VAL_RATIO,
+            seed=SPLIT_SEED,
         )
         namespaced_assignments = {
             f"intersubject_fold_{fold_idx}_assignment": assignment
@@ -162,60 +199,61 @@ class Pipeline(BrainsetPipeline):
         behavior_splits = {}
         if len(active_behavior_trials) > 0:
             behavior_chunks = active_behavior_trials.subdivide(
-                step=30.0, drop_short=False
+                step=TRIAL_CHUNK_DURATION_SEC, drop_short=False
             )
             behavior_splits = generate_stratified_folds_by_task(
                 behavior_chunks,
                 BEHAVIOR_TASK_CONFIGS,
                 "behavior_labels",
-                n_folds=3,
-                val_ratio=0.2,
-                seed=42,
+                n_folds=SPLIT_N_FOLDS,
+                val_ratio=SPLIT_VAL_RATIO,
+                seed=SPLIT_SEED,
             )
 
         active_vs_inactive_splits = {}
         if len(active_vs_inactive_trials) > 0:
             avi_chunks = active_vs_inactive_trials.subdivide(
-                step=30.0, drop_short=False
+                step=TRIAL_CHUNK_DURATION_SEC, drop_short=False
             )
             active_vs_inactive_splits = generate_stratified_folds_by_task(
                 avi_chunks,
                 ACTIVE_VS_INACTIVE_TASK_CONFIGS,
                 "behavior_labels",
-                n_folds=3,
-                val_ratio=0.2,
-                seed=42,
+                n_folds=SPLIT_N_FOLDS,
+                val_ratio=SPLIT_VAL_RATIO,
+                seed=SPLIT_SEED,
             )
 
         pose_estimation_splits = {}
-        if len(active_vs_inactive_trials) > 0 and len(pose_valid_domain) > 0:
-            if len(pose_valid_domain) > 0:
-                # Build fixed-size chunks, then use shared k-fold utility so each fold's
-                # test split is disjoint across folds.
-                chopped = pose_valid_domain.subdivide(step=30.0, drop_short=False)
-                if len(chopped) >= 3:
-                    pose_chunks = Interval(
-                        start=chopped.start,
-                        end=chopped.end,
-                        pose_split_label=np.zeros(len(chopped), dtype=int),
+        if len(pose_valid_domain) > 0:
+            # Build fixed-size chunks, then use shared k-fold utility so each fold's
+            # test split is disjoint across folds.
+            chopped = pose_valid_domain.subdivide(
+                step=TRIAL_CHUNK_DURATION_SEC, drop_short=False
+            )
+            if len(chopped) >= SPLIT_N_FOLDS:
+                pose_chunks = Interval(
+                    start=chopped.start,
+                    end=chopped.end,
+                    pose_split_label=np.zeros(len(chopped), dtype=int),
+                )
+                folds = generate_stratified_folds(
+                    pose_chunks,
+                    stratify_by="pose_split_label",
+                    n_folds=SPLIT_N_FOLDS,
+                    val_ratio=SPLIT_VAL_RATIO,
+                    seed=SPLIT_SEED,
+                )
+                for fold_idx, fold_data in enumerate(folds):
+                    pose_estimation_splits[f"pose_estimation_fold_{fold_idx}_train"] = (
+                        fold_data.train
                     )
-                    folds = generate_stratified_folds(
-                        pose_chunks,
-                        stratify_by="pose_split_label",
-                        n_folds=3,
-                        val_ratio=0.2,
-                        seed=42,
+                    pose_estimation_splits[f"pose_estimation_fold_{fold_idx}_valid"] = (
+                        fold_data.valid
                     )
-                    for fold_idx, fold_data in enumerate(folds):
-                        pose_estimation_splits[
-                            f"pose_estimation_fold_{fold_idx}_train"
-                        ] = fold_data.train
-                        pose_estimation_splits[
-                            f"pose_estimation_fold_{fold_idx}_valid"
-                        ] = fold_data.valid
-                        pose_estimation_splits[
-                            f"pose_estimation_fold_{fold_idx}_test"
-                        ] = fold_data.test
+                    pose_estimation_splits[f"pose_estimation_fold_{fold_idx}_test"] = (
+                        fold_data.test
+                    )
 
         return Data(
             **namespaced_assignments,
@@ -227,9 +265,11 @@ class Pipeline(BrainsetPipeline):
 
     def process(self, fpath: Path) -> None:
         self.update_status("Loading NWB")
-        io = NWBHDF5IO(str(fpath), "r")
-        nwbfile = io.read()
+        with NWBHDF5IO(str(fpath), "r") as io:
+            nwbfile = io.read()
+            self._process_nwb(fpath, nwbfile)
 
+    def _process_nwb(self, fpath: Path, nwbfile: NWBFile) -> None:
         self.processed_dir.mkdir(exist_ok=True, parents=True)
         subject = extract_subject_from_nwb(nwbfile)
 
@@ -246,6 +286,9 @@ class Pipeline(BrainsetPipeline):
             subject.id.replace("AJILE12_P", "").replace("sub-", "").strip()
             or subject.id
         )
+        assert subject_num and subject_num.isdigit(), (
+            f"Could not parse numeric subject from id '{subject.id}'"
+        )
         stem = Path(fpath).stem
         if "_ses-" in stem:
             session_num = stem.split("_ses-")[1].split("_")[0]
@@ -255,7 +298,6 @@ class Pipeline(BrainsetPipeline):
 
         output_path = self.processed_dir / f"{session_id}.h5"
         if output_path.exists() and not getattr(self.args, "reprocess", False):
-            io.close()
             self.update_status("Skipped Processing")
             return
 
@@ -307,12 +349,11 @@ class Pipeline(BrainsetPipeline):
                     pose_valid_domain.end - pose_valid_domain.start
                 )
                 outside_pct = 100.0 * outside_duration / total_pose_duration
-                logging.warning(
+                logger.warning(
                     f"Pose valid data extends {outside_pct:.1f}% outside active behavior intervals. "
                     f"Consider reviewing pose data extraction."
                 )
 
-        # Compute joint signal valid domain (both pose and ECoG must be valid)
         signal_valid_domain = pose_valid_domain & ecog_valid_domain
 
         # Trim trials to the joint valid domain so every sampleable point
@@ -331,7 +372,7 @@ class Pipeline(BrainsetPipeline):
         trimmed_avi_duration = float(
             np.sum(active_vs_inactive_trials.end - active_vs_inactive_trials.start)
         )
-        logging.info(
+        logger.info(
             f"Trimmed active_vs_inactive trials to valid signal domain: "
             f"{original_avi_duration:.1f}s -> {trimmed_avi_duration:.1f}s "
             f"({100 * (original_avi_duration - trimmed_avi_duration) / original_avi_duration:.1f}% removed)."
@@ -375,28 +416,7 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Storing")
         with h5py.File(output_path, "w") as file:
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
-        logging.info("Saved processed data to %s", output_path)
-        io.close()
-
-
-def ajile_surface_mask_from_group_names(group_names: np.ndarray) -> np.ndarray:
-    """Surface vs depth ECoG electrodes (AJILE12 / Peterson-Brunton convention)."""
-    group_names = np.asarray(group_names).astype(str)
-    has_phd = np.any(np.char.upper(group_names) == "PHD")
-    is_surf = []
-    for label in group_names:
-        g = label.lower()
-        if "grid" in g:
-            is_surf.append(True)
-        elif g in ("mhd", "latd", "lmtd", "ltpd"):
-            is_surf.append(True)
-        elif g == "ahd" and not has_phd:
-            is_surf.append(True)
-        elif "d" in g:
-            is_surf.append(False)
-        else:
-            is_surf.append(True)
-    return np.array(is_surf, dtype=bool)
+        logger.info("Saved processed data to %s", output_path)
 
 
 def ajile_hemisphere_from_reach_events(nwbfile: NWBFile) -> Optional[Hemisphere]:
@@ -421,17 +441,9 @@ def resolve_hemisphere_ajile(
     subject_hemisphere: Optional[Union[Hemisphere, str]], nwbfile: NWBFile
 ) -> Hemisphere:
     if subject_hemisphere is not None:
-        if isinstance(subject_hemisphere, Hemisphere):
-            return subject_hemisphere
-        s = subject_hemisphere.strip().upper()
-        if s == "L":
-            return Hemisphere.LEFT
-        if s == "R":
-            return Hemisphere.RIGHT
-        try:
-            return Hemisphere.from_string(subject_hemisphere)
-        except ValueError:
-            pass
+        result = _normalize_hemisphere_input(subject_hemisphere)
+        if result != Hemisphere.UNKNOWN:
+            return result
     inferred = ajile_hemisphere_from_reach_events(nwbfile)
     return inferred if inferred is not None else Hemisphere.UNKNOWN
 
@@ -447,7 +459,7 @@ def resample_ecog_ajile(
         raise ImportError("resample_ecog_ajile requires scipy")
 
     current_rate = float(ecog_rts.sampling_rate)
-    data = np.asarray(ecog_rts.ecogs[:], dtype=np.float64)
+    data = np.asarray(ecog_rts.signal[:], dtype=np.float64)
     n_samples, _ = data.shape
     downsample_factor = int(current_rate / resample_rate_hz)
     if downsample_factor < 1:
@@ -480,66 +492,32 @@ def resample_ecog_ajile(
 def ajile_extract_pose_from_nwb(
     nwbfile: NWBFile,
 ) -> RegularTimeSeries:
-    r_wrist = nwbfile.processing["behavior"].data_interfaces["Position"]["R_Wrist"]
-    l_wrist = nwbfile.processing["behavior"].data_interfaces["Position"]["L_Wrist"]
-    l_ear = nwbfile.processing["behavior"].data_interfaces["Position"]["L_Ear"]
-    l_elbow = nwbfile.processing["behavior"].data_interfaces["Position"]["L_Elbow"]
-    l_shoulder = nwbfile.processing["behavior"].data_interfaces["Position"][
-        "L_Shoulder"
-    ]
-    nose = nwbfile.processing["behavior"].data_interfaces["Position"]["Nose"]
-    r_ear = nwbfile.processing["behavior"].data_interfaces["Position"]["R_Ear"]
-    r_elbow = nwbfile.processing["behavior"].data_interfaces["Position"]["R_Elbow"]
-    r_shoulder = nwbfile.processing["behavior"].data_interfaces["Position"][
-        "R_Shoulder"
-    ]
+    position = nwbfile.processing["behavior"].data_interfaces["Position"]
+    keypoint_series = {
+        attr: position[nwb_name]
+        for attr, nwb_name in zip(AJILE_KEYPOINTS, AJILE_NWB_KEYPOINT_NAMES)
+    }
 
-    behavior_sampling_rate = r_wrist.rate
+    first_series = next(iter(keypoint_series.values()))
+    behavior_sampling_rate = first_series.rate
+    n_samples = len(first_series.data)
 
-    pose_trajectories = RegularTimeSeries(
-        r_wrist=r_wrist.data[:],
-        l_wrist=l_wrist.data[:],
-        l_ear=l_ear.data[:],
-        l_elbow=l_elbow.data[:],
-        l_shoulder=l_shoulder.data[:],
-        nose=nose.data[:],
-        r_ear=r_ear.data[:],
-        r_elbow=r_elbow.data[:],
-        r_shoulder=r_shoulder.data[:],
+    keypoint_data = {attr: series.data[:] for attr, series in keypoint_series.items()}
+
+    return RegularTimeSeries(
+        **keypoint_data,
         sampling_rate=behavior_sampling_rate,
         domain=Interval(
             start=np.array([0.0]),
-            end=np.array([(len(r_wrist.data) - 1) / behavior_sampling_rate]),
+            end=np.array([(n_samples - 1) / behavior_sampling_rate]),
         ),
     )
 
-    return pose_trajectories
 
-
-def compute_pose_valid_domain(pose: RegularTimeSeries) -> Interval:
-    """Compute the domain where pose data is non-NaN for all keypoints.
-
-    Args:
-        pose: RegularTimeSeries containing pose trajectories with fields for each keypoint.
-
-    Returns:
-        Interval: Contiguous time segments where all 9 keypoints have valid (non-NaN) data.
-    """
-    keypoints = [
-        "r_wrist",
-        "l_wrist",
-        "l_ear",
-        "l_elbow",
-        "l_shoulder",
-        "nose",
-        "r_ear",
-        "r_elbow",
-        "r_shoulder",
-    ]
-
-    stacked_data = np.column_stack([getattr(pose, kp) for kp in keypoints])
-    valid_mask = ~np.any(np.isnan(stacked_data), axis=1)
-
+def _contiguous_valid_intervals(
+    valid_mask: np.ndarray, sampling_rate: float
+) -> Interval:
+    """Convert a per-sample boolean mask into contiguous valid time intervals."""
     if not np.any(valid_mask):
         return Interval(start=np.array([]), end=np.array([]))
 
@@ -552,11 +530,17 @@ def compute_pose_valid_domain(pose: RegularTimeSeries) -> Interval:
     if valid_mask[-1]:
         ends_idx = np.append(ends_idx, len(valid_mask) - 1)
 
-    sampling_rate = float(pose.sampling_rate)
-    start_times = starts_idx / sampling_rate
-    end_times = (ends_idx + 1) / sampling_rate
+    return Interval(
+        start=starts_idx / sampling_rate,
+        end=(ends_idx + 1) / sampling_rate,
+    )
 
-    return Interval(start=start_times, end=end_times)
+
+def compute_pose_valid_domain(pose: RegularTimeSeries) -> Interval:
+    """Compute the domain where pose data is non-NaN for all keypoints."""
+    stacked_data = np.column_stack([getattr(pose, kp) for kp in AJILE_KEYPOINTS])
+    valid_mask = ~np.any(np.isnan(stacked_data), axis=1)
+    return _contiguous_valid_intervals(valid_mask, float(pose.sampling_rate))
 
 
 def _trim_trials_to_domain(trials: Interval, valid_domain: Interval) -> Interval:
@@ -567,6 +551,9 @@ def _trim_trials_to_domain(trials: Interval, valid_domain: Interval) -> Interval
     be split into multiple sub-intervals).  Metadata attributes
     (behavior_labels, behavior_id) are replicated for each resulting
     segment; timestamps are recomputed as sub-interval midpoints.
+
+    Note: This is O(n_trials × n_valid_segments) because each trial is
+    intersected individually to track metadata provenance.
     """
     if len(trials) == 0 or len(valid_domain) == 0:
         return trials
@@ -609,34 +596,10 @@ def _trim_trials_to_domain(trials: Interval, valid_domain: Interval) -> Interval
 
 
 def compute_ecog_valid_domain(ecog: RegularTimeSeries) -> Interval:
-    """Compute the domain where ECoG data is non-NaN across all channels.
-
-    Args:
-        ecog: RegularTimeSeries containing ECoG signal of shape (n_samples, n_channels).
-
-    Returns:
-        Interval: Contiguous time segments where all channels have valid (non-NaN) data.
-    """
+    """Compute the domain where ECoG data is non-NaN across all channels."""
     signal_data = np.asarray(ecog.signal[:], dtype=np.float64)
     valid_mask = ~np.any(np.isnan(signal_data), axis=1)
-
-    if not np.any(valid_mask):
-        return Interval(start=np.array([]), end=np.array([]))
-
-    edges = np.diff(valid_mask.astype(int))
-    starts_idx = np.where(edges == 1)[0] + 1
-    ends_idx = np.where(edges == -1)[0]
-
-    if valid_mask[0]:
-        starts_idx = np.insert(starts_idx, 0, 0)
-    if valid_mask[-1]:
-        ends_idx = np.append(ends_idx, len(valid_mask) - 1)
-
-    sampling_rate = float(ecog.sampling_rate)
-    start_times = starts_idx / sampling_rate
-    end_times = (ends_idx + 1) / sampling_rate
-
-    return Interval(start=start_times, end=end_times)
+    return _contiguous_valid_intervals(valid_mask, float(ecog.sampling_rate))
 
 
 def ajile_extract_behavior_intervals_from_nwb(

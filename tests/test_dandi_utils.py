@@ -131,8 +131,77 @@ class TestExtractEcogFromNwb:
             np.array([int(Hemisphere.LEFT)]),
         )
 
+    def test_extract_ecog_defaults_to_all_good_when_no_good_column(self):
+        signal = np.array([[1.0, 2.0], [3.0, 4.0]])
+        electrodes = FakeElectrodes(
+            location=["left", "left"],
+            group_name=["g1", "g2"],
+        )
+        nwbfile = _build_nwb_for_ecog(signal, rate=50.0, electrodes=electrodes)
+
+        _, channels = extract_ecog_from_nwb(nwbfile)
+
+        np.testing.assert_array_equal(
+            np.asarray(channels.bad), np.array([False, False])
+        )
+
+    def test_extract_ecog_defaults_to_empty_group_when_no_group_name_column(self):
+        signal = np.array([[1.0], [2.0]])
+        electrodes = FakeElectrodes(
+            location=["left"],
+            good=[True],
+        )
+        nwbfile = _build_nwb_for_ecog(signal, rate=50.0, electrodes=electrodes)
+
+        _, channels = extract_ecog_from_nwb(nwbfile)
+
+        np.testing.assert_array_equal(
+            np.asarray(channels.group), np.array([""])
+        )
+
+    def test_extract_ecog_falls_back_to_unknown_hemisphere_with_no_info(self):
+        signal = np.array([[1.0], [2.0]])
+        electrodes = FakeElectrodes()
+        nwbfile = _build_nwb_for_ecog(signal, rate=50.0, electrodes=electrodes)
+
+        _, channels = extract_ecog_from_nwb(nwbfile)
+
+        np.testing.assert_array_equal(
+            np.asarray(channels.hemisphere),
+            np.full(1, int(Hemisphere.UNKNOWN)),
+        )
+
     def test_extract_ecog_raises_when_electrical_series_is_missing(self):
         nwbfile = SimpleNamespace(acquisition={}, electrodes=FakeElectrodes())
 
         with pytest.raises(KeyError, match="ElectricalSeries"):
             extract_ecog_from_nwb(nwbfile)
+
+
+class TestNormalizeSubjectSpecies:
+
+    def test_ncbi_taxonomy_is_converted_to_species_enum(self):
+        nwbfile = SimpleNamespace(
+            subject=SimpleNamespace(
+                subject_id="sub-01", species="NCBITaxon_9541", sex="M"
+            )
+        )
+        subject = extract_subject_from_nwb(nwbfile)
+        assert subject.species == Species.MACACA_FASCICULARIS
+
+    def test_unrecognized_species_falls_back_to_unknown(self):
+        # SubjectDescription's field_validator coerces unrecognized strings to UNKNOWN
+        nwbfile = SimpleNamespace(
+            subject=SimpleNamespace(
+                subject_id="sub-01", species="Alien species", sex="M"
+            )
+        )
+        subject = extract_subject_from_nwb(nwbfile)
+        assert subject.species == Species.UNKNOWN
+
+    def test_none_species_returns_unknown(self):
+        nwbfile = SimpleNamespace(
+            subject=SimpleNamespace(subject_id="sub-01", species=None, sex="M")
+        )
+        subject = extract_subject_from_nwb(nwbfile)
+        assert subject.species == Species.UNKNOWN

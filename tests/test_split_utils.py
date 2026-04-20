@@ -536,3 +536,25 @@ class TestGenerateStratifiedFoldsByTask:
 
         assert len(splits) == 9
         assert all(key.startswith("valid_task_") for key in splits)
+
+    def test_generate_stratified_folds_by_task_returns_empty_when_all_tasks_skipped(
+        self,
+    ):
+        labels = np.array(["S"] * 2 + ["U"] * 1, dtype=str)
+        start = np.arange(len(labels), dtype=float)
+        end = start + 1.0
+        trials = Interval(start=start, end=end, behavior_labels=labels)
+
+        splits = generate_stratified_folds_by_task(
+            trials=trials,
+            task_configs={
+                "tiny_task": ["S"],
+                "tinier_task": ["U"],
+            },
+            label_field="behavior_labels",
+            n_folds=3,
+            val_ratio=0.2,
+            seed=42,
+        )
+
+        assert splits == {}
