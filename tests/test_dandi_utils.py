@@ -155,9 +155,7 @@ class TestExtractEcogFromNwb:
 
         _, channels = extract_ecog_from_nwb(nwbfile)
 
-        np.testing.assert_array_equal(
-            np.asarray(channels.group), np.array([""])
-        )
+        np.testing.assert_array_equal(np.asarray(channels.group), np.array([""]))
 
     def test_extract_ecog_falls_back_to_unknown_hemisphere_with_no_info(self):
         signal = np.array([[1.0], [2.0]])

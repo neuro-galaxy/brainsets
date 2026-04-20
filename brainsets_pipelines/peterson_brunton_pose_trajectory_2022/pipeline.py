@@ -286,9 +286,9 @@ class Pipeline(BrainsetPipeline):
             subject.id.replace("AJILE12_P", "").replace("sub-", "").strip()
             or subject.id
         )
-        assert subject_num and subject_num.isdigit(), (
-            f"Could not parse numeric subject from id '{subject.id}'"
-        )
+        assert (
+            subject_num and subject_num.isdigit()
+        ), f"Could not parse numeric subject from id '{subject.id}'"
         stem = Path(fpath).stem
         if "_ses-" in stem:
             session_num = stem.split("_ses-")[1].split("_")[0]

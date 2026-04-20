@@ -174,13 +174,9 @@ class PetersonBruntonPoseTrajectory2022(MultiChannelDatasetMixin, Dataset):
         self, split: Literal["train", "valid", "test"]
     ) -> dict:
         if self.split_type == "intersubject":
-            assignment_key = (
-                f"splits.intersubject_fold_{self.fold_number}_assignment"
-            )
+            assignment_key = f"splits.intersubject_fold_{self.fold_number}_assignment"
         else:
-            assignment_key = (
-                f"splits.intersession_fold_{self.fold_number}_assignment"
-            )
+            assignment_key = f"splits.intersession_fold_{self.fold_number}_assignment"
 
         result = {}
         for rid in self.recording_ids:
