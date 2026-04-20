@@ -20,11 +20,19 @@ _psg_datasets = [
     "KempSleepEDF2013",
 ]
 
+_openneuro_datasets = [
+    "KlinzingSleepDS005555",
+    "KochiVisualNamingDS006914",
+    "ShiraziHBNR1DS005505",
+]
+
 __all__ = (
     _electrophysiology_datasets
     + _calcium_imaging_datasets
     + _ieeg_datasets
     + _psg_datasets
+    + _openneuro_datasets
+    + ["OpenNeuroDataset", "OpenNeuroSplitType"]
 )
 
 from .PerichMillerPopulation2018 import PerichMillerPopulation2018
@@ -35,9 +43,13 @@ from .OdohertySabesNonhuman2017 import OdohertySabesNonhuman2017
 from .AllenVisualCodingOphys2016 import AllenVisualCodingOphys2016
 from .KempSleepEDF2013 import KempSleepEDF2013
 from .Neuroprobe2025 import Neuroprobe2025
+from .KlinzingSleepDS005555 import KlinzingSleepDS005555
+from .KochiVisualNamingDS006914 import KochiVisualNamingDS006914
+from .ShiraziHBNR1DS005505 import ShiraziHBNR1DS005505
 from .VollanMoserAlternating2025 import VollanMoserAlternating2025
 from .PetersonBruntonPoseTrajectory2022 import (
     PetersonBruntonPoseTrajectory2022,
     PetersonBruntonSplitType,
     PetersonBruntonTaskType,
 )
+from .OpenNeuroBase import OpenNeuroDataset, OpenNeuroSplitType

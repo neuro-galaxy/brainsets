@@ -51,6 +51,9 @@ dev = [
     "mne-bids",
 ]
 
+[tool.uv.sources]
+torch-brain = { git = "https://github.com/neuro-galaxy/torch_brain", branch = "main" }
+
 [project.urls]
 Homepage = "https://github.com/neuro-galaxy/brainsets"
 Issues = "https://github.com/neuro-galaxy/brainsets/issues"
