@@ -1,5 +1,5 @@
-Neuroprobe Benchmark
-====================
+Working with the Neuroprobe Benchmark
+=====================================
 
 `Neuroprobe <https://neuroprobe.dev>`_ is a standardized benchmark for evaluating
 neural decoding models on human intracranial EEG (iEEG) data. It defines 15
@@ -38,13 +38,13 @@ Available tasks:
      - Domain
      - Description
    * - ``volume``
-     - Audio
+     - Auditory
      - Low vs. high average RMS audio volume
    * - ``pitch``
-     - Audio
+     - Auditory
      - Low vs. high average voice pitch
    * - ``delta_volume``
-     - Audio
+     - Auditory
      - Low vs. high volume change around word onset
    * - ``speech``
      - Language
@@ -71,16 +71,16 @@ Available tasks:
      - Language
      - Verb vs. non-verb
    * - ``frame_brightness``
-     - Vision
+     - Visual
      - Low vs. high average frame brightness
    * - ``global_flow``
-     - Vision
+     - Visual
      - Low vs. high global optical flow
    * - ``local_flow``
-     - Vision
+     - Visual
      - Low vs. high local optical flow
    * - ``face_num``
-     - Vision
+     - Visual
      - No faces vs. one or more faces
 
 **Regimes (split types).** Neuroprobe defines three evaluation regimes that test
