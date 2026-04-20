@@ -35,7 +35,7 @@ Available tasks:
    :widths: 30 15 55
 
    * - Task
-     - Domain
+     - Feature type
      - Description
    * - ``volume``
      - Auditory
