@@ -14,17 +14,14 @@ pytestmark = pytest.mark.skipif(
 
 from brainsets.utils.openneuro.openneuro_s3 import (
     ClientError,
-    validate_dataset_id,
-    validate_dataset_version,
+    fetch_latest_snapshot_tag,
     fetch_species,
-    validate_subject_ids,
     fetch_all_filenames,
     fetch_participants_tsv,
     construct_s3_url_from_path,
     download_recording,
     download_dataset_description,
     _graphql_query_openneuro,
-    _validate_species,
     OPENNEURO_S3_BUCKET,
 )
 
@@ -91,74 +88,42 @@ def graphql_species_response(species: str) -> dict:
 
 
 # ============================================================================
-# Tests for validate_dataset_id
+# Tests for fetch_latest_snapshot_tag
 # ============================================================================
 
 
-class TestValidateDatasetId:
-    """Tests for dataset ID validation and normalization."""
+class TestFetchLatestSnapshotTag:
+    """Tests for latest snapshot tag resolution via GraphQL."""
 
-    def test_normalizes_numeric_input(self):
-        """Numeric input is zero-padded to 6 digits with 'ds' prefix."""
-        assert validate_dataset_id("5085") == "ds005085"
+    @patch("brainsets.utils.openneuro.openneuro_s3._graphql_query_openneuro")
+    def test_returns_latest_snapshot_tag(self, mock_graphql):
+        """Returns tag value from latestSnapshot in GraphQL response."""
+        mock_graphql.return_value = graphql_ok_response("1.2.3")
 
-    def test_normalizes_ds_prefixed_input(self):
-        """Input with 'ds' prefix is normalized to 6-digit format."""
-        assert validate_dataset_id("ds5085") == "ds005085"
+        result = fetch_latest_snapshot_tag("ds005085")
 
-    def test_already_normalized_input(self):
-        """Already normalized input passes through unchanged."""
-        assert validate_dataset_id("ds005085") == "ds005085"
+        assert result == "1.2.3"
 
-    def test_strips_whitespace(self):
-        """Whitespace around input is stripped."""
-        assert validate_dataset_id("  ds5085  ") == "ds005085"
+    @patch("brainsets.utils.openneuro.openneuro_s3._graphql_query_openneuro")
+    def test_queries_with_correct_dataset_id_variable(self, mock_graphql):
+        """GraphQL query receives the expected datasetId variable."""
+        mock_graphql.return_value = graphql_ok_response("1.2.3")
 
-    def test_uppercase_prefix_accepted(self):
-        """Uppercase 'DS' prefix is accepted and normalized."""
-        assert validate_dataset_id("DS5085") == "ds005085"
+        fetch_latest_snapshot_tag("ds005085")
 
-    def test_single_digit_input(self):
-        """Single digit input is normalized."""
-        assert validate_dataset_id("1") == "ds000001"
+        call_args = mock_graphql.call_args
+        assert call_args[0][1]["datasetId"] == "ds005085"
 
-    def test_max_numeric_value_accepted(self):
-        """Maximum valid numeric value (9999) is accepted."""
-        assert validate_dataset_id("9999") == "ds009999"
+    @patch("brainsets.utils.openneuro.openneuro_s3._graphql_query_openneuro")
+    def test_raises_when_latest_snapshot_tag_missing(self, mock_graphql):
+        """Raises RuntimeError when latestSnapshot.tag is missing."""
+        mock_graphql.return_value = {"data": {"dataset": {"latestSnapshot": {}}}}
 
-    def test_zero_padding_preserved(self):
-        """Zero padding in input is preserved."""
-        assert validate_dataset_id("ds000042") == "ds000042"
-
-    def test_numeric_part_too_large_raises_error(self):
-        """Numeric part exceeding 4 digits raises ValueError."""
-        with pytest.raises(ValueError, match="too many digits"):
-            validate_dataset_id("10000")
-
-    def test_ds_prefix_with_numeric_part_too_large_raises_error(self):
-        """'ds' prefix with numeric part too large raises ValueError."""
-        with pytest.raises(ValueError, match="too many digits"):
-            validate_dataset_id("ds10000")
-
-    def test_non_numeric_suffix_with_ds_prefix_raises_error(self):
-        """'ds' prefix with non-numeric suffix raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid dataset ID format"):
-            validate_dataset_id("ds00a00")
-
-    def test_invalid_format_no_digits_raises_error(self):
-        """Non-numeric input without 'ds' prefix raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid dataset ID format"):
-            validate_dataset_id("invalid")
-
-    def test_empty_string_raises_error(self):
-        """Empty string raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid dataset ID format"):
-            validate_dataset_id("")
-
-    def test_whitespace_only_raises_error(self):
-        """Whitespace-only string raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid dataset ID format"):
-            validate_dataset_id("   ")
+        with pytest.raises(
+            RuntimeError,
+            match="Could not resolve latest snapshot tag for dataset 'ds005085'",
+        ):
+            fetch_latest_snapshot_tag("ds005085")
 
 
 # ============================================================================
@@ -184,15 +149,6 @@ class TestFetchAllFilenames:
         result = fetch_all_filenames("ds005085")
 
         assert result == filenames
-        mock_get_object_list.assert_called_once_with(OPENNEURO_S3_BUCKET, "ds005085/")
-
-    @patch("brainsets.utils.openneuro.openneuro_s3.get_object_list")
-    def test_normalizes_dataset_id_before_listing(self, mock_get_object_list):
-        """Dataset ID is normalized before querying."""
-        mock_get_object_list.return_value = ["file.edf"]
-
-        fetch_all_filenames("5085")
-
         mock_get_object_list.assert_called_once_with(OPENNEURO_S3_BUCKET, "ds005085/")
 
     @patch("brainsets.utils.openneuro.openneuro_s3.get_object_list")
@@ -243,20 +199,6 @@ class TestFetchParticipantsTsv:
         assert list(result.index) == ["participant_01", "participant_02"]
         assert "age" in result.columns
         assert "sex" in result.columns
-
-    @patch("brainsets.utils.openneuro.openneuro_s3.get_cached_s3_client")
-    def test_normalizes_dataset_id_before_fetching(self, mock_get_client):
-        """Dataset ID is normalized before S3 fetch."""
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-        mock_client.get_object.return_value = {
-            "Body": MagicMock(read=lambda: b"participant_id\npart_01")
-        }
-
-        fetch_participants_tsv("5085")
-
-        call_args = mock_client.get_object.call_args
-        assert call_args[1]["Key"] == "ds005085/participants.tsv"
 
     @patch("brainsets.utils.openneuro.openneuro_s3.get_cached_s3_client")
     def test_returns_none_when_participant_id_column_missing(
@@ -348,16 +290,6 @@ class TestConstructS3UrlFromPath:
             == "s3://openneuro.org/ds004019/sub-01/ses-01/eeg/sub-01_ses-01_task-nap_run-1"
         )
 
-    def test_normalizes_dataset_id(self):
-        """Dataset ID is normalized before URL construction."""
-        url = construct_s3_url_from_path(
-            dataset_id="4019",
-            data_file_path="sub-01/eeg/file.edf",
-            recording_id="sub-01_task-test",
-        )
-
-        assert url.startswith("s3://openneuro.org/ds004019/")
-
     def test_handles_deeply_nested_path(self):
         """Deeply nested file paths are handled correctly."""
         url = construct_s3_url_from_path(
@@ -426,18 +358,6 @@ class TestDownloadDatasetDescription:
         assert result.read_bytes() == b'{"name": "test"}'
 
     @patch("brainsets.utils.openneuro.openneuro_s3.get_cached_s3_client")
-    def test_normalizes_dataset_id_before_fetching(self, mock_get_client, tmp_path):
-        """Dataset ID is normalized before S3 fetch."""
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-        mock_client.get_object.return_value = {"Body": MagicMock(read=lambda: b"{}")}
-
-        download_dataset_description("5085", tmp_path)
-
-        call_args = mock_client.get_object.call_args
-        assert call_args[1]["Key"] == "ds005085/dataset_description.json"
-
-    @patch("brainsets.utils.openneuro.openneuro_s3.get_cached_s3_client")
     def test_creates_parent_directories(self, mock_get_client, tmp_path):
         """Creates parent directories if they don't exist."""
         mock_client = MagicMock()
@@ -486,57 +406,6 @@ class TestDownloadDatasetDescription:
 
 
 # ============================================================================
-# Tests for validate_dataset_version
-# ============================================================================
-
-
-class TestValidateDatasetVersion:
-    """Tests for dataset version validation."""
-
-    @patch("brainsets.utils.openneuro.openneuro_s3._graphql_query_openneuro")
-    def test_returns_latest_tag_when_versions_match(self, mock_graphql):
-        """Returns latest tag when provided version matches."""
-        mock_graphql.return_value = graphql_ok_response("1.0.0")
-
-        result = validate_dataset_version("ds005085", "1.0.0")
-
-        assert result == "1.0.0"
-
-    @patch("brainsets.utils.openneuro.openneuro_s3._graphql_query_openneuro")
-    def test_warns_when_versions_differ(self, mock_graphql, caplog):
-        """Logs warning when provided version differs from latest."""
-        mock_graphql.return_value = graphql_ok_response("2.0.0")
-
-        result = validate_dataset_version("ds005085", "1.0.0")
-
-        assert result == "2.0.0"
-        assert "version '1.0.0' was used to create the brainset pipeline" in caplog.text
-        assert "but the latest available version on OpenNeuro is '2.0.0'" in caplog.text
-
-    @patch("brainsets.utils.openneuro.openneuro_s3._graphql_query_openneuro")
-    def test_queries_with_correct_variables(self, mock_graphql):
-        """GraphQL is queried with the correct dataset ID."""
-        mock_graphql.return_value = graphql_ok_response("1.0.0")
-
-        validate_dataset_version("ds005085", "1.0.0")
-
-        call_args = mock_graphql.call_args
-        assert call_args[0][1]["datasetId"] == "ds005085"
-
-    @patch("brainsets.utils.openneuro.openneuro_s3._graphql_query_openneuro")
-    def test_does_not_warn_when_versions_match(self, mock_graphql, caplog):
-        """No warning is logged when versions match."""
-        mock_graphql.return_value = graphql_ok_response("1.0.0")
-
-        validate_dataset_version("ds005085", "1.0.0")
-
-        # Caplog will contain only debug logs and errors, not warnings
-        for record in caplog.records:
-            if record.levelno >= 30:  # WARNING level and above
-                assert "version" not in record.message.lower()
-
-
-# ============================================================================
 # Tests for fetch_species
 # ============================================================================
 
@@ -554,13 +423,13 @@ class TestFetchSpecies:
         assert result == "homo sapiens"
 
     @patch("brainsets.utils.openneuro.openneuro_s3._graphql_query_openneuro")
-    def test_returns_unknown_for_non_human_species(self, mock_graphql):
-        """Returns unknown for non-human species values."""
+    def test_returns_raw_non_human_species(self, mock_graphql):
+        """Returns species value as provided by GraphQL."""
         mock_graphql.return_value = graphql_species_response("mus musculus")
 
         result = fetch_species("ds005085")
 
-        assert result == "unknown"
+        assert result == "mus musculus"
 
     @patch("brainsets.utils.openneuro.openneuro_s3._graphql_query_openneuro")
     def test_queries_with_correct_variables(self, mock_graphql):
@@ -571,106 +440,6 @@ class TestFetchSpecies:
 
         call_args = mock_graphql.call_args
         assert call_args[0][1]["datasetId"] == "ds005085"
-
-
-# ============================================================================
-# Tests for _validate_species
-# ============================================================================
-
-
-class TestValidateSpecies:
-    """Tests for species normalization to homo sapiens or unknown."""
-
-    @pytest.mark.parametrize(
-        "species",
-        ["homo", "homo sapiens", "human", "humans", "H. sapiens", "  HUMAN  "],
-    )
-    def test_returns_homo_sapiens_for_supported_aliases(self, species):
-        """Supported aliases normalize to canonical homo sapiens."""
-        assert _validate_species(species) == "homo sapiens"
-
-    @pytest.mark.parametrize("species", ["mus musculus", "canis lupus", "", None, 42])
-    def test_returns_unknown_for_non_human_or_invalid_values(self, species):
-        """Non-human or invalid values normalize to unknown."""
-        assert _validate_species(species) == "unknown"
-
-
-# ============================================================================
-# Tests for validate_subject_ids
-# ============================================================================
-
-
-class TestValidateSubjectId:
-    """Tests for OpenNeuro-style subject ID validation."""
-
-    @patch("brainsets.utils.openneuro.openneuro_s3.fetch_participants_tsv")
-    def test_returns_empty_when_no_subject_ids(self, mock_fetch_participants):
-        """Empty input returns empty output without fetching participants.tsv."""
-        result = validate_subject_ids("5085", [])
-        assert result == []
-        mock_fetch_participants.assert_not_called()
-
-    @patch("brainsets.utils.openneuro.openneuro_s3.fetch_participants_tsv")
-    def test_matches_direct_participant_ids(self, mock_fetch_participants):
-        """Direct matches against participants.tsv participant_id are returned."""
-        df = pd.DataFrame(
-            {"age": [25, 30, 40], "sex": ["M", "F", "M"]},
-            index=["sub-01", "sub-02", "sub-10"],
-        )
-        mock_fetch_participants.return_value = df
-
-        result = validate_subject_ids("ds005085", ["sub-01", "sub-10"])
-        assert result == ["sub-01", "sub-10"]
-
-    @patch("brainsets.utils.openneuro.openneuro_s3.fetch_participants_tsv")
-    def test_matches_numeric_and_normalizes_common_subject_formats(
-        self, mock_fetch_participants
-    ):
-        """Numeric and sub-<number> variants are matched against TSV."""
-        df = pd.DataFrame(
-            {"age": [25, 30, 40], "sex": ["M", "F", "M"]},
-            index=["sub-01", "sub-02", "sub-10"],
-        )
-        mock_fetch_participants.return_value = df
-
-        # - int/string numeric input matched by suffix
-        # - sub01/sub_02 matched by numeric suffix regex
-        result = validate_subject_ids("5085", ["1", "02", 10, "sub01", "sub_02"])
-        assert result == ["sub-01", "sub-02", "sub-10", "sub-01", "sub-02"]
-
-    @patch("brainsets.utils.openneuro.openneuro_s3.fetch_participants_tsv")
-    def test_preserves_order_and_allows_mixed_inputs(self, mock_fetch_participants):
-        """Return order matches the order of requested subject_ids."""
-        df = pd.DataFrame(
-            {"age": [25, 30, 40], "sex": ["M", "F", "M"]},
-            index=["sub-01", "sub-02", "sub-10"],
-        )
-        mock_fetch_participants.return_value = df
-
-        result = validate_subject_ids("5085", ["sub-10", 1, "sub_02"])
-        assert result == ["sub-10", "sub-01", "sub-02"]
-
-    @patch("brainsets.utils.openneuro.openneuro_s3.fetch_participants_tsv")
-    def test_raises_value_error_when_subjects_missing(self, mock_fetch_participants):
-        """Raises ValueError listing all missing subject_ids."""
-        df = pd.DataFrame(
-            {"age": [25, 30], "sex": ["M", "F"]},
-            index=["sub-01", "sub-02"],
-        )
-        mock_fetch_participants.return_value = df
-
-        with pytest.raises(ValueError, match="not found in participants list"):
-            validate_subject_ids("5085", ["sub-01", "sub-03", "3"])
-
-    @patch("brainsets.utils.openneuro.openneuro_s3.fetch_participants_tsv")
-    def test_raises_runtime_error_when_participants_tsv_missing(
-        self, mock_fetch_participants
-    ):
-        """Raises RuntimeError when participants.tsv is unavailable."""
-        mock_fetch_participants.return_value = None
-
-        with pytest.raises(RuntimeError, match="participants\\.tsv not found"):
-            validate_subject_ids("5085", ["sub-01"])
 
 
 # ============================================================================
@@ -693,13 +462,17 @@ class TestGraphqlQueryOpenneuro:
 
         assert result == expected_response
 
+    @patch("time.sleep")
     @patch("brainsets.utils.openneuro.openneuro_s3.requests.post")
-    def test_raises_on_non_200_status(self, mock_post):
+    def test_raises_on_non_200_status(self, mock_post, mock_sleep):
         """Raises exception on non-200 status code."""
         mock_post.return_value = MagicMock(status_code=500)
 
         with pytest.raises(Exception, match="Query failed"):
             _graphql_query_openneuro("query { test }", {})
+
+        # Non-200 responses are retried with the standard backoff schedule.
+        assert mock_sleep.call_count == 4
 
     @patch("time.sleep")
     @patch("brainsets.utils.openneuro.openneuro_s3.requests.post")

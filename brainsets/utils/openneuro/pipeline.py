@@ -10,9 +10,10 @@ handle common functionality for processing datasets from OpenNeuro, including:
 
 from abc import ABC
 from argparse import ArgumentParser, Namespace
-from functools import cached_property
 from pathlib import Path
-from typing import Optional, TypedDict
+from typing import Literal, Optional, TypedDict
+import logging
+import sys
 
 import h5py
 import numpy as np
@@ -57,14 +58,22 @@ from brainsets.utils.openneuro import (
     fetch_all_filenames,
     fetch_participants_tsv,
     fetch_species,
-    validate_dataset_id,
-    validate_dataset_version,
-    validate_subject_ids,
+    fetch_latest_snapshot_tag,
 )
 
 _openneuro_parser = ArgumentParser()
 _openneuro_parser.add_argument("--redownload", action="store_true")
 _openneuro_parser.add_argument("--reprocess", action="store_true")
+_openneuro_parser.add_argument(
+    "--on-version-mismatch",
+    choices=["abort", "continue", "prompt"],
+    default="prompt",
+    help=(
+        "Behavior when origin_version differs from latest OpenNeuro version: "
+        "'abort' raises an error, 'continue' proceeds with warning, "
+        "'prompt' asks for confirmation in interactive sessions."
+    ),
+)
 
 
 def _require_mne_bids(func_name: str) -> None:
@@ -77,13 +86,20 @@ def _require_mne_bids(func_name: str) -> None:
 
 
 class OpenNeuroContext(TypedDict):
-    """Typed structure for shared OpenNeuro context data (cached per dataset per process)."""
+    """Typed structure for shared OpenNeuro metadata cached per dataset."""
 
-    validated_dataset_id: str
-    validated_dataset_version: str
-    validated_subject_ids: Optional[list[str]]
-    participants_data: Optional[pd.DataFrame]
+    dataset_id: str
+    latest_snapshot_tag: str
     species: str
+    participants_data: Optional[pd.DataFrame]
+
+
+class DatasetVersionValidationExit(SystemExit):
+    """Structured exit for dataset version validation failures."""
+
+    def __init__(self, message: str, reason: str):
+        super().__init__(message)
+        self.reason = reason
 
 
 class OpenNeuroPipeline(BrainsetPipeline, ABC):
@@ -98,8 +114,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         - origin_version (str): Version of the original source data.
 
     Optional class attributes:
-        - subject_ids (list[str] or None): Restricts processing to these subject IDs
-          (default: None, which means all subjects).
         - derived_version (str): Version tag for processed files (default: "1.0.0").
         - description (str, optional): Text description of the dataset.
 
@@ -113,16 +127,13 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     """
 
     parser = _openneuro_parser
-    """ArgumentParser with common OpenNeuro pipeline arguments (--redownload, --reprocess)."""
+    """Argument parser for common OpenNeuro pipeline flags."""
 
     dataset_id: str
     """OpenNeuro dataset identifier (e.g., "ds005555", "ds006914")."""
 
     brainset_id: str
     """Unique identifier for the brainset."""
-
-    subject_ids: Optional[list[str]] = None
-    """Optional list of subject IDs to process. If None, processes all subjects."""
 
     origin_version: str
     """Version of the original data."""
@@ -162,56 +173,184 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     random_seed: int = 42
     """Random seed for generating splits."""
 
-    _shared_context_cache: dict[str, OpenNeuroContext] = {}
+    _cached_openneuro_context: dict[str, OpenNeuroContext] = {}
     """Class-level cache of shared OpenNeuro context, keyed by dataset_id."""
 
-    @classmethod
-    def _shared_openneuro_context(cls) -> OpenNeuroContext:
-        """
-        Returns cached OpenNeuro context for this pipeline class.
+    @staticmethod
+    def validate_dataset_id(dataset_id: str) -> None:
+        """Validate OpenNeuro dataset identifier format.
 
-        Cached per dataset_id (within current process):
-        - validated_dataset_id
-        - validated_dataset_version
-        - validated_subject_ids
-        - participants_data
-        - species
+        OpenNeuro dataset IDs follow the format 'ds' followed by exactly 6 digits,
+        where the numeric portion ranges from 000001 to 009999.
+
+        Args:
+            dataset_id: The dataset identifier in strict format:
+                - Must be lowercase 'ds' followed by exactly 6 digits.
+                - Numeric portion must be between 000001 and 009999.
+
+        Raises:
+            ValueError: If the dataset ID format is invalid, does not match strict format,
+                or the numeric part is outside the valid range.
+        """
+        if not isinstance(dataset_id, str) or len(dataset_id) != 8:
+            raise ValueError(
+                f"Invalid dataset ID format: '{dataset_id}'. Expected 'ds' followed by exactly 6 digits."
+            )
+
+        if not dataset_id.startswith("ds"):
+            raise ValueError(
+                f"Invalid dataset ID format: '{dataset_id}'. Expected 'ds' followed by exactly 6 digits."
+            )
+
+        numeric_part = dataset_id[2:]
+        if not numeric_part.isdigit():
+            raise ValueError(
+                f"Invalid dataset ID format: '{dataset_id}'. Expected 'ds' followed by exactly 6 digits."
+            )
+
+        num = int(numeric_part)
+        if num < 1 or num > 9999:
+            raise ValueError(
+                f"Dataset ID '{dataset_id}' has invalid numeric portion. Must be between 000001 and 009999."
+            )
+
+    @classmethod
+    def _validate_dataset_version(
+        cls,
+        latest_snapshot_tag: str,
+        on_mismatch: Literal["abort", "continue", "prompt"] = "prompt",
+    ) -> None:
+        """Validate origin version against the latest OpenNeuro snapshot tag.
+
+        Args:
+            latest_snapshot_tag: The latest snapshot tag available on OpenNeuro for this dataset.
+            on_mismatch: Policy when ``origin_version`` differs from latest
+                (``"abort"``, ``"continue"``, or ``"prompt"``). If a mismatch is detected, the 
+                ``on_mismatch`` parameter determines the behavior (default: ``"prompt"``):
+                    - ``"abort"``: Raises an error and exits the pipeline.
+                    - ``"continue"``: Logs a warning and proceeds with the latest version.
+                    - ``"prompt"``: Prompts the user for confirmation and proceeds if confirmed.
+
+        Raises:
+            DatasetVersionValidationExit: If mismatch policy aborts execution.
+        """
+        def user_confirms(
+            prompt: str,
+        ) -> bool:
+            """Return True if the user confirms continuation, False otherwise."""
+            answer = input(prompt).strip().lower()
+            return answer in {"y", "yes"}
+        
+        if latest_snapshot_tag != cls.origin_version:
+            if on_mismatch == "continue":
+                logging.warning(
+                    f"⚠️ Dataset version '{cls.origin_version}' was used to create the brainset pipeline for dataset '{cls.dataset_id}', "
+                    f"but the latest available version on OpenNeuro is '{latest_snapshot_tag}'. "
+                    "Downloading data or running the pipeline now will use the latest version, "
+                    "which may differ from the original version used, potentially causing errors or inconsistencies. "
+                    "Check the CHANGES file of the dataset for details about the differences between versions."
+                )
+            elif on_mismatch == "abort":
+                raise DatasetVersionValidationExit(
+                    "🛑 Aborting pipeline due to dataset version mismatch.",
+                    reason="policy_abort",
+                )
+            elif on_mismatch == "prompt":
+                # if not interactive, abort
+                if not sys.stdin.isatty():
+                    raise DatasetVersionValidationExit(
+                        "🛑 Aborting pipeline due to dataset version mismatch in non-interactive session.",
+                        reason="non_interactive_session",
+                    )
+               
+                # if interactive, prompt user to continue
+                prompt_message = (
+                    f"⚠️ Dataset '{cls.dataset_id}' pipeline version is '{cls.origin_version}', "
+                    f"but latest on OpenNeuro is '{latest_snapshot_tag}'. "
+                    "👉 Continue with latest version? [y/N]: "
+                )
+                if not user_confirms(prompt_message):
+                    raise DatasetVersionValidationExit(
+                        "🛑 Aborted by user due to dataset version mismatch.",
+                        reason="user_declined_prompt",
+                    )
+        
+    @staticmethod
+    def _normalize_species(species: str | None) -> str:
+        """Normalize species names to ``"homo sapiens"`` or ``"unknown"``.
+
+        Args:
+            species: The input species name (string or None).
 
         Returns:
-            OpenNeuroContext dictionary with all validated/fetched metadata
+            ``"homo sapiens"`` for recognized human aliases, otherwise
+            ``"unknown"``.
         """
-        dataset_id = cls.dataset_id
-        if dataset_id in cls._shared_context_cache:
-            return cls._shared_context_cache[dataset_id]
+        if not isinstance(species, str):
+            return "unknown"
 
-        validated_dataset_id = validate_dataset_id(dataset_id)
-        validated_dataset_version = validate_dataset_version(
-            validated_dataset_id, cls.origin_version
-        )
+        normalized_species = species.strip().lower()
+        homo_sapiens_aliases = {
+            "homo",
+            "homo sapiens",
+            "human",
+            "humans",
+            "h. sapiens",
+        }
+        if normalized_species in homo_sapiens_aliases:
+            return "homo sapiens"
+        return "unknown"
 
-        if cls.subject_ids is not None:
-            validated_subject_ids = validate_subject_ids(
-                validated_dataset_id, cls.subject_ids
+    @classmethod
+    def _openneuro_context(
+        cls,
+        on_version_mismatch: str = "prompt",
+    ) -> OpenNeuroContext:
+        """Return cached OpenNeuro metadata for this pipeline class.
+
+        Metadata is cached per dataset_id (within current process):
+        - latest_snapshot_tag
+        - species
+        - participants_data
+
+        Returns:
+            OpenNeuro context with latest snapshot tag, normalized species, and
+            participants table.
+        """
+        cls.validate_dataset_id(cls.dataset_id)
+        if cls.dataset_id in cls._cached_openneuro_context:
+            return cls._cached_openneuro_context[cls.dataset_id]
+
+        latest_snapshot_tag = fetch_latest_snapshot_tag(cls.dataset_id)
+        try:
+            cls._validate_dataset_version(
+                latest_snapshot_tag, on_mismatch=on_version_mismatch
             )
-        else:
-            validated_subject_ids = None
+        except DatasetVersionValidationExit as exc:
+            if exc.reason != "non_interactive_session":
+                raise
+
+            raise SystemExit(
+                f"{str(exc).rstrip()} "
+                'To proceed without prompting, set --on_version_mismatch="continue".'
+            ) from None
+        
+        species = fetch_species(cls.dataset_id)
 
         ctx: OpenNeuroContext = {
-            "validated_dataset_id": validated_dataset_id,
-            "validated_dataset_version": validated_dataset_version,
-            "validated_subject_ids": validated_subject_ids,
-            "participants_data": fetch_participants_tsv(validated_dataset_id),
-            "species": fetch_species(validated_dataset_id),
+            "latest_snapshot_tag": latest_snapshot_tag,
+            "species": cls._normalize_species(species),
+            "participants_data": fetch_participants_tsv(cls.dataset_id),
         }
-        cls._shared_context_cache[dataset_id] = ctx
+        cls._cached_openneuro_context[cls.dataset_id] = ctx
         return ctx
 
     @classmethod
     def get_manifest(cls, raw_dir: Path, args: Optional[Namespace]) -> pd.DataFrame:
         """Generate a manifest DataFrame by discovering recordings from OpenNeuro.
 
-        This implementation queries OpenNeuro S3 to find all recordings matching
-        the modality by parsing BIDS-compliant filenames.
+        This implementation queries OpenNeuro S3 and parses BIDS-compliant
+        filenames to discover recordings for the pipeline modality.
 
         Args:
             raw_dir: Raw data directory assigned to this brainset
@@ -223,33 +362,24 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
                 - recording_id: Recording identifier (index)
                 - s3_url: S3 URL for downloading
         """
-        ctx = cls._shared_openneuro_context()
-        validated_dataset_id = ctx["validated_dataset_id"]
-        validated_subject_ids = ctx["validated_subject_ids"]
+        on_version_mismatch = (
+            getattr(args, "on_version_mismatch", "prompt") if args is not None else "prompt"
+        )
+        cls._openneuro_context(on_version_mismatch=on_version_mismatch)
 
-        all_files = fetch_all_filenames(validated_dataset_id)
-        modality = cls.modality
+        all_files = fetch_all_filenames(cls.dataset_id)
 
-        if modality == "eeg":
+        if cls.modality == "eeg":
             recordings = fetch_eeg_recordings(all_files)
-        elif modality == "ieeg":
+        elif cls.modality == "ieeg":
             recordings = fetch_ieeg_recordings(all_files)
         else:
-            raise ValueError(f"Unknown modality: {modality}")
-
-        if validated_subject_ids is not None:
-            recordings = [
-                r for r in recordings if r["subject_id"] in validated_subject_ids
-            ]
-            if not recordings:
-                raise ValueError(
-                    f"No recordings were found for subject_ids {validated_subject_ids} in dataset {validated_dataset_id}"
-                )
+            raise ValueError(f"Unknown modality: {cls.modality}")
 
         manifest_list = []
         for rec in recordings:
             s3_url = construct_s3_url_from_path(
-                validated_dataset_id,
+                cls.dataset_id,
                 rec["fpath"],
                 rec["recording_id"],
             )
@@ -264,7 +394,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         if not manifest_list:
             raise ValueError(
-                f"No {modality.upper()} recordings found in dataset {validated_dataset_id}"
+                f"No {cls.modality.upper()} recordings found in dataset {cls.dataset_id}"
             )
 
         manifest = pd.DataFrame(manifest_list)
@@ -277,39 +407,34 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             manifest_item: A single row of the manifest
 
         Returns:
-            Dictionary with keys:
-                - subject_id: Subject identifier (e.g., 'sub-01')
-                - recording_id: Recording identifier (index)
+            Dictionary containing ``subject_id`` and ``recording_id``.
         """
         self.update_status("DOWNLOADING")
         self.raw_dir.mkdir(exist_ok=True, parents=True)
 
-        ctx = type(self)._shared_openneuro_context()
-        validated_dataset_id = ctx["validated_dataset_id"]
-
-        s3_url = manifest_item.s3_url
         subject_id = manifest_item.subject_id
         recording_id = manifest_item.Index
+        s3_url = manifest_item.s3_url
         root_dir = self.raw_dir
 
         # if the dataset_description.json file does not exist or the redownload flag is set, download it
         # dataset_description.json is required for mne-bids to recognize a valid BIDS dataset
         dataset_description_exists = (
-            self.raw_dir / "dataset_description.json"
+            root_dir / "dataset_description.json"
         ).exists()
         if not dataset_description_exists or getattr(self.args, "redownload", False):
             download_dataset_description(self.dataset_id, root_dir)
 
         if not getattr(self.args, "redownload", False):
             if self.modality == "eeg":
-                if check_eeg_recording_files_exist(self.raw_dir, recording_id):
+                if check_eeg_recording_files_exist(root_dir, recording_id):
                     self.update_status("Already Downloaded")
                     return {
                         "subject_id": subject_id,
                         "recording_id": recording_id,
                     }
             elif self.modality == "ieeg":
-                if check_ieeg_recording_files_exist(self.raw_dir, recording_id):
+                if check_ieeg_recording_files_exist(root_dir, recording_id):
                     self.update_status("Already Downloaded")
                     return {
                         "subject_id": subject_id,
@@ -320,7 +445,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             download_recording(s3_url, root_dir)
         except Exception as e:
             raise RuntimeError(
-                f"Failed to download data for {subject_id} from {validated_dataset_id}: {str(e)}"
+                f"Failed to download data for {subject_id} from {self.dataset_id}: {str(e)}"
             ) from e
 
         return {
@@ -332,7 +457,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         """Process data files and create a Data object.
 
         This method handles common OpenNeuro processing tasks:
-        1. Loads data files using MNE
+        1. Loads BIDS-structured data files using MNE-BIDS 
         2. Extracts metadata (subject, session, device, brainset descriptions)
         3. Extracts signal and channel information
         5. Creates a Data object
@@ -341,7 +466,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             download_output: Dictionary returned by download()
 
         Returns:
-            Tuple of (Data object, store_path), or None if already processed and skipped
+            Tuple of ``(data, store_path)``, or ``None`` if processing is skipped.
         """
         self.processed_dir.mkdir(exist_ok=True, parents=True)
 
@@ -364,7 +489,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         )
 
         self.update_status("Extracting Metadata")
-        ctx = type(self)._shared_openneuro_context()
+        ctx = self._cached_openneuro_context[self.dataset_id]
         source = f"https://openneuro.org/datasets/{self.dataset_id}"
         dataset_description = (
             self.description
@@ -374,7 +499,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         brainset_description = BrainsetDescription(
             id=self.brainset_id,
-            origin_version=ctx["validated_dataset_version"],
+            origin_version=ctx["latest_snapshot_tag"],
             derived_version=self.derived_version,
             source=source,
             description=dataset_description,
@@ -438,8 +563,8 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     def process(self, download_output: dict) -> None:
         """Process and save the dataset.
 
-        Default implementation calls _process_common() and saves the result.
-        Subclasses can override to add dataset-specific processing.
+        Default implementation calls :meth:`_process_common` and persists the
+        result. Subclasses can override to add dataset-specific processing.
 
         Args:
             download_output: Dictionary returned by download()
@@ -468,7 +593,8 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             recording_id: The recording identifier
 
         Returns:
-            Dict mapping original channel names to standardized names, or None
+            Mapping from original channel names to standardized names, or
+            ``None``.
         """
         return self.CHANNEL_NAME_REMAPPING
 
@@ -485,34 +611,26 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             recording_id: The recording identifier
 
         Returns:
-            Dict mapping channel types to lists of channel names, or None
+            Mapping from channel type to channel name list, or ``None``.
         """
         return self.TYPE_CHANNELS_REMAPPING
 
     def generate_splits(
         self, domain: Interval, subject_id: str, session_id: str
     ) -> Data:
-        """
-        Generate default intrasession train/valid splits using a causal (sequential) strategy.
-        This method also assigns subject and session split labels used for intersubject
-        and intersession model training, respectively.
+        """Generate default intrasession train/valid splits.
 
-        These splits assume that the data represents a continuous recording
-        without any underlying trial structure or event segmentation; these splits are
-        mostly suitable for pretraining large models.
-
-        Subclasses can override this method to implement alternative or more task-specific
-        splitting behaviors.
+        This method uses a causal sequential split over the recording domain and
+        also assigns intersubject and intersession split labels.
 
         Args:
-            domain: The interval domain (e.g., Interval or similar) representing the start and end
-                times of the continuous recording to be split.
-            subject_id (str): The identifier for the subject.
-            session_id (str): The identifier for the session.
+            domain: Interval domain representing recording start/end times.
+            subject_id: Subject identifier.
+            session_id: Session identifier.
 
         Returns:
-            Data: A Data object with train/valid splits assigned, and with split assignment
-                labels for both intersubject and intersession strategies.
+            Data object with ``train``/``valid`` intervals and assignment labels
+            for intersubject and intersession strategies.
 
         Raises:
             ValueError: If split_ratios does not contain exactly two values, contains negative values,
@@ -578,8 +696,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
 
 class OpenNeuroEEGPipeline(OpenNeuroPipeline):
-    """
-    Pipeline base class for EEG data processing from OpenNeuro.
+    """Base pipeline for EEG data processing from OpenNeuro.
 
     This class provides EEG-specific extensions on top of OpenNeuroPipeline,
     supporting custom channel name and type remappings.
@@ -622,7 +739,7 @@ class OpenNeuroEEGPipeline(OpenNeuroPipeline):
                     return {"EEG": ["AF7", "AF8"]}
                 return {"EEG": ["F3", "F4"], "EOG": ["EOG"]}
 
-    **Class Attributes:**
+    Class Attributes:
         - CHANNEL_NAME_REMAPPING (dict, optional): Map old channel names to new ones.
         - TYPE_CHANNELS_REMAPPING (dict, optional): Map channel types to channel lists.
     """
@@ -632,14 +749,13 @@ class OpenNeuroEEGPipeline(OpenNeuroPipeline):
 
 
 class OpenNeuroIEEGPipeline(OpenNeuroPipeline):
-    """
-    Pipeline base class for iEEG data processing from OpenNeuro.
+    """Base pipeline for iEEG data processing from OpenNeuro.
 
     This class provides iEEG-specific extensions on top of OpenNeuroPipeline,
     leveraging BIDS-compliant sidecar files to define channel and electrode
     configuration automatically.
 
-    **Usage:**
+    Usage:
 
     For most iEEG datasets where electrode and channel information are properly
     defined in BIDS sidecar files, subclassing this pipeline is sufficient:
@@ -649,14 +765,14 @@ class OpenNeuroIEEGPipeline(OpenNeuroPipeline):
             dataset_id = "dsXXXXXX"
             origin_version = "1.0.0"
 
-    **Changing electrode names and types:**
+    Changing electrode names and types:
         - If you wish to change the names or types of electrodes (e.g., for harmonization or custom processing),
           use the same approach as in OpenNeuroEEGPipeline:
             - Set the `CHANNEL_NAME_REMAPPING`/`TYPE_CHANNELS_REMAPPING` class attribute, or
             - Override `get_channel_name_remapping(self, recording_id)` / `get_type_channels_remapping(self, recording_id)`
           with your desired logic.
 
-    **Class Attributes:**
+    Class Attributes:
         - CHANNEL_NAME_REMAPPING (dict, optional): Map old electrode/channel names to new ones.
         - TYPE_CHANNELS_REMAPPING (dict, optional): Map types to electrode/channel lists.
     """

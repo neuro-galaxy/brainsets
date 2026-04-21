@@ -11,12 +11,10 @@ from .openneuro_s3 import (
     construct_s3_url_from_path,
     download_dataset_description,
     download_recording,
+    fetch_latest_snapshot_tag,
     fetch_all_filenames,
     fetch_participants_tsv,
     fetch_species,
-    validate_dataset_id,
-    validate_dataset_version,
-    validate_subject_ids,
 )
 from .pipeline import OpenNeuroEEGPipeline, OpenNeuroIEEGPipeline, OpenNeuroPipeline
 
@@ -25,12 +23,10 @@ __all__ = [
     "construct_s3_url_from_path",
     "download_dataset_description",
     "download_recording",
+    "fetch_latest_snapshot_tag",
     "fetch_all_filenames",
     "fetch_participants_tsv",
     "fetch_species",
-    "validate_dataset_id",
-    "validate_dataset_version",
-    "validate_subject_ids",
     "OpenNeuroPipeline",
     "OpenNeuroEEGPipeline",
     "OpenNeuroIEEGPipeline",
