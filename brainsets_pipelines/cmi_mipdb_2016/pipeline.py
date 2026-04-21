@@ -54,6 +54,9 @@ SUBJECTS_METADATA_URL = (
 CHANNEL_LOCATION_URL = (
     "https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/_static/GSN_HydroCel_129.sfp"
 )
+SPLIT_N_FOLDS = 3
+SPLIT_VAL_RATIO = 0.2
+SEED = 42
 
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
@@ -420,8 +423,6 @@ def create_splits(
     session_id: str,
     paradigm_intervals: Interval | None = None,
     epoch_duration: float = 30.0,
-    n_folds: int = 3,
-    seed: int = 42,
 ) -> Data:
     """Generate train/valid/test splits for one recording.
 
@@ -437,8 +438,6 @@ def create_splits(
         session_id: Session identifier for cross-session splits.
         paradigm_intervals: Optional extracted paradigm intervals.
         epoch_duration: Duration of each epoch in seconds.
-        n_folds: Number of cross-validation folds.
-        seed: Random seed for reproducibility.
     """
     if paradigm_intervals is not None and len(paradigm_intervals) > 0:
         crop_start = paradigm_intervals.start[0]
@@ -455,31 +454,34 @@ def create_splits(
     epochs = cropped_domain.subdivide(step=epoch_duration, drop_short=True)
     logging.info(f"Subdivided domain into {len(epochs)} epochs of {epoch_duration}s")
 
-    if len(epochs) < n_folds:
+    if len(epochs) < SPLIT_N_FOLDS:
         raise ValueError(
-            f"Not enough epochs ({len(epochs)}) for {n_folds} folds. "
+            f"Not enough epochs ({len(epochs)}) for {SPLIT_N_FOLDS} folds. "
             f"Domain duration: {cropped_domain.end[0] - cropped_domain.start[0]:.1f}s"
         )
 
     folds = generate_folds(
         epochs,
-        n_folds=n_folds,
-        val_ratio=0.2,
-        seed=seed,
+        n_folds=SPLIT_N_FOLDS,
+        val_ratio=SPLIT_VAL_RATIO,
+        seed=SEED,
     )
-    logging.info(f"Generated {n_folds} folds")
+    logging.info(f"Generated {SPLIT_N_FOLDS} folds")
 
     folds_dict = {f"fold_{i}": fold for i, fold in enumerate(folds)}
     splits = Data(**folds_dict, domain=epochs)
 
     subject_assignments = generate_string_kfold_assignment(
-        string_id=subject_id, n_folds=n_folds, val_ratio=0.2, seed=seed
+        string_id=subject_id,
+        n_folds=SPLIT_N_FOLDS,
+        val_ratio=SPLIT_VAL_RATIO,
+        seed=SEED,
     )
     session_assignments = generate_string_kfold_assignment(
         string_id=f"{subject_id}_{session_id}",
-        n_folds=n_folds,
-        val_ratio=0.2,
-        seed=seed,
+        n_folds=SPLIT_N_FOLDS,
+        val_ratio=SPLIT_VAL_RATIO,
+        seed=SEED,
     )
 
     for fold_idx, assignment in enumerate(subject_assignments):
