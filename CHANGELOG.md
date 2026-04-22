@@ -27,12 +27,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Expanded `mne_utils` with robust channel extraction/remapping support and a validated `concatenate_recordings` workflow (gap checks, measurement date handling, and channel consistency checks) ([#107](https://github.com/neuro-galaxy/brainsets/pull/107)).
 - Exposed `--download-only` flag in `brainsets prepare --help` to allow downloading raw data without processing ([#98](https://github.com/neuro-galaxy/brainsets/pull/98)).
 - Updated dandi version to 0.74.0 in pipelines due to deprecation from dandi ([#101](https://github.com/neuro-galaxy/brainsets/pull/101)).
-<<<<<<< vinam/set_domain
-- Replaced deprecated `data.set_*_domain()` calls with direct attribute assignment in all pipelines ([#111](https://github.com/neuro-galaxy/brainsets/issues/109)).
-=======
 - `BrainsetPipeline` runner automatically creates `raw_dir` and `processed_dir` ([#125](https://github.com/neuro-galaxy/brainsets/pull/125))
 - `churchland_shenoy_neural_2012` pipeline: corrected session task metadata—the experiment is maze reaching, not center-out reaching (`derived_version` bumped to 2.0.0). ([#131](https://github.com/neuro-galaxy/brainsets/pull/131))
->>>>>>> main
+- Replaced deprecated `data.set_*_domain()` calls with direct attribute assignment in all pipelines ([#111](https://github.com/neuro-galaxy/brainsets/issues/109)).
 
 ## [0.2.0] - 2025-12-24
 ### Added
