@@ -19,6 +19,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Install uv
       uses: astral-sh/setup-uv@v5
@@ -36,6 +38,14 @@ jobs:
       
     - name: Install plugin
       run: uv pip install pytest-github-actions-annotate-failures
+
+    - name: Collect changed pipeline files
+      if: github.event_name == 'pull_request'
+      run: |
+        CHANGED="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- "brainsets_pipelines/*/pipeline.py")"
+        echo "CHANGED_PIPELINES<<EOF" >> "$GITHUB_ENV"
+        echo "$CHANGED" >> "$GITHUB_ENV"
+        echo "EOF" >> "$GITHUB_ENV"
 
     - name: Test with pytest
       run: |

@@ -1,5 +1,7 @@
 """Unit tests for OpenNeuro Pipeline classes."""
 
+import os
+import ast
 import pytest
 import numpy as np
 import pandas as pd
@@ -15,16 +17,9 @@ from brainsets.utils.openneuro.pipeline import (
     OpenNeuroPipeline,
     OpenNeuroEEGPipeline,
     OpenNeuroIEEGPipeline,
-    OpenNeuroContext,
 )
-from brainsets.descriptions import (
-    BrainsetDescription,
-    SubjectDescription,
-    SessionDescription,
-    DeviceDescription,
-)
-from brainsets.taxonomy import Species
 
+from brainsets.taxonomy import Species
 
 # ============================================================================
 # Fixtures
@@ -1516,3 +1511,96 @@ class TestProcess:
                 eeg_pipeline_instance.process(download_output)
 
         mock_data.to_hdf5.assert_called_once()
+
+
+# ============================================================================
+# Tests for OpenNeuroPipeline class attributes
+# ============================================================================
+
+
+def _get_target_pipeline_files(repo_root: Path) -> list[Path]:
+    """Return pipeline files to validate, honoring PR-scoped env var when set."""
+    changed_files_env = os.getenv("CHANGED_PIPELINES")
+    if changed_files_env is None:
+        return sorted((repo_root / "brainsets_pipelines").glob("*/pipeline.py"))
+
+    changed_relpaths = [
+        line.strip() for line in changed_files_env.splitlines() if line.strip()
+    ]
+    return [repo_root / relpath for relpath in changed_relpaths]
+
+
+def _get_name_from_base(base_node: ast.expr) -> str | None:
+    if isinstance(base_node, ast.Name):
+        return base_node.id
+    if isinstance(base_node, ast.Attribute):
+        return base_node.attr
+    return None
+
+
+def _iter_openneuro_pipeline_classes(
+    pipeline_file: Path,
+) -> list[tuple[str, str | None]]:
+    """Return (class_name, dataset_id) for OpenNeuro pipeline subclasses."""
+    module = ast.parse(
+        pipeline_file.read_text(encoding="utf-8"), filename=str(pipeline_file)
+    )
+    openneuro_bases = {
+        "OpenNeuroPipeline",
+        "OpenNeuroEEGPipeline",
+        "OpenNeuroIEEGPipeline",
+    }
+    classes: list[tuple[str, str | None]] = []
+
+    for node in module.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+
+        base_names = {_get_name_from_base(base) for base in node.bases}
+        if base_names.isdisjoint(openneuro_bases):
+            continue
+
+        dataset_id: str | None = None
+        for class_stmt in node.body:
+            if (
+                isinstance(class_stmt, ast.Assign)
+                and len(class_stmt.targets) == 1
+                and isinstance(class_stmt.targets[0], ast.Name)
+                and class_stmt.targets[0].id == "dataset_id"
+                and isinstance(class_stmt.value, ast.Constant)
+                and isinstance(class_stmt.value.value, str)
+            ):
+                dataset_id = class_stmt.value.value
+                break
+
+        classes.append((node.name, dataset_id))
+
+    return classes
+
+
+def test_openneuro_pipelines_have_valid_dataset_id():
+    repo_root = Path(__file__).resolve().parents[1]
+    pipeline_files = _get_target_pipeline_files(repo_root)
+    if not pipeline_files:
+        pytest.skip(
+            "No modified pipeline files in this PR; skipping OpenNeuro dataset_id validation."
+        )
+
+    for pipeline_file in pipeline_files:
+        openneuro_classes = _iter_openneuro_pipeline_classes(pipeline_file)
+        for class_name, dataset_id in openneuro_classes:
+            if dataset_id is None:
+                pytest.fail(
+                    "OpenNeuro pipeline class is missing a string dataset_id "
+                    f"(file='{pipeline_file}', class='{class_name}')"
+                )
+
+            try:
+                OpenNeuroPipeline.validate_dataset_id(dataset_id)
+            except ValueError as exc:
+                pytest.fail(
+                    "Invalid OpenNeuro dataset_id in pipeline "
+                    f"'{pipeline_file.parent.name}' "
+                    f"(file='{pipeline_file}', class='{class_name}', "
+                    f"dataset_id={dataset_id!r}): {exc}"
+                )

@@ -110,7 +110,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
     Subclass requirements:
         - Define the `modality` property (should return "eeg" or "ieeg").
-        - Implement the `_build_channels()` method, which must return an ArrayDict containing channel objects.
 
     Customization points:
         This class supports and encourages dataset-specific customizations via:
