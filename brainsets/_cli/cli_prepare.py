@@ -118,6 +118,8 @@ def prepare(
     $ brainsets prepare pei_pandarinath_nlb_2021
     $ brainsets prepare pei_pandarinath_nlb_2021 --download-only
     $ brainsets prepare pei_pandarinath_nlb_2021 --cores 8 --raw-dir ~/data/raw --processed-dir ~/data/processed
+    $ brainsets prepare pei_pandarinath_nlb_2021 --list
+    $ brainsets prepare pei_pandarinath_nlb_2021 --single jenkins_maze_train
     $ brainsets prepare ./my_local_brainsets_pipeline --local
     """
 
