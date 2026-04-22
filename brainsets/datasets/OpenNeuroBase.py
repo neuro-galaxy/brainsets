@@ -28,6 +28,12 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
         recording_ids (Optional[list[str]]): List of recording IDs to include,
             or None to use all available recordings.
         transform (Optional[Callable]): Optional sample transform.
+        uniquify_channel_ids_with_subject: Whether to prefix channel IDs with
+            ``subject.id`` via ``MultiChannelDatasetMixin``.
+            Defaults to ``True``.
+        uniquify_channel_ids_with_session: Whether to prefix channel IDs with
+            ``session.id`` via ``MultiChannelDatasetMixin``.
+            Defaults to ``False``.
     """
 
     def __init__(
@@ -37,6 +43,8 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
         split_type: OpenNeuroSplitType,
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
+        uniquify_channel_ids_with_subject: bool = False,
+        uniquify_channel_ids_with_session: bool = True,
         **kwargs,
     ):
         if split_type not in VALID_SPLIT_TYPES:
@@ -51,6 +59,14 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
             transform=transform,
             namespace_attributes=["session.id", "subject.id", "channels.id"],
             **kwargs,
+        )
+
+        # Configure subject/session-based channel-id prefixing behavior.
+        self.multichannel_dataset_mixin_uniquify_channel_ids_with_subject = (
+            uniquify_channel_ids_with_subject
+        )
+        self.multichannel_dataset_mixin_uniquify_channel_ids_with_session = (
+            uniquify_channel_ids_with_session
         )
 
     def get_sampling_intervals(
