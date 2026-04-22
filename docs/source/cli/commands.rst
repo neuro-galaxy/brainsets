@@ -144,7 +144,7 @@ Download and process a single brainset.
 
 .. rst-class:: cli-option
 
-``-s``, ``--single`` *manifest index string*
+``-s``, ``--single`` *manifest index id*
 
     Prepare a single item from the manifest if provided.
 
