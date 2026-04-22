@@ -51,7 +51,7 @@ from brainsets.taxonomy.allen import (
     TEMPORAL_FREQ_5_map,
 )
 from brainsets.taxonomy.mice import BrainRegion
-from brainsets.utils.split import generate_train_valid_test_splits
+from split import generate_train_valid_test_splits
 
 logging.basicConfig(level=logging.INFO)
 
@@ -79,7 +79,6 @@ class Pipeline(BrainsetPipeline):
 
         # But also create the BOC manifest, since we're on the
         # root process right now.
-        raw_dir.mkdir(exist_ok=True, parents=True)
         BrainObservatoryCache(manifest_file=raw_dir / "manifest.json")
         return manifest
 
@@ -115,7 +114,6 @@ class Pipeline(BrainsetPipeline):
         nwb_dataset, session_id = download_output
 
         # See if you should skip processing
-        self.processed_dir.mkdir(exist_ok=True, parents=True)
         store_path = self.processed_dir / f"{session_id}.h5"
         if store_path.exists() and not self.args.reprocess:
             self.update_status("Skipped Processing")
