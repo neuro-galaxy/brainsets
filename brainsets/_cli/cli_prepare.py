@@ -52,6 +52,7 @@ def complete_brainset(ctx, param, incomplete):
 )
 @click.option(
     "--list",
+    "list_flag_",
     is_flag=True,
     default=False,
     help="Print the manifest for the brainset and exit.",
@@ -101,7 +102,7 @@ def prepare(
     cores: int,
     verbose: bool,
     download_only: bool,
-    list: bool,
+    list_flag_: bool,
     single: str,
     use_active_env: bool,
     raw_dir: Optional[str],
@@ -168,7 +169,7 @@ def prepare(
         f"--processed-dir={processed_dir}",
         f"-c{cores}",
         *(["--download-only"] if download_only else []),
-        *(["--list"] if list else []),
+        *(["--list"] if list_flag_ else []),
         *([f"--single={single}"] if single else []),
         *ctx.args,  # extra arguments
     ]
