@@ -72,7 +72,7 @@ Before diving into details, check out working implementations in the `brainsets_
      - Complex ⭐⭐⭐
 
 
-The Four Required Attributes
+The Five Required Attributes
 -----------------------------
 
 Every object extending |OpenNeuroPipeline| **must** have these four:
