@@ -6,9 +6,8 @@ and downloading from OpenNeuro's S3 bucket.
 
 from io import BytesIO
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Optional
 import logging
-import sys
 import requests
 import pandas as pd
 
