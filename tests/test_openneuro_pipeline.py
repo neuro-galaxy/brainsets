@@ -96,6 +96,7 @@ def eeg_pipeline_class():
         brainset_id = "test_eeg_brainset"
         origin_version = "1.0.0"
         derived_version = "1.0.0"
+        ci_smoke_session = "sub-01"
 
     return TestEEGPipeline
 
@@ -109,6 +110,7 @@ def ieeg_pipeline_class():
         brainset_id = "test_ieeg_brainset"
         origin_version = "1.0.0"
         derived_version = "1.0.0"
+        ci_smoke_session = "sub-01"
 
     return TestIEEGPipeline
 
@@ -390,6 +392,7 @@ class TestValidateDatasetVersion:
         brainset_id = "test_eeg_brainset"
         origin_version = "1.0.0"
         derived_version = "1.0.0"
+        ci_smoke_session = "sub-01"
 
     def test_returns_when_versions_match(self):
         """Returns cleanly when latest tag matches origin version."""
@@ -877,6 +880,7 @@ class TestGetManifest:
             brainset_id = "test_eeg"
             origin_version = "1.0.0"
             derived_version = "1.0.0"
+            ci_smoke_session = "sub-01"
 
         mock_fetch_files.return_value = [
             "sub-01/eeg/rec-001_eeg.edf",
@@ -923,6 +927,7 @@ class TestGetManifest:
             brainset_id = "test"
             origin_version = "1.0.0"
             derived_version = "1.0.0"
+            ci_smoke_session = "sub-01"
             modality = "unknown"
 
         mock_fetch_files.return_value = []
@@ -979,6 +984,7 @@ class TestGetManifest:
             brainset_id = "test_eeg"
             origin_version = "1.0.0"
             derived_version = "1.0.0"
+            ci_smoke_session = "sub-01"
 
         mock_fetch_files.return_value = ["sub-01/eeg/rec-001.edf"]
         mock_fetch_eeg.return_value = []
@@ -1131,6 +1137,7 @@ class TestChannelRemapping:
             brainset_id = "test"
             origin_version = "1.0.0"
             derived_version = "1.0.0"
+            ci_smoke_session = "sub-01"
             CHANNEL_NAME_REMAPPING = {"PSG_F3": "F3", "PSG_F4": "F4"}
 
         pipeline = CustomEEGPipeline(
@@ -1163,6 +1170,7 @@ class TestChannelRemapping:
             brainset_id = "test"
             origin_version = "1.0.0"
             derived_version = "1.0.0"
+            ci_smoke_session = "sub-01"
             TYPE_CHANNELS_REMAPPING = {"EEG": ["F3", "F4"], "EOG": ["EOG"]}
 
         pipeline = CustomEEGPipeline(
@@ -1225,6 +1233,7 @@ class TestGenerateSplits:
             brainset_id = "test"
             origin_version = "1.0.0"
             derived_version = "1.0.0"
+            ci_smoke_session = "sub-01"
             split_ratios = (0.8, 0.2)
 
         pipeline = CustomRatioPipeline(
@@ -1393,6 +1402,7 @@ class TestProcessCommon:
             brainset_id = "test"
             origin_version = "1.0.0"
             derived_version = "1.0.0"
+            ci_smoke_session = "sub-01"
             CHANNEL_NAME_REMAPPING = {"EEG_1": "F3", "EEG_4": "F4"}
             TYPE_CHANNELS_REMAPPING = {
                 "EEG": ["F3", "EEG_2", "EEG_3", "F4"],

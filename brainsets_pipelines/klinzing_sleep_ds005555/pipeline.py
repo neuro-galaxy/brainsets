@@ -67,6 +67,7 @@ class Pipeline(OpenNeuroEEGPipeline):
     )
     origin_version = "1.1.1"
     derived_version = "1.0.0"
+    ci_smoke_session = "sub-10_task-Sleep_acq-headband"
 
     def get_channel_name_remapping(self, recording_id):
         if "acq-headband" in recording_id:

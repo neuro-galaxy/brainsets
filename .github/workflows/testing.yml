@@ -105,21 +105,10 @@ jobs:
     - name: Resolve session ID
       id: resolve-session
       run: |
-        if [ -z "${{ matrix.ci_smoke_session }}" ]; then
-          echo "Resolving session from manifest for ${{ matrix.brainset_id }}"
-          SESSION=$(uv run brainsets prepare ${{ matrix.brainset_id }} --list --on-version-mismatch continue 2>/dev/null | grep -E '^\s+[0-9]+\s' | head -1 | awk '{print $NF}')
-          if [ -z "$SESSION" ]; then
-            echo "Error: Could not resolve session from manifest"
-            exit 1
-          fi
-        else
-          SESSION="${{ matrix.ci_smoke_session }}"
-        fi
-        echo "session=$SESSION" >> $GITHUB_OUTPUT
+        echo "session=${{ matrix.ci_smoke_session }}" >> $GITHUB_OUTPUT
 
     - name: Run smoke test for ${{ matrix.brainset_id }}
       run: |
-        uv run brainsets config set --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare ${{ matrix.brainset_id }} \
           -s "${{ steps.resolve-session.outputs.session }}" \
           --on-version-mismatch continue
