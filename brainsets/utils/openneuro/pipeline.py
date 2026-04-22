@@ -107,6 +107,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         origin_version (str): Version string corresponding to the raw source dataset.
         derived_version (str): Version or tag indicating the processing version of the derived data.
         description (str, optional): Optional textual description of the dataset.
+        ci_smoke_session (str, optional): Session ID to use for PR smoke tests. If omitted, CI auto-discovers.
 
     Subclass requirements:
         - Define the `modality` property (should return "eeg" or "ieeg").
@@ -142,6 +143,13 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
     description: Optional[str] = None
     """Optional description of the dataset."""
+
+    ci_smoke_session: Optional[str] = None
+    """Optional session ID for PR smoke tests. If set, CI will use this session.
+    
+    If omitted, CI will auto-discover a session from the manifest.
+    Setting this improves CI determinism and speed for new/modified pipelines.
+    """
 
     modality: str
     """Data modality for this pipeline. Must be overridden by subclasses."""

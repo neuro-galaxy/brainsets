@@ -239,6 +239,32 @@ Optional Attributes (with sensible defaults)
 Want to customize? These are all optional:
 
 
+``ci_smoke_session``
+~~~~~~~~~~~~~~~~~~~~
+
+Optional session identifier for PR smoke tests in CI. When a pull request adds or modifies an OpenNeuro pipeline, CI automatically runs a smoke test using ``brainsets prepare -s <session>``. If you define this attribute, CI uses it; otherwise, it auto-discovers a session from the manifest.
+
+.. code-block:: python
+
+    ci_smoke_session = "sub-01"  # Optional: CI will use this for smoke tests
+
+**Why use it?**
+
+- Makes PR CI deterministic and predictable
+- Avoids dynamic session discovery, which can be slower
+- Lets you pick a "canonical" session that exercises your pipeline well
+
+**When to set it:**
+
+- If you have a small, representative session you use for testing
+- If session discovery is slow or flaky for your dataset
+- If you want to guarantee CI always tests the same session
+
+If omitted, PR smoke tests will automatically resolve a session from the manifest, so it's fully optional.
+
+----
+
+
 ``description``
 ~~~~~~~~~~~~~~~~
 
@@ -387,6 +413,47 @@ Customize how train/validation splits are created:
         # Custom split logic here
         # Return a Data object with split information
         ...
+
+
+PR Smoke Testing for OpenNeuro Pipelines
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When you open a pull request that adds or modifies an OpenNeuro pipeline under ``brainsets_pipelines/*/pipeline.py``, CI automatically runs an end-to-end smoke test.
+
+**What happens:**
+
+1. CI detects changed OpenNeuro pipelines via AST parsing (no imports needed)
+2. For each changed pipeline, it runs: ``brainsets prepare <brainset_id> -s <session> --on-version-mismatch continue --download-only``
+3. The test verifies that the pipeline can discover, download, and begin processing data
+
+**Session selection:**
+
+- If you set ``ci_smoke_session = "<session_id>"`` in your pipeline class, CI uses that (recommended for deterministic, predictable tests)
+- If omitted, CI auto-discovers a session from the manifest
+
+**Examples:**
+
+Explicit smoke session (recommended):
+
+.. code-block:: python
+
+    class Pipeline(OpenNeuroEEGPipeline):
+        brainset_id = "klinzing_sleep_ds005555"
+        dataset_id = "ds005555"
+        origin_version = "1.0.0"
+        derived_version = "1.0.0"
+        ci_smoke_session = "sub-01"  # ← Used in PR smoke tests
+
+Auto-discover session (fallback):
+
+.. code-block:: python
+
+    class Pipeline(OpenNeuroEEGPipeline):
+        brainset_id = "my_pipeline_ds000001"
+        dataset_id = "ds000001"
+        origin_version = "1.0.0"
+        derived_version = "1.0.0"
+        # ci_smoke_session omitted → CI will pick one from manifest
 
 
 What's Next?
