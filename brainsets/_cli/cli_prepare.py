@@ -51,15 +51,6 @@ def complete_brainset(ctx, param, incomplete):
     help="Path for storing processed brainset. Overrides config.",
 )
 @click.option(
-    "--local",
-    is_flag=True,
-    default=False,
-    help=(
-        "Prepare brainset with from a local pipeline. "
-        "BRAINSET must then be set to the path of the local brainset pipeline directory."
-    ),
-)
-@click.option(
     "--list",
     is_flag=True,
     default=False,
@@ -71,6 +62,15 @@ def complete_brainset(ctx, param, incomplete):
     type=str,
     default="",
     help="Prepare a single item from the manifest if provided. Value: manifest index id for the item.",
+)
+@click.option(
+    "--local",
+    is_flag=True,
+    default=False,
+    help=(
+        "Prepare brainset with from a local pipeline. "
+        "BRAINSET must then be set to the path of the local brainset pipeline directory."
+    ),
 )
 @click.option(
     "--use-active-env",
