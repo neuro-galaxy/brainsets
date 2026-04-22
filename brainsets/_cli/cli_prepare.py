@@ -60,6 +60,19 @@ def complete_brainset(ctx, param, incomplete):
     ),
 )
 @click.option(
+    "--list",
+    is_flag=True,
+    default=False,
+    help="Print the manifest for the brainset and exit.",
+)
+@click.option(
+    "--single",
+    "-s",
+    type=str,
+    default="",
+    help="Prepare a single item from the manifest if provided. Value: manifest index id for the item.",
+)
+@click.option(
     "--use-active-env",
     is_flag=True,
     default=False,
@@ -88,6 +101,8 @@ def prepare(
     cores: int,
     verbose: bool,
     download_only: bool,
+    list: bool,
+    single: str,
     use_active_env: bool,
     raw_dir: Optional[str],
     processed_dir: Optional[str],
@@ -153,6 +168,8 @@ def prepare(
         f"--processed-dir={processed_dir}",
         f"-c{cores}",
         *(["--download-only"] if download_only else []),
+        *(["--list"] if list else []),
+        *([f"--single={single}"] if single else []),
         *ctx.args,  # extra arguments
     ]
 
