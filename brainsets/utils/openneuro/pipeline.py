@@ -97,25 +97,33 @@ class OpenNeuroContext(TypedDict):
 class OpenNeuroPipeline(BrainsetPipeline, ABC):
     """Abstract base class for OpenNeuro dataset pipelines.
 
-    This class extends BrainsetPipeline and provides common functionality for
-    processing datasets from OpenNeuro, supporting both EEG and iEEG modalities.
+    This class provides foundational tools and conventions for preprocessing and handling
+    OpenNeuro datasets within the Brainsets framework. It is designed to be subclassed for
+    specific datasets and supports both EEG and iEEG modalities.
 
-    Required class attributes:
-        - dataset_id (str): OpenNeuro dataset identifier (e.g., "ds005555").
-        - brainset_id (str): Unique string identifier for the brainset.
-        - origin_version (str): Version of the original source data.
-
-    Optional class attributes:
-        - derived_version (str): Version tag for processed files (default: "1.0.0").
-        - description (str, optional): Text description of the dataset.
+    Attributes (to be defined by subclasses):
+        dataset_id (str): Identifier for the OpenNeuro dataset (e.g., "ds005555").
+        brainset_id (str): Unique local identifier for the brainset.
+        origin_version (str): Version string corresponding to the raw source dataset.
+        derived_version (str): Version or tag indicating the processing version of the derived data.
+        description (str, optional): Optional textual description of the dataset.
 
     Subclass requirements:
-        - The modality property (must return either "eeg" or "ieeg").
-        - The _build_channels() method, which constructs and returns an ArrayDict of channel objects.
+        - Define the `modality` property (should return "eeg" or "ieeg").
+        - Implement the `_build_channels()` method, which must return an ArrayDict containing channel objects.
 
-    Class attributes and override points are provided to support common customization
-    such as channel name and type remapping, ignored channels, and data splits. See documentation
-    for CHANNEL_NAME_REMAPPING, TYPE_CHANNELS_REMAPPING, and IGNORE_CHANNELS for more details.
+    Customization points:
+        This class supports and encourages dataset-specific customizations via:
+            - CHANNEL_NAME_REMAPPING: Map original to standardized channel names.
+            - TYPE_CHANNELS_REMAPPING: Map channel types to specific channel names.
+            - IGNORE_CHANNELS: List channels to exclude from processing.
+
+        These can be set as class attributes or managed dynamically by overriding:
+            - get_channel_name_remapping()
+            - get_type_channels_remapping()
+
+    See the documentation for more detail about each customization point and their usage
+    in the OpenNeuro processing workflow.
     """
 
     parser = _openneuro_parser
@@ -130,7 +138,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     origin_version: str
     """Version of the original data."""
 
-    derived_version: str = "1.0.0"
+    derived_version: str
     """Version of the processed data."""
 
     description: Optional[str] = None

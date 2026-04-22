@@ -41,6 +41,7 @@ Here's a working minimal pipeline:
         brainset_id = "my_sleep_study_2024"
         dataset_id = "ds005555"
         origin_version = "1.0.0"  # Check OpenNeuro for this!
+        derived_version = "1.0.0"  # Version of your processing pipeline
         
         description = "Sleep recordings from OpenNeuro"
 
@@ -71,10 +72,10 @@ Before diving into details, check out working implementations in the `brainsets_
      - Complex ⭐⭐⭐
 
 
-The Three Required Attributes
+The Four Required Attributes
 -----------------------------
 
-Every object extending |OpenNeuroPipeline| **must** have these three:
+Every object extending |OpenNeuroPipeline| **must** have these four:
 
 
 1. ``dataset_id`` – Which OpenNeuro dataset?
@@ -207,6 +208,30 @@ Set ``origin_version`` to the exact version of the OpenNeuro dataset you used wh
 
 ----
 
+4. ``derived_version`` – Your processing pipeline version
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``derived_version`` to track the version of **your processing pipeline and its output**:
+
+.. code-block:: python
+
+    class Pipeline(OpenNeuroEEGPipeline):
+        dataset_id = "ds005555"
+        origin_version = "1.0.0"
+        derived_version = "1.0.0"  # Increment when you change processing logic
+
+While ``origin_version`` tracks the version of the source dataset from OpenNeuro, ``derived_version`` tracks the version of your processing pipeline. This version is stored in the brainset metadata and helps users understand which version of the processing logic was used to generate the data.
+
+**Why maintain a separate version?**
+
+- Allows you to iterate on your processing pipeline independently from dataset updates
+- Documents processing pipeline changes in metadata
+- Enables reproducibility and traceability of derived results
+- Increment this version when you modify channel mappings, filtering, or any processing logic
+
+----
+
+
 
 Optional Attributes (with sensible defaults)
 --------------------------------------------
@@ -225,18 +250,6 @@ Human-readable description that appears in metadata:
         "The Bitbrain Open Access Sleep (BOAS) dataset contains simultaneous "
         "recordings from a clinical PSG system and wearable EEG headband."
     )
-
-
-``derived_version``
-~~~~~~~~~~~~~~~~~~~
-
-Version identifier for your processed brainset output (default: ``"1.0.0"``).
-
-.. code-block:: python
-
-    derived_version = "1.1.0"  # Increment when you change processing logic
-
-While ``origin_version`` tracks the version of the source dataset from OpenNeuro, ``derived_version`` tracks the version of **your processing pipeline and its output**. This version is stored in the brainset metadata and helps users understand which version of the processing logic was used to generate the data.
 
 
 ``split_ratios``
@@ -381,7 +394,7 @@ What's Next?
 
 1. ✅ Pick a dataset from `OpenNeuro <https://openneuro.org/>`_
 2. ✅ Copy the minimal example above
-3. ✅ Update ``dataset_id``, ``brainset_id``, ``origin_version``
+3. ✅ Update ``dataset_id``, ``brainset_id``, ``origin_version``, and ``derived_version``
 4. ✅ Add channel name and/or type mappings if needed
 5. ✅ Run: ``uv run brainsets prepare <my_brainset_id>``
 6. ✅ Done!
