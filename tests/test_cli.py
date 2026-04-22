@@ -289,8 +289,7 @@ class TestPrepareCommand:
             assert "--list" not in command
 
     def test_single_option(self, mock_config):
-        """Test prepare command with -s/--single option
-        Ensure it is forwarded to the runner subprocess."""
+        """Test passthrough of the --single/-s option to the runner subprocess."""
         runner = CliRunner()
 
         # --single=test passed if "--single test" present in cli args
