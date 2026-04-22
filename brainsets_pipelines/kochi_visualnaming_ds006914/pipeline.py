@@ -21,3 +21,4 @@ class Pipeline(OpenNeuroIEEGPipeline):
         "from BIDS sidecar files."
     )
     origin_version = "1.0.3"
+    derived_version = "1.0.0"

@@ -66,6 +66,7 @@ class Pipeline(OpenNeuroEEGPipeline):
         "across 128 nights. It includes expert-consensus sleep stage labels."
     )
     origin_version = "1.1.1"
+    derived_version = "1.0.0"
 
     def get_channel_name_remapping(self, recording_id):
         if "acq-headband" in recording_id:
