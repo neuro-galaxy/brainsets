@@ -308,6 +308,9 @@ class TestPrepareCommand:
             command = call_args[1].get("command") or call_args[0][0]
 
             assert "--single=test-index" in command
+            for part in command:
+                assert part != "-s"
+                assert not part.startswith("-s=")
 
         # --single=test passed if "-s test" test present in cli args
         with (
@@ -325,6 +328,9 @@ class TestPrepareCommand:
             command = call_args[1].get("command") or call_args[0][0]
 
             assert "--single=test-index" in command
+            for part in command:
+                assert part != "-s"
+                assert not part.startswith("-s=")
 
         # --single not passed if absent in cli args
         with (
@@ -341,7 +347,7 @@ class TestPrepareCommand:
 
             for part in command:
                 assert part != "--single"
-                assert part != "--s"
+                assert part != "-s"
                 assert not part.startswith("--single=")
                 assert not part.startswith("-s=")
 
