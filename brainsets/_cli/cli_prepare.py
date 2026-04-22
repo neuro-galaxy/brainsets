@@ -61,7 +61,7 @@ def complete_brainset(ctx, param, incomplete):
     "--single",
     "-s",
     type=str,
-    default="",
+    default=None,
     help="Prepare a single item from the manifest if provided. Value: manifest index id for the item.",
 )
 @click.option(
@@ -170,7 +170,7 @@ def prepare(
         f"-c{cores}",
         *(["--download-only"] if download_only else []),
         *(["--list"] if list_flag_ else []),
-        *([f"--single={single}"] if single else []),
+        *([f"--single={single}"] if single is not None else []),
         *ctx.args,  # extra arguments
     ]
 
