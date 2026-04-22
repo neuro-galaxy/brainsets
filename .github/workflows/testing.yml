@@ -119,7 +119,7 @@ jobs:
 
     - name: Run smoke test for ${{ matrix.brainset_id }}
       run: |
+        uv run brainsets config set --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare ${{ matrix.brainset_id }} \
           -s "${{ steps.resolve-session.outputs.session }}" \
-          --on-version-mismatch continue \
-          --download-only
+          --on-version-mismatch continue
