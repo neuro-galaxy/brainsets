@@ -356,16 +356,22 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
                 - recording_id: Recording identifier (index)
                 - s3_url: S3 URL for downloading
         """
+        # Determine the 'on_version_mismatch' policy from args if available, else default to 'prompt'
         on_version_mismatch = (
             getattr(args, "on_version_mismatch", "prompt")
             if args is not None
             else "prompt"
         )
+        # Validate that the chosen 'on_version_mismatch' policy is allowed in this execution context
         cls._validate_on_mismatch_policy(on_version_mismatch)
+
+        # Initialize/Caches OpenNeuro metadata for this dataset (e.g., species, latest snapshot)
         cls._openneuro_context(on_version_mismatch=on_version_mismatch)
 
+        # Fetch all filenames in the dataset from OpenNeuro S3
         all_files = fetch_all_filenames(cls.dataset_id)
 
+        # Depending on modality, extract a list of recordings
         if cls.modality == "eeg":
             recordings = fetch_eeg_recordings(all_files)
         elif cls.modality == "ieeg":
@@ -394,6 +400,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
                 f"No {cls.modality.upper()} recordings found in dataset {cls.dataset_id}"
             )
 
+        # Create a DataFrame for the manifest and set 'recording_id' as its index
         manifest = pd.DataFrame(manifest_list)
         return manifest.set_index("recording_id")
 
