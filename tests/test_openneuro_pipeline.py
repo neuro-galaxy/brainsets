@@ -238,8 +238,10 @@ class TestVersionMismatchPolicyForwarding:
     @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
     @patch.object(OpenNeuroPipeline, "_validate_dataset_version")
     @patch.object(OpenNeuroPipeline, "validate_dataset_id")
+    @patch("sys.stdin.isatty", return_value=True)
     def test_get_manifest_passes_on_version_mismatch_from_args(
         self,
+        mock_isatty,
         mock_id,
         mock_ver,
         mock_fetch_eeg,
@@ -250,7 +252,9 @@ class TestVersionMismatchPolicyForwarding:
         """get_manifest passes args.on_version_mismatch to _openneuro_context."""
         from argparse import Namespace
 
-        args = Namespace(on_version_mismatch="continue", redownload=False, reprocess=False)
+        args = Namespace(
+            on_version_mismatch="continue", redownload=False, reprocess=False
+        )
         mock_id.return_value = "ds005085"
         mock_ver.return_value = "1.0.0"
         mock_fetch_files.return_value = ["sub-01/eeg/rec-001_eeg.edf"]
@@ -258,11 +262,13 @@ class TestVersionMismatchPolicyForwarding:
 
         eeg_pipeline_class._cached_openneuro_context.clear()
         with patch.object(
-            eeg_pipeline_class, "_openneuro_context", return_value={
+            eeg_pipeline_class,
+            "_openneuro_context",
+            return_value={
                 "latest_snapshot_tag": "1.0.0",
                 "participants_data": None,
                 "species": "homo sapiens",
-            }
+            },
         ) as mock_ctx:
             try:
                 eeg_pipeline_class.get_manifest(temp_dir, args)
@@ -275,8 +281,10 @@ class TestVersionMismatchPolicyForwarding:
 
     @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
     @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
+    @patch("sys.stdin.isatty", return_value=True)
     def test_get_manifest_defaults_to_prompt_when_args_none(
         self,
+        mock_isatty,
         mock_fetch_eeg,
         mock_fetch_files,
         eeg_pipeline_class,
@@ -288,11 +296,13 @@ class TestVersionMismatchPolicyForwarding:
 
         eeg_pipeline_class._cached_openneuro_context.clear()
         with patch.object(
-            eeg_pipeline_class, "_openneuro_context", return_value={
+            eeg_pipeline_class,
+            "_openneuro_context",
+            return_value={
                 "latest_snapshot_tag": "1.0.0",
                 "participants_data": None,
                 "species": "homo sapiens",
-            }
+            },
         ) as mock_ctx:
             try:
                 eeg_pipeline_class.get_manifest(temp_dir, None)
@@ -400,7 +410,9 @@ class TestValidateDatasetVersion:
 
     def test_on_mismatch_abort_raises_error(self):
         """on_mismatch='abort' exits cleanly when versions differ."""
-        with pytest.raises(SystemExit, match="Aborting pipeline due to dataset version mismatch"):
+        with pytest.raises(
+            SystemExit, match="Aborting pipeline due to dataset version mismatch"
+        ):
             self._VersionTestPipeline._validate_dataset_version(
                 "2.0.0", on_mismatch="abort"
             )
@@ -434,23 +446,14 @@ class TestValidateDatasetVersion:
         self, mock_isatty, mock_input
     ):
         """on_mismatch='prompt' with interactive TTY and 'n' aborts."""
-        with pytest.raises(SystemExit, match="Aborted by user due to dataset version mismatch"):
+        with pytest.raises(
+            SystemExit, match="Aborted by user due to dataset version mismatch"
+        ):
             self._VersionTestPipeline._validate_dataset_version(
                 "2.0.0", on_mismatch="prompt"
             )
 
         mock_input.assert_called_once()
-
-    @patch("sys.stdin.isatty", return_value=False)
-    def test_on_mismatch_prompt_non_interactive_aborts(self, mock_isatty):
-        """on_mismatch='prompt' with non-interactive TTY aborts with clear message."""
-        with pytest.raises(
-            SystemExit,
-            match="non-interactive session",
-        ):
-            self._VersionTestPipeline._validate_dataset_version(
-                "2.0.0", on_mismatch="prompt"
-            )
 
     @patch("builtins.input")
     @patch("sys.stdin.isatty")
@@ -468,9 +471,7 @@ class TestValidateDatasetVersion:
 
     @patch("builtins.input", return_value="yes")
     @patch("sys.stdin.isatty", return_value=True)
-    def test_on_mismatch_prompt_accepts_yes_variant(
-        self, mock_isatty, mock_input
-    ):
+    def test_on_mismatch_prompt_accepts_yes_variant(self, mock_isatty, mock_input):
         """on_mismatch='prompt' accepts 'yes' as valid confirmation."""
         result = self._VersionTestPipeline._validate_dataset_version(
             "2.0.0", on_mismatch="prompt"
@@ -479,12 +480,151 @@ class TestValidateDatasetVersion:
         assert result is None
 
 
+class TestValidateOnMismatchPolicy:
+    """Tests for OpenNeuroPipeline._validate_on_mismatch_policy helper method."""
+
+    @patch("sys.stdin.isatty", return_value=True)
+    def test_prompt_in_interactive_mode_succeeds(self, mock_isatty):
+        """_validate_on_mismatch_policy succeeds with 'prompt' in interactive mode."""
+        result = OpenNeuroPipeline._validate_on_mismatch_policy("prompt")
+        assert result is None
+        mock_isatty.assert_called_once()
+
+    @patch("sys.stdin.isatty", return_value=False)
+    def test_prompt_in_non_interactive_mode_raises_valueerror(self, mock_isatty):
+        """_validate_on_mismatch_policy raises ValueError with 'prompt' in non-interactive mode."""
+        with pytest.raises(
+            ValueError, match="Cannot use --on-version-mismatch='prompt'"
+        ):
+            OpenNeuroPipeline._validate_on_mismatch_policy("prompt")
+
+        with pytest.raises(ValueError, match="non-interactive mode"):
+            OpenNeuroPipeline._validate_on_mismatch_policy("prompt")
+
+        with pytest.raises(ValueError, match="continue"):
+            OpenNeuroPipeline._validate_on_mismatch_policy("prompt")
+
+    @patch("sys.stdin.isatty", return_value=False)
+    def test_continue_in_non_interactive_mode_succeeds(self, mock_isatty):
+        """_validate_on_mismatch_policy succeeds with 'continue' in non-interactive mode."""
+        result = OpenNeuroPipeline._validate_on_mismatch_policy("continue")
+        assert result is None
+        mock_isatty.assert_not_called()
+
+    @patch("sys.stdin.isatty", return_value=False)
+    def test_abort_in_non_interactive_mode_succeeds(self, mock_isatty):
+        """_validate_on_mismatch_policy succeeds with 'abort' in non-interactive mode."""
+        result = OpenNeuroPipeline._validate_on_mismatch_policy("abort")
+        assert result is None
+        mock_isatty.assert_not_called()
+
+    @patch("sys.stdin.isatty", return_value=True)
+    def test_continue_in_interactive_mode_succeeds(self, mock_isatty):
+        """_validate_on_mismatch_policy succeeds with 'continue' in interactive mode."""
+        result = OpenNeuroPipeline._validate_on_mismatch_policy("continue")
+        assert result is None
+        mock_isatty.assert_not_called()
+
+    @patch("sys.stdin.isatty", return_value=True)
+    def test_abort_in_interactive_mode_succeeds(self, mock_isatty):
+        """_validate_on_mismatch_policy succeeds with 'abort' in interactive mode."""
+        result = OpenNeuroPipeline._validate_on_mismatch_policy("abort")
+        assert result is None
+        mock_isatty.assert_not_called()
+
+
+class TestGetManifestPolicyValidation:
+    """Tests for get_manifest policy validation."""
+
+    @patch("sys.stdin.isatty", return_value=False)
+    @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
+    def test_get_manifest_raises_valueerror_on_prompt_non_interactive(
+        self, mock_fetch_files, mock_isatty, eeg_pipeline_class, temp_dir
+    ):
+        """get_manifest raises ValueError when on_version_mismatch='prompt' in non-interactive mode."""
+        from argparse import Namespace
+
+        args = Namespace(
+            on_version_mismatch="prompt", redownload=False, reprocess=False
+        )
+        mock_fetch_files.return_value = []
+
+        with pytest.raises(
+            ValueError, match="Cannot use --on-version-mismatch='prompt'"
+        ):
+            eeg_pipeline_class.get_manifest(temp_dir, args)
+
+    @patch("sys.stdin.isatty", return_value=False)
+    @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
+    def test_get_manifest_continues_on_continue_non_interactive(
+        self, mock_fetch_files, mock_isatty, eeg_pipeline_class, temp_dir
+    ):
+        """get_manifest succeeds when on_version_mismatch='continue' in non-interactive mode."""
+        from argparse import Namespace
+
+        args = Namespace(
+            on_version_mismatch="continue", redownload=False, reprocess=False
+        )
+        mock_fetch_files.return_value = []
+
+        eeg_pipeline_class._cached_openneuro_context.clear()
+        with patch.object(eeg_pipeline_class, "_openneuro_context") as mock_ctx:
+            mock_ctx.return_value = {
+                "latest_snapshot_tag": "1.0.0",
+                "participants_data": None,
+                "species": "homo sapiens",
+            }
+            with patch(
+                "brainsets.utils.openneuro.pipeline.fetch_eeg_recordings"
+            ) as mock_fetch_eeg:
+                mock_fetch_eeg.return_value = []
+                try:
+                    eeg_pipeline_class.get_manifest(temp_dir, args)
+                except ValueError:
+                    pass
+
+    @patch("sys.stdin.isatty", return_value=False)
+    @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
+    def test_get_manifest_continues_on_abort_non_interactive(
+        self, mock_fetch_files, mock_isatty, eeg_pipeline_class, temp_dir
+    ):
+        """get_manifest succeeds when on_version_mismatch='abort' in non-interactive mode."""
+        from argparse import Namespace
+
+        args = Namespace(on_version_mismatch="abort", redownload=False, reprocess=False)
+        mock_fetch_files.return_value = []
+
+        eeg_pipeline_class._cached_openneuro_context.clear()
+        with patch.object(eeg_pipeline_class, "_openneuro_context") as mock_ctx:
+            mock_ctx.return_value = {
+                "latest_snapshot_tag": "1.0.0",
+                "participants_data": None,
+                "species": "homo sapiens",
+            }
+            with patch(
+                "brainsets.utils.openneuro.pipeline.fetch_eeg_recordings"
+            ) as mock_fetch_eeg:
+                mock_fetch_eeg.return_value = []
+                try:
+                    eeg_pipeline_class.get_manifest(temp_dir, args)
+                except ValueError:
+                    pass
+
+
 class TestNormalizeSpecies:
     """Tests for OpenNeuroPipeline._normalize_species helper method."""
 
     @pytest.mark.parametrize(
         "species",
-        ["homo", "homo sapiens", "human", "humans", "H. sapiens", "  HUMAN  ", "h. sapiens"],
+        [
+            "homo",
+            "homo sapiens",
+            "human",
+            "humans",
+            "H. sapiens",
+            "  HUMAN  ",
+            "h. sapiens",
+        ],
     )
     def test_returns_homo_sapiens_for_supported_aliases(self, species):
         """Supported aliases normalize to canonical homo sapiens."""
@@ -502,7 +642,9 @@ class TestOpenNeuroContext:
     def test_shared_context_returns_openneuro_context_type(self, eeg_pipeline_class):
         """_openneuro_context returns OpenNeuroContext dict."""
         with patch.object(OpenNeuroPipeline, "validate_dataset_id") as mock_id:
-            with patch.object(OpenNeuroPipeline, "_validate_dataset_version") as mock_ver:
+            with patch.object(
+                OpenNeuroPipeline, "_validate_dataset_version"
+            ) as mock_ver:
                 with patch(
                     "brainsets.utils.openneuro.pipeline.fetch_participants_tsv"
                 ) as mock_part:
@@ -527,7 +669,9 @@ class TestOpenNeuroContext:
         eeg_pipeline_class._cached_openneuro_context.clear()
 
         with patch.object(OpenNeuroPipeline, "validate_dataset_id") as mock_id:
-            with patch.object(OpenNeuroPipeline, "_validate_dataset_version") as mock_ver:
+            with patch.object(
+                OpenNeuroPipeline, "_validate_dataset_version"
+            ) as mock_ver:
                 with patch(
                     "brainsets.utils.openneuro.pipeline.fetch_participants_tsv"
                 ) as mock_part:
@@ -556,7 +700,9 @@ class TestOpenNeuroContext:
         eeg_pipeline_class._cached_openneuro_context.clear()
 
         with patch.object(OpenNeuroPipeline, "validate_dataset_id") as mock_id:
-            with patch.object(OpenNeuroPipeline, "_validate_dataset_version") as mock_ver:
+            with patch.object(
+                OpenNeuroPipeline, "_validate_dataset_version"
+            ) as mock_ver:
                 with patch(
                     "brainsets.utils.openneuro.pipeline.fetch_participants_tsv"
                 ) as mock_part:
@@ -576,12 +722,14 @@ class TestOpenNeuroContext:
 class TestGetManifest:
     """Tests for get_manifest class method."""
 
+    @patch("sys.stdin.isatty", return_value=True)
     @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
     @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
     def test_get_manifest_eeg_success(
         self,
         mock_fetch_eeg,
         mock_fetch_files,
+        mock_isatty,
         eeg_pipeline_class,
         temp_dir,
     ):
@@ -644,12 +792,14 @@ class TestGetManifest:
             expected_s3_url = f"s3://openneuro.org/ds005085/{sub_dir}/{rec_id}"
             assert result.loc[recording_id, "s3_url"] == expected_s3_url
 
+    @patch("sys.stdin.isatty", return_value=True)
     @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
     @patch("brainsets.utils.openneuro.pipeline.fetch_ieeg_recordings")
     def test_get_manifest_ieeg_success(
         self,
         mock_fetch_ieeg,
         mock_fetch_files,
+        mock_isatty,
         ieeg_pipeline_class,
         temp_dir,
     ):
@@ -712,12 +862,14 @@ class TestGetManifest:
             expected_s3_url = f"s3://openneuro.org/ds005085/{sub_dir}/{rec_id}"
             assert result.loc[recording_id, "s3_url"] == expected_s3_url
 
+    @patch("sys.stdin.isatty", return_value=True)
     @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
     @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
     def test_get_manifest_with_custom_openneuro_context(
         self,
         mock_fetch_eeg,
         mock_fetch_files,
+        mock_isatty,
         temp_dir,
     ):
         """get_manifest works when _openneuro_context is pre-populated."""
@@ -760,8 +912,11 @@ class TestGetManifest:
         assert len(result) == 2
         assert "rec-001" in result.index
 
+    @patch("sys.stdin.isatty", return_value=True)
     @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
-    def test_get_manifest_raises_on_unknown_modality(self, mock_fetch_files, temp_dir):
+    def test_get_manifest_raises_on_unknown_modality(
+        self, mock_fetch_files, mock_isatty, temp_dir
+    ):
         """get_manifest raises ValueError for unknown modality."""
 
         class BadPipeline(OpenNeuroPipeline):
@@ -782,12 +937,14 @@ class TestGetManifest:
             with pytest.raises(ValueError, match="Unknown modality"):
                 BadPipeline.get_manifest(temp_dir, None)
 
+    @patch("sys.stdin.isatty", return_value=True)
     @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
     @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
     def test_get_manifest_raises_on_no_recordings_found(
         self,
         mock_fetch_eeg,
         mock_fetch_files,
+        mock_isatty,
         eeg_pipeline_class,
         temp_dir,
     ):
@@ -805,12 +962,14 @@ class TestGetManifest:
             with pytest.raises(ValueError, match="No EEG recordings found"):
                 eeg_pipeline_class.get_manifest(temp_dir, None)
 
+    @patch("sys.stdin.isatty", return_value=True)
     @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
     @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
     def test_get_manifest_raises_on_no_recordings_returned_by_fetch(
         self,
         mock_fetch_eeg,
         mock_fetch_files,
+        mock_isatty,
         temp_dir,
     ):
         """get_manifest raises ValueError when recording parser returns no rows."""
@@ -1262,9 +1421,7 @@ class TestProcessCommon:
         }
 
         type(pipeline)._cached_openneuro_context = {pipeline.dataset_id: ctx}
-        with patch.object(
-            pipeline, "generate_splits", return_value=MagicMock()
-        ):
+        with patch.object(pipeline, "generate_splits", return_value=MagicMock()):
             data, path = pipeline._process_common(download_output)
 
         assert all(

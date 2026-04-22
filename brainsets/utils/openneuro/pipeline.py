@@ -94,14 +94,6 @@ class OpenNeuroContext(TypedDict):
     participants_data: Optional[pd.DataFrame]
 
 
-class DatasetVersionValidationExit(SystemExit):
-    """Structured exit for dataset version validation failures."""
-
-    def __init__(self, message: str, reason: str):
-        super().__init__(message)
-        self.reason = reason
-
-
 class OpenNeuroPipeline(BrainsetPipeline, ABC):
     """Abstract base class for OpenNeuro dataset pipelines.
 
@@ -225,22 +217,23 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         Args:
             latest_snapshot_tag: The latest snapshot tag available on OpenNeuro for this dataset.
             on_mismatch: Policy when ``origin_version`` differs from latest
-                (``"abort"``, ``"continue"``, or ``"prompt"``). If a mismatch is detected, the 
+                (``"abort"``, ``"continue"``, or ``"prompt"``). If a mismatch is detected, the
                 ``on_mismatch`` parameter determines the behavior (default: ``"prompt"``):
                     - ``"abort"``: Raises an error and exits the pipeline.
                     - ``"continue"``: Logs a warning and proceeds with the latest version.
                     - ``"prompt"``: Prompts the user for confirmation and proceeds if confirmed.
 
         Raises:
-            DatasetVersionValidationExit: If mismatch policy aborts execution.
+            SystemExit: If mismatch policy aborts execution or user declines prompt.
         """
+
         def user_confirms(
             prompt: str,
         ) -> bool:
             """Return True if the user confirms continuation, False otherwise."""
             answer = input(prompt).strip().lower()
             return answer in {"y", "yes"}
-        
+
         if latest_snapshot_tag != cls.origin_version:
             if on_mismatch == "continue":
                 logging.warning(
@@ -251,30 +244,40 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
                     "Check the CHANGES file of the dataset for details about the differences between versions."
                 )
             elif on_mismatch == "abort":
-                raise DatasetVersionValidationExit(
-                    "🛑 Aborting pipeline due to dataset version mismatch.",
-                    reason="policy_abort",
+                raise SystemExit(
+                    "🛑 Aborting pipeline due to dataset version mismatch."
                 )
             elif on_mismatch == "prompt":
-                # if not interactive, abort
-                if not sys.stdin.isatty():
-                    raise DatasetVersionValidationExit(
-                        "🛑 Aborting pipeline due to dataset version mismatch in non-interactive session.",
-                        reason="non_interactive_session",
-                    )
-               
-                # if interactive, prompt user to continue
                 prompt_message = (
                     f"⚠️ Dataset '{cls.dataset_id}' pipeline version is '{cls.origin_version}', "
                     f"but latest on OpenNeuro is '{latest_snapshot_tag}'. "
                     "👉 Continue with latest version? [y/N]: "
                 )
                 if not user_confirms(prompt_message):
-                    raise DatasetVersionValidationExit(
-                        "🛑 Aborted by user due to dataset version mismatch.",
-                        reason="user_declined_prompt",
+                    raise SystemExit(
+                        "🛑 Aborted by user due to dataset version mismatch."
                     )
-        
+
+    @staticmethod
+    def _validate_on_mismatch_policy(on_version_mismatch: str) -> None:
+        """Validate that on_version_mismatch policy is compatible with execution mode.
+
+        In non-interactive sessions, the 'prompt' policy is invalid because it requires
+        user input. This validation runs early to provide a clear error message.
+
+        Args:
+            on_version_mismatch: Policy value ('abort', 'continue', or 'prompt').
+
+        Raises:
+            ValueError: If on_version_mismatch='prompt' in non-interactive mode.
+        """
+        if on_version_mismatch == "prompt" and not sys.stdin.isatty():
+            raise ValueError(
+                "Cannot use --on-version-mismatch='prompt' in non-interactive mode. "
+                "The program is running without a TTY and cannot prompt for user input. "
+                "Set --on-version-mismatch to either 'continue' (warn and proceed) or 'abort' (fail on mismatch)."
+            )
+
     @staticmethod
     def _normalize_species(species: str | None) -> str:
         """Normalize species names to ``"homo sapiens"`` or ``"unknown"``.
@@ -322,19 +325,10 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             return cls._cached_openneuro_context[cls.dataset_id]
 
         latest_snapshot_tag = fetch_latest_snapshot_tag(cls.dataset_id)
-        try:
-            cls._validate_dataset_version(
-                latest_snapshot_tag, on_mismatch=on_version_mismatch
-            )
-        except DatasetVersionValidationExit as exc:
-            if exc.reason != "non_interactive_session":
-                raise
+        cls._validate_dataset_version(
+            latest_snapshot_tag, on_mismatch=on_version_mismatch
+        )
 
-            raise SystemExit(
-                f"{str(exc).rstrip()} "
-                'To proceed without prompting, set --on_version_mismatch="continue".'
-            ) from None
-        
         species = fetch_species(cls.dataset_id)
 
         ctx: OpenNeuroContext = {
@@ -363,8 +357,11 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
                 - s3_url: S3 URL for downloading
         """
         on_version_mismatch = (
-            getattr(args, "on_version_mismatch", "prompt") if args is not None else "prompt"
+            getattr(args, "on_version_mismatch", "prompt")
+            if args is not None
+            else "prompt"
         )
+        cls._validate_on_mismatch_policy(on_version_mismatch)
         cls._openneuro_context(on_version_mismatch=on_version_mismatch)
 
         all_files = fetch_all_filenames(cls.dataset_id)
@@ -419,9 +416,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         # if the dataset_description.json file does not exist or the redownload flag is set, download it
         # dataset_description.json is required for mne-bids to recognize a valid BIDS dataset
-        dataset_description_exists = (
-            root_dir / "dataset_description.json"
-        ).exists()
+        dataset_description_exists = (root_dir / "dataset_description.json").exists()
         if not dataset_description_exists or getattr(self.args, "redownload", False):
             download_dataset_description(self.dataset_id, root_dir)
 
@@ -457,7 +452,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         """Process data files and create a Data object.
 
         This method handles common OpenNeuro processing tasks:
-        1. Loads BIDS-structured data files using MNE-BIDS 
+        1. Loads BIDS-structured data files using MNE-BIDS
         2. Extracts metadata (subject, session, device, brainset descriptions)
         3. Extracts signal and channel information
         5. Creates a Data object

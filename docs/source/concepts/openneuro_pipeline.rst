@@ -80,13 +80,17 @@ Every object extending |OpenNeuroPipeline| **must** have these three:
 1. ``dataset_id`` – Which OpenNeuro dataset?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The dataset identifier. The |OpenNeuroPipeline| class auto-normalizes formats:
+The dataset identifier must use strict OpenNeuro format: ``ds`` followed by exactly 6 digits.
 
 .. code-block:: python
 
-    dataset_id = "ds005555"      # ✅ Standard format
-    dataset_id = "5555"          # ✅ Also works (auto-normalized to ds005555)
-    dataset_id = "ds5555"        # ✅ Also works
+    dataset_id = "ds005555"      # ✅ Valid
+    dataset_id = "5555"          # ❌ Invalid
+    dataset_id = "ds5555"        # ❌ Invalid
+
+.. note::
+
+   Dataset ID validation happens internally during pipeline initialization and context loading. Invalid IDs raise an error before data discovery.
 
 
 2. ``brainset_id`` – Your unique name
@@ -105,23 +109,15 @@ A descriptive ID for your processed brainset. Recommended naming scheme:
 3. ``origin_version`` – The dataset version you used
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-⚠️ **CRITICAL: This must be hardcoded to the exact version you tested with.**
+Set ``origin_version`` to the exact version of the OpenNeuro dataset you used when building and testing your pipeline:
 
 .. code-block:: python
 
-    origin_version = "1.0.0"
+    class Pipeline(OpenNeuroEEGPipeline):
+        dataset_id = "ds005555"
+        origin_version = "1.0.0"  # The version available when you created this pipeline
 
-**Why hardcode?** OpenNeuro datasets are versioned. A newer version might have different subjects, missing files, or structural changes. Hardcoding ensures you record which version your pipeline was originally built and tested with—so if the dataset evolves, you know what version was intended.
-
-**What happens on mismatch?** If a newer version exists on OpenNeuro when your pipeline runs, the code will download the latest version but emit a warning:
-
-.. code-block:: text
-
-    ⚠️ Dataset version '1.0.0' was used to create the brainset pipeline for dataset 'ds005555',
-    but the latest available version on OpenNeuro is '1.2.0'.
-    Downloading data or running the pipeline now will use the latest version,
-    which may differ from the original version used, potentially causing errors or inconsistencies.
-    Check the CHANGES file of the dataset for details about the differences between versions.
+⚠️ **Why hardcode?** OpenNeuro datasets evolve. A newer version might have different subjects, missing files, or structural changes. Hardcoding ensures you document which version your pipeline was originally built and tested with.
 
 **How to find the version:**
 
@@ -130,23 +126,86 @@ A descriptive ID for your processed brainset. Recommended naming scheme:
 3. Note the latest version tag (e.g., ``1.0.0``, ``2.1.3``)
 4. For details on changes between versions, check the ``CHANGES`` file in the dataset
 
-**When versions don't match:**
+----
 
-.. list-table::
-   :header-rows: 1
+.. important::
+   **What happens if versions mismatch during runtime?**
 
-   * - Option
-     - When
-     - How
-   * - Ignore warning
-     - Changes are minor/unrelated to your pipeline
-     - Just run it
-   * - Update version
-     - You've tested with the new version
-     - Update ``origin_version``, test thoroughly, and re-create your pipeline
-   * - Use old version
-     - Changes break your pipeline
-     - Download from OpenNeuro archives manually
+   *This section is more relevant for pipeline users running* ``prepare`` *or* ``download`` *commands, not pipeline authors.*
+
+   When you run a pipeline, the system automatically:
+
+   1. Fetches the latest snapshot tag from OpenNeuro
+   2. Compares it to the ``origin_version`` hardcoded in the pipeline class
+   3. If they differ, applies the ``--on-version-mismatch`` policy you specified (or ``prompt`` by default)
+
+   **Controlling mismatch behavior with --on-version-mismatch**
+
+   Users can control how an Open Neuro pipeline responds to version mismatches using the CLI flag ``--on-version-mismatch``:
+
+   .. list-table::
+      :header-rows: 1
+
+      * - Option
+        - Behavior
+        - When to Use
+      * - ``prompt`` (default)
+        - Interactive session: asks user to confirm. Non-interactive: **raises ValueError immediately** with guidance to use ``continue`` or ``abort``.
+        - Local development; lets you decide per run whether to continue (interactive only).
+      * - ``continue``
+        - Warns and proceeds with latest version.
+        - Automation/CI: accept version drift when tests pass.
+      * - ``abort``
+        - Raises error immediately if mismatch detected.
+        - Strict reproducibility: fail fast rather than risk inconsistency.
+
+   **Examples:**
+
+   .. code-block:: console
+
+       # Interactive prompt (default behavior)
+       uv run brainsets prepare my_brainset
+
+       # Always continue with a warning
+       uv run brainsets prepare my_brainset --on-version-mismatch continue
+
+       # Fail if version mismatch
+       uv run brainsets prepare my_brainset --on-version-mismatch abort
+
+       # In CI/automation (non-interactive), must set to continue or abort
+       # This will fail with clear error message:
+       uv run brainsets prepare my_brainset  # (would error: prompt not allowed in non-interactive mode)
+       # Instead, use:
+       uv run brainsets prepare my_brainset --on-version-mismatch continue
+
+   **Important:** Regardless of which policy you choose, if you continue, OpenNeuro S3 will serve the latest snapshot for downloads. The version check is informational—it warns you to potential differences but does not download or use the original ``origin_version``.
+
+   **Example warning message:**
+
+   .. code-block:: text
+
+       ⚠️ Dataset version '1.0.0' was used to create the brainset pipeline for dataset 'ds005555',
+       but the latest available version on OpenNeuro is '1.2.0'.
+       Downloading data or running the pipeline now will use the latest version,
+       which may differ from the original version used, potentially causing errors or inconsistencies.
+       Check the CHANGES file of the dataset for details about the differences between versions.
+
+
+   **When versions don't match: What should I do?**
+
+   .. list-table::
+      :header-rows: 1
+
+      * - Scenario
+        - Action
+      * - Changes are minor or unrelated to your pipeline
+        - Accept the warning and continue; the latest version is used.
+      * - You've tested with the new version
+        - Update ``origin_version`` to match, thoroughly test your pipeline, and re-run.
+      * - Changes break your pipeline
+        - Consider fetching the old version from OpenNeuro archives manually or adjust your pipeline for the new version.
+
+----
 
 
 Optional Attributes (with sensible defaults)
@@ -168,26 +227,16 @@ Human-readable description that appears in metadata:
     )
 
 
-``subject_ids``
-~~~~~~~~~~~~~~~~
-
-Process only specific subjects (default: all):
-
-.. code-block:: python
-
-    subject_ids = ["sub-01", "sub-02", "sub-03"]
-
-
 ``derived_version``
 ~~~~~~~~~~~~~~~~~~~
 
-Version of your processed brainset (default: ``"1.0.0"``):
+Version identifier for your processed brainset output (default: ``"1.0.0"``).
 
 .. code-block:: python
 
-    derived_version = "1.0.0"
+    derived_version = "1.1.0"  # Increment when you change processing logic
 
-Increment this when you change processing logic or channel configs.
+While ``origin_version`` tracks the version of the source dataset from OpenNeuro, ``derived_version`` tracks the version of **your processing pipeline and its output**. This version is stored in the brainset metadata and helps users understand which version of the processing logic was used to generate the data.
 
 
 ``split_ratios``
