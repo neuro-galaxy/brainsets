@@ -132,7 +132,7 @@ Set ``origin_version`` to the exact version of the OpenNeuro dataset you used wh
 .. important::
    **What happens if versions mismatch during runtime?**
 
-   *This section is more relevant for pipeline users running* ``prepare`` *or* ``download`` *commands, not pipeline authors.*
+   *This section is more relevant for pipeline users running* ``prepare`` *commands, not pipeline authors.*
 
    When you run a pipeline, the system automatically:
 
