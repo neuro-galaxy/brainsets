@@ -38,18 +38,20 @@ Here's a working minimal pipeline:
     from brainsets.utils.openneuro import OpenNeuroEEGPipeline
 
     class Pipeline(OpenNeuroEEGPipeline):
-        brainset_id = "my_sleep_study_2024"
+        brainset_id = "my_sleep_study_ds005555"
         dataset_id = "ds005555"
         origin_version = "1.0.0"  # Check OpenNeuro for this!
         derived_version = "1.0.0"  # Version of your processing pipeline
-        
         description = "Sleep recordings from OpenNeuro"
+        ci_smoke_session = "sub-01_ses-01_task-sleep"  # Required: session ID for PR smoke testing
 
-**That's it!** The rest is inherited. To run it:
+**That's it!** The rest is inherited (but can be customized 🛠️).
+
+Add your new pipeline class in its own directory under ``brainsets_pipelines/`` (for example, ``brainsets_pipelines/my_sleep_study_ds005555/pipeline.py``). To run it:
 
 .. code-block:: console
 
-    uv run brainsets prepare my_sleep_study_2024
+    uv run brainsets prepare my_sleep_study_ds005555
 
 ----
 
@@ -75,7 +77,7 @@ Before diving into details, check out working implementations in the `brainsets_
 The Five Required Attributes
 -----------------------------
 
-Every object extending |OpenNeuroPipeline| **must** have these four:
+Every object extending |OpenNeuroPipeline| **must** have these five attributes:
 
 
 1. ``dataset_id`` – Which OpenNeuro dataset?
@@ -97,14 +99,14 @@ The dataset identifier must use strict OpenNeuro format: ``ds`` followed by exac
 2. ``brainset_id`` – Your unique name
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A descriptive ID for your processed brainset. Recommended naming scheme:
+A descriptive ID for your processed brainset. This should be unique within the ``brainsets_pipelines/`` directory and should be a valid Python identifier. Recommended naming scheme:
 
 .. code-block:: python
 
     brainset_id = "klinzing_sleep_ds005555"
-    #             └─ institution
-    #                        └─ dataset nickname
-    #                                    └─ year
+    #               └─ author's last name
+    #                        └─ a short label describing the main task or paradigm in the dataset
+    #                              └─ dataset ID
 
 
 3. ``origin_version`` – The dataset version you used
@@ -243,9 +245,9 @@ Set ``ci_smoke_session`` to the session identifier that CI will use when testing
         brainset_id = "klinzing_sleep_ds005555"
         origin_version = "1.0.1"
         derived_version = "1.0.0"
-        ci_smoke_session = "sub-01"  # ← Required: used for PR smoke tests
+        ci_smoke_session = "sub-01_ses-01_task-sleep"  # ← Required: used for PR smoke tests
 
-This session must exist in the dataset's manifest and should be a representative, small session that exercises your pipeline well. When a PR modifies this pipeline, CI automatically runs ``brainsets prepare`` with this session to verify the pipeline still works.
+This session must exist in the dataset's manifest and ideally, should be a representative, small session that exercises your pipeline well. When a PR modifies this pipeline, CI automatically runs ``brainsets prepare`` with this session to verify the pipeline still works.
 
 ----
 
