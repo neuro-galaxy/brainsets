@@ -653,3 +653,37 @@ def _transpose_type_channels_mapping(
         for ch_type, ch_list in type_channels_mapping.items()
         for ch_name in ch_list
     }
+
+
+def extract_annotations(recording_data: "mne.io.BaseRaw") -> Interval:
+    """Extract annotations from an MNE Raw object as an Interval.
+
+    Args:
+        recording_data: The MNE Raw object containing annotations.
+
+    Returns:
+        An Interval with start/end arrays and a 'description' field, or an empty
+        Interval if no annotations are present.
+
+    Raises:
+        ImportError: If MNE is not installed.
+    """
+    _check_mne_available("extract_annotations")
+    annotations = recording_data.annotations
+
+    if len(annotations) == 0:
+        warnings.warn("No annotations found in recording data")
+        return Interval(start=np.array([]), end=np.array([]))
+
+    start = np.array(annotations.onset)
+    extras = recording_data.annotations.extras
+    kwargs = {
+        "start": start,
+        "end": start + np.array(annotations.duration),
+        "description": np.array(annotations.description, dtype="U"),
+    }
+    if any(extras):
+        for key in extras[0]:
+            kwargs[key] = np.array([d[key] for d in extras], dtype="U")
+
+    return Interval(**kwargs)
