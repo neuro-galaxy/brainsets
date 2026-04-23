@@ -3,11 +3,13 @@ Working with the Neuroprobe Benchmark
 
 `Neuroprobe <https://neuroprobe.dev>`_ is a standardized benchmark for evaluating
 neural decoding models on human intracranial EEG (iEEG) data. It defines 15
-binary classification tasks spanning audio, language, and vision domains, all
-derived from the `BrainTreebank <https://braintreebank.dev>`_ dataset — 40 hours
+tasks spanning audio, language, and vision domains, and supports both binary
+and multiclass classification label modes. This benchmark is derived from the
+`BrainTreebank <https://braintreebank.dev>`_ dataset — 40 hours
 of sEEG recordings from 10 human subjects watching naturalistic movies.
 
-For full details, see the `Neuroprobe paper <https://arxiv.org/abs/2509.21671>`_.
+For full details, see the `Neuroprobe paper <https://arxiv.org/abs/2509.21671>`_
+and the updated `OpenReview submission <https://openreview.net/forum?id=n0WDVWqgzC>`_.
 
 Preparing the data
 ------------------
@@ -26,62 +28,82 @@ Download and process the Neuroprobe data using the brainsets CLI::
 Key concepts
 ------------
 
-**Tasks.** Each of the 15 tasks is a binary classification problem where the
-input is a 1-second window of neural data aligned to a word onset.
+**Tasks.** Each task uses a 1-second window of neural data aligned to a word
+onset and can be evaluated in either binary or multiclass label mode.
 Available tasks:
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 55
+   :widths: 18 12 35 35
 
    * - Task
      - Feature type
-     - Description
+     - Binary labels
+     - Multiclass labels
    * - ``volume``
      - Auditory
-     - Low vs. high average RMS audio volume
+     - 0 low vs. 1 high average RMS audio volume.
+     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
    * - ``pitch``
      - Auditory
-     - Low vs. high average voice pitch
+     - 0 low vs. 1 high average voice pitch.
+     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
    * - ``delta_volume``
      - Auditory
-     - Low vs. high volume change around word onset
+     - 0 low vs. 1 high volume change around word onset.
+     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
    * - ``speech``
      - Language
-     - Whether speech is present in the time interval
+     - 1 speech-word rows, 0 nonverbal rows.
+     - Not used (task remains binary).
    * - ``onset``
      - Language
-     - Whether a new sentence starts in the interval
+     - 1 sentence-start word rows, 0 nonverbal rows.
+     - Not used (task remains binary).
    * - ``gpt2_surprisal``
      - Language
-     - Low vs. high GPT-2 word surprisal
+     - 0 low vs. 1 high GPT-2 word surprisal.
+     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
    * - ``word_length``
      - Language
-     - Short vs. long word duration
+     - 0 short vs. 1 long word duration.
+     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
    * - ``word_gap``
      - Language
-     - Short vs. long inter-word gap
+     - 0 short vs. 1 long inter-word gap.
+     - 0 short gap (<25th percentile), 1 medium gap (37.5th-62.5th), 2 long gap (>=75th percentile), computed only within the same sentence.
    * - ``word_index``
      - Language
-     - First word in sentence vs. other
+     - 0 first word in sentence vs. 1 other word.
+     - 0 first word, 1 second word, 2 any later word.
    * - ``word_head_pos``
      - Language
-     - Left vs. right dependency tree head position
+     - Dependency head direction: 1 when ``bin_head == 0``, 0 when ``bin_head == 1``.
+     - Not used (task remains binary).
    * - ``word_part_speech``
      - Language
-     - Verb vs. non-verb
+     - 1 verb vs. 0 non-verb.
+     - 6-way UPOS: 0 noun, 1 verb, 2 pronoun, 3 determiner, 4 adjective, 5 adverb.
    * - ``frame_brightness``
      - Visual
-     - Low vs. high average frame brightness
+     - 0 low vs. 1 high average frame brightness.
+     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
    * - ``global_flow``
      - Visual
-     - Low vs. high global optical flow
+     - 0 low vs. 1 high global optical flow.
+     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
    * - ``local_flow``
      - Visual
-     - Low vs. high local optical flow
+     - 0 low vs. 1 high local optical flow.
+     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
    * - ``face_num``
      - Visual
-     - No faces vs. one or more faces
+     - 0 no faces vs. 1 one or more faces.
+     - 0 no faces, 1 exactly one face, 2 more than one face.
+
+**Label mode.** Neuroprobe supports both binary and multiclass classification.
+Use ``label_mode="multiclass"`` when constructing
+:class:`~brainsets.datasets.Neuroprobe2025` to load multiclass splits.
 
 **Regimes (split types).** Neuroprobe defines three evaluation regimes that test
 different levels of generalization:
@@ -107,7 +129,9 @@ and electrodes included:
 - ``"nano"``: A single trial per subject for rapid prototyping. Only supports
   the within-session regime.
 
-**Metric.** The primary evaluation metric is AUROC (Area Under the ROC Curve).
+**Metric.** AUROC (Area Under the ROC Curve) remains the primary metric in
+binary mode. For multiclass evaluations, follow the current Neuroprobe
+evaluation protocol and leaderboard reporting guidelines.
 
 
 Loading benchmark splits
@@ -126,7 +150,8 @@ partition:
         test_subject=1,
         test_session=1,
         split="train",
-        task="speech",
+        label_mode="multiclass",
+        task="word_part_speech",
         regime="SS-DM",
     )
 
@@ -135,7 +160,8 @@ partition:
         test_subject=1,
         test_session=1,
         split="test",
-        task="speech",
+        label_mode="multiclass",
+        task="word_part_speech",
         regime="SS-DM",
     )
 
@@ -186,7 +212,8 @@ channel inclusion masks:
         print(interval.start[:5], interval.end[:5])
         print(interval.label[:5])
 
-The ``interval.label`` array contains the binary labels for each trial window.
+The ``interval.label`` array contains class labels for each trial window
+(binary or multiclass, depending on ``label_mode``).
 
 Channel metadata (electrode names, coordinates, inclusion masks) is available
 via :meth:`~brainsets.datasets.Neuroprobe2025.get_channel_metadata`:
