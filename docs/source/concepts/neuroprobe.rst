@@ -37,117 +37,123 @@ Auditory tasks
 
 .. list-table::
    :header-rows: 1
-   :widths: 18 41 41
+   :widths: 55 35 55
+   :class: center-first-col
 
    * - Task
      - Binary labels
      - Multiclass labels
    * - | ``volume`` 
-       | (Average RMS audio volume)
-     - | 0 low 
-       | 1 high 
-     - | 0 low (<25th percentile)
-       | 1 medium (37.5th-62.5th)
-       | 2 high (>=75th percentile)
-   * - | ``pitch`` (voice pitch)
-       | (average voice pitch)
-     - | 0 low 
-       | 1 high 
-     - | 0 low (<25th percentile)
-       | 1 medium (37.5th-62.5th)
-       | 2 high (>=75th percentile)
+     - | 0 - low 
+       | 1 - high 
+     - | 0 - low (<25th percentile)
+       | 1 - medium (37.5th-62.5th)
+       | 2 - high (>=75th percentile)
+   * - | ``pitch``
+     - | 0 - low 
+       | 1 - high 
+     - | 0 - low (<25th percentile)
+       | 1 - medium (37.5th-62.5th)
+       | 2 - high (>=75th percentile)
    * - | ``delta_volume`` 
-       | (volume change around word onset)
-     - | 0 low 
-       | 1 high 
-     - | 0 low (<25th percentile)
-       | 1 medium (37.5th-62.5th)
-       | 2 high (>=75th percentile)
+     - | 0 - low 
+       | 1 - high 
+     - | 0 - low (<25th percentile)
+       | 1 - medium (37.5th-62.5th)
+       | 2 - high (>=75th percentile)
 
 Language tasks
 ^^^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
-   :widths: 18 41 41
+   :widths: 55 35 55
+   :class: center-first-col
 
    * - Task
      - Binary labels
      - Multiclass labels
-   * - | ``speech`` 
-       | (speech-word rows, nonverbal rows)
-     - | 1 speech-word rows
-       | 0 nonverbal rows
-     - Not used (task remains binary).
-   * - | ``onset`` 
-       | (sentence-start word rows, nonverbal rows)
-     - | 1 sentence-start word rows
-       | 0 nonverbal rows
-     - Not used (task remains binary).
+   * - ``speech`` 
+     - | 1 - speech
+       | 0 - nonverbal 
+     - Not used (task remains binary)
+   * - ``onset`` 
+     - | 1 - sentence-start
+       | 0 - nonverbal
+     - Not used (task remains binary)
    * - | ``gpt2_surprisal``
-       | (GPT-2 word surprisal)
-     - | 0 low 
-       | 1 high 
-     - | 0 low (<25th percentile)
-       | 1 medium (37.5th-62.5th)
-       | 2 high (>=75th percentile)
-   * - ``word_length`` 
-     - | 0 short 
-       | 1 long word duration.
-     - | 0 low (<25th percentile)
-       | 1 medium (37.5th-62.5th)
-       | 2 high (>=75th percentile)
+     - | 0 - low 
+       | 1 - high 
+     - | 0 - low (<25th percentile)
+       | 1 - medium (37.5th-62.5th)
+       | 2 - high (>=75th percentile)
+   * - | ``word_length`` 
+     - | 0 - short 
+       | 1 - long
+     - | 0 - low (<25th percentile)
+       | 1 - medium (37.5th-62.5th)
+       | 2 - high (>=75th percentile)
    * - | ``word_gap``
-       | (Same sentence inter-word gap)
-     - | 0 short
-       | 1 long inter-word gap.
-     - | 0 short gap (<25th percentile),
-       | 1 medium gap (37.5th-62.5th)
-       | 2 long gap (>=75th percentile), computed only within the same sentence.
-   * - ``word_index``
-     - | 0 first word in sentence
-       | 1 other word
-     - | 0 first word,
-       | 1 second word,
-       | 2 any later word
+     - | 0 - short
+       | 1 - long
+     - | 0 - short gap (<25th percentile)
+       | 1 - medium gap (37.5th-62.5th)
+       | 2 - long gap (>=75th percentile)
+   * - | ``word_index``
+     - | 0 - first word 
+       | 1 - other word
+     - | 0 - first word
+       | 1 - second word
+       | 2 - any later word
    * - | ``word_head_pos``
-       | (Dependency head direction)
-     - | 1 when ``bin_head == 0``
-       | 0 when ``bin_head == 1``
-     - Not used (task remains binary).
-   * - | ``word_part_speech``
-       | (Verb vs. non-verb)
-     - | 1 verb
-       | 0 non-verb
-     - | 0 noun
-       | 1 verb
-       | 2 pronoun
-       | 3 determiner
-       | 4 adjective
-       | 5 adverb
+     - | 1 - ``bin_head == 0``
+       | 0 - ``bin_head == 1``
+     - Not used (task remains binary)
+   * - ``word_part_speech``
+     - | 1 - verb
+       | 0 - non-verb
+     - | 0 - noun
+       | 1 - verb
+       | 2 - pronoun
+       | 3 - determiner
+       | 4 - adjective
+       | 5 - adverb
 
 Visual tasks
 ^^^^^^^^^^^^
 
 .. list-table::
    :header-rows: 1
-   :widths: 18 41 41
+   :widths: 55 35 55
+   :class: center-first-col
 
    * - Task
      - Binary labels
      - Multiclass labels
-   * - ``frame_brightness``
-     - 0 low vs. 1 high average frame brightness.
-     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
-   * - ``global_flow``
-     - 0 low vs. 1 high global optical flow.
-     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
-   * - ``local_flow``
-     - 0 low vs. 1 high local optical flow.
-     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
-   * - ``face_num``
-     - 0 no faces vs. 1 one or more faces.
-     - 0 no faces, 1 exactly one face, 2 more than one face.
+   * - | ``frame_brightness``
+     - | 0 - low 
+       | 1 - high
+     - | 0 - low (<25th percentile)
+       | 1 - medium (37.5th-62.5th)
+       | 2 - high (>=75th percentile)
+   * - | ``global_flow``
+     - | 0 - low
+       | 1 - high
+     - | 0 - low (<25th percentile)
+       | 1 - medium (37.5th-62.5th)
+       | 2 - high (>=75th percentile)
+   * - | ``local_flow``
+     - | 0 - low
+       | 1 - high
+     - | 0 - low (<25th percentile)
+       | 1 - medium (37.5th-62.5th)
+       | 2 - high (>=75th percentile)
+   * - | ``face_num``
+     - | 0 - no faces
+       | 1 - one or more 
+     - | 0 - no faces
+       | 1 - exactly one face
+       | 2 - more than one face
 
 **Label mode.** Neuroprobe supports both binary and multiclass classification.
 Use ``label_mode="multiclass"`` when constructing
