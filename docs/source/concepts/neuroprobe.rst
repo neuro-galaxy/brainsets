@@ -32,72 +32,120 @@ Key concepts
 onset and can be evaluated in either binary or multiclass label mode.
 Available tasks:
 
+Auditory tasks
+^^^^^^^^^^^^^^
+
 .. list-table::
    :header-rows: 1
-   :widths: 18 12 35 35
+   :widths: 18 41 41
 
    * - Task
-     - Feature type
      - Binary labels
      - Multiclass labels
-   * - ``volume``
-     - Auditory
-     - 0 low vs. 1 high average RMS audio volume.
-     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
-   * - ``pitch``
-     - Auditory
-     - 0 low vs. 1 high average voice pitch.
-     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
-   * - ``delta_volume``
-     - Auditory
-     - 0 low vs. 1 high volume change around word onset.
-     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
-   * - ``speech``
-     - Language
-     - 1 speech-word rows, 0 nonverbal rows.
+   * - | ``volume`` 
+       | (Average RMS audio volume)
+     - | 0 low 
+       | 1 high 
+     - | 0 low (<25th percentile)
+       | 1 medium (37.5th-62.5th)
+       | 2 high (>=75th percentile)
+   * - | ``pitch`` (voice pitch)
+       | (average voice pitch)
+     - | 0 low 
+       | 1 high 
+     - | 0 low (<25th percentile)
+       | 1 medium (37.5th-62.5th)
+       | 2 high (>=75th percentile)
+   * - | ``delta_volume`` 
+       | (volume change around word onset)
+     - | 0 low 
+       | 1 high 
+     - | 0 low (<25th percentile)
+       | 1 medium (37.5th-62.5th)
+       | 2 high (>=75th percentile)
+
+Language tasks
+^^^^^^^^^^^^^^
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 41 41
+
+   * - Task
+     - Binary labels
+     - Multiclass labels
+   * - | ``speech`` 
+       | (speech-word rows, nonverbal rows)
+     - | 1 speech-word rows
+       | 0 nonverbal rows
      - Not used (task remains binary).
-   * - ``onset``
-     - Language
-     - 1 sentence-start word rows, 0 nonverbal rows.
+   * - | ``onset`` 
+       | (sentence-start word rows, nonverbal rows)
+     - | 1 sentence-start word rows
+       | 0 nonverbal rows
      - Not used (task remains binary).
-   * - ``gpt2_surprisal``
-     - Language
-     - 0 low vs. 1 high GPT-2 word surprisal.
-     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
-   * - ``word_length``
-     - Language
-     - 0 short vs. 1 long word duration.
-     - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
-   * - ``word_gap``
-     - Language
-     - 0 short vs. 1 long inter-word gap.
-     - 0 short gap (<25th percentile), 1 medium gap (37.5th-62.5th), 2 long gap (>=75th percentile), computed only within the same sentence.
+   * - | ``gpt2_surprisal``
+       | (GPT-2 word surprisal)
+     - | 0 low 
+       | 1 high 
+     - | 0 low (<25th percentile)
+       | 1 medium (37.5th-62.5th)
+       | 2 high (>=75th percentile)
+   * - ``word_length`` 
+     - | 0 short 
+       | 1 long word duration.
+     - | 0 low (<25th percentile)
+       | 1 medium (37.5th-62.5th)
+       | 2 high (>=75th percentile)
+   * - | ``word_gap``
+       | (Same sentence inter-word gap)
+     - | 0 short
+       | 1 long inter-word gap.
+     - | 0 short gap (<25th percentile),
+       | 1 medium gap (37.5th-62.5th)
+       | 2 long gap (>=75th percentile), computed only within the same sentence.
    * - ``word_index``
-     - Language
-     - 0 first word in sentence vs. 1 other word.
-     - 0 first word, 1 second word, 2 any later word.
-   * - ``word_head_pos``
-     - Language
-     - Dependency head direction: 1 when ``bin_head == 0``, 0 when ``bin_head == 1``.
+     - | 0 first word in sentence
+       | 1 other word
+     - | 0 first word,
+       | 1 second word,
+       | 2 any later word
+   * - | ``word_head_pos``
+       | (Dependency head direction)
+     - | 1 when ``bin_head == 0``
+       | 0 when ``bin_head == 1``
      - Not used (task remains binary).
-   * - ``word_part_speech``
-     - Language
-     - 1 verb vs. 0 non-verb.
-     - 6-way UPOS: 0 noun, 1 verb, 2 pronoun, 3 determiner, 4 adjective, 5 adverb.
+   * - | ``word_part_speech``
+       | (Verb vs. non-verb)
+     - | 1 verb
+       | 0 non-verb
+     - | 0 noun
+       | 1 verb
+       | 2 pronoun
+       | 3 determiner
+       | 4 adjective
+       | 5 adverb
+
+Visual tasks
+^^^^^^^^^^^^
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 41 41
+
+   * - Task
+     - Binary labels
+     - Multiclass labels
    * - ``frame_brightness``
-     - Visual
      - 0 low vs. 1 high average frame brightness.
      - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
    * - ``global_flow``
-     - Visual
      - 0 low vs. 1 high global optical flow.
      - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
    * - ``local_flow``
-     - Visual
      - 0 low vs. 1 high local optical flow.
      - 0 low (<25th percentile), 1 medium (37.5th-62.5th), 2 high (>=75th percentile).
    * - ``face_num``
-     - Visual
      - 0 no faces vs. 1 one or more faces.
      - 0 no faces, 1 exactly one face, 2 more than one face.
 
