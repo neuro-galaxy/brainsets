@@ -10,7 +10,7 @@ __all__ = _functions
 
 
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Literal, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -181,25 +181,22 @@ def download_file(
     path: str | Path,
     url: str,
     raw_dir: str | Path,
-    overwrite: bool = False,
-    skip_existing: bool = False,
+    download_policy: Literal["skip", "overwrite", "error"] = "error",
 ) -> Path:
     r"""Download a file from DANDI
 
     Full path of the downloaded path will be ``raw_dir / path``.
 
-    The three download modes are evaluated in priority order:
-    ``overwrite=True`` always re-downloads, ``skip_existing=True``
-    skips already-present files, and the default refreshes metadata.
+    Download policy controls behavior when a target file already exists.
+    ``"overwrite"`` always re-downloads, ``"skip"`` keeps existing files,
+    and ``"error"`` asks DANDI to raise.
 
     Args:
         path: path of the downloaded file within :obj:`raw_dir`
         url: URL of the DANDI asset
         raw_dir: root directory where the file will be downloaded
-        overwrite: Will overwrite existing file if :obj:`True`
-            (default :obj:`False`)
-        skip_existing: Skip download if the file already exists on disk
-            (default :obj:`False`). Ignored when ``overwrite`` is :obj:`True`.
+        download_policy: One of ``"skip"``, ``"overwrite"``, or ``"error"``
+            (default ``"error"``)
 
     """
     _check_dandi_available("download_file")
@@ -207,23 +204,31 @@ def download_file(
 
     raw_dir = Path(raw_dir)
     asset_path = Path(path)
+    target_path = raw_dir / asset_path
     download_dir = raw_dir / asset_path.parent
     download_dir.mkdir(exist_ok=True, parents=True)
-    existing_mode = (
-        dandi.download.DownloadExisting.OVERWRITE
-        if overwrite
-        else (
-            dandi.download.DownloadExisting.SKIP
-            if skip_existing
-            else dandi.download.DownloadExisting.REFRESH
-        )
-    )
+
+    if download_policy == "error" and target_path.exists():
+        raise FileExistsError(f"Target file already exists: {target_path}")
+
+    existing_mode_map = {
+        "overwrite": dandi.download.DownloadExisting.OVERWRITE,
+        "skip": dandi.download.DownloadExisting.SKIP,
+        # For "error", we pre-check file existence and then use REFRESH for download.
+        "error": dandi.download.DownloadExisting.REFRESH,
+    }
+    try:
+        existing_mode = existing_mode_map[download_policy]
+    except KeyError as exc:
+        raise ValueError(
+            "download_policy must be one of: 'skip', 'overwrite', 'error'"
+        ) from exc
     dandi.download.download(
         url,
         download_dir,
         existing=existing_mode,
     )
-    return raw_dir / asset_path
+    return target_path
 
 
 def get_nwb_asset_list(dandiset_id: str) -> list:

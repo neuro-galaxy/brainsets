@@ -7,6 +7,13 @@ from temporaldata import Interval
 from torch_brain.dataset import Dataset
 from torch_brain.dataset.mixins import MultiChannelDatasetMixin
 
+from ..ajile_behavior_labels import (
+    ACTIVE_BEHAVIOR_LABELS,
+    ACTIVE_BEHAVIOR_TO_ID,
+    ACTIVE_VS_INACTIVE_LABELS,
+    ACTIVE_VS_INACTIVE_TO_ID,
+    INACTIVE_BEHAVIORS,
+)
 from ._utils import get_processed_dir
 
 logger = logging.getLogger(__name__)
@@ -24,6 +31,12 @@ def _empty_interval() -> Interval:
 
 
 class PetersonBruntonPoseTrajectory2022(MultiChannelDatasetMixin, Dataset):
+    ACTIVE_BEHAVIOR_LABELS = ACTIVE_BEHAVIOR_LABELS
+    ACTIVE_BEHAVIOR_TO_ID = ACTIVE_BEHAVIOR_TO_ID
+    INACTIVE_BEHAVIORS = INACTIVE_BEHAVIORS
+    ACTIVE_VS_INACTIVE_LABELS = ACTIVE_VS_INACTIVE_LABELS
+    ACTIVE_VS_INACTIVE_TO_ID = ACTIVE_VS_INACTIVE_TO_ID
+
     """AJILE12: ECoG and upper body pose trajectories from 12 human subjects
     during naturalistic movements.
 
@@ -33,7 +46,7 @@ class PetersonBruntonPoseTrajectory2022(MultiChannelDatasetMixin, Dataset):
         ``brainsets prepare peterson_brunton_pose_trajectory_2022``.
 
     **Tasks:** Free behavior (naturalistic daily activities) with coarse behavior
-    labels (Eat, Talk, TV, Computer/phone, Other activity, Sleep/rest, Inactive)
+    labels (Eat, Talk, TV, Computer/Phone, Other Activity, Sleep/Rest, Inactive)
     and upper-body pose trajectories from 9 keypoints.
 
     **Brain Regions:** Subject-specific ECoG coverage (grids, strips, depths)
