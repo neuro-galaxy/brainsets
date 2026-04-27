@@ -157,8 +157,9 @@ class Pipeline(BrainsetPipeline):
             manifest_item.path,
             manifest_item.url,
             self.raw_dir,
-            overwrite=getattr(self.args, "redownload", False),
-            skip_existing=True,
+            download_policy=(
+                "overwrite" if getattr(self.args, "redownload", False) else "skip"
+            ),
         )
         return fpath
 
