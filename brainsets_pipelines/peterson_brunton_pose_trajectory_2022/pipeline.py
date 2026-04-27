@@ -24,7 +24,7 @@ from temporaldata import Data, Interval, RegularTimeSeries
 from tqdm.auto import tqdm
 
 from brainsets import serialize_fn_map
-from brainsets.datasets.PetersonBruntonPoseTrajectory2022 import (
+from brainsets.ajile_behavior_labels import (
     ACTIVE_BEHAVIOR_LABELS,
     ACTIVE_BEHAVIOR_TO_ID,
     INACTIVE_BEHAVIORS,
@@ -103,7 +103,7 @@ AJILE_NWB_KEYPOINT_NAMES = [
 ]
 
 TRIAL_CHUNK_DURATION_SEC = 30.0
-SPLIT_N_FOLDS = 3
+SPLIT_N_FOLDS = 2
 SPLIT_VAL_RATIO = 0.2
 SPLIT_SEED = 42
 

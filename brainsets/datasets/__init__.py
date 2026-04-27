@@ -47,6 +47,8 @@ from .PetersonBruntonPoseTrajectory2022 import (
     PetersonBruntonPoseTrajectory2022,
     PetersonBruntonSplitType,
     PetersonBruntonTaskType,
+)
+from ..ajile_behavior_labels import (
     ACTIVE_BEHAVIOR_LABELS as AJILE_ACTIVE_BEHAVIOR_LABELS,
     ACTIVE_BEHAVIOR_TO_ID as AJILE_ACTIVE_BEHAVIOR_TO_ID,
     INACTIVE_BEHAVIORS as AJILE_INACTIVE_BEHAVIORS,

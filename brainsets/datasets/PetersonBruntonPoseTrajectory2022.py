@@ -7,32 +7,16 @@ from temporaldata import Interval
 from torch_brain.dataset import Dataset
 from torch_brain.dataset.mixins import MultiChannelDatasetMixin
 
+from ..ajile_behavior_labels import (
+    ACTIVE_BEHAVIOR_LABELS,
+    ACTIVE_BEHAVIOR_TO_ID,
+    ACTIVE_VS_INACTIVE_LABELS,
+    ACTIVE_VS_INACTIVE_TO_ID,
+    INACTIVE_BEHAVIORS,
+)
 from ._utils import get_processed_dir
 
 logger = logging.getLogger(__name__)
-
-ACTIVE_BEHAVIOR_LABELS = [
-    "Eat",
-    "Talk",
-    "TV",
-    "Computer/Phone",
-    "Other Activity",
-]
-
-ACTIVE_BEHAVIOR_TO_ID = {label: i for i, label in enumerate(ACTIVE_BEHAVIOR_LABELS)}
-
-INACTIVE_BEHAVIORS = {"Sleep/Rest", "Inactive"}
-
-ACTIVE_VS_INACTIVE_LABELS = ["Active", "Inactive"]
-ACTIVE_VS_INACTIVE_TO_ID = {
-    label: i for i, label in enumerate(ACTIVE_VS_INACTIVE_LABELS)
-}
-
-LEGACY_BEHAVIOR_LABEL_ALIASES = {
-    "Computer/phone": "Computer/Phone",
-    "Other activity": "Other Activity",
-    "Sleep/rest": "Sleep/Rest",
-}
 
 PetersonBruntonSplitType = Literal["intersubject", "intersession", "intrasession"]
 PetersonBruntonTaskType = Literal["active_vs_inactive", "behavior", "pose_estimation"]

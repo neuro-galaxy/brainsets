@@ -45,7 +45,7 @@ dev = [
     "flake8",
     "pytest-cov",
     "scikit-learn>=1.6.1",
-    "torch_brain",
+    "torch-brain",
     "mne~=1.11.0",
     "boto3~=1.41.0",
     "mne-bids",
