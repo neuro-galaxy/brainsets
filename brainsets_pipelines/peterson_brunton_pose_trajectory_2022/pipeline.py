@@ -24,6 +24,13 @@ from temporaldata import Data, Interval, RegularTimeSeries
 from tqdm.auto import tqdm
 
 from brainsets import serialize_fn_map
+from brainsets.datasets.PetersonBruntonPoseTrajectory2022 import (
+    ACTIVE_BEHAVIOR_LABELS,
+    ACTIVE_BEHAVIOR_TO_ID,
+    INACTIVE_BEHAVIORS,
+    ACTIVE_VS_INACTIVE_TO_ID,
+    LEGACY_BEHAVIOR_LABEL_ALIASES,
+)
 from brainsets.descriptions import (
     BrainsetDescription,
     DeviceDescription,
@@ -57,18 +64,10 @@ parser.add_argument(
     help="ECoG resample rate in Hz",
 )
 
-# Priority order for simplifying multi-label active behaviors to a single label
-ACTIVE_BEHAVIOR_PRIORITY = ["Eat", "Talk", "TV", "Computer/phone", "Other activity"]
-ACTIVE_BEHAVIOR_TO_ID = {label: i for i, label in enumerate(ACTIVE_BEHAVIOR_PRIORITY)}
+ACTIVE_BEHAVIOR_PRIORITY = ACTIVE_BEHAVIOR_LABELS
 
-INACTIVE_BEHAVIORS = {"Sleep/rest", "Inactive"}
-
-ACTIVE_VS_INACTIVE_TO_ID = {"Active": 0, "Inactive": 1}
-
-# Some sessions contain very few "Other activity" trials (<2) so we can't use them for splitting.
-# We exclude them from the all_active_behavior task.
 BEHAVIOR_TASK_CONFIGS = {
-    "all_active_behavior": ["Eat", "Talk", "TV", "Computer/phone"],
+    "all_active_behavior": list(ACTIVE_BEHAVIOR_PRIORITY),
 }
 
 ACTIVE_VS_INACTIVE_TASK_CONFIGS = {
@@ -107,6 +106,11 @@ TRIAL_CHUNK_DURATION_SEC = 30.0
 SPLIT_N_FOLDS = 3
 SPLIT_VAL_RATIO = 0.2
 SPLIT_SEED = 42
+
+
+def _canonicalize_behavior_label(label: str) -> str:
+    normalized_label = label.strip()
+    return LEGACY_BEHAVIOR_LABEL_ALIASES.get(normalized_label, normalized_label)
 
 
 class Pipeline(BrainsetPipeline):
@@ -639,17 +643,16 @@ def ajile_extract_behavior_intervals_from_nwb(
     active_event_set = set(ACTIVE_BEHAVIOR_PRIORITY)
     inactive_event_set = INACTIVE_BEHAVIORS
 
+    parsed_behavior_labels = [
+        [_canonicalize_behavior_label(event) for event in label.split(", ")]
+        for label in coarse_behaviors_labels
+    ]
+
     active_event_mask = np.array(
-        [
-            all(event in active_event_set for event in label.split(", "))
-            for label in coarse_behaviors_labels
-        ]
+        [all(event in active_event_set for event in events) for events in parsed_behavior_labels]
     )
     inactive_event_mask = np.array(
-        [
-            all(event in inactive_event_set for event in label.split(", "))
-            for label in coarse_behaviors_labels
-        ]
+        [all(event in inactive_event_set for event in events) for events in parsed_behavior_labels]
     )
     active_or_inactive_mask = active_event_mask | inactive_event_mask
 
@@ -658,11 +661,10 @@ def ajile_extract_behavior_intervals_from_nwb(
     active_indices = np.where(active_event_mask)[0]
     active_starts = start_times[active_indices]
     active_ends = end_times[active_indices]
-    active_labels_raw = [coarse_behaviors_labels[i] for i in active_indices]
+    active_labels_raw = [parsed_behavior_labels[i] for i in active_indices]
 
     simplified_labels = []
-    for label in active_labels_raw:
-        behaviors = label.split(", ")
+    for behaviors in active_labels_raw:
         simplified = next(
             (b for b in ACTIVE_BEHAVIOR_PRIORITY if b in behaviors), behaviors[0]
         )
