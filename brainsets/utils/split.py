@@ -1,5 +1,6 @@
 _functions = [
     "generate_stratified_folds",
+    "generate_string_binary_assignment",
     "generate_string_kfold_assignment",
 ]
 
@@ -188,6 +189,45 @@ def generate_stratified_folds(
             folds.append(fold_data)
 
     return folds
+
+
+def generate_string_binary_assignment(
+    string_id: str,
+    val_ratio: float = 0.2,
+    seed: int = 42,
+) -> str:
+    """Deterministic binary train/valid assignment for a single string ID.
+
+    Uses MD5 hashing to map the string to a normalized value in ``[0, 1)``,
+    then assigns ``"valid"`` if below *val_ratio*, otherwise ``"train"``.
+
+    This is intended for behavior-agnostic splits where no folds or test set
+    are needed -- just a reproducible train/valid partition at the
+    subject or session level.
+
+    Args:
+        string_id: String identifier (e.g., "sub-01" or "sub-01_ses-01").
+        val_ratio: Probability of being assigned to validation. Default is 0.2.
+        seed: Random seed for reproducibility. Default is 42.
+
+    Returns:
+        Either ``"train"`` or ``"valid"``.
+
+    Examples:
+        >>> generate_string_binary_assignment("sub-01")
+        'train'
+        >>> generate_string_binary_assignment("sub-02", val_ratio=0.5)
+        'valid'
+    """
+    if not isinstance(string_id, str) or not string_id:
+        raise ValueError("string_id must be a non-empty string")
+    if not (0.0 <= val_ratio <= 1.0):
+        raise ValueError(f"val_ratio must be between 0 and 1, got {val_ratio}")
+
+    base_str = f"{string_id}_{seed}"
+    hash_int = int(hashlib.md5(base_str.encode("utf-8")).hexdigest(), 16)
+    normalized = (hash_int % 10000) / 10000.0
+    return "valid" if normalized < val_ratio else "train"
 
 
 def generate_string_kfold_assignment(
