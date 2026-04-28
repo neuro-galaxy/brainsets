@@ -33,6 +33,14 @@ class Task(StringIntEnum):
     # Sleep
     SLEEP = 13
 
+    # EEG tasks
+    RESTING_STATE = 14
+    SEQUENCE_LEARNING = 15
+    VISUAL_SEARCH = 16
+    SURROUND_SUPPRESSION = 17
+    CONTRAST_CHANGE_DETECTION = 18
+    NATURALISTIC_VIEWING = 19
+
 
 class Stimulus(StringIntEnum):
     """Stimuli can variously act like inputs (for conditioning) or like outputs."""
