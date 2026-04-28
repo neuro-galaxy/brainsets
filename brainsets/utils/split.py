@@ -134,6 +134,7 @@ def generate_stratified_folds(
     Raises:
         ValueError: If the intervals don't have the specified stratify_by attribute.
         ValueError: If there are fewer samples than n_folds.
+        ValueError: If there are less than 3 epochs per class for stratification.
     """
     try:
         from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
@@ -152,6 +153,15 @@ def generate_stratified_folds(
     if len(class_labels) < n_folds:
         raise ValueError(
             f"Not enough samples ({len(class_labels)}) for {n_folds} folds."
+        )
+    unique_labels, label_counts = np.unique(class_labels, return_counts=True)
+    # at least 3 epochs per class for train/valid/test splits
+    labels_with_too_few_epochs = unique_labels[label_counts < 3]
+    if len(labels_with_too_few_epochs) > 0:
+        labels_list = ", ".join(map(str, labels_with_too_few_epochs.tolist()))
+        raise ValueError(
+            f"Not enough epochs to create stratified train/valid/test splits for "
+            f"`{stratify_by}` classes. Classes with too few epochs: [{labels_list}]."
         )
 
     outer_splitter = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
