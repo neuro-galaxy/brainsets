@@ -5,45 +5,65 @@ from temporaldata import Data
 
 from torch_brain.dataset import Dataset
 
+from ._utils import get_processed_dir
+
+SplitCategory = Literal["behavior_agnostic", "behavior_relevant"]
+VALID_SPLIT_CATEGORIES = get_args(SplitCategory)
+
 FoldType = Literal["intrasession", "intersubject", "intersession"]
 VALID_FOLD_TYPES = get_args(FoldType)
+
+N_FOLDS = 3
 
 
 class CmiMIPDB2016(Dataset):
     """CMI Multimodal Resource for Studying Information Processing in the
     Developing Brain (MIPDB) — EEG recordings across multiple paradigms from
-    126 psychiatric and healthy participants aged 6–44 years.
+    126 psychiatric and healthy participants aged 6-44 years.
+
+    .. admonition:: Preprocessing
+
+        To download and prepare this dataset, run
+        ``brainsets prepare cmi_mipdb_2016``.
 
     Args:
-        root (str): Root directory for the dataset.
-        recording_ids (list[str], optional): List of recording IDs to load.
-        transform (Callable, optional): Data transformation to apply.
-        uniquify_channel_ids (bool, optional): Whether to prefix channel IDs
-            with session ID to ensure uniqueness. Defaults to True.
-        fold_number (int, optional): The cross-validation fold index
-            (0 to 2 for a 3-fold split). Defaults to 0.
-        fold_type (str, optional): The splitting strategy. Must be one of:
-            - \"intrasession\": Epoch-level split within each session.
-            - \"intersubject\": Subject-level split (subjects are assigned to
-              train/valid/test).
-            - \"intersession\": Session-level split (subject-session pairs are
-              assigned to train/valid/test).
-            Defaults to \"intrasession\".
-        dirname (str, optional): Subdirectory for the dataset.
-            Defaults to "cmi_mipdb_2016".
+        root: Root directory for the dataset.
+        recording_ids: List of recording IDs to load.
+        transform: Data transformation to apply.
+        uniquify_channel_ids: Whether to prefix channel IDs with session ID
+            to ensure uniqueness. Defaults to True.
+        split_category: Top-level split category. Must be one of:
+
+            - ``"behavior_agnostic"``: No folds, train/valid only. Always available for all recordings.
+            - ``"behavior_relevant"``: K-fold with train/valid/test. Only available for recordings that have paradigm annotations.
+
+            Defaults to ``"behavior_agnostic"``.
+        fold_type: The splitting strategy. Must be one of:
+
+            - ``"intrasession"``: Epoch-level split within each session.
+            - ``"intersubject"``: Subject-level split.
+            - ``"intersession"``: Session-level split.
+
+            Defaults to ``"intrasession"``.
+        fold_number: Cross-validation fold index (0 to 2). Only used when
+            *split_category* is ``"behavior_relevant"``. Defaults to 0.
+        dirname: Subdirectory for the dataset. Defaults to ``"cmi_mipdb_2016"``.
     """
 
     def __init__(
         self,
-        root: str,
+        root: Optional[str] = None,
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
         uniquify_channel_ids: bool = True,
-        fold_number: int = 0,
+        split_category: SplitCategory = "behavior_agnostic",
         fold_type: FoldType = "intrasession",
+        fold_number: int = 0,
         dirname: str = "cmi_mipdb_2016",
         **kwargs,
     ):
+        if root is None:
+            root = get_processed_dir()
         super().__init__(
             dataset_dir=Path(root) / dirname,
             recording_ids=recording_ids,
@@ -54,22 +74,31 @@ class CmiMIPDB2016(Dataset):
 
         self.uniquify_channel_ids = uniquify_channel_ids
 
-        if not (isinstance(fold_number, int) and not isinstance(fold_number, bool)):
+        if split_category not in VALID_SPLIT_CATEGORIES:
             raise ValueError(
-                f"fold_number must be an int, got {type(fold_number).__name__}: {fold_number!r}"
+                f"Invalid split_category '{split_category}'. "
+                f"Must be one of {VALID_SPLIT_CATEGORIES}."
             )
-        if not (0 <= fold_number < 3):
-            raise ValueError(
-                f"Fold number must be an integer between 0 and 2, got {fold_number}"
-            )
-
-        self.fold_number = fold_number
-        self.fold_type = fold_type
-
         if fold_type not in VALID_FOLD_TYPES:
             raise ValueError(
                 f"Invalid fold_type '{fold_type}'. Must be one of {VALID_FOLD_TYPES}."
             )
+
+        self.split_category = split_category
+        self.fold_type = fold_type
+
+        if split_category == "behavior_relevant":
+            if not (isinstance(fold_number, int) and not isinstance(fold_number, bool)):
+                raise ValueError(
+                    f"fold_number must be an int, got "
+                    f"{type(fold_number).__name__}: {fold_number!r}"
+                )
+            if not (0 <= fold_number < N_FOLDS):
+                raise ValueError(
+                    f"fold_number must be between 0 and {N_FOLDS - 1}, "
+                    f"got {fold_number}"
+                )
+        self.fold_number = fold_number
 
     def get_sampling_intervals(
         self,
@@ -78,30 +107,65 @@ class CmiMIPDB2016(Dataset):
         if split is None:
             return {rid: self.get_recording(rid).domain for rid in self.recording_ids}
 
-        if split not in ["train", "valid", "test"]:
-            raise ValueError(
-                f"Invalid split '{split}'. Must be one of ['train', 'valid', 'test']."
-            )
+        if self.split_category == "behavior_agnostic":
+            if split not in ("train", "valid"):
+                raise ValueError(
+                    f"Behavior-agnostic splits only support 'train' and 'valid', "
+                    f"got '{split}'."
+                )
+            return self._get_default_intervals(split)
+        else:
+            if split not in ("train", "valid", "test"):
+                raise ValueError(
+                    f"Invalid split '{split}'. "
+                    f"Must be one of ['train', 'valid', 'test']."
+                )
+            return self._get_behavior_intervals(split)
 
+    def _get_default_intervals(self, split: str) -> dict:
         if self.fold_type == "intrasession":
-            key = f"splits.fold_{self.fold_number}.{split}"
+            key = f"splits.behavior_agnostic.intrasession.{split}"
             return {
                 rid: self.get_recording(rid).get_nested_attribute(key)
                 for rid in self.recording_ids
             }
-        elif self.fold_type in ("intersubject", "intersession"):
-            key = f"splits.{self.fold_type}_fold_{self.fold_number}_assignment"
-            fallback_key = f"splits.fold_{self.fold_number}_assignment"
+
+        assignment_key = f"splits.behavior_agnostic.{self.fold_type}_assignment"
+        result = {}
+        for rid in self.recording_ids:
+            rec = self.get_recording(rid)
+            assignment = str(rec.get_nested_attribute(assignment_key))
+            if assignment == split:
+                result[rid] = rec.domain
+        return result
+
+    def _get_behavior_intervals(self, split: str) -> dict:
+        if self.fold_type == "intrasession":
+            key = (
+                f"splits.behavior_relevant.intrasession"
+                f".fold_{self.fold_number}.{split}"
+            )
             result = {}
             for rid in self.recording_ids:
                 rec = self.get_recording(rid)
-                try:
-                    assignment = str(rec.get_nested_attribute(key))
-                except (AttributeError, KeyError):
-                    assignment = str(rec.get_nested_attribute(fallback_key))
-                if assignment == split:
-                    result[rid] = rec.domain
+                if not hasattr(rec.splits, "behavior_relevant"):
+                    continue
+                result[rid] = rec.get_nested_attribute(key)
             return result
+
+        assignment_key = (
+            f"splits.behavior_relevant"
+            f".{self.fold_type}_fold_{self.fold_number}_assignment"
+        )
+        result = {}
+        for rid in self.recording_ids:
+            rec = self.get_recording(rid)
+            if not hasattr(rec.splits, "behavior_relevant"):
+                continue
+            assignment = str(rec.get_nested_attribute(assignment_key))
+            if assignment == split:
+                result[rid] = rec.domain
+        return result
 
     def get_recording_hook(self, data: Data):
         if self.uniquify_channel_ids:
