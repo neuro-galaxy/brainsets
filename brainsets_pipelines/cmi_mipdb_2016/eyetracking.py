@@ -41,6 +41,60 @@ def parse_comma_separated_numbers(s: str) -> list[int | float]:
     return result
 
 
+def _group_eeg_events_by_paradigm(
+    paradigm_intervals: Interval,
+    paradigm_events: Interval | None = None,
+) -> list[list[tuple[float, int]]]:
+    """Return per-paradigm EEG events as ``(onset_s, code)`` lists.
+
+    Prefers the normalized ``paradigm_events`` table. Falls back to legacy
+    ``paradigm_intervals.event_codes`` / ``event_onsets`` if needed.
+    """
+    grouped: list[list[tuple[float, int]]] = [
+        [] for _ in range(len(paradigm_intervals))
+    ]
+    if len(paradigm_intervals) == 0:
+        return grouped
+
+    if (
+        paradigm_events is not None
+        and len(paradigm_events) > 0
+        and hasattr(paradigm_events, "paradigm_idx")
+        and hasattr(paradigm_events, "code")
+    ):
+        for idx in range(len(paradigm_events)):
+            paradigm_idx = int(paradigm_events.paradigm_idx[idx])
+            if paradigm_idx < 0 or paradigm_idx >= len(grouped):
+                continue
+            grouped[paradigm_idx].append(
+                (
+                    float(paradigm_events.start[idx]),
+                    int(paradigm_events.code[idx]),
+                )
+            )
+        for events in grouped:
+            events.sort(key=lambda item: item[0])
+        return grouped
+
+    if hasattr(paradigm_intervals, "event_codes") and hasattr(
+        paradigm_intervals, "event_onsets"
+    ):
+        for paradigm_idx in range(len(paradigm_intervals)):
+            event_codes = parse_comma_separated_numbers(
+                paradigm_intervals.event_codes[paradigm_idx]
+            )
+            event_onsets = parse_comma_separated_numbers(
+                paradigm_intervals.event_onsets[paradigm_idx]
+            )
+            grouped[paradigm_idx] = [
+                (float(onset), int(code))
+                for onset, code in zip(event_onsets, event_codes)
+            ]
+        return grouped
+
+    return grouped
+
+
 def _parse_user_events_from_file(path: Path) -> list[tuple[int, str]]:
     """Read all UserEvent lines from an ET file (Events or Samples).
 
@@ -252,6 +306,7 @@ def _match_paradigms_for_code(
 
 def match_eeg_to_et(
     paradigm_intervals: Interval,
+    paradigm_events: Interval | None,
     et_index: list[dict],
 ) -> dict | None:
     """Match an EEG session to the best ET file using full paradigm event sequences.
@@ -270,8 +325,12 @@ def match_eeg_to_et(
 
     eeg_start_codes = [int(c) for c in paradigm_intervals.start_code]
 
+    eeg_events_by_paradigm = _group_eeg_events_by_paradigm(
+        paradigm_intervals, paradigm_events
+    )
     eeg_event_seqs = [
-        parse_comma_separated_numbers(ec) for ec in paradigm_intervals.event_codes
+        [code for _, code in paradigm_events]
+        for paradigm_events in eeg_events_by_paradigm
     ]
 
     best_entry = None
@@ -340,23 +399,19 @@ def _match_eeg_to_et_event_timestamps(
 def compute_et_to_eeg_time_transform(
     matched: dict,
     paradigm_intervals: Interval,
+    paradigm_events: Interval | None,
 ) -> tuple[float, float] | None:
     """Fit a linear ET-to-EEG timestamp transform from all matched paradigms.
     Finds the relationship between the ET and EEG timestamps for a given paradigm.
 
     Returns ``(slope, intercept)`` or ``None`` if no anchors are found.
     """
+    eeg_events_by_paradigm = _group_eeg_events_by_paradigm(
+        paradigm_intervals, paradigm_events
+    )
     all_anchors: list[tuple[float, int]] = []
     for paradigm_idx, seg in matched["segment_map"].items():
-        event_codes = parse_comma_separated_numbers(
-            paradigm_intervals.event_codes[paradigm_idx]
-        )
-        event_onsets = parse_comma_separated_numbers(
-            paradigm_intervals.event_onsets[paradigm_idx]
-        )
-        eeg_events = [
-            (float(onset), code) for onset, code in zip(event_onsets, event_codes)
-        ]
+        eeg_events = eeg_events_by_paradigm[paradigm_idx]
         et_events = seg.get("all_events", [])
         anchors = _match_eeg_to_et_event_timestamps(eeg_events, et_events)
         if not anchors:
@@ -597,6 +652,7 @@ def parse_events(
 def process_session(
     et_dir: Path,
     paradigm_intervals: Interval,
+    paradigm_events: Interval | None,
     eeg_start_s: float,
     eeg_end_s: float,
 ) -> Data | None:
@@ -609,11 +665,13 @@ def process_session(
     if not et_index:
         return None
 
-    matched = match_eeg_to_et(paradigm_intervals, et_index)
+    matched = match_eeg_to_et(paradigm_intervals, paradigm_events, et_index)
     if matched is None:
         return None
 
-    transform = compute_et_to_eeg_time_transform(matched, paradigm_intervals)
+    transform = compute_et_to_eeg_time_transform(
+        matched, paradigm_intervals, paradigm_events
+    )
     if transform is None:
         return None
     slope, intercept = transform

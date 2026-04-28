@@ -63,22 +63,23 @@ def _paradigm_segment_end(
     return float(annotations.end[-1]) if n > 0 else float(annotations.end[start_idx])
 
 
-def _extract_paradigm_events(
-    annotations: Interval, start_s: float, end_s: float
-) -> tuple[str, str]:
-    """Return annotations within ``[start_s, end_s]``.
-
-    Returns a tuple of two comma-separated strings: (codes, onsets).
-    """
+def _extract_segment_events(
+    annotations: Interval,
+    start_s: float,
+    end_s: float,
+) -> tuple[list[int], list[float], list[str]]:
+    """Return all numeric annotation events within ``[start_s, end_s]``."""
     mask = (annotations.start >= start_s) & (annotations.start <= end_s)
-    codes: list[str] = []
-    onsets: list[str] = []
+    codes: list[int] = []
+    onsets: list[float] = []
+    descriptions: list[str] = []
     for idx in np.where(mask)[0]:
         code = _annotation_code_at(annotations, idx)
         if code is not None:
-            codes.append(str(code))
-            onsets.append(str(float(annotations.start[idx])))
-    return ",".join(codes), ",".join(onsets)
+            codes.append(code)
+            onsets.append(float(annotations.start[idx]))
+            descriptions.append(str(annotations.description[idx]))
+    return codes, onsets, descriptions
 
 
 def get_paradigm_interval_for_code(
@@ -93,8 +94,7 @@ def get_paradigm_interval_for_code(
 
     Returns:
         Interval with one segment per occurrence of this paradigm (start, end,
-        description, code, event_codes, event_onsets). Empty Interval if the
-        paradigm does not appear.
+        description, code, task). Empty Interval if the paradigm does not appear.
     """
     if paradigm_code not in PARADIGM_MAP or len(annotations) == 0:
         return Interval(start=np.array([]), end=np.array([]))
@@ -123,18 +123,12 @@ def get_paradigm_interval_for_code(
             _paradigm_segment_end(i, paradigm_code, annotations, paradigm_start_indices)
         )
 
-    event_codes, event_onsets = zip(
-        *[_extract_paradigm_events(annotations, s, e) for s, e in zip(starts, ends)]
-    )
-
     return Interval(
         start=np.array(starts),
         end=np.array(ends),
         description=np.array([paradigm_name] * len(starts), dtype="U"),
         start_code=np.full(len(starts), paradigm_code, dtype=np.int64),
         task=np.array([task.name] * len(starts), dtype="U"),
-        event_codes=np.array(event_codes, dtype="U"),
-        event_onsets=np.array(event_onsets, dtype="U"),
     )
 
 
@@ -146,11 +140,8 @@ def get_all_paradigm_intervals(annotations: Interval) -> Interval:
 
     Returns:
         Interval with one segment per paradigm occurrence (start, end,
-        description, code, event_codes, event_onsets), in order of appearance.
-        ``event_codes`` and ``event_onsets`` are Unicode string arrays where
-        each element is a comma-separated list of annotation codes / onset
-        times within that paradigm (element-wise aligned).
-        Empty Interval if no paradigms.
+        description, code, task), in order of appearance. Empty Interval
+        if no paradigms.
     """
     if len(annotations) == 0 or annotations.description is None:
         return Interval(start=np.array([]), end=np.array([]))
@@ -178,16 +169,56 @@ def get_all_paradigm_intervals(annotations: Interval) -> Interval:
         codes.append(code)
         tasks.append(task.name)
 
-    event_codes, event_onsets = zip(
-        *[_extract_paradigm_events(annotations, s, e) for s, e in zip(starts, ends)]
-    )
-
     return Interval(
         start=np.array(starts),
         end=np.array(ends),
         description=np.array(names, dtype="U"),
         start_code=np.array(codes, dtype=np.int64),
         task=np.array(tasks, dtype="U"),
-        event_codes=np.array(event_codes, dtype="U"),
-        event_onsets=np.array(event_onsets, dtype="U"),
+    )
+
+
+def get_paradigm_events(
+    annotations: Interval,
+    paradigm_intervals: Interval,
+) -> Interval:
+    """Build a flat event table linked to paradigm rows via ``paradigm_idx``."""
+    if len(annotations) == 0 or len(paradigm_intervals) == 0:
+        return Interval(start=np.array([]), end=np.array([]))
+    if annotations.description is None:
+        return Interval(start=np.array([]), end=np.array([]))
+
+    event_starts: list[float] = []
+    event_ends: list[float] = []
+    event_codes: list[int] = []
+    event_descriptions: list[str] = []
+    paradigm_idxs: list[int] = []
+    event_idx_within_paradigm: list[int] = []
+
+    for paradigm_idx, (start_s, end_s) in enumerate(
+        zip(paradigm_intervals.start, paradigm_intervals.end)
+    ):
+        codes, onsets, descriptions = _extract_segment_events(
+            annotations, float(start_s), float(end_s)
+        )
+        for local_idx, (code, onset, description) in enumerate(
+            zip(codes, onsets, descriptions)
+        ):
+            event_starts.append(onset)
+            event_ends.append(onset)
+            event_codes.append(code)
+            event_descriptions.append(description)
+            paradigm_idxs.append(paradigm_idx)
+            event_idx_within_paradigm.append(local_idx)
+
+    if not event_starts:
+        return Interval(start=np.array([]), end=np.array([]))
+
+    return Interval(
+        start=np.array(event_starts, dtype=np.float64),
+        end=np.array(event_ends, dtype=np.float64),
+        code=np.array(event_codes, dtype=np.int64),
+        description=np.array(event_descriptions, dtype="U"),
+        paradigm_idx=np.array(paradigm_idxs, dtype=np.int64),
+        event_idx_within_paradigm=np.array(event_idx_within_paradigm, dtype=np.int64),
     )

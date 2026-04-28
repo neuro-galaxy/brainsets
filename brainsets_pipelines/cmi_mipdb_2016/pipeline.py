@@ -269,6 +269,7 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Extracting annotations")
         annotations = extract_annotations(raw)
         paradigm_intervals = paradigm.get_all_paradigm_intervals(annotations)
+        paradigm_events = paradigm.get_paradigm_events(annotations, paradigm_intervals)
 
         # --- Eyetracking  ---
         et_data = None
@@ -277,6 +278,7 @@ class Pipeline(BrainsetPipeline):
             et_data = eyetracking.process_session(
                 et_dir,
                 paradigm_intervals,
+                paradigm_events,
                 float(eeg_signal.domain.start[0]),
                 float(eeg_signal.domain.end[0]),
             )
@@ -308,6 +310,8 @@ class Pipeline(BrainsetPipeline):
             data_kwargs["annotations"] = annotations
         if len(paradigm_intervals) > 0:
             data_kwargs["paradigms"] = paradigm_intervals
+        if len(paradigm_events) > 0:
+            data_kwargs["paradigm_events"] = paradigm_events
         if et_data is not None:
             data_kwargs["eyetracking"] = et_data
 
