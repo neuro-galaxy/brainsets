@@ -73,6 +73,6 @@ jobs:
 
     - name: Download cmi_mipdb_2016
       run: |
-        uv run brainsets config --raw-dir data/raw --processed-dir data/processed
+        uv run brainsets config set --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare cmi_mipdb_2016 -s A00063558004
 
