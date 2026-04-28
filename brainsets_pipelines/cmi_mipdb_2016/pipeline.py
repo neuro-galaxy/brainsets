@@ -27,7 +27,11 @@ from brainsets import serialize_fn_map
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.taxonomy import RecordingTech
 from brainsets.utils.s3_utils import get_cached_s3_client, get_object_list
-from brainsets.utils.split import generate_folds, generate_string_kfold_assignment
+from brainsets.utils.split import (
+    generate_stratified_folds,
+    generate_string_binary_assignment,
+    generate_string_kfold_assignment,
+)
 from brainsets.utils.mne_utils import (
     extract_measurement_date,
     extract_signal,
@@ -54,6 +58,7 @@ SUBJECTS_METADATA_URL = (
 CHANNEL_LOCATION_URL = (
     "https://fcon_1000.projects.nitrc.org/indi/cmi_eeg/_static/GSN_HydroCel_129.sfp"
 )
+EPOCH_DURATION = 30.0  # seconds
 SPLIT_N_FOLDS = 3
 SPLIT_VAL_RATIO = 0.2
 SEED = 42
@@ -283,7 +288,6 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Creating splits")
         splits = create_splits(
             eeg_domain=eeg_signal.domain,
-            annotations=annotations,
             subject_id=subject_description.id,
             session_id=session_description.id,
             paradigm_intervals=paradigm_intervals,
@@ -418,75 +422,133 @@ def extract_channel_locations(sfp_path: Path, channels: ArrayDict) -> np.ndarray
 
 def create_splits(
     eeg_domain: Interval,
-    annotations: Interval,
     subject_id: str,
     session_id: str,
     paradigm_intervals: Interval | None = None,
-    epoch_duration: float = 30.0,
+    epoch_duration: float = EPOCH_DURATION,
 ) -> Data:
-    """Generate train/valid/test splits for one recording.
+    """Generate behavior-agnostic and behavior-relevant splits for one recording.
 
-    Generates three types of splits:
-    - Intrasession (epoch-level): k-fold within each session
-    - Intersubject (session-level): subject assigned to train/valid/test per fold
-    - Intersession (session-level): subject-session assigned per fold
+    Behavior-agnostic splits (no folds, train/valid only):
+        - Intrasession: causal train/valid split on full domain.
+        - Intersubject: deterministic subject-level train/valid assignment.
+        - Intersession: deterministic session-level train/valid assignment.
+
+    Behavior-relevant splits (only when paradigm annotations exist, with folds,
+    train/valid/test):
+        - Intrasession: stratified k-fold by task with train/valid/test.
+        - Intersubject: per-fold subject-level train/valid/test assignment.
+        - Intersession: per-fold session-level train/valid/test assignment.
 
     Args:
         eeg_domain: Full time domain of the EEG recording.
-        annotations: Raw annotations extracted from the recording.
         subject_id: Subject identifier for cross-subject splits.
         session_id: Session identifier for cross-session splits.
-        paradigm_intervals: Optional extracted paradigm intervals.
+        paradigm_intervals: Optional paradigm intervals with a ``task`` attribute.
         epoch_duration: Duration of each epoch in seconds.
+
+    Returns:
+        Data object with nested ``behavior_agnostic`` and optionally
+        ``behavior_relevant`` sub-objects.
     """
-    if paradigm_intervals is not None and len(paradigm_intervals) > 0:
-        crop_start = paradigm_intervals.start[0]
-    elif len(annotations) > 0:
-        crop_start = annotations.start[0]
-    else:
-        crop_start = eeg_domain.start[0]
+    # ---- Behavior-agnostic splits (always present) ----
+    all_epochs = eeg_domain.subdivide(step=epoch_duration, drop_short=True)
+    logging.info(f"Behavior-agnostic: {len(all_epochs)} epochs of {epoch_duration}s")
 
-    cropped_domain = Interval(
-        start=np.array([crop_start]),
-        end=eeg_domain.end.copy(),
-    )
-
-    epochs = cropped_domain.subdivide(step=epoch_duration, drop_short=True)
-    logging.info(f"Subdivided domain into {len(epochs)} epochs of {epoch_duration}s")
-
-    if len(epochs) < SPLIT_N_FOLDS:
+    if len(all_epochs) < 2:  # train/valid splits only
         raise ValueError(
-            f"Not enough epochs ({len(epochs)}) for {SPLIT_N_FOLDS} folds. "
-            f"Domain duration: {cropped_domain.end[0] - cropped_domain.start[0]:.1f}s"
+            f"Not enough epochs ({len(all_epochs)}) for behavior-agnostic "
+            f"intrasession split. Need at least 2."
         )
 
-    folds = generate_folds(
-        epochs,
-        n_folds=SPLIT_N_FOLDS,
+    # Causal intrasession:
+    n_train = max(1, int(len(all_epochs) * (1 - SPLIT_VAL_RATIO)))
+    train_mask = np.zeros(len(all_epochs), dtype=bool)
+    train_mask[:n_train] = True
+    valid_mask = ~train_mask
+
+    agnostic_intrasession = Data(
+        train=all_epochs.select_by_mask(train_mask),
+        valid=all_epochs.select_by_mask(valid_mask),
+        domain=all_epochs,
+    )
+
+    intersubject_assignment = generate_string_binary_assignment(
+        subject_id,
         val_ratio=SPLIT_VAL_RATIO,
         seed=SEED,
     )
-    logging.info(f"Generated {SPLIT_N_FOLDS} folds")
-
-    folds_dict = {f"fold_{i}": fold for i, fold in enumerate(folds)}
-    splits = Data(**folds_dict, domain=epochs)
-
-    subject_assignments = generate_string_kfold_assignment(
-        string_id=subject_id,
-        n_folds=SPLIT_N_FOLDS,
-        val_ratio=SPLIT_VAL_RATIO,
-        seed=SEED,
-    )
-    session_assignments = generate_string_kfold_assignment(
-        string_id=f"{subject_id}_{session_id}",
-        n_folds=SPLIT_N_FOLDS,
+    intersession_assignment = generate_string_binary_assignment(
+        f"{subject_id}_{session_id}",
         val_ratio=SPLIT_VAL_RATIO,
         seed=SEED,
     )
 
-    for fold_idx, assignment in enumerate(subject_assignments):
-        setattr(splits, f"intersubject_fold_{fold_idx}_assignment", assignment)
-    for fold_idx, assignment in enumerate(session_assignments):
-        setattr(splits, f"intersession_fold_{fold_idx}_assignment", assignment)
+    behavior_agnostic = Data(
+        intrasession=agnostic_intrasession,
+        intersubject_assignment=intersubject_assignment,
+        intersession_assignment=intersession_assignment,
+        domain=all_epochs,
+    )
 
-    return splits
+    splits_kwargs = {"behavior_agnostic": behavior_agnostic}
+
+    # ---- Behavior-relevant splits (only when paradigms exist) ----
+    if paradigm_intervals is not None and len(paradigm_intervals) > 0:
+        paradigm_epochs = paradigm_intervals.subdivide(
+            step=epoch_duration,
+            drop_short=True,
+        )
+        logging.info(
+            f"Behavior-relevant: {len(paradigm_epochs)} paradigm epochs "
+            f"of {epoch_duration}s"
+        )
+
+        if len(paradigm_epochs) < SPLIT_N_FOLDS:
+            logging.warning(
+                f"Not enough paradigm epochs ({len(paradigm_epochs)}) for "
+                f"{SPLIT_N_FOLDS} folds. Skipping behavior-relevant splits."
+            )
+        else:
+            stratified_folds = generate_stratified_folds(
+                paradigm_epochs,
+                stratify_by="task",
+                n_folds=SPLIT_N_FOLDS,
+                val_ratio=SPLIT_VAL_RATIO,
+                seed=SEED,
+            )
+
+            intrasession_kwargs = {"domain": paradigm_epochs}
+            for i, fold in enumerate(stratified_folds):
+                intrasession_kwargs[f"fold_{i}"] = fold
+
+            behavior_relevant_kwargs: dict = {
+                "intrasession": Data(**intrasession_kwargs),
+                "domain": paradigm_epochs,
+            }
+
+            subject_assignments = generate_string_kfold_assignment(
+                string_id=subject_id,
+                n_folds=SPLIT_N_FOLDS,
+                val_ratio=SPLIT_VAL_RATIO,
+                seed=SEED,
+            )
+            session_assignments = generate_string_kfold_assignment(
+                string_id=f"{subject_id}_{session_id}",
+                n_folds=SPLIT_N_FOLDS,
+                val_ratio=SPLIT_VAL_RATIO,
+                seed=SEED,
+            )
+
+            for fold_idx, assignment in enumerate(subject_assignments):
+                behavior_relevant_kwargs[f"intersubject_fold_{fold_idx}_assignment"] = (
+                    assignment
+                )
+            for fold_idx, assignment in enumerate(session_assignments):
+                behavior_relevant_kwargs[f"intersession_fold_{fold_idx}_assignment"] = (
+                    assignment
+                )
+
+            splits_kwargs["behavior_relevant"] = Data(**behavior_relevant_kwargs)
+
+    return Data(**splits_kwargs, domain=eeg_domain)
