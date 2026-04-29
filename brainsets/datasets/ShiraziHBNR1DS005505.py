@@ -4,6 +4,27 @@ from brainsets.datasets.OpenNeuroBase import OpenNeuroDataset, OpenNeuroSplitTyp
 
 
 class ShiraziHBNR1DS005505(OpenNeuroDataset):
+    """
+    Shirazi HBN Resting State 1 (HBN-R1) iEEG Dataset (OpenNeuro DS005505).
+
+    .. admonition:: Preprocessing
+
+        To download and prepare this dataset, run
+        ``brainsets prepare shirazi_hbn_r1_ds005505``.
+
+    Each instance exposes a split of the dataset, or an explicit subset of recordings if `recording_ids` is provided.
+
+    Args:
+        root (str): Root directory containing processed HBN-R1 artifacts.
+        split_type (OpenNeuroSplitType): The split type describing train/val/test regime.
+        recording_ids (list[str], optional): List of explicit recording IDs to load. If omitted, the dataset uses split-based recording selection.
+        transform (Callable, optional): Optional transform to apply to samples.
+        **kwargs: Additional keyword arguments forwarded to the base OpenNeuroDataset.
+
+    **References**
+
+    Shirazi, S. Y., et al. (Year). "Dataset title." Repository: https://openneuro.org/datasets/ds005505
+    """
     def __init__(
         self,
         root: str,

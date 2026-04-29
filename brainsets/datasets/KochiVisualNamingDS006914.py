@@ -4,6 +4,28 @@ from brainsets.datasets.OpenNeuroBase import OpenNeuroDataset, OpenNeuroSplitTyp
 
 
 class KochiVisualNamingDS006914(OpenNeuroDataset):
+    """
+    Kochi Visual Naming iEEG Dataset (OpenNeuro DS006914).
+
+    .. admonition:: Preprocessing
+
+        To download and prepare this dataset, run
+        ``brainsets prepare kochi_visualnaming_ds006914``.
+
+    Each instance exposes a split of the dataset, or an explicit subset of recordings if `recording_ids` is provided.
+
+    Args:
+        root (str): Root directory containing processed Visual Naming artifacts.
+        split_type (OpenNeuroSplitType): The split type describing train/val/test regime.
+        recording_ids (list[str], optional): List of explicit recording IDs to load. If omitted, the dataset uses split-based recording selection.
+        transform (Callable, optional): Optional transform to apply to samples.
+        **kwargs: Additional keyword arguments forwarded to the base OpenNeuroDataset.
+
+    **References**
+
+    Kochi, J., et al. (Year). "Visual Naming iEEG Dataset." Repository: https://openneuro.org/datasets/ds006914
+    """
+
     def __init__(
         self,
         root: str,
