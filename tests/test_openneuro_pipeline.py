@@ -398,8 +398,17 @@ class TestGetManifestPolicyValidation:
     @patch("brainsets.utils.openneuro.pipeline.fetch_species")
     @patch("brainsets.utils.openneuro.pipeline.fetch_participants_tsv")
     def test_get_manifest_continues_on_continue_non_interactive(
-        self, mock_part, mock_species, mock_latest_tag, mock_ver, mock_id,
-        mock_fetch_eeg, mock_fetch_files, mock_isatty, eeg_pipeline_class, temp_dir
+        self,
+        mock_part,
+        mock_species,
+        mock_latest_tag,
+        mock_ver,
+        mock_id,
+        mock_fetch_eeg,
+        mock_fetch_files,
+        mock_isatty,
+        eeg_pipeline_class,
+        temp_dir,
     ):
         """get_manifest succeeds when on_version_mismatch='continue' in non-interactive mode."""
         from argparse import Namespace
@@ -427,8 +436,17 @@ class TestGetManifestPolicyValidation:
     @patch("brainsets.utils.openneuro.pipeline.fetch_species")
     @patch("brainsets.utils.openneuro.pipeline.fetch_participants_tsv")
     def test_get_manifest_continues_on_abort_non_interactive(
-        self, mock_part, mock_species, mock_latest_tag, mock_ver, mock_id,
-        mock_fetch_eeg, mock_fetch_files, mock_isatty, eeg_pipeline_class, temp_dir
+        self,
+        mock_part,
+        mock_species,
+        mock_latest_tag,
+        mock_ver,
+        mock_id,
+        mock_fetch_eeg,
+        mock_fetch_files,
+        mock_isatty,
+        eeg_pipeline_class,
+        temp_dir,
     ):
         """get_manifest succeeds when on_version_mismatch='abort' in non-interactive mode."""
         from argparse import Namespace
@@ -533,7 +551,9 @@ class TestGetManifest:
         mock_participants_tsv.return_value = None
         mock_subject_info.return_value = {"age": 25, "sex": "M"}
 
-        args = Namespace(on_version_mismatch="continue", redownload=False, reprocess=False)
+        args = Namespace(
+            on_version_mismatch="continue", redownload=False, reprocess=False
+        )
         result = eeg_pipeline_class.get_manifest(temp_dir, args)
 
         assert isinstance(result, pd.DataFrame)
@@ -611,7 +631,9 @@ class TestGetManifest:
         mock_participants_tsv.return_value = None
         mock_subject_info.return_value = {"age": 25, "sex": "M"}
 
-        args = Namespace(on_version_mismatch="continue", redownload=False, reprocess=False)
+        args = Namespace(
+            on_version_mismatch="continue", redownload=False, reprocess=False
+        )
         result = ieeg_pipeline_class.get_manifest(temp_dir, args)
 
         assert isinstance(result, pd.DataFrame)
@@ -667,7 +689,9 @@ class TestGetManifest:
             },
         ]
 
-        args = Namespace(on_version_mismatch="continue", redownload=False, reprocess=False)
+        args = Namespace(
+            on_version_mismatch="continue", redownload=False, reprocess=False
+        )
         result = CustomContextPipeline.get_manifest(temp_dir, args)
 
         assert len(result) == 2
@@ -690,7 +714,9 @@ class TestGetManifest:
 
         mock_fetch_files.return_value = []
 
-        args = Namespace(on_version_mismatch="continue", redownload=False, reprocess=False)
+        args = Namespace(
+            on_version_mismatch="continue", redownload=False, reprocess=False
+        )
         with pytest.raises(ValueError, match="Unknown modality"):
             BadPipeline.get_manifest(temp_dir, args)
 
@@ -709,7 +735,9 @@ class TestGetManifest:
         mock_fetch_files.return_value = []
         mock_fetch_eeg.return_value = []
 
-        args = Namespace(on_version_mismatch="continue", redownload=False, reprocess=False)
+        args = Namespace(
+            on_version_mismatch="continue", redownload=False, reprocess=False
+        )
         with pytest.raises(ValueError, match="No EEG recordings found"):
             eeg_pipeline_class.get_manifest(temp_dir, args)
 
@@ -736,7 +764,9 @@ class TestGetManifest:
         mock_fetch_files.return_value = ["sub-01/eeg/rec-001.edf"]
         mock_fetch_eeg.return_value = []
 
-        args = Namespace(on_version_mismatch="continue", redownload=False, reprocess=False)
+        args = Namespace(
+            on_version_mismatch="continue", redownload=False, reprocess=False
+        )
         with pytest.raises(ValueError, match="No EEG recordings found"):
             EmptyRecordingsPipeline.get_manifest(temp_dir, args)
 
