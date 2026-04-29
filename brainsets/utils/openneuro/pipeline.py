@@ -90,32 +90,38 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     """Abstract base class for OpenNeuro dataset pipelines.
 
     This class provides foundational tools and conventions for preprocessing and handling
-    OpenNeuro datasets within the Brainsets framework. It is designed to be subclassed for
-    specific datasets and supports both EEG and iEEG modalities.
+    `OpenNeuro <https://openneuro.org/>`_ datasets within the Brainsets framework. 
+    It is designed to be subclassed for specific datasets and supports both EEG and iEEG modalities.
+    
+    **Attributes (to be defined by subclasses):**
+        - :attr:`dataset_id`: Identifier for the OpenNeuro dataset (e.g., "ds005555").
+        - :attr:`brainset_id`: Unique local identifier for the brainset.
+        - :attr:`origin_version`: Version string corresponding to the raw source dataset.
+        - :attr:`derived_version`: Version or tag indicating the processing version of the derived data.
+        - :attr:`ci_smoke_session`: Session ID to use for PR smoke tests. 
+          Must be a valid session identifier from the dataset's manifest.
+        - :attr:`description`: Optional textual description of the dataset.
+        - :attr:`modality`: Data modality for this pipeline. Must be overridden by subclasses.
 
-    Attributes (to be defined by subclasses):
-        dataset_id (str): Identifier for the OpenNeuro dataset (e.g., "ds005555").
-        brainset_id (str): Unique local identifier for the brainset.
-        origin_version (str): Version string corresponding to the raw source dataset.
-        derived_version (str): Version or tag indicating the processing version of the derived data.
-        ci_smoke_session (str): Session ID to use for PR smoke tests. Must be a valid session identifier from the dataset's manifest.
-        description (str, optional): Optional textual description of the dataset.
-
-    Subclass requirements:
-        - Define the `modality` property (should return "eeg" or "ieeg").
-
-    Customization points:
+    **Customization points:**
         This class supports and encourages dataset-specific customizations via:
-            - CHANNEL_NAME_REMAPPING: Map original to standardized channel names.
-            - TYPE_CHANNELS_REMAPPING: Map channel types to specific channel names.
-            - IGNORE_CHANNELS: List channels to exclude from processing.
+            - :attr:`CHANNEL_NAME_REMAPPING`: Map original to standardized channel names.
+            - :attr:`TYPE_CHANNELS_REMAPPING`: Map channel types to specific channel names.
+            - :attr:`IGNORE_CHANNELS`: List channels to exclude from processing.
 
-        These can be set as class attributes or managed dynamically by overriding:
-            - get_channel_name_remapping()
-            - get_type_channels_remapping()
-
-    See the documentation for more detail about each customization point and their usage
-    in the OpenNeuro processing workflow.
+        These can be set as class attributes or managed dynamically by overriding the following methods:
+            - :meth:`get_channel_name_remapping()`
+            - :meth:`get_type_channels_remapping()`
+        
+        The :meth:`process_common` method implements the standard steps and routines shared
+        by all OpenNeuro datasets. This provides a consistent entry point for dataset 
+        processing. Subclasses may extend or override the :meth:`process` method to adapt the behavior 
+        for their specific dataset requirements.
+   
+        Subclasses can override :meth:`process` to implement dataset-specific processing logic.
+        Subclasses may also customize split generation for evaluation/train/test organization
+        by overriding the :meth:`generate_splits` method. This allows selection of splits based
+        on session, subject, or custom criteria.
     """
 
     parser = _openneuro_parser
@@ -128,10 +134,10 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     """Unique identifier for the brainset."""
 
     origin_version: str
-    """Version of the original data."""
+    """Version of the original data. Must be specified by the author of each pipeline."""
 
     derived_version: str
-    """Version of the processed data."""
+    """Version of the processed data. Must be specified by the author of each pipeline."""
 
     description: Optional[str] = None
     """Optional description of the dataset."""
@@ -163,7 +169,8 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     IGNORE_CHANNELS: Optional[list[str]] = None
     """Optional list of channel names to ignore.
 
-    Channel names should be specified as they appear in the original namespace of the raw object (i.e., prior to any remapping or type changes).
+    Channel names should be specified as they appear in the original namespace of 
+    the raw object (i.e., prior to any remapping or type changes).
     """
 
     split_ratios: tuple[float, float] = (0.9, 0.1)
@@ -188,24 +195,17 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             ValueError: If the dataset ID format is invalid, does not match strict format,
                 or the numeric part is outside the valid range.
         """
-        if not isinstance(dataset_id, str) or len(dataset_id) != 8:
-            raise ValueError(
+        if (
+             not isinstance(dataset_id, str)
+             or len(dataset_id) != 8
+             or not dataset_id.startswith("ds")
+             or not dataset_id[2:].isdigit()
+        ):            raise ValueError(
                 f"Invalid dataset ID format: '{dataset_id}'. Expected 'ds' followed by exactly 6 digits."
             )
 
-        if not dataset_id.startswith("ds"):
-            raise ValueError(
-                f"Invalid dataset ID format: '{dataset_id}'. Expected 'ds' followed by exactly 6 digits."
-            )
-
-        numeric_part = dataset_id[2:]
-        if not numeric_part.isdigit():
-            raise ValueError(
-                f"Invalid dataset ID format: '{dataset_id}'. Expected 'ds' followed by exactly 6 digits."
-            )
-
-        num = int(numeric_part)
-        if num < 1 or num > 9999:
+        numeric_part = int(dataset_id[2:])
+        if numeric_part < 1 or numeric_part > 9999:
             raise ValueError(
                 f"Dataset ID '{dataset_id}' has invalid numeric portion. Must be between 000001 and 009999."
             )
@@ -326,7 +326,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
                 - s3_url: S3 URL for downloading
         """
         # Determine the 'on_version_mismatch' policy from args if available, else default to 'prompt'
-        on_version_mismatch = getattr(args, "on_version_mismatch", "prompt") if args else "prompt"
+        on_version_mismatch = args.on_version_mismatch
         cls._validate_on_mismatch_policy(on_version_mismatch)
         
         # Validate that dataset ID has the correct format
@@ -435,7 +435,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         return manifest_item
 
-    def _process_common(self, download_output: dict) -> Optional[tuple[Data, Path]]:
+    def process_common(self, download_output: dict) -> Optional[tuple[Data, Path]]:
         """Process data files and create a Data object.
 
         This method handles common OpenNeuro processing tasks:
@@ -551,7 +551,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         Args:
             download_output: Dictionary returned by download()
         """
-        result = self._process_common(download_output)
+        result = self.process_common(download_output)
 
         if result is None:
             return
