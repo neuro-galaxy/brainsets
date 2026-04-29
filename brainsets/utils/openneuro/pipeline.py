@@ -61,10 +61,10 @@ from brainsets.utils.openneuro import (
     fetch_latest_snapshot_tag,
 )
 
-_openneuro_parser = ArgumentParser()
-_openneuro_parser.add_argument("--redownload", action="store_true")
-_openneuro_parser.add_argument("--reprocess", action="store_true")
-_openneuro_parser.add_argument(
+base_openneuro_parser = ArgumentParser()
+base_openneuro_parser.add_argument("--redownload", action="store_true")
+base_openneuro_parser.add_argument("--reprocess", action="store_true")
+base_openneuro_parser.add_argument(
     "--on-version-mismatch",
     choices=["abort", "continue", "prompt"],
     default="prompt",
@@ -124,7 +124,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         on session, subject, or custom criteria.
     """
 
-    parser = _openneuro_parser
+    parser = base_openneuro_parser
     """Argument parser for common OpenNeuro pipeline flags."""
 
     dataset_id: str

@@ -16,7 +16,7 @@ from .openneuro_s3 import (
     fetch_participants_tsv,
     fetch_species,
 )
-from .pipeline import OpenNeuroPipeline, OpenNeuroDataModality
+from .pipeline import OpenNeuroPipeline, OpenNeuroDataModality, base_openneuro_parser
 
 __all__ = [
     "OPENNEURO_S3_BUCKET",
@@ -29,4 +29,5 @@ __all__ = [
     "fetch_species",
     "OpenNeuroPipeline",
     "OpenNeuroDataModality",
+    "base_openneuro_parser",
 ]
