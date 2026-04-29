@@ -75,6 +75,7 @@ _openneuro_parser.add_argument(
     ),
 )
 
+OpenNeuroDataModality = Literal["eeg", "ieeg"]
 
 def _require_mne_bids(func_name: str) -> None:
     """Raise ImportError if mne-bids is not available."""
@@ -83,15 +84,6 @@ def _require_mne_bids(func_name: str) -> None:
             f"{func_name} requires mne-bids, which is not installed. "
             "Install it with `pip install mne-bids`."
         )
-
-
-class OpenNeuroContext(TypedDict):
-    """Typed structure for shared OpenNeuro metadata cached per dataset."""
-
-    dataset_id: str
-    latest_snapshot_tag: str
-    species: str
-    participants_data: Optional[pd.DataFrame]
 
 
 class OpenNeuroPipeline(BrainsetPipeline, ABC):
@@ -151,7 +143,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     This ensures deterministic and fast PR validation for new/modified pipelines.
     """
 
-    modality: str
+    modality: OpenNeuroDataModality
     """Data modality for this pipeline. Must be overridden by subclasses."""
 
     CHANNEL_NAME_REMAPPING: Optional[dict[str, str]] = None
@@ -179,9 +171,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
     random_seed: int = 42
     """Random seed for generating splits."""
-
-    _cached_openneuro_context: dict[str, OpenNeuroContext] = {}
-    """Class-level cache of shared OpenNeuro context, keyed by dataset_id."""
 
     @staticmethod
     def validate_dataset_id(dataset_id: str) -> None:
@@ -320,41 +309,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         return "unknown"
 
     @classmethod
-    def _openneuro_context(
-        cls,
-        on_version_mismatch: str = "prompt",
-    ) -> OpenNeuroContext:
-        """Return cached OpenNeuro metadata for this pipeline class.
-
-        Metadata is cached per dataset_id (within current process):
-        - latest_snapshot_tag
-        - species
-        - participants_data
-
-        Returns:
-            OpenNeuro context with latest snapshot tag, normalized species, and
-            participants table.
-        """
-        cls.validate_dataset_id(cls.dataset_id)
-        if cls.dataset_id in cls._cached_openneuro_context:
-            return cls._cached_openneuro_context[cls.dataset_id]
-
-        latest_snapshot_tag = fetch_latest_snapshot_tag(cls.dataset_id)
-        cls._validate_dataset_version(
-            latest_snapshot_tag, on_mismatch=on_version_mismatch
-        )
-
-        species = fetch_species(cls.dataset_id)
-
-        ctx: OpenNeuroContext = {
-            "latest_snapshot_tag": latest_snapshot_tag,
-            "species": cls._normalize_species(species),
-            "participants_data": fetch_participants_tsv(cls.dataset_id),
-        }
-        cls._cached_openneuro_context[cls.dataset_id] = ctx
-        return ctx
-
-    @classmethod
     def get_manifest(cls, raw_dir: Path, args: Optional[Namespace]) -> pd.DataFrame:
         """Generate a manifest DataFrame by discovering recordings from OpenNeuro.
 
@@ -372,16 +326,24 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
                 - s3_url: S3 URL for downloading
         """
         # Determine the 'on_version_mismatch' policy from args if available, else default to 'prompt'
-        on_version_mismatch = (
-            getattr(args, "on_version_mismatch", "prompt")
-            if args is not None
-            else "prompt"
-        )
-        # Validate that the chosen 'on_version_mismatch' policy is allowed in this execution context
+        on_version_mismatch = getattr(args, "on_version_mismatch", "prompt") if args else "prompt"
         cls._validate_on_mismatch_policy(on_version_mismatch)
+        
+        # Validate that dataset ID has the correct format
+        cls.validate_dataset_id(cls.dataset_id)
+        
+        # Fetch the latest snapshot tag available on OpenNeuro for the dataset
+        latest_snapshot_tag = fetch_latest_snapshot_tag(cls.dataset_id)
+        cls._validate_dataset_version(
+            latest_snapshot_tag, on_mismatch=on_version_mismatch
+        )
 
-        # Initialize/Caches OpenNeuro metadata for this dataset (e.g., species, latest snapshot)
-        cls._openneuro_context(on_version_mismatch=on_version_mismatch)
+        # Fetch the species of the participants in the dataset
+        species = fetch_species(cls.dataset_id)
+        species = cls._normalize_species(species)
+        
+        # Fetch the participants.tsv file from the dataset
+        participants_data = fetch_participants_tsv(cls.dataset_id)
 
         # Fetch all filenames in the dataset from OpenNeuro S3
         all_files = fetch_all_filenames(cls.dataset_id)
@@ -396,17 +358,29 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         manifest_list = []
         for rec in recordings:
+            subject_id = rec["subject_id"]
+            recording_id = rec["recording_id"]
+            fpath = rec["fpath"]
+            
+            # Construct the S3 URL for the recording
             s3_url = construct_s3_url_from_path(
                 cls.dataset_id,
-                rec["fpath"],
-                rec["recording_id"],
+                fpath,
+                recording_id,
             )
-
+            
+            # Fetch the subject information from the participants.tsv file
+            subject_info = get_subject_info(subject_id, participants_data)
+            
             manifest_list.append(
                 {
-                    "subject_id": rec["subject_id"],
-                    "recording_id": rec["recording_id"],
+                    "subject_id": subject_id,
+                    "recording_id": recording_id,
                     "s3_url": s3_url,
+                    "latest_snapshot_tag":latest_snapshot_tag,
+                    "age":subject_info.get("age"),
+                    "sex":subject_info.get("sex"),
+                    "species":species,
                 }
             )
 
@@ -446,17 +420,11 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             if self.modality == "eeg":
                 if check_eeg_recording_files_exist(root_dir, recording_id):
                     self.update_status("Already Downloaded")
-                    return {
-                        "subject_id": subject_id,
-                        "recording_id": recording_id,
-                    }
+                    return manifest_item
             elif self.modality == "ieeg":
                 if check_ieeg_recording_files_exist(root_dir, recording_id):
                     self.update_status("Already Downloaded")
-                    return {
-                        "subject_id": subject_id,
-                        "recording_id": recording_id,
-                    }
+                    return manifest_item
 
         try:
             download_recording(s3_url, root_dir)
@@ -465,10 +433,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
                 f"Failed to download data for {subject_id} from {self.dataset_id}: {str(e)}"
             ) from e
 
-        return {
-            "subject_id": subject_id,
-            "recording_id": recording_id,
-        }
+        return manifest_item
 
     def _process_common(self, download_output: dict) -> Optional[tuple[Data, Path]]:
         """Process data files and create a Data object.
@@ -487,8 +452,11 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         """
         self.processed_dir.mkdir(exist_ok=True, parents=True)
 
-        recording_id = download_output["recording_id"]
-        subject_id = download_output["subject_id"]
+        recording_id = download_output.Index
+        subject_id = download_output.subject_id
+        species = download_output.species
+        age = download_output.age
+        sex = download_output.sex
 
         store_path = self.processed_dir / f"{recording_id}.h5"
         if not getattr(self.args, "reprocess", False):
@@ -506,7 +474,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         )
 
         self.update_status("Extracting Metadata")
-        ctx = self._cached_openneuro_context[self.dataset_id]
         source = f"https://openneuro.org/datasets/{self.dataset_id}"
         dataset_description = (
             self.description
@@ -516,21 +483,19 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         brainset_description = BrainsetDescription(
             id=self.brainset_id,
-            origin_version=ctx["latest_snapshot_tag"],
+            origin_version=download_output.latest_snapshot_tag,
             derived_version=self.derived_version,
             source=source,
             description=dataset_description,
         )
 
-        subject_info = get_subject_info(subject_id, ctx["participants_data"])
-        species = ctx["species"]
         subject_description = SubjectDescription(
             id=subject_id,
             species=(
                 Species.HOMO_SAPIENS if species == "homo sapiens" else Species.UNKNOWN
             ),
-            age=subject_info.get("age"),
-            sex=subject_info.get("sex"),
+            age=age,
+            sex=sex,
         )
 
         meas_date = extract_measurement_date(raw)
@@ -710,89 +675,3 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             intersession_assignment=session_assignment,
             domain=domain,
         )
-
-
-class OpenNeuroEEGPipeline(OpenNeuroPipeline):
-    """Base pipeline for EEG data processing from OpenNeuro.
-
-    This class provides EEG-specific extensions on top of OpenNeuroPipeline,
-    supporting custom channel name and type remappings.
-
-    **Usage:**
-
-    For datasets where all recordings share a common electrode naming scheme
-    and channel configuration, specify these as class attributes:
-
-        class Pipeline(OpenNeuroEEGPipeline):
-            brainset_id = "your_dataset_id"
-            dataset_id = "dsXXXXXX"
-            origin_version = "1.0.0"
-
-            CHANNEL_NAME_REMAPPING = {
-                "PSG_F3": "F3",
-                "PSG_F4": "F4",
-            }
-
-            TYPE_CHANNELS_REMAPPING = {
-                "EEG": ["F3", "F4"],
-                "EOG": ["EOG"]
-            }
-
-    For more complex datasets having variable channel naming or multiple
-    acquisition schemes, override the methods to dynamically supply
-    the necessary channel name and type remapping maps based on the recording id:
-
-        class Pipeline(OpenNeuroEEGPipeline):
-            brainset_id = "your_dataset_id"
-            dataset_id = "dsXXXXXX"
-
-            def get_channel_name_remapping(self, recording_id):
-                if "acq-headband" in recording_id:
-                    return {"HB_1": "AF7", "HB_2": "AF8"}
-                return {"PSG_F3": "F3", "PSG_F4": "F4"}
-
-            def get_type_channels_remapping(self, recording_id):
-                if "acq-headband" in recording_id:
-                    return {"EEG": ["AF7", "AF8"]}
-                return {"EEG": ["F3", "F4"], "EOG": ["EOG"]}
-
-    Class Attributes:
-        - CHANNEL_NAME_REMAPPING (dict, optional): Map old channel names to new ones.
-        - TYPE_CHANNELS_REMAPPING (dict, optional): Map channel types to channel lists.
-    """
-
-    modality = "eeg"
-    """Data modality for this pipeline."""
-
-
-class OpenNeuroIEEGPipeline(OpenNeuroPipeline):
-    """Base pipeline for iEEG data processing from OpenNeuro.
-
-    This class provides iEEG-specific extensions on top of OpenNeuroPipeline,
-    leveraging BIDS-compliant sidecar files to define channel and electrode
-    configuration automatically.
-
-    Usage:
-
-    For most iEEG datasets where electrode and channel information are properly
-    defined in BIDS sidecar files, subclassing this pipeline is sufficient:
-
-        class Pipeline(OpenNeuroIEEGPipeline):
-            brainset_id = "your_dataset_id"
-            dataset_id = "dsXXXXXX"
-            origin_version = "1.0.0"
-
-    Changing electrode names and types:
-        - If you wish to change the names or types of electrodes (e.g., for harmonization or custom processing),
-          use the same approach as in OpenNeuroEEGPipeline:
-            - Set the `CHANNEL_NAME_REMAPPING`/`TYPE_CHANNELS_REMAPPING` class attribute, or
-            - Override `get_channel_name_remapping(self, recording_id)` / `get_type_channels_remapping(self, recording_id)`
-          with your desired logic.
-
-    Class Attributes:
-        - CHANNEL_NAME_REMAPPING (dict, optional): Map old electrode/channel names to new ones.
-        - TYPE_CHANNELS_REMAPPING (dict, optional): Map types to electrode/channel lists.
-    """
-
-    modality = "ieeg"
-    """Data modality for this pipeline."""
