@@ -115,11 +115,10 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             - :meth:`get_type_channels_remapping()`
 
         The :meth:`process_common` method implements the standard steps and routines shared
-        by all OpenNeuro datasets. This provides a consistent entry point for dataset
-        processing. Subclasses may extend or override the :meth:`process` method to adapt the behavior
-        for their specific dataset requirements.
+        by all OpenNeuro datasets. This provides a consistent entry point for all dataset
+        processing. Subclasses may extend or override the :meth:`process` method to
+        implement dataset-specific processing logic.
 
-        Subclasses can override :meth:`process` to implement dataset-specific processing logic.
         Subclasses may also customize split generation for evaluation/train/test organization
         by overriding the :meth:`generate_splits` method. This allows selection of splits based
         on session, subject, or custom criteria.
@@ -127,6 +126,9 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
     parser = base_openneuro_parser
     """Argument parser for common OpenNeuro pipeline flags."""
+
+    modality: OpenNeuroDataModality
+    """Data modality for this pipeline. Must be overridden by subclasses."""
 
     dataset_id: str
     """OpenNeuro dataset identifier (e.g., "ds005555", "ds006914")."""
@@ -149,9 +151,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     Must be a valid session identifier from the dataset's manifest.
     This ensures deterministic and fast PR validation for new/modified pipelines.
     """
-
-    modality: OpenNeuroDataModality
-    """Data modality for this pipeline. Must be overridden by subclasses."""
 
     CHANNEL_NAME_REMAPPING: Optional[dict[str, str]] = None
     """Optional dict mapping original channel name to new standardized name.

@@ -3,10 +3,9 @@ Creating an :obj:`OpenNeuroPipeline`
 
 .. py:currentmodule:: brainsets.utils.openneuro
 .. |OpenNeuroPipeline| replace:: :class:`OpenNeuroPipeline`
-.. |OpenNeuroEEGPipeline| replace:: :class:`OpenNeuroEEGPipeline`
-.. |OpenNeuroIEEGPipeline| replace:: :class:`OpenNeuroIEEGPipeline`
 
-This guide shows you how to build a pipeline that automatically downloads, processes, and standardizes publicly available EEG and iEEG datasets from `OpenNeuro <https://openneuro.org/>`_.
+This guide shows you how to build a pipeline that automatically downloads, processes, and standardizes publicly available datasets from `OpenNeuro <https://openneuro.org/>`_. 
+The :class:`OpenNeuroPipeline` class currently supports the following data modalities: EEG (electroencephalography) and iEEG (intracranial EEG).
 
 Process brain recordings with minimal boilerplate:
 
@@ -18,11 +17,10 @@ Process brain recordings with minimal boilerplate:
 What's an OpenNeuro Pipeline?
 -----------------------------
 
-A pipeline is a Python class that extends either |OpenNeuroEEGPipeline| or |OpenNeuroIEEGPipeline|, and automates the entire workflow.
+An OpenNeuro pipeline is a Python class that extends |OpenNeuroPipeline| and automates the typical data preparation workflow for neuroimaging datasets from OpenNeuro. 
+The :class:`OpenNeuroPipeline` class handles the entire workflow, including:
 
-Your pipeline handles:
-
-- 🔍 Discovering recordings from OpenNeuro's S3 bucket based on modality (EEG or iEEG)
+- 🔍 Discovering recordings from OpenNeuro's S3 bucket based on modality
 - ⬇️ Downloading BIDS-compliant files
 - 🔧 Processing: extracting data (signal) and metadata (channel names and types)
 - 💾 Storing: organized HDF5 files with full provenance
@@ -35,9 +33,10 @@ Here's a working minimal pipeline:
 
 .. code-block:: python
 
-    from brainsets.utils.openneuro import OpenNeuroEEGPipeline
+    from brainsets.utils.openneuro import OpenNeuroPipeline
 
-    class Pipeline(OpenNeuroEEGPipeline):
+    class Pipeline(OpenNeuroPipeline):
+        modality = "eeg"  # or "ieeg"
         brainset_id = "my_sleep_study_ds005555"
         dataset_id = "ds005555"
         origin_version = "1.0.0"  # Check OpenNeuro for this!
@@ -74,29 +73,42 @@ Before diving into details, check out working implementations in the `brainsets_
      - Complex ⭐⭐⭐
 
 
-The Five Required Attributes
+The Six Required Attributes
 -----------------------------
 
-Every object extending |OpenNeuroPipeline| **must** have these five attributes:
+Every object extending |OpenNeuroPipeline| **must** have these six attributes:
 
 
-1. ``dataset_id`` – Which OpenNeuro dataset?
+1. ``modality`` – EEG or iEEG?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``modality`` to ``"eeg"`` for scalp/wearable EEG datasets or ``"ieeg"`` for intracranial datasets. This drives BIDS recording discovery from OpenNeuro S3.
+
+.. code-block:: python
+
+    modality = "eeg"   # scalp or headband EEG
+    modality = "ieeg"  # intracranial EEG / ECoG
+
+
+2. ``dataset_id`` – Which OpenNeuro dataset?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The dataset identifier must use strict OpenNeuro format: ``ds`` followed by exactly 6 digits.
 
 .. code-block:: python
 
-    dataset_id = "ds005555"      # ✅ Valid
-    dataset_id = "5555"          # ❌ Invalid
-    dataset_id = "ds5555"        # ❌ Invalid
+    class Pipeline(OpenNeuroPipeline):
+        modality = "eeg"
+        dataset_id = "ds005555"      # ✅ Valid
+        dataset_id = "5555"          # ❌ Invalid
+        dataset_id = "ds5555"        # ❌ Invalid
 
 .. note::
 
-   Dataset ID validation happens internally during pipeline initialization and context loading. Invalid IDs raise an error before data discovery.
+   Dataset ID validation happens internally during pipeline initialization. Invalid IDs raise an error before data discovery.
 
 
-2. ``brainset_id`` – Your unique name
+3. ``brainset_id`` – Your unique name
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A descriptive ID for your processed brainset. This should be unique within the ``brainsets_pipelines/`` directory and should be a valid Python identifier. Recommended naming scheme:
@@ -109,14 +121,15 @@ A descriptive ID for your processed brainset. This should be unique within the `
     #                              └─ dataset ID
 
 
-3. ``origin_version`` – The dataset version you used
+4. ``origin_version`` – The dataset version you used
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Set ``origin_version`` to the exact version of the OpenNeuro dataset you used when building and testing your pipeline:
 
 .. code-block:: python
 
-    class Pipeline(OpenNeuroEEGPipeline):
+    class Pipeline(OpenNeuroPipeline):
+        modality = "eeg"
         dataset_id = "ds005555"
         origin_version = "1.0.0"  # The version available when you created this pipeline
 
@@ -210,14 +223,15 @@ Set ``origin_version`` to the exact version of the OpenNeuro dataset you used wh
 
 ----
 
-4. ``derived_version`` – Your processing pipeline version
+5. ``derived_version`` – Your processing pipeline version
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Set ``derived_version`` to track the version of **your processing pipeline and its output**:
 
 .. code-block:: python
 
-    class Pipeline(OpenNeuroEEGPipeline):
+    class Pipeline(OpenNeuroPipeline):
+        modality = "eeg"
         dataset_id = "ds005555"
         origin_version = "1.0.0"
         derived_version = "1.0.0"  # Increment when you change processing logic
@@ -233,14 +247,15 @@ While ``origin_version`` tracks the version of the source dataset from OpenNeuro
 
 ----
 
-5. ``ci_smoke_session`` – Session for PR smoke tests
+6. ``ci_smoke_session`` – Session for PR smoke tests
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Set ``ci_smoke_session`` to the session identifier that CI will use when testing your pipeline in pull requests.
 
 .. code-block:: python
 
-    class Pipeline(OpenNeuroEEGPipeline):
+    class Pipeline(OpenNeuroPipeline):
+        modality = "eeg"
         dataset_id = "ds005555"
         brainset_id = "klinzing_sleep_ds005555"
         origin_version = "1.0.1"
@@ -379,7 +394,7 @@ Add custom processing beyond the default:
 
     def process(self, download_output):
         # Get default processing
-        result = self._process_common(download_output)
+        result = self.process_common(download_output)
         if result is None:
             return  # Already processed
         
@@ -416,8 +431,8 @@ When you open a pull request that adds or modifies an OpenNeuro pipeline under `
 **What happens:**
 
 1. CI detects changed OpenNeuro pipelines via AST parsing (no imports needed)
-2. For each changed pipeline, it runs: ``brainsets prepare <brainset_id> -s <ci_smoke_session> --on-version-mismatch continue --download-only``
-3. The test verifies that the pipeline can discover, download, and begin processing data
+2. For each changed pipeline, it runs: ``brainsets prepare <brainset_id> -s <ci_smoke_session> --on-version-mismatch continue``
+3. The test verifies that the pipeline can discover, download, and process data
 
 **Session specification:**
 
@@ -427,12 +442,13 @@ You must define ``ci_smoke_session`` in your pipeline class. This value is used 
 
 .. code-block:: python
 
-    class Pipeline(OpenNeuroEEGPipeline):
+    class Pipeline(OpenNeuroPipeline):
+        modality = "eeg"
         brainset_id = "klinzing_sleep_ds005555"
         dataset_id = "ds005555"
         origin_version = "1.0.0"
         derived_version = "1.0.0"
-        ci_smoke_session = "sub-01"  # ← Required: used in PR smoke tests
+        ci_smoke_session = "sub-01_ses-01_task-sleep"  # ← Required: used in PR smoke tests
 
 
 What's Next?
@@ -440,7 +456,7 @@ What's Next?
 
 1. ✅ Pick a dataset from `OpenNeuro <https://openneuro.org/>`_
 2. ✅ Copy the minimal example above
-3. ✅ Update ``dataset_id``, ``brainset_id``, ``origin_version``, and ``derived_version``
+3. ✅ Update ``modality``, ``dataset_id``, ``brainset_id``, ``origin_version``, and ``derived_version``
 4. ✅ Add channel name and/or type mappings if needed
 5. ✅ Run: ``uv run brainsets prepare <my_brainset_id>``
 6. ✅ Done!
