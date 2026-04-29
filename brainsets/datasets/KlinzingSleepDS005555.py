@@ -26,6 +26,7 @@ class KlinzingSleepDS005555(OpenNeuroDataset):
 
     Klinzing, J. G., et al. (Year). "Sleep iEEG Dataset." Repository: https://openneuro.org/datasets/ds005555
     """
+
     def __init__(
         self,
         root: str,

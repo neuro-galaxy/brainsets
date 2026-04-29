@@ -25,6 +25,7 @@ class ShiraziHBNR1DS005505(OpenNeuroDataset):
 
     Shirazi, S. Y., et al. (Year). "Dataset title." Repository: https://openneuro.org/datasets/ds005505
     """
+
     def __init__(
         self,
         root: str,

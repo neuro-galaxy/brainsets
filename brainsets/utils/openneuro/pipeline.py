@@ -77,6 +77,7 @@ base_openneuro_parser.add_argument(
 
 OpenNeuroDataModality = Literal["eeg", "ieeg"]
 
+
 def _require_mne_bids(func_name: str) -> None:
     """Raise ImportError if mne-bids is not available."""
     if not MNE_BIDS_AVAILABLE:
@@ -90,15 +91,15 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     """Abstract base class for OpenNeuro dataset pipelines.
 
     This class provides foundational tools and conventions for preprocessing and handling
-    `OpenNeuro <https://openneuro.org/>`_ datasets within the Brainsets framework. 
+    `OpenNeuro <https://openneuro.org/>`_ datasets within the Brainsets framework.
     It is designed to be subclassed for specific datasets and supports both EEG and iEEG modalities.
-    
+
     **Attributes (to be defined by subclasses):**
         - :attr:`dataset_id`: Identifier for the OpenNeuro dataset (e.g., "ds005555").
         - :attr:`brainset_id`: Unique local identifier for the brainset.
         - :attr:`origin_version`: Version string corresponding to the raw source dataset.
         - :attr:`derived_version`: Version or tag indicating the processing version of the derived data.
-        - :attr:`ci_smoke_session`: Session ID to use for PR smoke tests. 
+        - :attr:`ci_smoke_session`: Session ID to use for PR smoke tests.
           Must be a valid session identifier from the dataset's manifest.
         - :attr:`description`: Optional textual description of the dataset.
         - :attr:`modality`: Data modality for this pipeline. Must be overridden by subclasses.
@@ -112,12 +113,12 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         These can be set as class attributes or managed dynamically by overriding the following methods:
             - :meth:`get_channel_name_remapping()`
             - :meth:`get_type_channels_remapping()`
-        
+
         The :meth:`process_common` method implements the standard steps and routines shared
-        by all OpenNeuro datasets. This provides a consistent entry point for dataset 
-        processing. Subclasses may extend or override the :meth:`process` method to adapt the behavior 
+        by all OpenNeuro datasets. This provides a consistent entry point for dataset
+        processing. Subclasses may extend or override the :meth:`process` method to adapt the behavior
         for their specific dataset requirements.
-   
+
         Subclasses can override :meth:`process` to implement dataset-specific processing logic.
         Subclasses may also customize split generation for evaluation/train/test organization
         by overriding the :meth:`generate_splits` method. This allows selection of splits based
@@ -196,11 +197,12 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
                 or the numeric part is outside the valid range.
         """
         if (
-             not isinstance(dataset_id, str)
-             or len(dataset_id) != 8
-             or not dataset_id.startswith("ds")
-             or not dataset_id[2:].isdigit()
-        ):            raise ValueError(
+            not isinstance(dataset_id, str)
+            or len(dataset_id) != 8
+            or not dataset_id.startswith("ds")
+            or not dataset_id[2:].isdigit()
+        ):
+            raise ValueError(
                 f"Invalid dataset ID format: '{dataset_id}'. Expected 'ds' followed by exactly 6 digits."
             )
 
@@ -328,10 +330,10 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         # Determine the 'on_version_mismatch' policy from args if available, else default to 'prompt'
         on_version_mismatch = args.on_version_mismatch
         cls._validate_on_mismatch_policy(on_version_mismatch)
-        
+
         # Validate that dataset ID has the correct format
         cls.validate_dataset_id(cls.dataset_id)
-        
+
         # Fetch the latest snapshot tag available on OpenNeuro for the dataset
         latest_snapshot_tag = fetch_latest_snapshot_tag(cls.dataset_id)
         cls._validate_dataset_version(
@@ -341,7 +343,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         # Fetch the species of the participants in the dataset
         species = fetch_species(cls.dataset_id)
         species = cls._normalize_species(species)
-        
+
         # Fetch the participants.tsv file from the dataset
         participants_data = fetch_participants_tsv(cls.dataset_id)
 
@@ -361,26 +363,26 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             subject_id = rec["subject_id"]
             recording_id = rec["recording_id"]
             fpath = rec["fpath"]
-            
+
             # Construct the S3 URL for the recording
             s3_url = construct_s3_url_from_path(
                 cls.dataset_id,
                 fpath,
                 recording_id,
             )
-            
+
             # Fetch the subject information from the participants.tsv file
             subject_info = get_subject_info(subject_id, participants_data)
-            
+
             manifest_list.append(
                 {
                     "subject_id": subject_id,
                     "recording_id": recording_id,
                     "s3_url": s3_url,
-                    "latest_snapshot_tag":latest_snapshot_tag,
-                    "age":subject_info.get("age"),
-                    "sex":subject_info.get("sex"),
-                    "species":species,
+                    "latest_snapshot_tag": latest_snapshot_tag,
+                    "age": subject_info.get("age"),
+                    "sex": subject_info.get("sex"),
+                    "species": species,
                 }
             )
 
