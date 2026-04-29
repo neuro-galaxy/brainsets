@@ -13,8 +13,6 @@ from temporaldata import Data, Interval
 
 from brainsets.utils.openneuro.pipeline import (
     OpenNeuroPipeline,
-    OpenNeuroEEGPipeline,
-    OpenNeuroIEEGPipeline,
 )
 
 from brainsets.taxonomy import Species
@@ -49,6 +47,10 @@ def manifest_row():
     row.Index = "rec-001"
     row.subject_id = "sub-01"
     row.s3_url = "s3://openneuro.org/ds005085/sub-01/eeg/rec-001"
+    row.species = "homo sapiens"
+    row.age = 25
+    row.sex = "M"
+    row.latest_snapshot_tag = "1.0.0"
     return row
 
 
@@ -91,12 +93,13 @@ def mock_raw():
 def eeg_pipeline_class():
     """Concrete EEG pipeline class for testing."""
 
-    class TestEEGPipeline(OpenNeuroEEGPipeline):
+    class TestEEGPipeline(OpenNeuroPipeline):
         dataset_id = "ds005085"
         brainset_id = "test_eeg_brainset"
         origin_version = "1.0.0"
         derived_version = "1.0.0"
         ci_smoke_session = "sub-01"
+        modality = "eeg"
 
     return TestEEGPipeline
 
@@ -105,12 +108,13 @@ def eeg_pipeline_class():
 def ieeg_pipeline_class():
     """Concrete iEEG pipeline class for testing."""
 
-    class TestIEEGPipeline(OpenNeuroIEEGPipeline):
+    class TestIEEGPipeline(OpenNeuroPipeline):
         dataset_id = "ds005085"
         brainset_id = "test_ieeg_brainset"
         origin_version = "1.0.0"
         derived_version = "1.0.0"
         ci_smoke_session = "sub-01"
+        modality = "ieeg"
 
     return TestIEEGPipeline
 
@@ -138,179 +142,8 @@ def ieeg_pipeline_instance(ieeg_pipeline_class, temp_dir, mock_args_no_reprocess
 
 
 # ============================================================================
-# Tests for OpenNeuroEEGPipeline
+# Tests for validate_dataset_id
 # ============================================================================
-
-
-class TestOpenNeuroEEGPipeline:
-    """Tests for OpenNeuroEEGPipeline class."""
-
-    def test_modality_is_eeg(self, eeg_pipeline_class):
-        """EEG pipeline has 'eeg' modality."""
-        assert eeg_pipeline_class.modality == "eeg"
-
-    def test_required_attributes_present(self, eeg_pipeline_class):
-        """Pipeline has required class attributes."""
-        assert eeg_pipeline_class.dataset_id == "ds005085"
-        assert eeg_pipeline_class.brainset_id == "test_eeg_brainset"
-        assert eeg_pipeline_class.origin_version == "1.0.0"
-        assert eeg_pipeline_class.derived_version == "1.0.0"
-
-
-class TestOpenNeuroIEEGPipeline:
-    """Tests for OpenNeuroIEEGPipeline class."""
-
-    def test_modality_is_ieeg(self, ieeg_pipeline_class):
-        """iEEG pipeline has 'ieeg' modality."""
-        assert ieeg_pipeline_class.modality == "ieeg"
-
-    def test_required_attributes_present(self, ieeg_pipeline_class):
-        """Pipeline has required class attributes."""
-        assert ieeg_pipeline_class.dataset_id == "ds005085"
-        assert ieeg_pipeline_class.brainset_id == "test_ieeg_brainset"
-        assert ieeg_pipeline_class.origin_version == "1.0.0"
-        assert ieeg_pipeline_class.derived_version == "1.0.0"
-
-
-# ============================================================================
-# Tests for shared OpenNeuro context caching
-# ============================================================================
-
-
-class TestVersionMismatchPolicyForwarding:
-    """Tests for forwarding on_version_mismatch policy through pipeline methods."""
-
-    @patch.object(OpenNeuroPipeline, "validate_dataset_id")
-    @patch.object(OpenNeuroPipeline, "_validate_dataset_version")
-    @patch("brainsets.utils.openneuro.pipeline.fetch_latest_snapshot_tag")
-    @patch("brainsets.utils.openneuro.pipeline.fetch_participants_tsv")
-    @patch("brainsets.utils.openneuro.pipeline.fetch_species")
-    def test_openneuro_context_forwards_on_version_mismatch_abort(
-        self,
-        mock_species,
-        mock_part,
-        mock_fetch_tag,
-        mock_ver,
-        mock_id,
-        eeg_pipeline_class,
-    ):
-        """_openneuro_context passes on_version_mismatch='abort' to validate_dataset_version."""
-        eeg_pipeline_class._cached_openneuro_context.clear()
-        mock_id.return_value = "ds005085"
-        mock_fetch_tag.return_value = "1.0.0"
-        mock_ver.return_value = "1.0.0"
-        mock_part.return_value = None
-        mock_species.return_value = "homo sapiens"
-
-        eeg_pipeline_class._openneuro_context(on_version_mismatch="abort")
-
-        mock_ver.assert_called_once()
-        call_kwargs = mock_ver.call_args[1]
-        assert call_kwargs["on_mismatch"] == "abort"
-
-    @patch.object(OpenNeuroPipeline, "validate_dataset_id")
-    @patch.object(OpenNeuroPipeline, "_validate_dataset_version")
-    @patch("brainsets.utils.openneuro.pipeline.fetch_participants_tsv")
-    @patch("brainsets.utils.openneuro.pipeline.fetch_species")
-    def test_openneuro_context_defaults_to_prompt(
-        self,
-        mock_species,
-        mock_part,
-        mock_ver,
-        mock_id,
-        eeg_pipeline_class,
-    ):
-        """_openneuro_context defaults to on_version_mismatch='prompt'."""
-        eeg_pipeline_class._cached_openneuro_context.clear()
-        mock_id.return_value = "ds005085"
-        mock_ver.return_value = "1.0.0"
-        mock_part.return_value = None
-        mock_species.return_value = "homo sapiens"
-
-        eeg_pipeline_class._openneuro_context()
-
-        mock_ver.assert_called_once()
-        call_kwargs = mock_ver.call_args[1]
-        assert call_kwargs["on_mismatch"] == "prompt"
-
-    @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
-    @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
-    @patch.object(OpenNeuroPipeline, "_validate_dataset_version")
-    @patch.object(OpenNeuroPipeline, "validate_dataset_id")
-    @patch("sys.stdin.isatty", return_value=True)
-    def test_get_manifest_passes_on_version_mismatch_from_args(
-        self,
-        mock_isatty,
-        mock_id,
-        mock_ver,
-        mock_fetch_eeg,
-        mock_fetch_files,
-        eeg_pipeline_class,
-        temp_dir,
-    ):
-        """get_manifest passes args.on_version_mismatch to _openneuro_context."""
-        from argparse import Namespace
-
-        args = Namespace(
-            on_version_mismatch="continue", redownload=False, reprocess=False
-        )
-        mock_id.return_value = "ds005085"
-        mock_ver.return_value = "1.0.0"
-        mock_fetch_files.return_value = ["sub-01/eeg/rec-001_eeg.edf"]
-        mock_fetch_eeg.return_value = []
-
-        eeg_pipeline_class._cached_openneuro_context.clear()
-        with patch.object(
-            eeg_pipeline_class,
-            "_openneuro_context",
-            return_value={
-                "latest_snapshot_tag": "1.0.0",
-                "participants_data": None,
-                "species": "homo sapiens",
-            },
-        ) as mock_ctx:
-            try:
-                eeg_pipeline_class.get_manifest(temp_dir, args)
-            except ValueError:
-                pass
-
-            mock_ctx.assert_called_once()
-            call_kwargs = mock_ctx.call_args[1]
-            assert call_kwargs["on_version_mismatch"] == "continue"
-
-    @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
-    @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
-    @patch("sys.stdin.isatty", return_value=True)
-    def test_get_manifest_defaults_to_prompt_when_args_none(
-        self,
-        mock_isatty,
-        mock_fetch_eeg,
-        mock_fetch_files,
-        eeg_pipeline_class,
-        temp_dir,
-    ):
-        """get_manifest defaults to 'prompt' when args is None."""
-        mock_fetch_files.return_value = ["sub-01/eeg/rec-001_eeg.edf"]
-        mock_fetch_eeg.return_value = []
-
-        eeg_pipeline_class._cached_openneuro_context.clear()
-        with patch.object(
-            eeg_pipeline_class,
-            "_openneuro_context",
-            return_value={
-                "latest_snapshot_tag": "1.0.0",
-                "participants_data": None,
-                "species": "homo sapiens",
-            },
-        ) as mock_ctx:
-            try:
-                eeg_pipeline_class.get_manifest(temp_dir, None)
-            except ValueError:
-                pass
-
-            mock_ctx.assert_called_once()
-            call_kwargs = mock_ctx.call_args[1]
-            assert call_kwargs["on_version_mismatch"] == "prompt"
 
 
 class TestValidateDatasetId:
@@ -387,12 +220,13 @@ class TestValidateDatasetId:
 class TestValidateDatasetVersion:
     """Tests for OpenNeuroPipeline._validate_dataset_version helper method."""
 
-    class _VersionTestPipeline(OpenNeuroEEGPipeline):
+    class _VersionTestPipeline(OpenNeuroPipeline):
         dataset_id = "ds005085"
         brainset_id = "test_eeg_brainset"
         origin_version = "1.0.0"
         derived_version = "1.0.0"
         ci_smoke_session = "sub-01"
+        modality = "eeg"
 
     def test_returns_when_versions_match(self):
         """Returns cleanly when latest tag matches origin version."""
@@ -557,8 +391,15 @@ class TestGetManifestPolicyValidation:
 
     @patch("sys.stdin.isatty", return_value=False)
     @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
+    @patch.object(OpenNeuroPipeline, "validate_dataset_id")
+    @patch.object(OpenNeuroPipeline, "_validate_dataset_version")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_latest_snapshot_tag")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_species")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_participants_tsv")
     def test_get_manifest_continues_on_continue_non_interactive(
-        self, mock_fetch_files, mock_isatty, eeg_pipeline_class, temp_dir
+        self, mock_part, mock_species, mock_latest_tag, mock_ver, mock_id,
+        mock_fetch_eeg, mock_fetch_files, mock_isatty, eeg_pipeline_class, temp_dir
     ):
         """get_manifest succeeds when on_version_mismatch='continue' in non-interactive mode."""
         from argparse import Namespace
@@ -567,49 +408,42 @@ class TestGetManifestPolicyValidation:
             on_version_mismatch="continue", redownload=False, reprocess=False
         )
         mock_fetch_files.return_value = []
+        mock_fetch_eeg.return_value = []
+        mock_latest_tag.return_value = "1.0.0"
+        mock_species.return_value = "homo sapiens"
+        mock_part.return_value = None
 
-        eeg_pipeline_class._cached_openneuro_context.clear()
-        with patch.object(eeg_pipeline_class, "_openneuro_context") as mock_ctx:
-            mock_ctx.return_value = {
-                "latest_snapshot_tag": "1.0.0",
-                "participants_data": None,
-                "species": "homo sapiens",
-            }
-            with patch(
-                "brainsets.utils.openneuro.pipeline.fetch_eeg_recordings"
-            ) as mock_fetch_eeg:
-                mock_fetch_eeg.return_value = []
-                try:
-                    eeg_pipeline_class.get_manifest(temp_dir, args)
-                except ValueError:
-                    pass
+        try:
+            eeg_pipeline_class.get_manifest(temp_dir, args)
+        except ValueError:
+            pass
 
     @patch("sys.stdin.isatty", return_value=False)
     @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
+    @patch.object(OpenNeuroPipeline, "validate_dataset_id")
+    @patch.object(OpenNeuroPipeline, "_validate_dataset_version")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_latest_snapshot_tag")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_species")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_participants_tsv")
     def test_get_manifest_continues_on_abort_non_interactive(
-        self, mock_fetch_files, mock_isatty, eeg_pipeline_class, temp_dir
+        self, mock_part, mock_species, mock_latest_tag, mock_ver, mock_id,
+        mock_fetch_eeg, mock_fetch_files, mock_isatty, eeg_pipeline_class, temp_dir
     ):
         """get_manifest succeeds when on_version_mismatch='abort' in non-interactive mode."""
         from argparse import Namespace
 
         args = Namespace(on_version_mismatch="abort", redownload=False, reprocess=False)
         mock_fetch_files.return_value = []
+        mock_fetch_eeg.return_value = []
+        mock_latest_tag.return_value = "1.0.0"
+        mock_species.return_value = "homo sapiens"
+        mock_part.return_value = None
 
-        eeg_pipeline_class._cached_openneuro_context.clear()
-        with patch.object(eeg_pipeline_class, "_openneuro_context") as mock_ctx:
-            mock_ctx.return_value = {
-                "latest_snapshot_tag": "1.0.0",
-                "participants_data": None,
-                "species": "homo sapiens",
-            }
-            with patch(
-                "brainsets.utils.openneuro.pipeline.fetch_eeg_recordings"
-            ) as mock_fetch_eeg:
-                mock_fetch_eeg.return_value = []
-                try:
-                    eeg_pipeline_class.get_manifest(temp_dir, args)
-                except ValueError:
-                    pass
+        try:
+            eeg_pipeline_class.get_manifest(temp_dir, args)
+        except ValueError:
+            pass
 
 
 class TestNormalizeSpecies:
@@ -637,100 +471,29 @@ class TestNormalizeSpecies:
         assert OpenNeuroPipeline._normalize_species(species) == "unknown"
 
 
-class TestOpenNeuroContext:
-    """Tests for _openneuro_context caching."""
-
-    def test_shared_context_returns_openneuro_context_type(self, eeg_pipeline_class):
-        """_openneuro_context returns OpenNeuroContext dict."""
-        with patch.object(OpenNeuroPipeline, "validate_dataset_id") as mock_id:
-            with patch.object(
-                OpenNeuroPipeline, "_validate_dataset_version"
-            ) as mock_ver:
-                with patch(
-                    "brainsets.utils.openneuro.pipeline.fetch_participants_tsv"
-                ) as mock_part:
-                    with patch(
-                        "brainsets.utils.openneuro.pipeline.fetch_species"
-                    ) as mock_species:
-                        mock_id.return_value = "ds005085"
-                        mock_ver.return_value = "1.0.0"
-                        mock_part.return_value = None
-                        mock_species.return_value = "homo sapiens"
-
-                        eeg_pipeline_class._cached_openneuro_context.clear()
-                        ctx = eeg_pipeline_class._openneuro_context()
-
-        assert isinstance(ctx, dict)
-        assert "latest_snapshot_tag" in ctx
-        assert "participants_data" in ctx
-        assert "species" in ctx
-
-    def test_shared_context_caches_result(self, eeg_pipeline_class):
-        """_openneuro_context caches results and doesn't recompute."""
-        eeg_pipeline_class._cached_openneuro_context.clear()
-
-        with patch.object(OpenNeuroPipeline, "validate_dataset_id") as mock_id:
-            with patch.object(
-                OpenNeuroPipeline, "_validate_dataset_version"
-            ) as mock_ver:
-                with patch(
-                    "brainsets.utils.openneuro.pipeline.fetch_participants_tsv"
-                ) as mock_part:
-                    with patch(
-                        "brainsets.utils.openneuro.pipeline.fetch_species"
-                    ) as mock_species:
-                        mock_id.return_value = "ds005085"
-                        mock_ver.return_value = "1.0.0"
-                        mock_part.return_value = None
-                        mock_species.return_value = "homo sapiens"
-
-                        ctx1 = eeg_pipeline_class._openneuro_context()
-                        ctx2 = eeg_pipeline_class._openneuro_context()
-
-        assert ctx1 is ctx2
-        # validate_dataset_id is called before cache lookup in each invocation.
-        assert mock_id.call_count == 2
-        assert mock_ver.call_count == 1
-        assert mock_part.call_count == 1
-        assert mock_species.call_count == 1
-
-    def test_shared_context_cache_keyed_by_dataset_id(
-        self, eeg_pipeline_class, ieeg_pipeline_class
-    ):
-        """Shared context caches separately per dataset_id."""
-        eeg_pipeline_class._cached_openneuro_context.clear()
-
-        with patch.object(OpenNeuroPipeline, "validate_dataset_id") as mock_id:
-            with patch.object(
-                OpenNeuroPipeline, "_validate_dataset_version"
-            ) as mock_ver:
-                with patch(
-                    "brainsets.utils.openneuro.pipeline.fetch_participants_tsv"
-                ) as mock_part:
-                    with patch(
-                        "brainsets.utils.openneuro.pipeline.fetch_species"
-                    ) as mock_species:
-                        mock_id.return_value = "ds005085"
-                        mock_ver.return_value = "1.0.0"
-                        mock_part.return_value = None
-                        mock_species.return_value = "homo sapiens"
-
-                        ctx_eeg = eeg_pipeline_class._openneuro_context()
-
-        assert "ds005085" in eeg_pipeline_class._cached_openneuro_context
-
-
 class TestGetManifest:
     """Tests for get_manifest class method."""
 
-    @patch("sys.stdin.isatty", return_value=True)
+    @patch.object(OpenNeuroPipeline, "validate_dataset_id")
+    @patch.object(OpenNeuroPipeline, "_validate_dataset_version")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_latest_snapshot_tag")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_species")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_participants_tsv")
+    @patch("brainsets.utils.openneuro.pipeline.get_subject_info")
+    @patch("brainsets.utils.openneuro.pipeline.construct_s3_url_from_path")
     @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
     @patch("brainsets.utils.openneuro.pipeline.fetch_eeg_recordings")
     def test_get_manifest_eeg_success(
         self,
         mock_fetch_eeg,
         mock_fetch_files,
-        mock_isatty,
+        mock_s3,
+        mock_subject_info,
+        mock_participants_tsv,
+        mock_species,
+        mock_latest_tag,
+        mock_ver,
+        mock_id,
         eeg_pipeline_class,
         temp_dir,
     ):
@@ -760,26 +523,18 @@ class TestGetManifest:
             },
         ]
 
-        eeg_pipeline_class._cached_openneuro_context.clear()
-        with patch.object(eeg_pipeline_class, "_openneuro_context") as mock_ctx:
-            mock_ctx.return_value = {
-                "latest_snapshot_tag": "1.0.0",
-                "participants_data": None,
-                "species": "homo sapiens",
-            }
-            with patch(
-                "brainsets.utils.openneuro.pipeline.construct_s3_url_from_path"
-            ) as mock_s3:
+        def s3_url_side_effect(dataset_id, fpath, recording_id):
+            parent_dir = str(Path(fpath).parent)
+            return f"s3://openneuro.org/{dataset_id}/{parent_dir}/{recording_id}"
 
-                def s3_url_side_effect(dataset_id, fpath, recording_id):
-                    parent_dir = str(Path(fpath).parent)
-                    return (
-                        f"s3://openneuro.org/{dataset_id}/{parent_dir}/{recording_id}"
-                    )
+        mock_s3.side_effect = s3_url_side_effect
+        mock_latest_tag.return_value = "1.0.0"
+        mock_species.return_value = "homo sapiens"
+        mock_participants_tsv.return_value = None
+        mock_subject_info.return_value = {"age": 25, "sex": "M"}
 
-                mock_s3.side_effect = s3_url_side_effect
-
-                result = eeg_pipeline_class.get_manifest(temp_dir, None)
+        args = Namespace(on_version_mismatch="continue", redownload=False, reprocess=False)
+        result = eeg_pipeline_class.get_manifest(temp_dir, args)
 
         assert isinstance(result, pd.DataFrame)
         for rec in [
@@ -790,17 +545,33 @@ class TestGetManifest:
             recording_id, subject_id, sub_dir, rec_id = rec
             assert recording_id in result.index
             assert result.loc[recording_id, "subject_id"] == subject_id
+            assert result.loc[recording_id, "species"] == "homo sapiens"
+            assert result.loc[recording_id, "age"] == 25
+            assert result.loc[recording_id, "sex"] == "M"
+            assert result.loc[recording_id, "latest_snapshot_tag"] == "1.0.0"
             expected_s3_url = f"s3://openneuro.org/ds005085/{sub_dir}/{rec_id}"
             assert result.loc[recording_id, "s3_url"] == expected_s3_url
 
-    @patch("sys.stdin.isatty", return_value=True)
+    @patch.object(OpenNeuroPipeline, "validate_dataset_id")
+    @patch.object(OpenNeuroPipeline, "_validate_dataset_version")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_latest_snapshot_tag")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_species")
+    @patch("brainsets.utils.openneuro.pipeline.fetch_participants_tsv")
+    @patch("brainsets.utils.openneuro.pipeline.get_subject_info")
+    @patch("brainsets.utils.openneuro.pipeline.construct_s3_url_from_path")
     @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
     @patch("brainsets.utils.openneuro.pipeline.fetch_ieeg_recordings")
     def test_get_manifest_ieeg_success(
         self,
         mock_fetch_ieeg,
         mock_fetch_files,
-        mock_isatty,
+        mock_s3,
+        mock_subject_info,
+        mock_participants_tsv,
+        mock_species,
+        mock_latest_tag,
+        mock_ver,
+        mock_id,
         ieeg_pipeline_class,
         temp_dir,
     ):
@@ -830,26 +601,18 @@ class TestGetManifest:
             },
         ]
 
-        ieeg_pipeline_class._cached_openneuro_context.clear()
-        with patch.object(ieeg_pipeline_class, "_openneuro_context") as mock_ctx:
-            mock_ctx.return_value = {
-                "latest_snapshot_tag": "1.0.0",
-                "participants_data": None,
-                "species": "homo sapiens",
-            }
-            with patch(
-                "brainsets.utils.openneuro.pipeline.construct_s3_url_from_path"
-            ) as mock_s3:
+        def s3_url_side_effect(dataset_id, fpath, recording_id):
+            parent_dir = str(Path(fpath).parent)
+            return f"s3://openneuro.org/{dataset_id}/{parent_dir}/{recording_id}"
 
-                def s3_url_side_effect(dataset_id, fpath, recording_id):
-                    parent_dir = str(Path(fpath).parent)
-                    return (
-                        f"s3://openneuro.org/{dataset_id}/{parent_dir}/{recording_id}"
-                    )
+        mock_s3.side_effect = s3_url_side_effect
+        mock_latest_tag.return_value = "1.0.0"
+        mock_species.return_value = "homo sapiens"
+        mock_participants_tsv.return_value = None
+        mock_subject_info.return_value = {"age": 25, "sex": "M"}
 
-                mock_s3.side_effect = s3_url_side_effect
-
-                result = ieeg_pipeline_class.get_manifest(temp_dir, None)
+        args = Namespace(on_version_mismatch="continue", redownload=False, reprocess=False)
+        result = ieeg_pipeline_class.get_manifest(temp_dir, args)
 
         assert isinstance(result, pd.DataFrame)
         for rec in [
@@ -860,6 +623,10 @@ class TestGetManifest:
             recording_id, subject_id, sub_dir, rec_id = rec
             assert recording_id in result.index
             assert result.loc[recording_id, "subject_id"] == subject_id
+            assert result.loc[recording_id, "species"] == "homo sapiens"
+            assert result.loc[recording_id, "age"] == 25
+            assert result.loc[recording_id, "sex"] == "M"
+            assert result.loc[recording_id, "latest_snapshot_tag"] == "1.0.0"
             expected_s3_url = f"s3://openneuro.org/ds005085/{sub_dir}/{rec_id}"
             assert result.loc[recording_id, "s3_url"] == expected_s3_url
 
@@ -875,12 +642,13 @@ class TestGetManifest:
     ):
         """get_manifest works when _openneuro_context is pre-populated."""
 
-        class CustomContextPipeline(OpenNeuroEEGPipeline):
+        class CustomContextPipeline(OpenNeuroPipeline):
             dataset_id = "ds005085"
             brainset_id = "test_eeg"
             origin_version = "1.0.0"
             derived_version = "1.0.0"
             ci_smoke_session = "sub-01"
+            modality = "eeg"
 
         mock_fetch_files.return_value = [
             "sub-01/eeg/rec-001_eeg.edf",
@@ -899,18 +667,8 @@ class TestGetManifest:
             },
         ]
 
-        CustomContextPipeline._cached_openneuro_context.clear()
-        with patch.object(CustomContextPipeline, "_openneuro_context") as mock_ctx:
-            mock_ctx.return_value = {
-                "latest_snapshot_tag": "1.0.0",
-                "participants_data": None,
-                "species": "homo sapiens",
-            }
-            with patch(
-                "brainsets.utils.openneuro.pipeline.construct_s3_url_from_path"
-            ) as mock_s3:
-                mock_s3.return_value = "https://example.com/rec-001"
-                result = CustomContextPipeline.get_manifest(temp_dir, None)
+        args = Namespace(on_version_mismatch="continue", redownload=False, reprocess=False)
+        result = CustomContextPipeline.get_manifest(temp_dir, args)
 
         assert len(result) == 2
         assert "rec-001" in result.index
@@ -932,15 +690,9 @@ class TestGetManifest:
 
         mock_fetch_files.return_value = []
 
-        BadPipeline._cached_openneuro_context.clear()
-        with patch.object(BadPipeline, "_openneuro_context") as mock_ctx:
-            mock_ctx.return_value = {
-                "latest_snapshot_tag": "1.0.0",
-                "participants_data": None,
-                "species": "homo sapiens",
-            }
-            with pytest.raises(ValueError, match="Unknown modality"):
-                BadPipeline.get_manifest(temp_dir, None)
+        args = Namespace(on_version_mismatch="continue", redownload=False, reprocess=False)
+        with pytest.raises(ValueError, match="Unknown modality"):
+            BadPipeline.get_manifest(temp_dir, args)
 
     @patch("sys.stdin.isatty", return_value=True)
     @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
@@ -957,15 +709,9 @@ class TestGetManifest:
         mock_fetch_files.return_value = []
         mock_fetch_eeg.return_value = []
 
-        eeg_pipeline_class._cached_openneuro_context.clear()
-        with patch.object(eeg_pipeline_class, "_openneuro_context") as mock_ctx:
-            mock_ctx.return_value = {
-                "latest_snapshot_tag": "1.0.0",
-                "participants_data": None,
-                "species": "homo sapiens",
-            }
-            with pytest.raises(ValueError, match="No EEG recordings found"):
-                eeg_pipeline_class.get_manifest(temp_dir, None)
+        args = Namespace(on_version_mismatch="continue", redownload=False, reprocess=False)
+        with pytest.raises(ValueError, match="No EEG recordings found"):
+            eeg_pipeline_class.get_manifest(temp_dir, args)
 
     @patch("sys.stdin.isatty", return_value=True)
     @patch("brainsets.utils.openneuro.pipeline.fetch_all_filenames")
@@ -979,25 +725,20 @@ class TestGetManifest:
     ):
         """get_manifest raises ValueError when recording parser returns no rows."""
 
-        class EmptyRecordingsPipeline(OpenNeuroEEGPipeline):
+        class EmptyRecordingsPipeline(OpenNeuroPipeline):
             dataset_id = "ds005085"
             brainset_id = "test_eeg"
             origin_version = "1.0.0"
             derived_version = "1.0.0"
             ci_smoke_session = "sub-01"
+            modality = "eeg"
 
         mock_fetch_files.return_value = ["sub-01/eeg/rec-001.edf"]
         mock_fetch_eeg.return_value = []
 
-        EmptyRecordingsPipeline._cached_openneuro_context.clear()
-        with patch.object(EmptyRecordingsPipeline, "_openneuro_context") as mock_ctx:
-            mock_ctx.return_value = {
-                "latest_snapshot_tag": "1.0.0",
-                "participants_data": None,
-                "species": "homo sapiens",
-            }
-            with pytest.raises(ValueError, match="No EEG recordings found"):
-                EmptyRecordingsPipeline.get_manifest(temp_dir, None)
+        args = Namespace(on_version_mismatch="continue", redownload=False, reprocess=False)
+        with pytest.raises(ValueError, match="No EEG recordings found"):
+            EmptyRecordingsPipeline.get_manifest(temp_dir, args)
 
 
 # ============================================================================
@@ -1025,7 +766,7 @@ class TestDownload:
     def test_download_returns_dict_with_required_keys(
         self, eeg_pipeline_instance, manifest_row
     ):
-        """download returns dict with subject_id and recording_id."""
+        """download returns manifest_item with subject_id and recording_id."""
         with patch("brainsets.utils.openneuro.pipeline.download_recording"):
             with patch(
                 "brainsets.utils.openneuro.pipeline.download_dataset_description"
@@ -1036,10 +777,10 @@ class TestDownload:
                 ):
                     result = eeg_pipeline_instance.download(manifest_row)
 
-        assert "subject_id" in result
-        assert "recording_id" in result
-        assert result["subject_id"] == "sub-01"
-        assert result["recording_id"] == "rec-001"
+        assert hasattr(result, "subject_id")
+        assert hasattr(result, "Index")
+        assert result.subject_id == "sub-01"
+        assert result.Index == "rec-001"
 
     def test_download_eeg_skips_if_files_exist_and_no_redownload(
         self, temp_dir, mock_args_no_reprocessing, eeg_pipeline_class, manifest_row
@@ -1061,7 +802,7 @@ class TestDownload:
                 result = pipeline.download(manifest_row)
 
         mock_download.assert_not_called()
-        assert result["recording_id"] == "rec-001"
+        assert result.Index == "rec-001"
 
     def test_download_ieeg_skips_if_files_exist_and_no_redownload(
         self, temp_dir, mock_args_no_reprocessing, ieeg_pipeline_class, manifest_row
@@ -1083,7 +824,7 @@ class TestDownload:
                 result = pipeline.download(manifest_row)
 
         mock_download.assert_not_called()
-        assert result["recording_id"] == "rec-001"
+        assert result.Index == "rec-001"
 
     def test_download_eeg_redownloads_when_redownload_true(
         self, temp_dir, mock_args_with_reprocessing, eeg_pipeline_class, manifest_row
@@ -1132,12 +873,13 @@ class TestChannelRemapping:
     ):
         """get_channel_name_remapping returns CHANNEL_NAME_REMAPPING when defined."""
 
-        class CustomEEGPipeline(OpenNeuroEEGPipeline):
+        class CustomEEGPipeline(OpenNeuroPipeline):
             dataset_id = "ds005085"
             brainset_id = "test"
             origin_version = "1.0.0"
             derived_version = "1.0.0"
             ci_smoke_session = "sub-01"
+            modality = "eeg"
             CHANNEL_NAME_REMAPPING = {"PSG_F3": "F3", "PSG_F4": "F4"}
 
         pipeline = CustomEEGPipeline(
@@ -1165,12 +907,13 @@ class TestChannelRemapping:
     def test_get_type_channels_remapping_returns_class_attribute(self):
         """get_type_channels_remapping returns TYPE_CHANNELS_REMAPPING when defined."""
 
-        class CustomEEGPipeline(OpenNeuroEEGPipeline):
+        class CustomEEGPipeline(OpenNeuroPipeline):
             dataset_id = "ds005085"
             brainset_id = "test"
             origin_version = "1.0.0"
             derived_version = "1.0.0"
             ci_smoke_session = "sub-01"
+            modality = "eeg"
             TYPE_CHANNELS_REMAPPING = {"EEG": ["F3", "F4"], "EOG": ["EOG"]}
 
         pipeline = CustomEEGPipeline(
@@ -1228,12 +971,13 @@ class TestGenerateSplits:
     def test_generate_splits_respects_split_ratios(self, temp_dir, eeg_pipeline_class):
         """generate_splits respects custom split_ratios."""
 
-        class CustomRatioPipeline(OpenNeuroEEGPipeline):
+        class CustomRatioPipeline(OpenNeuroPipeline):
             dataset_id = "ds005085"
             brainset_id = "test"
             origin_version = "1.0.0"
             derived_version = "1.0.0"
             ci_smoke_session = "sub-01"
+            modality = "eeg"
             split_ratios = (0.8, 0.2)
 
         pipeline = CustomRatioPipeline(
@@ -1298,33 +1042,45 @@ class TestGenerateSplits:
 
 
 # ============================================================================
-# Tests for _process_common
+# Tests for process_common
 # ============================================================================
 
 
 class TestProcessCommon:
-    """Tests for _process_common method."""
+    """Tests for process_common method."""
 
     @patch("brainsets.utils.openneuro.pipeline.MNE_BIDS_AVAILABLE", False)
     def test_process_common_raises_when_mne_bids_unavailable(
         self, eeg_pipeline_instance
     ):
-        """_process_common raises ImportError if mne-bids not available."""
-        download_output = {"recording_id": "rec-001", "subject_id": "sub-01"}
+        """process_common raises ImportError if mne-bids not available."""
+        download_output = MagicMock()
+        download_output.Index = "rec-001"
+        download_output.subject_id = "sub-01"
+        download_output.species = "homo sapiens"
+        download_output.age = 25
+        download_output.sex = "M"
+        download_output.latest_snapshot_tag = "1.0.0"
 
         with pytest.raises(ImportError, match="mne-bids"):
-            eeg_pipeline_instance._process_common(download_output)
+            eeg_pipeline_instance.process_common(download_output)
 
     @patch("brainsets.utils.openneuro.pipeline.read_raw_bids")
     def test_process_common_skips_if_already_processed(
         self, mock_read_raw, eeg_pipeline_instance
     ):
-        """_process_common returns None if file already exists and not reprocessing."""
+        """process_common returns None if file already exists and not reprocessing."""
         eeg_pipeline_instance.processed_dir.mkdir(exist_ok=True, parents=True)
         (eeg_pipeline_instance.processed_dir / "rec-001.h5").touch()
-        download_output = {"recording_id": "rec-001", "subject_id": "sub-01"}
+        download_output = MagicMock()
+        download_output.Index = "rec-001"
+        download_output.subject_id = "sub-01"
+        download_output.species = "homo sapiens"
+        download_output.age = 25
+        download_output.sex = "M"
+        download_output.latest_snapshot_tag = "1.0.0"
 
-        result = eeg_pipeline_instance._process_common(download_output)
+        result = eeg_pipeline_instance.process_common(download_output)
 
         assert result is None
         mock_read_raw.assert_not_called()
@@ -1334,10 +1090,8 @@ class TestProcessCommon:
     @patch("brainsets.utils.openneuro.pipeline.extract_signal")
     @patch("brainsets.utils.openneuro.pipeline.extract_channels")
     @patch("brainsets.utils.openneuro.pipeline.extract_measurement_date")
-    @patch("brainsets.utils.openneuro.pipeline.get_subject_info")
     def test_process_common_creates_data_object(
         self,
-        mock_subject_info,
         mock_meas_date,
         mock_extract_channels,
         mock_extract_signal,
@@ -1346,32 +1100,28 @@ class TestProcessCommon:
         eeg_pipeline_instance,
         mock_raw,
     ):
-        """_process_common creates and returns Data object."""
+        """process_common creates and returns Data object."""
         eeg_pipeline_instance.processed_dir.mkdir(exist_ok=True, parents=True)
-        download_output = {"recording_id": "rec-001", "subject_id": "sub-01"}
+        download_output = MagicMock()
+        download_output.Index = "rec-001"
+        download_output.subject_id = "sub-01"
+        download_output.species = "homo sapiens"
+        download_output.age = 25
+        download_output.sex = "M"
+        download_output.latest_snapshot_tag = "1.0.0"
 
         mock_bids_path.return_value = "path/to/bids"
         mock_read_raw.return_value = mock_raw
-        mock_subject_info.return_value = {"age": 25, "sex": "M"}
         mock_meas_date.return_value = "2023-01-01"
         mock_extract_signal.return_value = MagicMock(
             domain=Interval(start=np.array([0.0]), end=np.array([100.0]))
         )
         mock_extract_channels.return_value = {}
 
-        ctx = {
-            "latest_snapshot_tag": "1.0.0",
-            "participants_data": None,
-            "species": "homo sapiens",
-        }
-
-        type(eeg_pipeline_instance)._cached_openneuro_context = {
-            eeg_pipeline_instance.dataset_id: ctx
-        }
         with patch.object(
             eeg_pipeline_instance, "generate_splits", return_value=MagicMock()
         ):
-            result = eeg_pipeline_instance._process_common(download_output)
+            result = eeg_pipeline_instance.process_common(download_output)
 
         assert result is not None
         assert len(result) == 2
@@ -1381,28 +1131,29 @@ class TestProcessCommon:
 
     @patch("brainsets.utils.openneuro.pipeline.build_bids_path")
     @patch("brainsets.utils.openneuro.pipeline.read_raw_bids")
-    @patch("brainsets.utils.openneuro.pipeline.get_subject_info")
     @patch("brainsets.utils.openneuro.pipeline.extract_measurement_date")
     @patch("brainsets.utils.openneuro.pipeline.extract_signal")
+    @patch("brainsets.utils.openneuro.pipeline.extract_channels")
     def test_channel_and_type_remapping_and_ignore_channels(
         self,
+        mock_extract_channels,
         mock_extract_signal,
         mock_meas_date,
-        mock_subject_info,
         mock_read_raw,
         mock_bids_path,
         temp_dir,
         mock_args_no_reprocessing,
         mock_raw,
     ):
-        """Test that _process_common remaps channel names/types and applies ignore channels."""
+        """Test that process_common remaps channel names/types and applies ignore channels."""
 
-        class CustomEEGPipeline(OpenNeuroEEGPipeline):
+        class CustomEEGPipeline(OpenNeuroPipeline):
             dataset_id = "ds005085"
             brainset_id = "test"
             origin_version = "1.0.0"
             derived_version = "1.0.0"
             ci_smoke_session = "sub-01"
+            modality = "eeg"
             CHANNEL_NAME_REMAPPING = {"EEG_1": "F3", "EEG_4": "F4"}
             TYPE_CHANNELS_REMAPPING = {
                 "EEG": ["F3", "EEG_2", "EEG_3", "F4"],
@@ -1419,25 +1170,59 @@ class TestProcessCommon:
             args=mock_args_no_reprocessing,
         )
 
-        download_output = {"recording_id": "rec-001", "subject_id": "sub-01"}
+        download_output = MagicMock()
+        download_output.Index = "rec-001"
+        download_output.subject_id = "sub-01"
+        download_output.species = "homo sapiens"
+        download_output.age = 25
+        download_output.sex = "M"
+        download_output.latest_snapshot_tag = "1.0.0"
 
         mock_bids_path.return_value = "path/to/bids_path"
         mock_read_raw.return_value = mock_raw
-        mock_subject_info.return_value = {"age": 25, "sex": "M"}
         mock_meas_date.return_value = "2023-01-01"
         mock_extract_signal.return_value = MagicMock(
             domain=Interval(start=np.array([0.0]), end=np.array([100.0]))
         )
+        channels_obj = MagicMock()
+        channels_obj.id = np.array(
+            ["F3", "EEG_2", "EEG_3", "EEG_BAD", "EOG_L", "EOG_R", "EMG", "STIM"]
+            + ["unused"] * 3
+        )
+        channels_obj.type = np.array(
+            [
+                "eeg",
+                "eeg",
+                "eeg",
+                "eeg",
+                "eog",
+                "eog",
+                "emg",
+                "stim",
+                "misc",
+                "misc",
+                "misc",
+            ]
+        )
+        channels_obj.bad = np.array(
+            [
+                False,
+                False,
+                False,
+                True,
+                False,
+                False,
+                False,
+                False,
+                False,
+                False,
+                False,
+            ]
+        )
+        mock_extract_channels.return_value = channels_obj
 
-        ctx = {
-            "latest_snapshot_tag": "1.0.0",
-            "participants_data": None,
-            "species": "homo sapiens",
-        }
-
-        type(pipeline)._cached_openneuro_context = {pipeline.dataset_id: ctx}
         with patch.object(pipeline, "generate_splits", return_value=MagicMock()):
-            data, path = pipeline._process_common(download_output)
+            data, path = pipeline.process_common(download_output)
 
         assert all(
             data.channels.id
@@ -1495,10 +1280,12 @@ class TestProcess:
     def test_process_skips_when_process_common_returns_none(
         self, eeg_pipeline_instance
     ):
-        """process returns early if _process_common returns None."""
-        download_output = {"recording_id": "rec-001", "subject_id": "sub-01"}
+        """process returns early if process_common returns None."""
+        download_output = MagicMock()
+        download_output.Index = "rec-001"
+        download_output.subject_id = "sub-01"
 
-        with patch.object(eeg_pipeline_instance, "_process_common", return_value=None):
+        with patch.object(eeg_pipeline_instance, "process_common", return_value=None):
             with patch("builtins.open") as mock_file:
                 eeg_pipeline_instance.process(download_output)
 
@@ -1506,13 +1293,15 @@ class TestProcess:
 
     def test_process_saves_data_to_h5(self, eeg_pipeline_instance):
         """process saves Data object to HDF5 file."""
-        download_output = {"recording_id": "rec-001", "subject_id": "sub-01"}
+        download_output = MagicMock()
+        download_output.Index = "rec-001"
+        download_output.subject_id = "sub-01"
         mock_data = MagicMock(spec=Data)
         store_path = eeg_pipeline_instance.processed_dir / "rec-001.h5"
 
         with patch.object(
             eeg_pipeline_instance,
-            "_process_common",
+            "process_common",
             return_value=(mock_data, store_path),
         ):
             with patch("brainsets.utils.openneuro.pipeline.h5py.File"):
