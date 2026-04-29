@@ -8,7 +8,7 @@
 # ]
 # ///
 
-from brainsets.utils.openneuro import OpenNeuroEEGPipeline
+from brainsets.utils.openneuro import OpenNeuroPipeline
 
 HEADBAND_ELECTRODE_RENAME = {
     "HB_1": "AF7",
@@ -57,7 +57,8 @@ PSG_MODALITY_CHANNELS = {
 }
 
 
-class Pipeline(OpenNeuroEEGPipeline):
+class Pipeline(OpenNeuroPipeline):
+    modality = "eeg"
     brainset_id = "klinzing_sleep_ds005555"
     dataset_id = "ds005555"
     description = (

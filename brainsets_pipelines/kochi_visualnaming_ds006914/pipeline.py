@@ -8,10 +8,11 @@
 # ]
 # ///
 
-from brainsets.utils.openneuro import OpenNeuroIEEGPipeline
+from brainsets.utils.openneuro import OpenNeuroPipeline
 
 
-class Pipeline(OpenNeuroIEEGPipeline):
+class Pipeline(OpenNeuroPipeline):
+    modality = "ieeg"
     brainset_id = "kochi_visualnaming_ds006914"
     dataset_id = "ds006914"
     description = (

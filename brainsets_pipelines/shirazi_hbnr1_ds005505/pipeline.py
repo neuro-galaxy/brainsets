@@ -8,12 +8,13 @@
 # ]
 # ///
 
-from brainsets.utils.openneuro import OpenNeuroEEGPipeline
+from brainsets.utils.openneuro import OpenNeuroPipeline
 
 TYPE_CHANNELS_REMAPPING = {"EEG": [f"E{i}" for i in range(1, 129)] + ["Cz"]}
 
 
-class Pipeline(OpenNeuroEEGPipeline):
+class Pipeline(OpenNeuroPipeline):
+    modality = "eeg"
     brainset_id = "shirazi_hbnr1_ds005505"
     dataset_id = "ds005505"
     description = (
