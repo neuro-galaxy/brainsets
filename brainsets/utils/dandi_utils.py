@@ -10,7 +10,7 @@ __all__ = _functions
 
 
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Literal, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -181,47 +181,38 @@ def download_file(
     path: str | Path,
     url: str,
     raw_dir: str | Path,
-    overwrite: bool = False,
-    skip_existing: bool = False,
+    existing: Literal["refresh", "overwrite", "skip"] = "refresh",
 ) -> Path:
     r"""Download a file from DANDI
 
     Full path of the downloaded path will be ``raw_dir / path``.
 
-    The three download modes are evaluated in priority order:
-    ``overwrite=True`` always re-downloads, ``skip_existing=True``
-    skips already-present files, and the default refreshes metadata.
-
     Args:
         path: path of the downloaded file within :obj:`raw_dir`
         url: URL of the DANDI asset
         raw_dir: root directory where the file will be downloaded
-        overwrite: Will overwrite existing file if :obj:`True`
-            (default :obj:`False`)
-        skip_existing: Skip download if the file already exists on disk
-            (default :obj:`False`). Ignored when ``overwrite`` is :obj:`True`.
+        existing: Policy for already-present files. ``"overwrite"`` always
+            re-downloads, ``"skip"`` leaves them untouched, and ``"refresh"``
+            (the default) re-downloads only when remote metadata has changed.
 
     """
     _check_dandi_available("download_file")
     import dandi.download
 
+    _EXISTING_POLICY = {
+        "overwrite": dandi.download.DownloadExisting.OVERWRITE,
+        "skip": dandi.download.DownloadExisting.SKIP,
+        "refresh": dandi.download.DownloadExisting.REFRESH,
+    }
+
     raw_dir = Path(raw_dir)
     asset_path = Path(path)
     download_dir = raw_dir / asset_path.parent
     download_dir.mkdir(exist_ok=True, parents=True)
-    existing_mode = (
-        dandi.download.DownloadExisting.OVERWRITE
-        if overwrite
-        else (
-            dandi.download.DownloadExisting.SKIP
-            if skip_existing
-            else dandi.download.DownloadExisting.REFRESH
-        )
-    )
     dandi.download.download(
         url,
         download_dir,
-        existing=existing_mode,
+        existing=_EXISTING_POLICY[existing],
     )
     return raw_dir / asset_path
 

@@ -56,7 +56,7 @@ class Pipeline(BrainsetPipeline):
             manifest_item.path,
             manifest_item.url,
             self.raw_dir,
-            overwrite=self.args.redownload,
+            existing="overwrite" if self.args.redownload else "refresh",
         )
         return fpath
 
