@@ -181,19 +181,22 @@ def download_file(
     path: str | Path,
     url: str,
     raw_dir: str | Path,
-    existing: Literal["refresh", "overwrite", "skip"] = "refresh",
+    download_policy: Literal["skip", "overwrite", "error"] = "error",
 ) -> Path:
     r"""Download a file from DANDI
 
     Full path of the downloaded path will be ``raw_dir / path``.
 
+    Download policy controls behavior when a target file already exists.
+    ``"overwrite"`` always re-downloads, ``"skip"`` keeps existing files,
+    and ``"error"`` asks DANDI to raise.
+
     Args:
         path: path of the downloaded file within :obj:`raw_dir`
         url: URL of the DANDI asset
         raw_dir: root directory where the file will be downloaded
-        existing: Policy for already-present files. ``"overwrite"`` always
-            re-downloads, ``"skip"`` leaves them untouched, and ``"refresh"``
-            (the default) re-downloads only when remote metadata has changed.
+        download_policy: One of ``"skip"``, ``"overwrite"``, or ``"error"``
+            (default ``"error"``)
 
     """
     _check_dandi_available("download_file")
@@ -207,14 +210,31 @@ def download_file(
 
     raw_dir = Path(raw_dir)
     asset_path = Path(path)
+    target_path = raw_dir / asset_path
     download_dir = raw_dir / asset_path.parent
     download_dir.mkdir(exist_ok=True, parents=True)
+
+    if download_policy == "error" and target_path.exists():
+        raise FileExistsError(f"Target file already exists: {target_path}")
+
+    existing_mode_map = {
+        "overwrite": dandi.download.DownloadExisting.OVERWRITE,
+        "skip": dandi.download.DownloadExisting.SKIP,
+        # For "error", we pre-check file existence and then use REFRESH for download.
+        "error": dandi.download.DownloadExisting.REFRESH,
+    }
+    try:
+        existing_mode = existing_mode_map[download_policy]
+    except KeyError as exc:
+        raise ValueError(
+            "download_policy must be one of: 'skip', 'overwrite', 'error'"
+        ) from exc
     dandi.download.download(
         url,
         download_dir,
         existing=_EXISTING_POLICY[existing],
     )
-    return raw_dir / asset_path
+    return target_path
 
 
 def get_nwb_asset_list(dandiset_id: str) -> list:

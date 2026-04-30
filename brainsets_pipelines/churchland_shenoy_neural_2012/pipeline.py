@@ -65,7 +65,7 @@ class Pipeline(BrainsetPipeline):
             manifest_item.path,
             manifest_item.url,
             self.raw_dir,
-            existing="overwrite" if self.args.redownload else "refresh",
+            download_policy="overwrite" if self.args.redownload else "skip",
         )
         return fpath
 
@@ -537,12 +537,12 @@ def extract_spikes(nwbfile, trials, artifact_dict):
             spikes_times = np.concatenate(spikes_times_blocks)
 
             obs_intervals = nwbfile.units[i].obs_intervals[i]
-            assert np.allclose(
-                obs_intervals[:, 0], trial_table["start_time"]
-            ), f"Unit {i}"
-            assert np.allclose(
-                obs_intervals[:, 1], trial_table["stop_time"]
-            ), f"Unit {i}"
+            assert np.allclose(obs_intervals[:, 0], trial_table["start_time"]), (
+                f"Unit {i}"
+            )
+            assert np.allclose(obs_intervals[:, 1], trial_table["stop_time"]), (
+                f"Unit {i}"
+            )
 
         else:
             if len(artifact_index) != 0:

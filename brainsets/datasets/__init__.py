@@ -25,6 +25,13 @@ __all__ = (
     + _calcium_imaging_datasets
     + _ieeg_datasets
     + _psg_datasets
+    + [
+        "AJILE_ACTIVE_BEHAVIOR_LABELS",
+        "AJILE_ACTIVE_BEHAVIOR_TO_ID",
+        "AJILE_INACTIVE_BEHAVIORS",
+        "AJILE_ACTIVE_VS_INACTIVE_LABELS",
+        "AJILE_ACTIVE_VS_INACTIVE_TO_ID",
+    ]
 )
 
 from .PerichMillerPopulation2018 import PerichMillerPopulation2018
@@ -40,4 +47,11 @@ from .PetersonBruntonPoseTrajectory2022 import (
     PetersonBruntonPoseTrajectory2022,
     PetersonBruntonSplitType,
     PetersonBruntonTaskType,
+)
+from ..ajile_behavior_labels import (
+    ACTIVE_BEHAVIOR_LABELS as AJILE_ACTIVE_BEHAVIOR_LABELS,
+    ACTIVE_BEHAVIOR_TO_ID as AJILE_ACTIVE_BEHAVIOR_TO_ID,
+    INACTIVE_BEHAVIORS as AJILE_INACTIVE_BEHAVIORS,
+    ACTIVE_VS_INACTIVE_LABELS as AJILE_ACTIVE_VS_INACTIVE_LABELS,
+    ACTIVE_VS_INACTIVE_TO_ID as AJILE_ACTIVE_VS_INACTIVE_TO_ID,
 )

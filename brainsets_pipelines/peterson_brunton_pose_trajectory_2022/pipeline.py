@@ -4,6 +4,7 @@
 #   "mne~=1.11.0",
 #   "dandi==0.74.0",
 #   "pynwb==3.1.3",
+#   "scipy>=1.12.0",
 #   "scikit-learn==1.7.2",
 #   "temporaldata@git+https://github.com/neuro-galaxy/temporaldata@main",
 # ]
@@ -24,6 +25,13 @@ from temporaldata import Data, Interval, RegularTimeSeries
 from tqdm.auto import tqdm
 
 from brainsets import serialize_fn_map
+from brainsets.ajile_behavior_labels import (
+    ACTIVE_BEHAVIOR_LABELS,
+    ACTIVE_BEHAVIOR_TO_ID,
+    INACTIVE_BEHAVIORS,
+    ACTIVE_VS_INACTIVE_TO_ID,
+    LEGACY_BEHAVIOR_LABEL_ALIASES,
+)
 from brainsets.descriptions import (
     BrainsetDescription,
     DeviceDescription,
@@ -56,19 +64,27 @@ parser.add_argument(
     default=500.0,
     help="ECoG resample rate in Hz",
 )
+parser.add_argument(
+    "--normalize_pose",
+    action="store_true",
+    help="Apply multi-step pose normalization (clean, center, scale, optionally z-score)",
+)
+parser.add_argument(
+    "--pose_confidence_threshold",
+    type=float,
+    default=0.8,
+    help="Confidence threshold below which keypoint coordinates are dropped and interpolated",
+)
+parser.add_argument(
+    "--pose_zscore",
+    action="store_true",
+    help="Apply z-score standardization to geometrically normalized pose features",
+)
 
-# Priority order for simplifying multi-label active behaviors to a single label
-ACTIVE_BEHAVIOR_PRIORITY = ["Eat", "Talk", "TV", "Computer/phone", "Other activity"]
-ACTIVE_BEHAVIOR_TO_ID = {label: i for i, label in enumerate(ACTIVE_BEHAVIOR_PRIORITY)}
+ACTIVE_BEHAVIOR_PRIORITY = ACTIVE_BEHAVIOR_LABELS
 
-INACTIVE_BEHAVIORS = {"Sleep/rest", "Inactive"}
-
-ACTIVE_VS_INACTIVE_TO_ID = {"Active": 0, "Inactive": 1}
-
-# Some sessions contain very few "Other activity" trials (<2) so we can't use them for splitting.
-# We exclude them from the all_active_behavior task.
 BEHAVIOR_TASK_CONFIGS = {
-    "all_active_behavior": ["Eat", "Talk", "TV", "Computer/phone"],
+    "all_active_behavior": list(ACTIVE_BEHAVIOR_PRIORITY),
 }
 
 ACTIVE_VS_INACTIVE_TASK_CONFIGS = {
@@ -103,10 +119,22 @@ AJILE_NWB_KEYPOINT_NAMES = [
     "R_Shoulder",
 ]
 
+POSE_ANCHOR_MAP = {
+    "r_wrist": "r_shoulder",
+    "r_elbow": "r_shoulder",
+    "l_wrist": "l_shoulder",
+    "l_elbow": "l_shoulder",
+}
+
 TRIAL_CHUNK_DURATION_SEC = 30.0
-SPLIT_N_FOLDS = 3
+SPLIT_N_FOLDS = 2
 SPLIT_VAL_RATIO = 0.2
 SPLIT_SEED = 42
+
+
+def _canonicalize_behavior_label(label: str) -> str:
+    normalized_label = label.strip()
+    return LEGACY_BEHAVIOR_LABEL_ALIASES.get(normalized_label, normalized_label)
 
 
 class Pipeline(BrainsetPipeline):
@@ -157,7 +185,9 @@ class Pipeline(BrainsetPipeline):
             manifest_item.path,
             manifest_item.url,
             self.raw_dir,
-            existing="overwrite" if getattr(self.args, "redownload", False) else "skip",
+            download_policy=(
+                "overwrite" if getattr(self.args, "redownload", False) else "skip"
+            ),
         )
         return fpath
 
@@ -285,9 +315,9 @@ class Pipeline(BrainsetPipeline):
             subject.id.replace("AJILE12_P", "").replace("sub-", "").strip()
             or subject.id
         )
-        assert (
-            subject_num and subject_num.isdigit()
-        ), f"Could not parse numeric subject from id '{subject.id}'"
+        assert subject_num and subject_num.isdigit(), (
+            f"Could not parse numeric subject from id '{subject.id}'"
+        )
         stem = Path(fpath).stem
         if "_ses-" in stem:
             session_num = stem.split("_ses-")[1].split("_")[0]
@@ -324,6 +354,16 @@ class Pipeline(BrainsetPipeline):
 
         self.update_status("Extracting pose trajectories")
         pose = ajile_extract_pose_from_nwb(nwbfile)
+
+        if getattr(self.args, "normalize_pose", False):
+            self.update_status("Normalizing pose trajectories")
+            pose = normalize_pose(
+                pose,
+                confidence_threshold=getattr(
+                    self.args, "pose_confidence_threshold", 0.8
+                ),
+                zscore=getattr(self.args, "pose_zscore", False),
+            )
 
         self.update_status("Computing pose valid domain")
         pose_valid_domain = compute_pose_valid_domain(pose)
@@ -513,6 +553,127 @@ def ajile_extract_pose_from_nwb(
     )
 
 
+def normalize_pose(
+    pose: RegularTimeSeries,
+    confidence_threshold: float = 0.8,
+    savgol_window_length: int = 11,
+    savgol_polyorder: int = 3,
+    zscore: bool = False,
+) -> RegularTimeSeries:
+    """Normalize pose keypoints via a 4-step pipeline.
+
+    1. Drop coordinates below *confidence_threshold*, linearly interpolate the
+       resulting gaps, and apply a Savitzky-Golay smoothing filter.
+    2. Translate wrist and elbow keypoints into a body-centric frame by
+       subtracting the ipsilateral shoulder position at every frame.
+    3. Scale the centered coordinates by the median inter-shoulder distance
+       computed over high-confidence frames, converting pixels to
+       proportions-of-body-width.
+    4. (Optional) Z-score standardize each feature independently.
+
+    Wrist and elbow keypoints are centered on their ipsilateral shoulder;
+    the remaining keypoints (shoulders, nose, ears) are centered on the
+    shoulder midpoint.  Scaling and z-scoring are applied to all keypoints.
+    The returned :class:`RegularTimeSeries` stores (x, y) per keypoint with
+    confidence columns stripped.
+    """
+    from scipy.signal import savgol_filter
+
+    kp_xy: dict[str, np.ndarray] = {}
+    kp_conf: dict[str, np.ndarray] = {}
+
+    for kp in AJILE_KEYPOINTS:
+        raw = np.asarray(getattr(pose, kp), dtype=np.float64)
+        if raw.ndim == 2 and raw.shape[1] >= 3:
+            kp_xy[kp] = raw[:, :2].copy()
+            kp_conf[kp] = raw[:, 2].copy()
+        elif raw.ndim == 2:
+            kp_xy[kp] = raw[:, :2].copy()
+            kp_conf[kp] = np.ones(raw.shape[0])
+        else:
+            kp_xy[kp] = raw.reshape(-1, 1).copy()
+            kp_conf[kp] = np.ones(len(raw))
+
+    # --- Step 1: clean, interpolate, smooth --------------------------------
+    for kp in AJILE_KEYPOINTS:
+        xy = kp_xy[kp]
+        low_conf = kp_conf[kp] < confidence_threshold
+        xy[low_conf] = np.nan
+
+        n = len(xy)
+        frame_idx = np.arange(n)
+        for col in range(xy.shape[1]):
+            valid = ~np.isnan(xy[:, col])
+            if valid.sum() < 2 or valid.all():
+                continue
+            xy[~valid, col] = np.interp(
+                frame_idx[~valid], frame_idx[valid], xy[valid, col]
+            )
+
+        win = min(savgol_window_length, n)
+        if win % 2 == 0:
+            win -= 1
+        if win > savgol_polyorder:
+            for col in range(xy.shape[1]):
+                if not np.any(np.isnan(xy[:, col])):
+                    xy[:, col] = savgol_filter(xy[:, col], win, savgol_polyorder)
+
+        kp_xy[kp] = xy
+
+    # --- Step 2: body-centric frame ----------------------------------------
+    # Compute the shoulder midpoint before any centering (used as anchor
+    # for non-arm keypoints: shoulders, nose, ears).
+    shoulder_midpoint = (kp_xy["l_shoulder"] + kp_xy["r_shoulder"]) / 2
+
+    # Wrist/elbow → ipsilateral shoulder
+    for kp, anchor in POSE_ANCHOR_MAP.items():
+        kp_xy[kp] = kp_xy[kp] - kp_xy[anchor]
+
+    # Remaining keypoints → shoulder midpoint
+    for kp in AJILE_KEYPOINTS:
+        if kp not in POSE_ANCHOR_MAP:
+            kp_xy[kp] = kp_xy[kp] - shoulder_midpoint
+
+    # --- Step 3: scale by median shoulder-to-shoulder distance -------------
+    high_conf = (kp_conf["l_shoulder"] >= confidence_threshold) & (
+        kp_conf["r_shoulder"] >= confidence_threshold
+    )
+    # Shoulder distance is computed from the (now midpoint-centered)
+    # shoulder coordinates; the norm is invariant to the shared translation.
+    shoulder_dist = np.linalg.norm(kp_xy["l_shoulder"] - kp_xy["r_shoulder"], axis=1)
+    ref_distances = shoulder_dist[high_conf] if high_conf.any() else shoulder_dist
+    D = float(np.median(ref_distances))
+
+    if D > 0:
+        for kp in AJILE_KEYPOINTS:
+            kp_xy[kp] /= D
+    else:
+        logger.warning(
+            "Shoulder-to-shoulder reference distance is zero; "
+            "skipping scale normalization."
+        )
+
+    # --- Step 4: optional z-score standardization --------------------------
+    if zscore:
+        for kp in AJILE_KEYPOINTS:
+            xy = kp_xy[kp]
+            for col in range(xy.shape[1]):
+                vals = xy[:, col]
+                valid = ~np.isnan(vals)
+                if valid.sum() == 0:
+                    continue
+                mean = np.mean(vals[valid])
+                std = np.std(vals[valid])
+                if std > 0:
+                    xy[:, col] = (vals - mean) / std
+
+    return RegularTimeSeries(
+        **{kp: kp_xy[kp] for kp in AJILE_KEYPOINTS},
+        sampling_rate=float(pose.sampling_rate),
+        domain=pose.domain,
+    )
+
+
 def _contiguous_valid_intervals(
     valid_mask: np.ndarray, sampling_rate: float
 ) -> Interval:
@@ -637,16 +798,21 @@ def ajile_extract_behavior_intervals_from_nwb(
     active_event_set = set(ACTIVE_BEHAVIOR_PRIORITY)
     inactive_event_set = INACTIVE_BEHAVIORS
 
+    parsed_behavior_labels = [
+        [_canonicalize_behavior_label(event) for event in label.split(", ")]
+        for label in coarse_behaviors_labels
+    ]
+
     active_event_mask = np.array(
         [
-            all(event in active_event_set for event in label.split(", "))
-            for label in coarse_behaviors_labels
+            all(event in active_event_set for event in events)
+            for events in parsed_behavior_labels
         ]
     )
     inactive_event_mask = np.array(
         [
-            all(event in inactive_event_set for event in label.split(", "))
-            for label in coarse_behaviors_labels
+            all(event in inactive_event_set for event in events)
+            for events in parsed_behavior_labels
         ]
     )
     active_or_inactive_mask = active_event_mask | inactive_event_mask
@@ -656,11 +822,10 @@ def ajile_extract_behavior_intervals_from_nwb(
     active_indices = np.where(active_event_mask)[0]
     active_starts = start_times[active_indices]
     active_ends = end_times[active_indices]
-    active_labels_raw = [coarse_behaviors_labels[i] for i in active_indices]
+    active_labels_raw = [parsed_behavior_labels[i] for i in active_indices]
 
     simplified_labels = []
-    for label in active_labels_raw:
-        behaviors = label.split(", ")
+    for behaviors in active_labels_raw:
         simplified = next(
             (b for b in ACTIVE_BEHAVIOR_PRIORITY if b in behaviors), behaviors[0]
         )
