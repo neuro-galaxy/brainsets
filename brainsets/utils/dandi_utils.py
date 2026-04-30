@@ -232,7 +232,7 @@ def download_file(
     dandi.download.download(
         url,
         download_dir,
-        existing=_EXISTING_POLICY[existing],
+        existing=_EXISTING_POLICY[existing_mode],
     )
     return target_path
 
