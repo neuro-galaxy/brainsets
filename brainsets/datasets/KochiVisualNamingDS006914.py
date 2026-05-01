@@ -12,11 +12,12 @@ class KochiVisualNamingDS006914(OpenNeuroDataset):
         To download and prepare this dataset, run
         ``brainsets prepare kochi_visualnaming_ds006914``.
 
-    Each instance exposes a split of the dataset, or an explicit subset of recordings if `recording_ids` is provided.
+    Each dataset instance uses a split strategy (`split_type`) and can optionally be 
+    restricted to specific recordings via recording_ids.
 
     Args:
         root (str): Root directory containing processed Visual Naming artifacts.
-        split_type (OpenNeuroSplitType): The split type describing train/val/test regime.
+        split_type (OpenNeuroSplitType): The split type describing train/valid/test regime.
         recording_ids (list[str], optional): List of explicit recording IDs to load. If omitted, the dataset uses split-based recording selection.
         transform (Callable, optional): Optional transform to apply to samples.
         **kwargs: Additional keyword arguments forwarded to the base OpenNeuroDataset.

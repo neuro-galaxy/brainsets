@@ -12,12 +12,12 @@ class KlinzingSleepDS005555(OpenNeuroDataset):
         To download and prepare this dataset, run
         ``brainsets prepare klinzing_sleep_ds005555``.
 
-    Each instance operates on either a predefined split of the dataset or a user-specified subset
-    of recordings via `recording_ids`.
+    Each dataset instance uses a split strategy (`split_type`) and can optionally be 
+    restricted to specific recordings via recording_ids.
 
     Args:
         root (str): Root directory containing processed Klinzing Sleep artifacts.
-        split_type (OpenNeuroSplitType): Dataset split strategy, e.g. train/val/test as designated by the workflow.
+        split_type (OpenNeuroSplitType): Dataset split strategy, e.g. train/valid/test as designated by the workflow.
         recording_ids (list[str], optional): List of explicit recording IDs to load. If omitted, the dataset uses split-based recording selection.
         transform (Callable, optional): Optional transform to apply to each sample.
         **kwargs: Additional keyword arguments forwarded to OpenNeuroDataset.
