@@ -10,6 +10,8 @@
 
 from brainsets.utils.openneuro import OpenNeuroPipeline
 
+# The mappings below were obtained by following the schema 
+# described in the dataset's README file.
 HEADBAND_ELECTRODE_RENAME = {
     "HB_1": "AF7",
     "HB_2": "AF8",
