@@ -12,7 +12,7 @@ class ShiraziHBNR1DS005505(OpenNeuroDataset):
         To download and prepare this dataset, run
         ``brainsets prepare shirazi_hbn_r1_ds005505``.
 
-    Each dataset instance uses a split strategy (`split_type`) and can optionally be 
+    Each dataset instance uses a split strategy (`split_type`) and can optionally be
     restricted to specific recordings via recording_ids.
 
     Args:

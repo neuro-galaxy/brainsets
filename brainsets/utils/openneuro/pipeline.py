@@ -1,12 +1,4 @@
-"""Base pipeline classes for OpenNeuro datasets.
-
-This module provides the OpenNeuroPipeline abstract base class and its
-concrete subclasses (OpenNeuroEEGPipeline, OpenNeuroIEEGPipeline) that
-handle common functionality for processing datasets from OpenNeuro, including:
-- Dynamic recording discovery from OpenNeuro S3
-- Downloading EEG/iEEG files with caching
-- Common processing workflow with electrode mapping
-"""
+"""Base pipeline classes for OpenNeuro datasets."""
 
 from abc import ABC
 from argparse import ArgumentParser, Namespace
@@ -122,6 +114,10 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         Subclasses may also customize split generation for evaluation/train/test organization
         by overriding the :meth:`generate_splits` method. This allows selection of splits based
         on session, subject, or custom criteria.
+
+    **Documentation can be found in the official brainsets docs:**
+    See [Creating an OpenNeuro Pipeline](https://brainsets.readthedocs.io/en/latest/concepts/openneuro_pipeline.html) for the complete guide on building OpenNeuro pipelines.
+
     """
 
     parser = base_openneuro_parser
