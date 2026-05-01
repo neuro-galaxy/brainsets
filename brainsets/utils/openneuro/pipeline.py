@@ -3,7 +3,7 @@
 from abc import ABC
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Literal, Optional, TypedDict
+from typing import Literal, Optional
 import logging
 import sys
 
