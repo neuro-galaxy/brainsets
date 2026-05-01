@@ -8,6 +8,7 @@ This script:
 4. Outputs JSON matrix for GitHub Actions
 """
 
+import argparse
 import ast
 import json
 import sys
@@ -59,8 +60,6 @@ def discover_openneuro_pipelines(pipeline_files: list[Path]) -> list[dict]:
     """
     openneuro_bases = {
         "OpenNeuroPipeline",
-        "OpenNeuroEEGPipeline",
-        "OpenNeuroIEEGPipeline",
     }
     entries = []
 
@@ -102,11 +101,18 @@ def discover_openneuro_pipelines(pipeline_files: list[Path]) -> list[dict]:
 
 def main():
     """Main entry point."""
-    if len(sys.argv) < 2:
-        print("Usage: discover_changed_openneuro_pipelines.py <pipeline_file> [...]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Discover changed OpenNeuro pipelines for CI smoke tests."
+    )
+    parser.add_argument(
+        "pipeline_files",
+        nargs="+",
+        type=Path,
+        help="One or more changed pipeline.py files to inspect.",
+    )
+    args = parser.parse_args()
 
-    pipeline_files = [Path(f) for f in sys.argv[1:]]
+    pipeline_files = args.pipeline_files
     entries = discover_openneuro_pipelines(pipeline_files)
 
     # Output as JSON for GitHub Actions matrix
