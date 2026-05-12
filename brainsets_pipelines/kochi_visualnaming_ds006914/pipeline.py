@@ -23,4 +23,3 @@ class Pipeline(OpenNeuroPipeline):
     )
     origin_version = "1.0.3"
     derived_version = "1.0.0"
-    ci_smoke_session = "sub-023_ses-2_task-picture"

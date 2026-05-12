@@ -24,6 +24,5 @@ class Pipeline(OpenNeuroPipeline):
     )
     origin_version = "1.0.1"
     derived_version = "1.0.0"
-    ci_smoke_session = "sub-NDARAC904DMU_task-DespicableMe"
 
     TYPE_CHANNELS_REMAPPING = TYPE_CHANNELS_REMAPPING

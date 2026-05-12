@@ -42,7 +42,6 @@ Here's a working minimal pipeline:
         origin_version = "1.0.0"  # Check OpenNeuro for this!
         derived_version = "1.0.0"  # Version of your processing pipeline
         description = "Sleep recordings from OpenNeuro"
-        ci_smoke_session = "sub-01_ses-01_task-sleep"  # Required: session ID for PR smoke testing
 
 **That's it!** The rest is inherited (but can be customized 🛠️).
 
@@ -73,10 +72,10 @@ Before diving into details, check out working implementations in the `brainsets_
      - Complex ⭐⭐⭐
 
 
-The Six Required Attributes
+The Five Required Attributes
 -----------------------------
 
-Every object extending |OpenNeuroPipeline| **must** have these six attributes:
+Every object extending |OpenNeuroPipeline| **must** have these five attributes:
 
 
 1. ``modality`` – EEG or iEEG?
@@ -247,25 +246,6 @@ While ``origin_version`` tracks the version of the source dataset from OpenNeuro
 
 ----
 
-6. ``ci_smoke_session`` – Session for PR smoke tests
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Set ``ci_smoke_session`` to the session identifier that CI will use when testing your pipeline in pull requests.
-
-.. code-block:: python
-
-    class Pipeline(OpenNeuroPipeline):
-        modality = "eeg"
-        dataset_id = "ds005555"
-        brainset_id = "klinzing_sleep_ds005555"
-        origin_version = "1.0.1"
-        derived_version = "1.0.0"
-        ci_smoke_session = "sub-01_ses-01_task-sleep"  # ← Required: used for PR smoke tests
-
-This session must exist in the dataset's manifest and ideally, should be a representative, small session that exercises your pipeline well. When a PR modifies this pipeline, CI automatically runs ``brainsets prepare`` with this session to verify the pipeline still works.
-
-----
-
 
 Optional Attributes (with sensible defaults)
 --------------------------------------------
@@ -421,34 +401,6 @@ Customize how train/validation splits are created:
         # Custom split logic here
         # Return a Data object with split information
         ...
-
-
-PR Smoke Testing for OpenNeuro Pipelines
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-When you open a pull request that adds or modifies an OpenNeuro pipeline under ``brainsets_pipelines/*/pipeline.py``, CI automatically runs an end-to-end smoke test.
-
-**What happens:**
-
-1. CI detects changed OpenNeuro pipelines via AST parsing (no imports needed)
-2. For each changed pipeline, it runs: ``brainsets prepare <brainset_id> -s <ci_smoke_session> --on-version-mismatch continue``
-3. The test verifies that the pipeline can discover, download, and process data
-
-**Session specification:**
-
-You must define ``ci_smoke_session`` in your pipeline class. This value is used directly in PR smoke tests, ensuring deterministic and predictable CI behavior.
-
-**Examples:**
-
-.. code-block:: python
-
-    class Pipeline(OpenNeuroPipeline):
-        modality = "eeg"
-        brainset_id = "klinzing_sleep_ds005555"
-        dataset_id = "ds005555"
-        origin_version = "1.0.0"
-        derived_version = "1.0.0"
-        ci_smoke_session = "sub-01_ses-01_task-sleep"  # ← Required: used in PR smoke tests
 
 
 What's Next?

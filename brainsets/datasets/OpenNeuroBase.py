@@ -8,6 +8,7 @@ OpenNeuroSplitType = Literal["intrasession", "intersubject", "intersession"]
 
 VALID_SPLIT_TYPES = get_args(OpenNeuroSplitType)
 
+
 class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
     """
     Base class for OpenNeuro datasets.
@@ -67,7 +68,7 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
         )
 
     def get_sampling_intervals(
-        self, split:  Optional[Literal["train", "val", "test"]] = None
+        self, split: Optional[Literal["train", "val", "test"]] = None
     ) -> dict[str, Interval]:
         """Returns a dictionary of sampling intervals for each recording.
         This represents the intervals that can be sampled from each session.

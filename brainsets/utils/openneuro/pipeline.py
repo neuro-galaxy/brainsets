@@ -91,8 +91,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         - :attr:`brainset_id`: Unique local identifier for the brainset.
         - :attr:`origin_version`: Version string corresponding to the raw source dataset.
         - :attr:`derived_version`: Version or tag indicating the processing version of the derived data.
-        - :attr:`ci_smoke_session`: Session ID to use for PR smoke tests.
-          Must be a valid session identifier from the dataset's manifest.
         - :attr:`description`: Optional textual description of the dataset.
         - :attr:`modality`: Data modality for this pipeline. Must be overridden by subclasses.
 
@@ -140,13 +138,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
     description: Optional[str] = None
     """Optional description of the dataset."""
-
-    ci_smoke_session: str
-    """Session ID for PR smoke tests. This session is used when the pipeline is modified in a PR.
-    
-    Must be a valid session identifier from the dataset's manifest.
-    This ensures deterministic and fast PR validation for new/modified pipelines.
-    """
 
     CHANNEL_NAME_REMAPPING: Optional[dict[str, str]] = None
     """Optional dict mapping original channel name to new standardized name.
