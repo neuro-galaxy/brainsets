@@ -3,6 +3,7 @@ import pytest
 from temporaldata import Data, Interval
 from brainsets.utils.split import (
     generate_stratified_folds,
+    generate_string_binary_assignment,
     generate_string_kfold_assignment,
 )
 
@@ -121,6 +122,22 @@ class TestGenerateStratifiedFolds:
 
         with pytest.raises(ValueError, match="must have a 'label' attribute"):
             generate_stratified_folds(intervals, stratify_by="label", n_folds=5)
+
+    def test_generate_stratified_folds_too_few_epochs_per_class(self):
+        start = np.arange(6, dtype=float)
+        end = start + 1.0
+        # Class 2 has only 2 samples (< 3), which should raise.
+        ids = np.array([0, 0, 1, 1, 2, 2])
+        intervals = Interval(start=start, end=end, id=ids)
+
+        with pytest.raises(
+            ValueError,
+            match=(
+                "Not enough epochs to create stratified train/valid/test splits for "
+                "`id` classes"
+            ),
+        ):
+            generate_stratified_folds(intervals, stratify_by="id", n_folds=2)
 
 
 class TestGenerateStringKfoldAssignment:
@@ -449,3 +466,23 @@ class TestGenerateStringKfoldAssignment:
             if non_test_total > 0:
                 actual_ratio = fold_counts[k]["valid"] / non_test_total
                 assert abs(actual_ratio - val_ratio) < 0.1
+
+
+class TestGenerateStringBinaryAssignment:
+    """Tests for generate_string_binary_assignment function."""
+
+    @pytest.mark.parametrize("string_id", ["S001", "S001_S001_ses01"])
+    def test_deterministic_assignment(self, string_id):
+        """Same inputs with same seed must produce identical assignments."""
+        assignment1 = generate_string_binary_assignment(
+            string_id, val_ratio=0.2, seed=42
+        )
+        assignment2 = generate_string_binary_assignment(
+            string_id, val_ratio=0.2, seed=42
+        )
+        assignment3 = generate_string_binary_assignment(
+            string_id, val_ratio=0.2, seed=42
+        )
+
+        assert assignment1 == assignment2 == assignment3
+        assert assignment1 in ["train", "valid"]

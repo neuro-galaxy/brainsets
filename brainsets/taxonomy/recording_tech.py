@@ -25,6 +25,7 @@ class RecordingTech(StringIntEnum):
     ECOG_ARRAY_ECOGS = 29
     MICRO_ECOG_ARRAY_ECOGS = 30
     STEREO_EEG = 31
+    SCALP_EEG = 32
 
     TWO_PHOTON_IMAGING = 40
 

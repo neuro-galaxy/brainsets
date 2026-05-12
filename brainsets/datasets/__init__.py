@@ -32,6 +32,7 @@ from .FlintSlutzkyAccurate2012 import FlintSlutzkyAccurate2012
 from .ChurchlandShenoyNeural2012 import ChurchlandShenoyNeural2012
 from .OdohertySabesNonhuman2017 import OdohertySabesNonhuman2017
 from .AllenVisualCodingOphys2016 import AllenVisualCodingOphys2016
+from .CmiMIPDB2016 import CmiMIPDB2016
 from .KempSleepEDF2013 import KempSleepEDF2013
 from .Neuroprobe2025 import Neuroprobe2025
 from .VollanMoserAlternating2025 import VollanMoserAlternating2025
