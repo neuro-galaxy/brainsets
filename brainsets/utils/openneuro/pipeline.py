@@ -170,7 +170,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     """
 
     split_ratios: tuple[float, float] = (0.9, 0.1)
-    """Default train/valid time split ratios for recordings."""
+    """Default train/val time split ratios for recordings."""
 
     random_seed: int = 42
     """Random seed for generating splits."""
@@ -597,7 +597,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     def generate_splits(
         self, domain: Interval, subject_id: str, session_id: str
     ) -> Data:
-        """Generate default intrasession train/valid splits.
+        """Generate default intrasession train/val splits.
 
         This method uses a causal sequential split over the recording domain and
         also assigns intersubject and intersession split labels.
@@ -608,7 +608,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             session_id: Session identifier.
 
         Returns:
-            Data object with ``train``/``valid`` intervals and assignment labels
+            Data object with ``train``/``val`` intervals and assignment labels
             for intersubject and intersession strategies.
 
         Raises:
@@ -617,7 +617,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         """
         if len(self.split_ratios) != 2:
             raise ValueError(
-                "split_ratios must contain exactly two values (train, valid)"
+                "split_ratios must contain exactly two values (train, val)"
             )
         if any(ratio < 0 for ratio in self.split_ratios):
             raise ValueError("split_ratios cannot contain negative values")
@@ -630,17 +630,17 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         durations = ends - starts
 
         train_ends = starts + durations * self.split_ratios[0]
-        valid_ends = train_ends + durations * self.split_ratios[1]
+        val_ends = train_ends + durations * self.split_ratios[1]
 
         train = Interval(start=starts.copy(), end=train_ends)
-        valid = Interval(start=train_ends, end=valid_ends)
+        val = Interval(start=train_ends, end=val_ends)
 
         # n_folds for assignment
-        valid_ratio = self.split_ratios[1]
-        if valid_ratio <= 0:
+        val_ratio = self.split_ratios[1]
+        if val_ratio <= 0:
             assignment_n_folds = 1
         else:
-            assignment_n_folds = max(1, int(round(1.0 / valid_ratio)))
+            assignment_n_folds = max(1, int(round(1.0 / val_ratio)))
         assignment_fold_idx = 0
 
         # intersubject split
@@ -652,7 +652,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         )
         subject_assignment = subject_assignments[assignment_fold_idx]
         if subject_assignment == "test":
-            subject_assignment = "valid"
+            subject_assignment = "val"
 
         # intersession split
         session_assignments = generate_string_kfold_assignment(
@@ -663,11 +663,11 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         )
         session_assignment = session_assignments[assignment_fold_idx]
         if session_assignment == "test":
-            session_assignment = "valid"
+            session_assignment = "val"
 
         return Data(
             train=train,
-            valid=valid,
+            val=val,
             intersubject_assignment=subject_assignment,
             intersession_assignment=session_assignment,
             domain=domain,

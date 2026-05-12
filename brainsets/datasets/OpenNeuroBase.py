@@ -5,11 +5,8 @@ from temporaldata import Interval
 from torch_brain.dataset import MultiChannelDatasetMixin, Dataset
 
 OpenNeuroSplitType = Literal["intrasession", "intersubject", "intersession"]
-SplitAssignmentType = Literal["train", "valid", "test"]
 
 VALID_SPLIT_TYPES = get_args(OpenNeuroSplitType)
-VALID_SPLIT_ASSIGNMENT_TYPES = get_args(SplitAssignmentType)
-
 
 class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
     """
@@ -70,7 +67,7 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
         )
 
     def get_sampling_intervals(
-        self, split: Optional[SplitAssignmentType] = None
+        self, split:  Optional[Literal["train", "val", "test"]] = None
     ) -> dict[str, Interval]:
         """Returns a dictionary of sampling intervals for each recording.
         This represents the intervals that can be sampled from each session.
@@ -78,23 +75,18 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
         If split is None, all recordings are mapped to their full domain.
 
         Args:
-            split (Optional[SplitAssignmentType]): One of "train", "valid", "test" to filter intervals
+             split (Optional[Split]): One of "train", "val", "test" to filter intervals
                 for that split, or None to retrieve full domains for all recordings.
 
         Returns:
             dict[str, Interval]: Dict mapping each recording ID to its valid interval (or domain).
 
         Raises:
-            ValueError: If `split_assignment` or `self.split_type` is not a valid option.
+            ValueError: If `split` or `self.split_type` is not a valid option.
             KeyError: If a required split or assignment attribute is missing in a recording.
         """
         if split is None:
             return super().get_sampling_intervals()
-
-        if split not in VALID_SPLIT_ASSIGNMENT_TYPES:
-            raise ValueError(
-                f"Invalid split '{split}'. Must be one of {VALID_SPLIT_ASSIGNMENT_TYPES}."
-            )
 
         if self.split_type == "intrasession":
             split_key = f"splits.{split}"
