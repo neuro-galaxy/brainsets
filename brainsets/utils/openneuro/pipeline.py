@@ -109,9 +109,9 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         processing. Subclasses may extend or override the :meth:`process` method to
         implement dataset-specific processing logic.
 
-        Subclasses may also customize split generation for evaluation/train/test organization
-        by overriding the :meth:`generate_splits` method. This allows selection of splits based
-        on session, subject, or custom criteria.
+        Subclasses may also customize split generation for train/val/test splits by overriding
+        the :meth:`generate_splits` method. This allows selection of splits based on session,
+        subject, or custom criteria.
 
     **Documentation can be found in the official brainsets docs:**
     See [Creating an OpenNeuro Pipeline](https://brainsets.readthedocs.io/en/latest/concepts/openneuro_pipeline.html) for the complete guide on building OpenNeuro pipelines.
@@ -381,14 +381,14 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         manifest = pd.DataFrame(manifest_list)
         return manifest.set_index("recording_id")
 
-    def download(self, manifest_item) -> dict:
+    def download(self, manifest_item) -> pd.Series:
         """Download data for a single recording from OpenNeuro S3.
 
         Args:
             manifest_item: A single row of the manifest
 
         Returns:
-            Dictionary containing ``subject_id`` and ``recording_id``.
+            Series containing ``subject_id``, ``recording_id``, ``s3_url``, ``latest_snapshot_tag``, ``age``, ``sex``, and ``species``.
         """
         self.update_status("DOWNLOADING")
         self.raw_dir.mkdir(exist_ok=True, parents=True)
@@ -423,7 +423,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         return manifest_item
 
-    def process_common(self, download_output: dict) -> Optional[tuple[Data, Path]]:
+    def process_common(self, download_output: pd.Series) -> Optional[tuple[Data, Path]]:
         """Process data files and create a Data object.
 
         This method handles common OpenNeuro processing tasks:
@@ -433,7 +433,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         5. Creates a Data object
 
         Args:
-            download_output: Dictionary returned by download()
+            download_output: Series returned by download()
 
         Returns:
             Tuple of ``(data, store_path)``, or ``None`` if processing is skipped.
@@ -530,14 +530,14 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         return data, store_path
 
-    def process(self, download_output: dict) -> None:
+    def process(self, download_output: pd.Series) -> None:
         """Process and save the dataset.
 
         Default implementation calls :meth:`_process_common` and persists the
         result. Subclasses can override to add dataset-specific processing.
 
         Args:
-            download_output: Dictionary returned by download()
+            download_output: Series returned by download()
         """
         result = self.process_common(download_output)
 
