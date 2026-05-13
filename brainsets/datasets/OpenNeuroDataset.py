@@ -39,9 +39,10 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
             Defaults to ``False``.
         task_paradigm: The task paradigm of the dataset. Depends on the dataset.
             Defaults to None.
-        split_ratios: The train/val ratios of the split. Must contain exactly two values (train, val). Sum must between 0 and 1.
-            If sum is less than 1, the test ratio is calculated as 1 - sum of train/val ratios. If sum is 1, no test split is generated.
-            If sum is less than 0 or greater than 1, an error is raised.
+        split_ratios: Tuple of three floats (train, val, test) whose sum must be 1.0.
+            Specifies the proportion of the dataset to use for the train, validation,
+            and test splits, respectively. All ratios must be in [0, 1] and their sum must be 1.0.
+            If the sum does not equal 1.0, a ValueError is raised.
         seed: The seed for the random number generator. Defaults to 42.
     """
 
@@ -55,7 +56,7 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
         uniquify_channel_ids_with_subject: bool = False,
         uniquify_channel_ids_with_session: bool = True,
         task_paradigm: str | None = None,
-        split_ratios: tuple[float, float] = (0.9, 0.1),
+        split_ratios: tuple[float, float, float] = (0.8, 0.1, 0.1),
         seed: int = 42,
         **kwargs,
     ):
@@ -88,13 +89,25 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
         self.seed = seed
 
     def _validate_split_ratios(
-        self, split_ratios: tuple[float, float]
-    ) -> tuple[float, float]:
-        """Validate the split ratios."""
+        self, split_ratios: tuple[float, float, float]
+    ) -> tuple[float, float, float]:
+        """Validate the split ratios.
+
+        Args:
+            split_ratios: Tuple of three floats (train, val, test), whose sum must be 1.0.
+
+        Returns:
+            Tuple[float, float, float]: The validated split ratios.
+
+        Raises:
+            ValueError: If any ratio is negative, or sum does not equal 1.0.
+        """
         if any(ratio < 0 for ratio in split_ratios):
             raise ValueError("`split_ratios` cannot contain negative values")
-        if sum(split_ratios) < 0 or sum(split_ratios) > 1:
-            raise ValueError("The sum of `split_ratios` must be between 0 and 1")
+        if not np.isclose(sum(split_ratios), 1.0, atol=1e-8):
+            raise ValueError("The sum of `split_ratios` must be exactly 1.0")
+        return split_ratios
+
         return split_ratios
 
     def get_sampling_intervals(
@@ -161,7 +174,7 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
 
             train_ends = starts + durations * self.split_ratios[0]
             val_ends = train_ends + durations * self.split_ratios[1]
-            test_ends = val_ends + durations * (1 - sum(self.split_ratios))
+            test_ends = val_ends + durations * self.split_ratios[2]
 
             if split == "train":
                 return Interval(start=starts, end=train_ends)
@@ -174,7 +187,7 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
             # n_folds determines how many "folds" are used for k-fold assignment in intersubject/intersession splitting.
             # It is based on the test split ratio: e.g., for test_ratio=0.1, assignment_n_folds=10, so each fold has ~10% data.
             # If test_ratio <= 0, only one fold is used.
-            test_ratio = 1 - sum(self.split_ratios)
+            test_ratio = self.split_ratios[2]
             if test_ratio <= 0:
                 n_folds = 1
             else:
