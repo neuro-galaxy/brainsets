@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from temporaldata import Interval
 
-from brainsets.datasets.OpenNeuroBase import OpenNeuroDataset
+from brainsets.datasets.OpenNeuroDataset import OpenNeuroDataset
 
 
 # ============================================================================
