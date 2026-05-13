@@ -965,104 +965,6 @@ class TestChannelRemapping:
 
 
 # ============================================================================
-# Tests for generate_splits
-# ============================================================================
-
-
-class TestGenerateSplits:
-    """Tests for generate_splits method."""
-
-    def test_generate_splits_creates_train_and_val_intervals(
-        self, eeg_pipeline_instance
-    ):
-        """generate_splits creates train and val intervals."""
-        starts = np.array([0.0])
-        ends = np.array([100.0])
-        domain = Interval(start=starts, end=ends)
-
-        result = eeg_pipeline_instance.generate_splits(
-            domain=domain,
-            subject_id="sub-01",
-            session_id="ses-01",
-        )
-
-        assert isinstance(result, Data)
-        assert hasattr(result, "train")
-        assert hasattr(result, "val")
-
-    def test_generate_splits_respects_split_ratios(self, temp_dir, eeg_pipeline_class):
-        """generate_splits respects custom split_ratios."""
-
-        class CustomRatioPipeline(OpenNeuroPipeline):
-            dataset_id = "ds005085"
-            brainset_id = "test"
-            origin_version = "1.0.0"
-            derived_version = "1.0.0"
-            modality = "eeg"
-            split_ratios = (0.8, 0.2)
-
-        pipeline = CustomRatioPipeline(
-            raw_dir=temp_dir / "raw",
-            processed_dir=temp_dir / "processed",
-            args=Namespace(redownload=False, reprocess=False),
-        )
-
-        starts = np.array([0.0])
-        ends = np.array([100.0])
-        domain = Interval(start=starts, end=ends)
-
-        result = pipeline.generate_splits(domain, "sub-01", "ses-01")
-
-        train_duration = result.train.end[0] - result.train.start[0]
-        assert np.isclose(train_duration, 80.0)
-
-    def test_generate_splits_raises_on_invalid_split_ratios_length(
-        self, eeg_pipeline_instance
-    ):
-        """generate_splits raises ValueError if split_ratios length != 2."""
-        eeg_pipeline_instance.split_ratios = (0.5, 0.3, 0.2)
-        starts = np.array([0.0])
-        ends = np.array([100.0])
-        domain = Interval(start=starts, end=ends)
-
-        with pytest.raises(ValueError, match="must contain exactly two values"):
-            eeg_pipeline_instance.generate_splits(domain, "sub-01", "ses-01")
-
-    def test_generate_splits_raises_on_negative_split_ratios(
-        self, eeg_pipeline_instance
-    ):
-        """generate_splits raises ValueError if any split ratio is negative."""
-        eeg_pipeline_instance.split_ratios = (0.5, -0.5)
-        starts = np.array([0.0])
-        ends = np.array([100.0])
-        domain = Interval(start=starts, end=ends)
-
-        with pytest.raises(ValueError, match="cannot contain negative values"):
-            eeg_pipeline_instance.generate_splits(domain, "sub-01", "ses-01")
-
-    def test_generate_splits_raises_on_non_unit_sum(self, eeg_pipeline_instance):
-        """generate_splits raises ValueError if split ratios don't sum to 1.0."""
-        eeg_pipeline_instance.split_ratios = (0.5, 0.3)
-        starts = np.array([0.0])
-        ends = np.array([100.0])
-        domain = Interval(start=starts, end=ends)
-
-        with pytest.raises(ValueError, match="must sum to 1.0"):
-            eeg_pipeline_instance.generate_splits(domain, "sub-01", "ses-01")
-
-    def test_generate_splits_creates_assignment_splits(self, eeg_pipeline_instance):
-        """generate_splits creates intersubject and intersession assignments."""
-        starts = np.array([0.0])
-        ends = np.array([100.0])
-        domain = Interval(start=starts, end=ends)
-
-        result = eeg_pipeline_instance.generate_splits(domain, "sub-01", "ses-01")
-
-        assert hasattr(result, "intersubject_assignment")
-        assert hasattr(result, "intersession_assignment")
-
-
-# ============================================================================
 # Tests for process_common
 # ============================================================================
 
@@ -1139,10 +1041,7 @@ class TestProcessCommon:
         )
         mock_extract_channels.return_value = {}
 
-        with patch.object(
-            eeg_pipeline_instance, "generate_splits", return_value=MagicMock()
-        ):
-            result = eeg_pipeline_instance.process_common(download_output)
+        result = eeg_pipeline_instance.process_common(download_output)
 
         assert result is not None
         assert len(result) == 2
@@ -1241,8 +1140,7 @@ class TestProcessCommon:
         )
         mock_extract_channels.return_value = channels_obj
 
-        with patch.object(pipeline, "generate_splits", return_value=MagicMock()):
-            data, path = pipeline.process_common(download_output)
+        data, _ = pipeline.process_common(download_output)
 
         assert all(
             data.channels.id

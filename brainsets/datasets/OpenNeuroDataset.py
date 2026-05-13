@@ -108,8 +108,6 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
             raise ValueError("The sum of `split_ratios` must be exactly 1.0")
         return split_ratios
 
-        return split_ratios
-
     def get_sampling_intervals(
         self,
         split: Optional[Literal["train", "val", "test"]] = None,
@@ -145,6 +143,11 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
         if split is None:
             return super().get_sampling_intervals()
 
+        if split not in ("train", "val", "test"):
+            raise ValueError(
+                f"Invalid split {split!r}. Must be one of 'train', 'val', 'test'."
+            )
+
         if self.task_paradigm is None:
             intervals = {}
             for rid in self.recording_ids:
@@ -155,7 +158,7 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
             intervals = {}
             for rid in self.recording_ids:
                 rec = self.get_recording(rid)
-                intervals[rid] = self._get_behavior_relevant_intervals(rec, split)
+                intervals[rid] = self.get_behavior_relevant_intervals(rec, split)
             return intervals
 
     def _get_behavior_agnostic_intervals(
@@ -182,6 +185,9 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
                 return Interval(start=train_ends, end=val_ends)
             elif split == "test":
                 return Interval(start=val_ends, end=test_ends)
+            raise ValueError(
+                f"Invalid split {split!r}. Must be one of 'train', 'val', 'test'."
+            )
 
         elif self.split_type == "intersubject" or self.split_type == "intersession":
             # n_folds determines how many "folds" are used for k-fold assignment in intersubject/intersession splitting.
