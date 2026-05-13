@@ -266,16 +266,6 @@ Human-readable description that appears in metadata:
     )
 
 
-``split_ratios``
-~~~~~~~~~~~~~~~~
-
-Train/validation time split (default: ``(0.9, 0.1)``):
-
-.. code-block:: python
-
-    split_ratios = (0.8, 0.2)  # 80% train, 20% validation
-
-
 ``CHANNEL_NAME_REMAPPING``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -388,19 +378,6 @@ Add custom processing beyond the default:
         from brainsets import serialize_fn_map
         with h5py.File(store_path, "w") as file:
             data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
-
-
-``generate_splits(domain, subject_id, session_id)``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Customize how train/validation splits are created:
-
-.. code-block:: python
-
-    def generate_splits(self, domain, subject_id, session_id):
-        # Custom split logic here
-        # Return a Data object with split information
-        ...
 
 
 What's Next?

@@ -109,10 +109,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         processing. Subclasses may extend or override the :meth:`process` method to
         implement dataset-specific processing logic.
 
-        Subclasses may also customize split generation for train/val/test splits by overriding
-        the :meth:`generate_splits` method. This allows selection of splits based on session,
-        subject, or custom criteria.
-
     **Documentation can be found in the official brainsets docs:**
     See [Creating an OpenNeuro Pipeline](https://brainsets.readthedocs.io/en/latest/concepts/openneuro_pipeline.html) for the complete guide on building OpenNeuro pipelines.
 
@@ -159,12 +155,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     Channel names should be specified as they appear in the original namespace of 
     the raw object (i.e., prior to any remapping or type changes).
     """
-
-    split_ratios: tuple[float, float] = (0.9, 0.1)
-    """Default train/val time split ratios for recordings."""
-
-    random_seed: int = 42
-    """Random seed for generating splits."""
 
     @staticmethod
     def validate_dataset_id(dataset_id: str) -> None:
@@ -521,13 +511,6 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         data = Data(**data_kwargs)
 
-        self.update_status("Creating Splits")
-        data.splits = self.generate_splits(
-            domain=data.domain,
-            subject_id=subject_id,
-            session_id=session_description.id,
-        )
-
         return data, store_path
 
     def process(self, download_output: pd.Series) -> None:
@@ -584,82 +567,3 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             Mapping from channel type to channel name list, or ``None``.
         """
         return self.TYPE_CHANNELS_REMAPPING
-
-    def generate_splits(
-        self, domain: Interval, subject_id: str, session_id: str
-    ) -> Data:
-        """Generate default intrasession train/val splits.
-
-        This method uses a causal sequential split over the recording domain and
-        also assigns intersubject and intersession split labels.
-
-        Args:
-            domain: Interval domain representing recording start/end times.
-            subject_id: Subject identifier.
-            session_id: Session identifier.
-
-        Returns:
-            Data object with ``train``/``val`` intervals and assignment labels
-            for intersubject and intersession strategies.
-
-        Raises:
-            ValueError: If split_ratios does not contain exactly two values, contains negative values,
-                or does not sum to 1.0.
-        """
-        if len(self.split_ratios) != 2:
-            raise ValueError(
-                "split_ratios must contain exactly two values (train, val)"
-            )
-        if any(ratio < 0 for ratio in self.split_ratios):
-            raise ValueError("split_ratios cannot contain negative values")
-        if not np.isclose(sum(self.split_ratios), 1.0):
-            raise ValueError("split_ratios must sum to 1.0")
-
-        # intrasession (causal) split
-        starts = np.asarray(domain.start)
-        ends = np.asarray(domain.end)
-        durations = ends - starts
-
-        train_ends = starts + durations * self.split_ratios[0]
-        val_ends = train_ends + durations * self.split_ratios[1]
-
-        train = Interval(start=starts.copy(), end=train_ends)
-        val = Interval(start=train_ends, end=val_ends)
-
-        # n_folds for assignment
-        val_ratio = self.split_ratios[1]
-        if val_ratio <= 0:
-            assignment_n_folds = 1
-        else:
-            assignment_n_folds = max(1, int(round(1.0 / val_ratio)))
-        assignment_fold_idx = 0
-
-        # intersubject split
-        subject_assignments = generate_string_kfold_assignment(
-            string_id=subject_id,
-            n_folds=assignment_n_folds,
-            val_ratio=0.0,
-            seed=self.random_seed,
-        )
-        subject_assignment = subject_assignments[assignment_fold_idx]
-        if subject_assignment == "test":
-            subject_assignment = "val"
-
-        # intersession split
-        session_assignments = generate_string_kfold_assignment(
-            string_id=f"{subject_id}_{session_id}",
-            n_folds=assignment_n_folds,
-            val_ratio=0.0,
-            seed=self.random_seed,
-        )
-        session_assignment = session_assignments[assignment_fold_idx]
-        if session_assignment == "test":
-            session_assignment = "val"
-
-        return Data(
-            train=train,
-            val=val,
-            intersubject_assignment=subject_assignment,
-            intersession_assignment=session_assignment,
-            domain=domain,
-        )
