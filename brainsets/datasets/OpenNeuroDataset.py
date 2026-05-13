@@ -11,7 +11,7 @@ from brainsets.utils.split import generate_string_kfold_assignment
 
 OpenNeuroSplitType = Literal["intrasession", "intersubject", "intersession"]
 
-VALID_SPLIT_TYPES = get_args(OpenNeuroSplitType)
+_VALID_SPLIT_TYPES = get_args(OpenNeuroSplitType)
 
 
 class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
@@ -59,9 +59,9 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
         seed: int = 42,
         **kwargs,
     ):
-        if split_type not in VALID_SPLIT_TYPES:
+        if split_type not in _VALID_SPLIT_TYPES:
             raise ValueError(
-                f"Invalid split_type '{split_type}'. Must be one of {VALID_SPLIT_TYPES}."
+                f"Invalid split_type '{split_type}'. Must be one of {_VALID_SPLIT_TYPES}."
             )
         self.split_type = split_type
 
@@ -204,7 +204,7 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
             return assignment
 
         raise ValueError(
-            f"Invalid split_type '{self.split_type}'. Must be one of {VALID_SPLIT_TYPES}."
+            f"Invalid split_type '{self.split_type}'. Must be one of {_VALID_SPLIT_TYPES}."
         )
 
     def get_behavior_relevant_intervals(
