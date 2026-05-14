@@ -7,6 +7,7 @@ import pytest
 from unittest.mock import patch
 from temporaldata import Interval
 
+from brainsets.datasets._utils import empty_interval
 from brainsets.datasets.OpenNeuroDataset import OpenNeuroDataset
 from brainsets.utils.split import generate_string_kfold_assignment
 
@@ -73,7 +74,7 @@ def _expected_intrasession_intervals(
     split: str,
     split_ratios: tuple[float, float, float],
 ) -> Interval:
-    """Mirror ``OpenNeuroDataset._get_behavior_agnostic_intervals`` intrasession math."""
+    """Mirror ``OpenNeuroDataset.get_behavior_agnostic_intervals`` intrasession math."""
     starts = np.asarray(domain.start, dtype=float)
     ends = np.asarray(domain.end, dtype=float)
     durations = ends - starts
@@ -89,14 +90,14 @@ def _expected_intrasession_intervals(
     raise AssertionError(split)
 
 
-def _expected_kfold_assignment(
+def _effective_kfold_assignment_fold0(
     string_id: str,
     *,
     test_ratio: float,
     seed: int,
     fold_idx: int = 0,
 ) -> str:
-    """Expected per-recording assignment for intersubject/intersession (fold 0)."""
+    """Mirror OpenNeuroDataset: fold-0 assignment with ``test`` remapped to ``val``."""
     if test_ratio <= 0:
         n_folds = 1
     else:
@@ -111,6 +112,23 @@ def _expected_kfold_assignment(
     if assignment == "test":
         assignment = "val"
     return assignment
+
+
+def _expected_kfold_sampling_interval(
+    *,
+    recording: FakeRecording,
+    split: str,
+    string_id: str,
+    test_ratio: float,
+    seed: int,
+) -> Interval:
+    """Expected interval for one recording under intersubject/intersession logic."""
+    eff = _effective_kfold_assignment_fold0(
+        string_id, test_ratio=test_ratio, seed=seed
+    )
+    if eff == split:
+        return recording.domain
+    return empty_interval()
 
 
 def _make_dataset(
@@ -214,6 +232,25 @@ class TestOpenNeuroDatasetInit:
             recording_ids=recording_ids, transform=transform, split_type="intrasession"
         )
         assert ds.split_type == "intrasession"
+        assert ds.split_ratios == (0.8, 0.1, 0.1)
+        assert ds.seed == 42
+
+    def test_split_ratios_validated(self, mock_parent_init):
+        """Invalid ``split_ratios`` raise ``ValueError``."""
+        with pytest.raises(ValueError, match="negative"):
+            _make_dataset(split_type="intrasession", split_ratios=(-0.1, 0.6, 0.5))
+        with pytest.raises(ValueError, match="sum of `split_ratios`"):
+            _make_dataset(split_type="intrasession", split_ratios=(0.5, 0.5, 0.1))
+
+    def test_uniquify_channel_id_flags_stored(self, mock_parent_init):
+        """Mixin uniquify flags are forwarded from constructor."""
+        ds = _make_dataset(
+            split_type="intrasession",
+            uniquify_channel_ids_with_subject=True,
+            uniquify_channel_ids_with_session=False,
+        )
+        assert ds.multichannel_dataset_mixin_uniquify_channel_ids_with_subject is True
+        assert ds.multichannel_dataset_mixin_uniquify_channel_ids_with_session is False
 
 
 # ============================================================================
@@ -258,24 +295,6 @@ class TestGetSamplingIntervalsBasic:
         with pytest.raises(ValueError, match=expected_msg_fragment):
             ds.get_sampling_intervals(split=invalid_assignment)
 
-    def test_behavior_relevant_task_paradigm_not_implemented(
-        self, mock_parent_init, monkeypatch
-    ):
-        """With ``task_paradigm`` set, delegates to ``get_behavior_relevant_intervals``."""
-        ds = _make_dataset(
-            split_type="intrasession",
-            task_paradigm="some_paradigm",
-            recording_ids=["rec-001"],
-        )
-        rec = _make_recording("rec-001")
-        monkeypatch.setattr(ds, "get_recording", lambda rid: rec)
-
-        with pytest.raises(
-            NotImplementedError, match="get_behavior_relevant_intervals"
-        ):
-            ds.get_sampling_intervals(split="train")
-
-
 # ============================================================================
 # Tests for get_sampling_intervals - Intrasession
 # ============================================================================
@@ -315,13 +334,13 @@ class TestGetSamplingIntervalsIntrasession:
 
 
 class TestGetSamplingIntervalsIntersubject:
-    """Tests for intersubject split strategy (k-fold assignment strings, fold 0)."""
+    """Tests for intersubject split strategy (k-fold on ``subject.id``, fold 0)."""
 
     @pytest.mark.parametrize("split", ["train", "val", "test"])
-    def test_intersubject_returns_kfold_assignment_per_recording(
+    def test_intersubject_returns_domain_or_empty_per_split(
         self, split, mock_parent_init, monkeypatch
     ):
-        """Each recording maps to ``'train'`` or ``'val'`` from ``generate_string_kfold_assignment``."""
+        """Each recording gets full ``domain`` iff fold-0 assignment matches ``split``."""
         ds = _make_dataset(split_type="intersubject", seed=42)
         recordings = {
             "rec-001": _make_recording("rec-001", subject_id="sub-01"),
@@ -331,20 +350,22 @@ class TestGetSamplingIntervalsIntersubject:
         monkeypatch.setattr(ds, "get_recording", lambda rid: recordings[rid])
 
         test_ratio = ds.split_ratios[2]
-        expected = {
-            rid: _expected_kfold_assignment(
-                rec.subject.id, test_ratio=test_ratio, seed=42
-            )
-            for rid, rec in recordings.items()
-        }
-
         result = ds.get_sampling_intervals(split=split)
-        assert result == expected
+        assert set(result) == set(recordings)
+        for rid, rec in recordings.items():
+            exp = _expected_kfold_sampling_interval(
+                recording=rec,
+                split=split,
+                string_id=rec.subject.id,
+                test_ratio=test_ratio,
+                seed=42,
+            )
+            _assert_intervals_close(result[rid], exp)
 
-    def test_intersubject_split_argument_does_not_change_assignments(
+    def test_intersubject_different_splits_filter_differently(
         self, mock_parent_init, monkeypatch
     ):
-        """``split`` name does not alter k-fold string (same dict for train/val/test)."""
+        """``split`` picks fold-0 train vs val; ``test`` always yields empty (post-remap)."""
         ds = _make_dataset(split_type="intersubject", recording_ids=["rec-001"], seed=0)
         rec = _make_recording("rec-001", subject_id="sub-xyz")
         monkeypatch.setattr(ds, "get_recording", lambda rid: rec)
@@ -352,7 +373,17 @@ class TestGetSamplingIntervalsIntersubject:
         r_train = ds.get_sampling_intervals(split="train")
         r_val = ds.get_sampling_intervals(split="val")
         r_test = ds.get_sampling_intervals(split="test")
-        assert r_train == r_val == r_test
+        eff = _effective_kfold_assignment_fold0(
+            "sub-xyz", test_ratio=ds.split_ratios[2], seed=0
+        )
+        if eff == "train":
+            _assert_intervals_close(r_train["rec-001"], rec.domain)
+            _assert_intervals_close(r_val["rec-001"], empty_interval())
+        else:
+            assert eff == "val"
+            _assert_intervals_close(r_train["rec-001"], empty_interval())
+            _assert_intervals_close(r_val["rec-001"], rec.domain)
+        _assert_intervals_close(r_test["rec-001"], empty_interval())
 
 
 # ============================================================================
@@ -361,13 +392,13 @@ class TestGetSamplingIntervalsIntersubject:
 
 
 class TestGetSamplingIntervalsIntersession:
-    """Tests for intersession split strategy (k-fold on ``subject_session`` id)."""
+    """Tests for intersession split strategy (k-fold on ``subject.id_session.id``)."""
 
     @pytest.mark.parametrize("split", ["train", "val", "test"])
-    def test_intersession_returns_kfold_assignment_per_recording(
+    def test_intersession_returns_domain_or_empty_per_split(
         self, split, mock_parent_init, monkeypatch
     ):
-        """String id is ``f\"{subject.id}_{session.id}\"`` for k-fold hashing."""
+        """String id is ``f\"{subject.id}_{session.id}\"``; intervals match assignment."""
         ds = _make_dataset(split_type="intersession", seed=42)
         recordings = {
             "rec-001": _make_recording(
@@ -380,15 +411,18 @@ class TestGetSamplingIntervalsIntersession:
         monkeypatch.setattr(ds, "get_recording", lambda rid: recordings[rid])
 
         test_ratio = ds.split_ratios[2]
-        expected = {}
+        result = ds.get_sampling_intervals(split=split)
+        assert set(result) == set(recordings)
         for rid, rec in recordings.items():
             sid = f"{rec.subject.id}_{rec.session.id}"
-            expected[rid] = _expected_kfold_assignment(
-                sid, test_ratio=test_ratio, seed=42
+            exp = _expected_kfold_sampling_interval(
+                recording=rec,
+                split=split,
+                string_id=sid,
+                test_ratio=test_ratio,
+                seed=42,
             )
-
-        result = ds.get_sampling_intervals(split=split)
-        assert result == expected
+            _assert_intervals_close(result[rid], exp)
 
 
 # ============================================================================

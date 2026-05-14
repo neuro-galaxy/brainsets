@@ -7,7 +7,7 @@ from temporaldata import Data, Interval
 from torch_brain.dataset import MultiChannelDatasetMixin, Dataset
 
 from brainsets.utils.split import generate_string_kfold_assignment
-
+from brainsets.datasets._utils import empty_interval
 
 OpenNeuroSplitType = Literal["intrasession", "intersubject", "intersession"]
 
@@ -33,10 +33,10 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
         transform (Optional[Callable]): Optional sample transform.
         uniquify_channel_ids_with_subject: Whether to prefix channel IDs with
             ``subject.id`` via ``MultiChannelDatasetMixin``.
-            Defaults to ``True``.
+            Defaults to ``False``.
         uniquify_channel_ids_with_session: Whether to prefix channel IDs with
             ``session.id`` via ``MultiChannelDatasetMixin``.
-            Defaults to ``False``.
+            Defaults to ``True``.
         task_paradigm: The task paradigm of the dataset. Depends on the dataset.
             Defaults to None.
         split_ratios: Tuple of three floats (train, val, test) whose sum must be 1.0.
@@ -55,7 +55,6 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
         transform: Optional[Callable] = None,
         uniquify_channel_ids_with_subject: bool = False,
         uniquify_channel_ids_with_session: bool = True,
-        task_paradigm: str | None = None,
         split_ratios: tuple[float, float, float] = (0.8, 0.1, 0.1),
         seed: int = 42,
         **kwargs,
@@ -84,8 +83,6 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
 
         self.split_ratios = self._validate_split_ratios(split_ratios)
 
-        self.task_paradigm = task_paradigm
-
         self.seed = seed
 
     def _validate_split_ratios(
@@ -111,7 +108,7 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
     def get_sampling_intervals(
         self,
         split: Optional[Literal["train", "val", "test"]] = None,
-    ) -> dict[str, (Interval | str)]:
+    ) -> dict[str, Interval]:
         """
         Retrieve the sampling intervals for each recording according to the specified split.
 
@@ -136,8 +133,7 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
             KeyError: If a required split or assignment attribute is missing in a recording.
 
         Notes:
-            - For behavioral-agnostic tasks (`task_paradigm is None`), intervals are defined based on recording domains and split logic.
-            - For behavioral-relevant tasks, intervals may be further filtered or computed.
+            - Intervals are defined based on recording domains and split logic.
 
         """
         if split is None:
@@ -148,29 +144,26 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
                 f"Invalid split {split!r}. Must be one of 'train', 'val', 'test'."
             )
 
-        if self.task_paradigm is None:
-            intervals = {}
-            for rid in self.recording_ids:
-                rec = self.get_recording(rid)
-                intervals[rid] = self._get_behavior_agnostic_intervals(rec, split)
-            return intervals
-        else:
-            intervals = {}
-            for rid in self.recording_ids:
-                rec = self.get_recording(rid)
-                intervals[rid] = self.get_behavior_relevant_intervals(rec, split)
-            return intervals
-
-    def _get_behavior_agnostic_intervals(
+        intervals = {}
+        for rid in self.recording_ids:
+            rec = self.get_recording(rid)
+            intervals[rid] = self.get_behavior_agnostic_intervals(rec, split)
+        return intervals
+       
+    def get_behavior_agnostic_intervals(
         self,
         recording: Data,
         split: Literal["train", "val", "test"],
-    ) -> Interval | str:
-        """Get the behavior-agnostic sampling intervals for a given split.
-        If the split is "intersubject" or "intersession", returns the assignment string for the current fold.
+    ) -> Interval:
+        """
+        Get the behavior-agnostic sampling intervals for a given split.
+
+        Notes:
+        - For split_type == "intrasession", intervals are split causally into train, val, and test based on split_ratios.
+        - For split_type == "intersubject" or "intersession", only the assigned recordings are included for each split
+        (using k-fold assignment); all others return an empty interval.
         """
         if self.split_type == "intrasession":
-            # intrasession (causal) split
             starts = np.asarray(recording.domain.start)
             ends = np.asarray(recording.domain.end)
             durations = ends - starts
@@ -220,18 +213,12 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
             # By convention, the test fold is assigned to "val".
             if assignment == "test":
                 assignment = "val"
-            return assignment
+            
+            if assignment == split:
+                return recording.domain
+            else:
+                return empty_interval()
 
         raise ValueError(
             f"Invalid split_type '{self.split_type}'. Must be one of {_VALID_SPLIT_TYPES}."
-        )
-
-    def get_behavior_relevant_intervals(
-        self,
-        recording: Data,
-        split: Literal["train", "val", "test"],
-    ) -> Interval | str:
-        """Get the behavior-relevant sampling intervals for a given split."""
-        raise NotImplementedError(
-            "`get_behavior_relevant_intervals` is not implemented yet."
         )
