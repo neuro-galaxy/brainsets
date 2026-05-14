@@ -149,7 +149,7 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
             rec = self.get_recording(rid)
             intervals[rid] = self.get_behavior_agnostic_intervals(rec, split)
         return intervals
-       
+
     def get_behavior_agnostic_intervals(
         self,
         recording: Data,
@@ -213,7 +213,7 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
             # By convention, the test fold is assigned to "val".
             if assignment == "test":
                 assignment = "val"
-            
+
             if assignment == split:
                 return recording.domain
             else:

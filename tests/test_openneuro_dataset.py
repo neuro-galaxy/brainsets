@@ -123,9 +123,7 @@ def _expected_kfold_sampling_interval(
     seed: int,
 ) -> Interval:
     """Expected interval for one recording under intersubject/intersession logic."""
-    eff = _effective_kfold_assignment_fold0(
-        string_id, test_ratio=test_ratio, seed=seed
-    )
+    eff = _effective_kfold_assignment_fold0(string_id, test_ratio=test_ratio, seed=seed)
     if eff == split:
         return recording.domain
     return empty_interval()
@@ -294,6 +292,7 @@ class TestGetSamplingIntervalsBasic:
         ds = _make_dataset(split_type="intrasession")
         with pytest.raises(ValueError, match=expected_msg_fragment):
             ds.get_sampling_intervals(split=invalid_assignment)
+
 
 # ============================================================================
 # Tests for get_sampling_intervals - Intrasession
