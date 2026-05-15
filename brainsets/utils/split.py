@@ -5,6 +5,12 @@ _functions = [
 
 __all__ = _functions
 
+# see docs/source/api_reference.py
+__api_ref__ = {
+    "description": None,
+    "sections": [{"autosummary": _functions}],
+}
+
 import hashlib
 import logging
 import numpy as np

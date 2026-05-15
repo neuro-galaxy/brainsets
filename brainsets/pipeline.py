@@ -10,6 +10,13 @@ from contextlib import contextmanager
 import traceback
 
 
+# see docs/source/api_reference.py
+__api_ref__ = {
+    "description": None,
+    "sections": [{"autosummary": ["BrainsetPipeline"]}],
+}
+
+
 class BrainsetPipeline(ABC):
     r"""Abstract base class for defining processing pipelines.
     Pipelines are subclasses of this class. Pipelines are either run through

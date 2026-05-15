@@ -7,6 +7,12 @@ _functions = [
 
 __all__ = _functions
 
+# see docs/source/api_reference.py
+__api_ref__ = {
+    "description": None,
+    "sections": [{"autosummary": _functions}],
+}
+
 
 from pathlib import Path
 import numpy as np
