@@ -1,5 +1,5 @@
 _functions = [
-    "calc_sampling_rate",
+    "calculate_sampling_rate",
 ]
 
 __all__ = _functions
