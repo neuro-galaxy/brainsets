@@ -128,7 +128,7 @@ class Pipeline(BrainsetPipeline):
         brainset_description = BrainsetDescription(
             id="odoherty_sabes_nonhuman_2017",
             origin_version="583331",  # Zenodo version
-            derived_version="1.0.0",
+            derived_version="2.0.0",
             source="https://zenodo.org/record/583331",
             description="The behavioral task was to make self-paced reaches to targets "
             "arranged in a grid (e.g. 8x8) without gaps or pre-movement delay intervals. "
