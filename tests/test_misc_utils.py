@@ -28,10 +28,10 @@ def test_non_monotonic_timestamps_raises():
 
 def test_custom_tolerance():
     rng = np.random.default_rng(0)
-    # jitter small enough to pass default tol=1e-3 but large enough to fail tol=1e-6
+    # jitter small enough to pass default rtol=1e-3 but large enough to fail rtol=1e-6
     jitter = rng.uniform(-1e-7, 1e-7, size=99)
     diffs = 1 / 1000.0 + jitter
     timestamps = np.concatenate([[0.0], np.cumsum(diffs)])
-    calc_sampling_rate(timestamps)  # passes with default tol
+    calc_sampling_rate(timestamps)  # passes with default rtol
     with pytest.raises(AssertionError):
-        calc_sampling_rate(timestamps, tol=1e-6)
+        calc_sampling_rate(timestamps, rtol=1e-6)
