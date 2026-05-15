@@ -38,7 +38,7 @@ pip install brainsets
 
 ## Acknowledgements
 
-This work is only made possible thanks to the public release of these valuable datasets by the original researchers. If you use any of the datasets processed by brainsets in your research, please make sure to cite the appropriate original papers and follow any usage guidelines specified by the dataset creators. Proper attribution not only gives credit to the researchers who collected and shared the data but also helps promote open science practices in the neuroscience community. You can find the original papers and usage guidelines for each dataset in the [brainsets documentation](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html).
+This work is only made possible thanks to the public release of these valuable datasets by the original researchers. If you use any of the datasets processed by brainsets in your research, please make sure to cite the appropriate original papers and follow any usage guidelines specified by the dataset creators. Proper attribution not only gives credit to the researchers who collected and shared the data but also helps promote open science practices in the neuroscience community. You can find the original papers and usage guidelines for each dataset in the [brainsets documentation](https://brainsets.readthedocs.io/en/latest/datasets/index.html).
 
 
 ## Using the brainsets CLI
