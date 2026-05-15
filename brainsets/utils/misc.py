@@ -16,7 +16,7 @@ def calc_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float:
             (max_diff - min_diff) / median_diff. Defaults to 1e-3.
 
     Returns:
-        Sampling rate in Hz.
+        float: Sampling rate in Hz.
 
     Raises:
         ValueError: If the median interval between timestamps is <= 0, which indicates
