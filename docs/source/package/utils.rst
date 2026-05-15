@@ -25,8 +25,8 @@ split
 
    {% for name in brainsets.utils.split._functions %}
 
-misc
-~~~~
+miscellaneous
+~~~~~~~~~~~~~
 
 .. currentmodule:: brainsets.utils.misc
 
