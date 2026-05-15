@@ -24,6 +24,7 @@ def calc_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float:
             - the timestamps are not strictly monotonically increasing.
             - the timestamps are not uniformly sampled within the given relative tolerance.
     """
+
     if timestamps.size < 2:
         raise ValueError(
             f"Need at least 2 timestamps to compute a sampling rate, got {timestamps.size}"
