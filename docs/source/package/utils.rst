@@ -24,3 +24,15 @@ split
    :template: autosummary/function.rst
 
    {% for name in brainsets.utils.split._functions %}
+
+misc
+~~~~
+
+.. currentmodule:: brainsets.utils.misc
+
+.. autosummary::
+   :nosignatures:
+   :toctree: ../_generated
+   :template: autosummary/function.rst
+
+   {% for name in brainsets.utils.misc._functions %}
