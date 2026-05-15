@@ -1,3 +1,9 @@
+_functions = [
+    "calc_sampling_rate",
+]
+
+__all__ = _functions
+
 import numpy as np
 
 
