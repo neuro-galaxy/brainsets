@@ -262,9 +262,6 @@ def extract_behavior(h5file):
         finger.orientation = finger_pos[:, 3:]
         finger.angular_vel = finger_vel[:, 3:]
 
-    # assert cursor.is_sorted()
-    # assert finger.is_sorted()
-
     return cursor, finger
 
 
