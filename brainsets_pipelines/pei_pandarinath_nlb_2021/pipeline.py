@@ -61,7 +61,6 @@ class Pipeline(BrainsetPipeline):
 
     def download(self, manifest_item):
         self.update_status("DOWNLOADING")
-        self.raw_dir.mkdir(exist_ok=True, parents=True)
         fpath = download_file(
             manifest_item.path,
             manifest_item.url,
@@ -165,9 +164,9 @@ class Pipeline(BrainsetPipeline):
                 ).split([0.8, 0.2], shuffle=True, random_seed=42)
                 test_trials = trials.select_by_mask(trials.test_mask_nwb)
 
-                data.set_train_domain(train_trials)
-                data.set_valid_domain(valid_trials)
-                data.set_test_domain(test_trials)
+                data.train_domain = train_trials
+                data.valid_domain = valid_trials
+                data.test_domain = test_trials
 
             elif task == "RTT":
                 data.cursor, data.finger, data.target = extract_behavior_rtt(

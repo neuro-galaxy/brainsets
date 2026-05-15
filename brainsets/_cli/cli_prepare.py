@@ -13,18 +13,32 @@ try:  # Python 3.11+
 except ModuleNotFoundError:  # Python <3.11
     import tomli as tomllib  # type: ignore[import-not-found]
 
+from click.shell_completion import CompletionItem
+
+from brainsets.config import CONFIG_FILE, load_config
+
 from .utils import (
     PIPELINES_PATH,
-    load_config,
     get_available_brainsets,
     expand_path,
 )
 
 
+def complete_brainset(ctx, param, incomplete):
+    if ctx.params.get("local"):
+        return [CompletionItem(incomplete, type="dir")]
+
+    try:
+        names = get_available_brainsets()
+    except Exception:
+        return []
+    return [CompletionItem(name) for name in names if name.startswith(incomplete)]
+
+
 @click.command(
     context_settings=dict(ignore_unknown_options=True, allow_extra_args=True)
 )
-@click.argument("brainset", type=str)
+@click.argument("brainset", type=str, shell_complete=complete_brainset)
 @click.option("-c", "--cores", default=4, help="Number of cores to use. (default 4)")
 @click.option(
     "--raw-dir",
@@ -35,6 +49,20 @@ from .utils import (
     "--processed-dir",
     type=click.Path(file_okay=False),
     help="Path for storing processed brainset. Overrides config.",
+)
+@click.option(
+    "--list",
+    "list_flag_",
+    is_flag=True,
+    default=False,
+    help="Print the manifest for the brainset and exit.",
+)
+@click.option(
+    "--single",
+    "-s",
+    type=str,
+    default=None,
+    help="Prepare a single item from the manifest if provided. Value: manifest index id for the item.",
 )
 @click.option(
     "--local",
@@ -74,6 +102,8 @@ def prepare(
     cores: int,
     verbose: bool,
     download_only: bool,
+    list_flag_: bool,
+    single: str,
     use_active_env: bool,
     raw_dir: Optional[str],
     processed_dir: Optional[str],
@@ -88,12 +118,19 @@ def prepare(
     $ brainsets prepare pei_pandarinath_nlb_2021
     $ brainsets prepare pei_pandarinath_nlb_2021 --download-only
     $ brainsets prepare pei_pandarinath_nlb_2021 --cores 8 --raw-dir ~/data/raw --processed-dir ~/data/processed
+    $ brainsets prepare pei_pandarinath_nlb_2021 --list
+    $ brainsets prepare pei_pandarinath_nlb_2021 --single jenkins_maze_train
     $ brainsets prepare ./my_local_brainsets_pipeline --local
     """
 
     # Get raw and processed dirs
     if raw_dir is None or processed_dir is None:
         config = load_config()
+        if config is None:
+            raise click.ClickException(
+                f"Config not found or invalid at {CONFIG_FILE}. "
+                "Please run `brainsets config set`."
+            )
         raw_dir = expand_path(raw_dir or config["raw_dir"])
         processed_dir = expand_path(processed_dir or config["processed_dir"])
     else:
@@ -134,6 +171,8 @@ def prepare(
         f"--processed-dir={processed_dir}",
         f"-c{cores}",
         *(["--download-only"] if download_only else []),
+        *(["--list"] if list_flag_ else []),
+        *([f"--single={single}"] if single is not None else []),
         *ctx.args,  # extra arguments
     ]
 

@@ -74,7 +74,6 @@ class Pipeline(BrainsetPipeline):
 
     def download(self, manifest_item):
         self.update_status("DOWNLOADING")
-        self.raw_dir.mkdir(exist_ok=True, parents=True)
         fpath = download_file(
             manifest_item.path,
             manifest_item.url,
@@ -88,8 +87,6 @@ class Pipeline(BrainsetPipeline):
         self.update_status("Loading NWB")
         io = NWBHDF5IO(fpath, "r")
         nwbfile = io.read()
-
-        self.processed_dir.mkdir(exist_ok=True, parents=True)
 
         brainset_description = BrainsetDescription(
             id="perich_miller_population_2018",
@@ -207,9 +204,9 @@ class Pipeline(BrainsetPipeline):
             (valid_trials | test_trials).dilate(1.0)
         )
 
-        data.set_train_domain(train_sampling_intervals)
-        data.set_valid_domain(valid_trials)
-        data.set_test_domain(test_trials)
+        data.train_domain = train_sampling_intervals
+        data.valid_domain = valid_trials
+        data.test_domain = test_trials
 
         self.update_status("Storing")
         with h5py.File(store_path, "w") as file:

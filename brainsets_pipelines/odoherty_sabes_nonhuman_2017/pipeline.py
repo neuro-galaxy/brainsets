@@ -39,8 +39,6 @@ class Pipeline(BrainsetPipeline):
 
     @classmethod
     def get_manifest(cls, raw_dir, args) -> pd.DataFrame:
-        raw_dir.mkdir(exist_ok=True, parents=True)
-
         # list files to download
         r_fd = os.popen(f"zenodo_get -w - 3854034")
         manifest_out = r_fd.read()
@@ -90,7 +88,6 @@ class Pipeline(BrainsetPipeline):
 
     def download(self, manifest_item):
         self.update_status("DOWNLOADING")
-        self.raw_dir.mkdir(exist_ok=True, parents=True)
         fpath = self.raw_dir / Path(manifest_item.file)
 
         if (
@@ -120,7 +117,6 @@ class Pipeline(BrainsetPipeline):
         return fpath
 
     def process(self, fpath):
-        self.processed_dir.mkdir(exist_ok=True, parents=True)
 
         brainset_description = BrainsetDescription(
             id="odoherty_sabes_nonhuman_2017",
@@ -203,10 +199,9 @@ class Pipeline(BrainsetPipeline):
         train_sampling_intervals, valid_sampling_intervals, test_sampling_intervals = (
             split_intervals(data)
         )
-        # set the domains
-        data.set_train_domain(train_sampling_intervals)
-        data.set_valid_domain(valid_sampling_intervals)
-        data.set_test_domain(test_sampling_intervals)
+        data.train_domain = train_sampling_intervals
+        data.valid_domain = valid_sampling_intervals
+        data.test_domain = test_sampling_intervals
 
         # save data to disk
         self.update_status("Storing")

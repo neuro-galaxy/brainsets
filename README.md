@@ -31,7 +31,9 @@ pip install brainsets
 | pei_pandarinath_nlb_2021  | [Link](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#pei-pandarinath-nlb-2021) | 688 KB | 22 MB |
 | perich_miller_population_2018 | [Link](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#perich-miller-population-2018) | 13 GB | 2.9 GB |
 | kemp_sleep_edf_2013 | TBA | 8.2 GB | 60 GB |
+| neuroprobe_2025 | [Link](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#neuroprobe-2025) | 138 GB | 257 GB |
 | allen_visual_coding_ophys_2016 | TBA | 356 GB | 58 GB |
+| vollan_moser_alternating_2025 | TBA | 16.4 GB | 4.5 GB |
 
 
 ## Acknowledgements
@@ -44,17 +46,22 @@ This work is only made possible thanks to the public release of these valuable d
 ### Configuring data directories
 First, configure the directories where brainsets will store raw and processed data:
 ```bash
-brainsets config
+brainsets config set
 ```
 
 You will be prompted to enter the paths to the raw and processed data directories.
 ```bash
-$> brainsets config
+$> brainsets config set
 Enter raw data directory: ./data/raw
 Enter processed data directory: ./data/processed
 ```
 
-You can update the configuration at any time by running the `config` command again.
+You can update the configuration at any time by running the `config set` command again.
+
+To view the current configuration:
+```bash
+brainsets config show
+```
 
 ### Listing available datasets
 You can list the available datasets by running the `list` command:

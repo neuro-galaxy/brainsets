@@ -14,6 +14,7 @@ churchland_shenoy_neural_2012
 
 .. raw:: html
 
+  <div class="brainset-card">
    <table>
        <colgroup>
            <col style="width: 30%">
@@ -165,6 +166,7 @@ churchland_shenoy_neural_2012
            <td>The data is not contiguous. Neural and behavior data are provided only during the trials, and not between trials. Additionally, the raw data contains artifacts that were removed during processing. </td>
        </tr>
    </table>
+   </div>
 
 
 flint_slutzky_accurate_2012
@@ -180,6 +182,7 @@ flint_slutzky_accurate_2012
 
 .. raw:: html
 
+  <div class="brainset-card">
    <table>
        <colgroup>
            <col style="width: 30%">
@@ -368,7 +371,7 @@ flint_slutzky_accurate_2012
            <td>151 MB</td>
        </tr>
    </table>
-
+   </div>
 
 
 odoherty_sabes_nonhuman_2017
@@ -384,6 +387,7 @@ odoherty_sabes_nonhuman_2017
 
 .. raw:: html
 
+  <div class="brainset-card">
    <table>
        <colgroup>
            <col style="width: 30%">
@@ -525,7 +529,7 @@ odoherty_sabes_nonhuman_2017
            <td>26 GB</td>
        </tr>
    </table>
-
+   </div>
 
 pei_pandarinath_nlb_2021
 ------------------------
@@ -540,6 +544,7 @@ pei_pandarinath_nlb_2021
 
 .. raw:: html
 
+  <div class="brainset-card">
    <table>
        <colgroup>
            <col style="width: 30%">
@@ -681,7 +686,7 @@ pei_pandarinath_nlb_2021
            <td>22 MB</td>
        </tr>
    </table>
-
+   </div>
 
 perich_miller_population_2018
 ------------------------------
@@ -696,6 +701,7 @@ perich_miller_population_2018
 
 .. raw:: html
 
+  <div class="brainset-card">
    <table>
        <colgroup>
            <col style="width: 30%">
@@ -880,3 +886,303 @@ perich_miller_population_2018
            <td>2.9 GB</td>
        </tr>
    </table>
+   </div>
+
+
+neuroprobe_2025
+---------------
+
+**Downloading data using brainsets cli** ::
+
+
+    brainsets prepare neuroprobe_2025
+
+
+**Brainset Card**
+
+.. raw:: html
+
+  <div class="brainset-card">
+   <table>
+       <colgroup>
+           <col style="width: 30%">
+           <col style="width: 70%">
+       </colgroup>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-circle-info"></i>Data Source</th>
+       </tr>
+       <tr>
+           <td><strong>Publication(s)</strong></td>
+           <td>
+               <div>
+                 <a href="https://arxiv.org/abs/2509.21671">arXiv:2509.21671</a>
+                 <span class="citation-container">
+                   <button class="cite-button" data-doi="2509.21671">Cite</button>
+                   <div class="citation-popup" id="popup-2509.21671" style="display:none;">
+                     <div class="citation-section">
+                       <h4>BibTeX</h4>
+                       <div class="citation-content">
+                         <pre>@article{zahorodnii2025neuroprobe,
+    title={Neuroprobe: Evaluating Intracranial Brain Responses to Naturalistic Stimuli},
+    author={Zahorodnii, Andrii and Wang, Christopher and Stankovits, Bennett and Moraitaki, Charikleia and Chau, Geeling and Barbu, Andrei and Katz, Boris and Fiete, Ila R},
+    journal={arXiv preprint arXiv:2509.21671},
+    year={2025}
+    }
+    </pre>
+                         <button class="copy-button" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copy" width="44" height="44" viewBox="0 0 24 24" stroke-width="1.5" stroke="#000000" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <title>Copy to clipboard</title>
+    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+    <rect x="8" y="8" width="12" height="12" rx="2"></rect>
+    <path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2"></path>
+    </svg></button>
+                       </div>
+                     </div>
+                     <div class="citation-section">
+                       <h4>APA Style</h4>
+                       <div class="citation-content">
+                         <pre>Zahorodnii, A., Wang, C., Stankovits, B., Moraitaki, C., Chau, G., Barbu, A., Katz, B., & Fiete, I. R. (2025). Neuroprobe: Evaluating Intracranial Brain Responses to Naturalistic Stimuli. arXiv preprint arXiv:2509.21671.</pre>
+                         <button class="copy-button" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copy" width="44" height="44" viewBox="0 0 24 24" stroke-width="1.5" stroke="#000000" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <title>Copy to clipboard</title>
+    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+    <rect x="8" y="8" width="12" height="12" rx="2"></rect>
+    <path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2"></path>
+    </svg></button>
+                       </div>
+                     </div>
+                   </div>
+                 </span>
+               </div>
+           </td>
+       </tr>
+       <tr>
+           <td><strong>Data Source</strong></td>
+           <td><a href="https://braintreebank.dev">https://braintreebank.dev</a></td>
+       </tr>
+       <tr>
+           <td><strong>License</strong></td>
+           <td><a href="https://spdx.org/licenses/CC-BY-4.0.html">Creative Commons Attribution 4.0 International</a></td>
+       </tr>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-user"></i>Subjects</th>
+       </tr>
+       <tr>
+           <td><strong>Number of subjects</strong></td>
+           <td>10</td>
+       </tr>
+       <tr>
+           <td><strong>Species</strong></td>
+           <td>Homo sapiens</td>
+       </tr>
+        <tr>
+           <td><strong>Number of recordings</strong></td>
+           <td>21 movie sessions across 10 subjects</td>
+       </tr>
+       <tr>
+           <td><strong>Total recording time</strong></td>
+           <td>~43 hours</td>
+       </tr>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-brain"></i> Neural Data</th>
+       </tr>
+       <tr>
+           <td><strong>Neural Modality</strong></td>
+           <td>iEEG (stereoelectroencephalography; sEEG)</td>
+       </tr>
+       <tr>
+           <td><strong>Device</strong></td>
+           <td>sEEG depth electrodes</td>
+       </tr>
+       <tr>
+           <td><strong>Sampling rate</strong></td>
+           <td>2048 Hz</td>
+       </tr>
+       <tr>
+           <td><strong>Brain regions</strong></td>
+           <td>Various cortical regions (electrode placements determined by clinical needs)</td>
+       </tr>
+       <tr>
+           <td><strong>Available fields</strong></td>
+           <td><span class="code-tag">data.seeg_data</span><span class="code-tag">data.channels</span></td>
+       </tr>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-bolt-lightning"></i> Behavioral Data</th>
+       </tr>
+        <tr>
+           <td><strong>Description</strong></td>
+           <td>Subjects watched naturalistic Hollywood movies while neural activity was recorded. Neuroprobe defines 15 binary classification tasks across audio, language, and vision domains, aligned to word onsets.</td>
+       </tr>
+       <tr>
+           <td><strong>Task</strong></td>
+           <td>Naturalistic movie viewing with 15 decoding tasks</td>
+       </tr>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-database"></i> File Sizes</th>
+       </tr>
+       <tr>
+           <td><strong>Raw data size</strong></td>
+           <td>~138 GB</td>
+       </tr>
+       <tr>
+           <td><strong>Processed data size</strong></td>
+           <td>~257 GB</td>
+       </tr>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-triangle-exclamation"></i>Notes</th>
+       </tr>
+       <tr>
+           <td><strong>Benchmark</strong></td>
+           <td>Neuroprobe is both a dataset and a benchmark. For details on running the benchmark with brainsets, see the <a href="../concepts/neuroprobe.html">Neuroprobe Benchmark</a> tutorial.</td>
+       </tr>
+   </table>
+   </div>
+
+
+vollan_moser_alternating_2025
+-----------------------------
+
+**Downloading data using brainsets cli** ::
+
+
+    brainsets prepare vollan_moser_alternating_2025
+
+
+**Brainset Card**
+
+.. raw:: html
+
+  <div class="brainset-card">
+   <table>
+       <colgroup>
+           <col style="width: 30%">
+           <col style="width: 70%">
+       </colgroup>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-circle-info"></i>Data Source</th>
+       </tr>
+       <tr>
+           <td><strong>Publication(s)</strong></td>
+           <td>
+               <div>
+                 <a href="https://doi.org/10.25493/R5FR-EDG">10.25493/R5FR-EDG</a>
+                 <span class="citation-container">
+                   <button class="cite-button" data-doi="10.25493/R5FR-EDG">Cite</button>
+                   <div class="citation-popup" id="popup-10.25493/R5FR-EDG" style="display:none;">
+                     <div class="citation-section">
+                       <h4>BibTeX</h4>
+                       <div class="citation-content">
+                         <pre>@article{vollan2025theta,
+    title={Left-right-alternating theta sweeps in the entorhinal-hippocampal spatial map},
+    author={Vollan, Abraham Z and Gardner, Richard J and Moser, May-Britt and Moser, Edvard I},
+    year={2025},
+    }
+    </pre>
+                         <button class="copy-button" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-copy" width="44" height="44" viewBox="0 0 24 24" stroke-width="1.5" stroke="#000000" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <title>Copy to clipboard</title>
+    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+    <rect x="8" y="8" width="12" height="12" rx="2"></rect>
+    <path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2"></path>
+    </svg></button>
+                       </div>
+                     </div>
+                   </div>
+                 </span>
+               </div>
+           </td>
+       </tr>
+       <tr>
+           <td><strong>Data Source</strong></td>
+           <td><a href="https://search.kg.ebrains.eu/instances/4080b78d-edc5-4ae4-8144-7f6de79930ea">EBRAINS Knowledge Graph</a></td>
+       </tr>
+       <tr>
+           <td><strong>License</strong></td>
+           <td><a href="https://creativecommons.org/licenses/by-sa/4.0/">Creative Commons Attribution-ShareAlike 4.0 International</a></td>
+       </tr>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-user"></i>Subjects</th>
+       </tr>
+       <tr>
+           <td><strong>Number of subjects</strong></td>
+           <td>19</td>
+       </tr>
+       <tr>
+           <td><strong>Species</strong></td>
+           <td>Rattus norvegicus</td>
+       </tr>
+        <tr>
+           <td><strong>Number of recordings</strong></td>
+           <td>51 (31 Open Field, 7 Linear Track, 2 Wagon Wheel, 1 M-Maze, 1 Novel Open Field, 9 Sleep)</td>
+       </tr>
+       <tr>
+           <td><strong>Total recording time</strong></td>
+           <td>63.3 hours (34.9 hours after speed filtering)</td>
+       </tr>
+       <tr>
+           <td><strong>Average recording length</strong></td>
+           <td>41.1 min</td>
+       </tr>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-brain"></i> Neural Data</th>
+       </tr>
+       <tr>
+           <td><strong>Neural Modality</strong></td>
+           <td>EPhys, spiking</td>
+       </tr>
+       <tr>
+           <td><strong>Device</strong></td>
+           <td>Neuropixels</td>
+       </tr>
+       <tr>
+           <td><strong>Total number of units</strong></td>
+           <td>45,821</td>
+       </tr>
+       <tr>
+           <td><strong>Average units per recording</strong></td>
+           <td>898.5</td>
+       </tr>
+       <tr>
+           <td><strong>Total number of spikes</strong></td>
+           <td>215.8M</td>
+       </tr>
+       <tr>
+           <td><strong>Brain regions</strong></td>
+           <td>MEC, Hippocampus</td>
+       </tr>
+       <tr>
+           <td><strong>Available fields</strong></td>
+           <td><span class="code-tag">data.spikes</span><span class="code-tag">data.units</span></td>
+       </tr>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-bolt-lightning"></i> Behavioral &amp; Model Data</th>
+       </tr>
+        <tr>
+           <td><strong>Description</strong></td>
+           <td>Rats performing spatial navigation tasks in various arena types. All timeseries on the shared 10 ms clock are stored in a single flat <code>data.samples</code> object. This includes observed tracking (head position, direction, speed, theta phase) and LMT model outputs (decoded internal direction and position per neural population). A separate <code>data.theta_chunks</code> stores per-theta-cycle decoded variables. Sleep sessions contain only SWS/REM epoch spikes &mdash; none of the navigation fields (<code>samples</code>, <code>theta_chunks</code>, <code>probe_channels</code>) are present and they should be treated as structurally independent.</td>
+       </tr>
+       <tr>
+           <td><strong>Task</strong></td>
+           <td>Open Field, Linear Track, M-Maze, Wagon Wheel, Sleep</td>
+       </tr>
+       <tr>
+           <td><strong>Available fields (navigation)</strong></td>
+           <td><span class="code-tag">data.samples.x</span><span class="code-tag">data.samples.y</span><span class="code-tag">data.samples.z</span><span class="code-tag">data.samples.hd</span><span class="code-tag">data.samples.speed</span><span class="code-tag">data.samples.theta</span><span class="code-tag">data.samples.id</span><span class="code-tag">data.samples.lmt_{pop}_theta</span><span class="code-tag">data.samples.lmt_{pop}_hd</span><span class="code-tag">data.samples.lmt_{pop}_id</span><span class="code-tag">data.samples.lmt_{pop}_pos_x</span><span class="code-tag">data.samples.lmt_{pop}_pos_y</span><span class="code-tag">data.theta_chunks</span><span class="code-tag">data.probe_channels</span></td>
+       </tr>
+       <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-database"></i> File Sizes</th>
+       </tr>
+       <tr>
+           <td><strong>Raw data size</strong></td>
+           <td>16.4 GB</td>
+       </tr>
+       <tr>
+           <td><strong>Processed data size</strong></td>
+           <td>4.5 GB</td>
+       </tr>
+        <tr>
+           <th colspan="2" align="center"><i class="fa-solid fa-triangle-exclamation"></i>Notes</th>
+       </tr>
+       <tr>
+           <td><strong>Warning</strong></td>
+           <td>Navigation data is not contiguous. All timeseries have been speed-filtered to discard samples when the animal's locomotion speed was below 5 cm/s, resulting in gaps identified in <code>domain</code>. Some sessions have empty <code>id</code> and <code>theta</code> fields (filled with NaN) where the LMT model was not fitted. LMT population fields (<code>lmt_{pop}_*</code>) are NaN-padded when a population is absent for a given animal. Sleep sessions have a fundamentally different structure &mdash; they contain only spikes and unit IDs within SWS/REM epochs.</td>
+       </tr>
+   </table>
+   </div>
