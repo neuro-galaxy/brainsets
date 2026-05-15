@@ -4,6 +4,7 @@ import jinja2
 
 import brainsets
 import brainsets.pipeline
+import brainsets.datasets
 import brainsets.descriptions
 import brainsets.taxonomy
 import brainsets.core
@@ -36,6 +37,7 @@ See `torch_brain/docs/source/api_reference.py` for the full template documentati
 # Modules to include in API reference.
 API_MODS = [
     "brainsets.pipeline",
+    "brainsets.datasets",
     "brainsets.descriptions",
     "brainsets.taxonomy",
     "brainsets.core",

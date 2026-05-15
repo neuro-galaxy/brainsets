@@ -26,6 +26,17 @@ __all__ = (
     + _psg_datasets
 )
 
+# see docs/source/api_reference.py
+__api_ref__ = {
+    "description": None,
+    "sections": [
+        {"title": "Electrophysiology", "autosummary": _electrophysiology_datasets},
+        {"title": "Calcium Imaging", "autosummary": _calcium_imaging_datasets},
+        {"title": "iEEG", "autosummary": _ieeg_datasets},
+        {"title": "PSG", "autosummary": _psg_datasets},
+    ],
+}
+
 from .PerichMillerPopulation2018 import PerichMillerPopulation2018
 from .PeiPandarinathNLB2021 import PeiPandarinathNLB2021
 from .FlintSlutzkyAccurate2012 import FlintSlutzkyAccurate2012
