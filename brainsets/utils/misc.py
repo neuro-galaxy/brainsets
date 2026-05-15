@@ -33,7 +33,7 @@ def calc_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float:
         )
 
     relative_variation = np.abs((np.max(diffs) - np.min(diffs)) / dt)
-    assert relative_variation < tol, (
+    assert relative_variation < rtol, (
         f"Timestamps are not uniformly sampled (relative variation={relative_variation:.2e} >= tol={tol}). "
         "Use an Irregular TimeSeries to store the data."
     )
