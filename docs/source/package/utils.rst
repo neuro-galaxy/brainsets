@@ -28,11 +28,11 @@ split
 miscellaneous
 ~~~~~~~~~~~~~
 
-.. currentmodule:: brainsets.utils.misc
+.. currentmodule:: brainsets.utils.misc_utils
 
 .. autosummary::
    :nosignatures:
    :toctree: ../_generated
    :template: autosummary/function.rst
 
-   {% for name in brainsets.utils.misc._functions %}
+   {% for name in brainsets.utils.misc_utils._functions %}
