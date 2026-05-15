@@ -16,7 +16,7 @@ def test_non_integer_sampling_rate():
 def test_gapped_timestamps_raises():
     timestamps = np.arange(100) / 1000.0
     timestamps[50] += 0.1  # introduce a gap
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         calc_sampling_rate(timestamps)
 
 
@@ -33,5 +33,5 @@ def test_custom_tolerance():
     diffs = 1 / 1000.0 + jitter
     timestamps = np.concatenate([[0.0], np.cumsum(diffs)])
     calc_sampling_rate(timestamps)  # passes with default rtol
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         calc_sampling_rate(timestamps, rtol=1e-6)
