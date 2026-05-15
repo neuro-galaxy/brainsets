@@ -24,6 +24,11 @@ def calculate_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float
         ValueError: If the timestamps are not uniformly sampled within the given relative tolerance.
     """
 
+    if timestamps.ndim != 1:
+        raise ValueError(
+            f"Timestamps must be a 1D array, got {timestamps.ndim}D array with shape {timestamps.shape}"
+        )
+
     if timestamps.size < 2:
         raise ValueError(
             f"Need at least 2 timestamps to compute a sampling rate, got {timestamps.size}"
