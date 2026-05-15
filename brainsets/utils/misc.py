@@ -19,9 +19,10 @@ def calc_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float:
         float: Sampling rate in Hz.
 
     Raises:
-        ValueError: If fewer than 2 timestamps are provided.
-        ValueError: If the timestamps are not strictly monotonically increasing.
-        ValueError: If the timestamps are not uniformly sampled within the given relative tolerance.
+        ValueError: If any of the following is true:
+            - fewer than 2 timestamps are provided.
+            - the timestamps are not strictly monotonically increasing.
+            - the timestamps are not uniformly sampled within the given relative tolerance.
     """
     if timestamps.size < 2:
         raise ValueError(
