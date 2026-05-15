@@ -7,6 +7,12 @@ _classes = [
 
 __all__ = _classes
 
+# see docs/source/api_reference.py
+__api_ref__ = {
+    "description": None,
+    "sections": [{"autosummary": _classes}],
+}
+
 import datetime
 from typing import Dict, List, Tuple, Optional, Union
 

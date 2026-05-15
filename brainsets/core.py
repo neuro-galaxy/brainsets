@@ -15,6 +15,16 @@ _constants = [
 
 __all__ = _functions + _classes + _constants
 
+# see docs/source/api_reference.py
+__api_ref__ = {
+    "description": None,
+    "sections": [
+        {"title": "Classes", "autosummary": _classes},
+        {"title": "Functions", "autosummary": _functions},
+        {"title": "Constants", "autosummary": _constants},
+    ],
+}
+
 from enum import Enum
 import datetime
 
