@@ -7,8 +7,8 @@ __all__ = _functions
 import numpy as np
 
 
-def calc_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float:
-    """Calculate sampling rate from an array of timestamps.
+def calculate_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float:
+    """Calculate median sampling rate from an array of timestamps.
 
     Args:
         timestamps: 1D array of timestamps in seconds, expected to be monotonically increasing.
