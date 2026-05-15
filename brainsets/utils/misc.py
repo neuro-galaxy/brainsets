@@ -21,7 +21,7 @@ def calc_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float:
     Raises:
         ValueError: If the median interval between timestamps is <= 0, which indicates
             identical or non-monotonic timestamps.
-        AssertionError: If the sampling interval is not consistent within the given relative tolerance.
+        ValueError: If the sampling interval is not consistent within the given relative tolerance.
     """
     diffs = np.diff(timestamps)
     dt = np.median(diffs)
@@ -33,9 +33,10 @@ def calc_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float:
         )
 
     relative_variation = np.abs((np.max(diffs) - np.min(diffs)) / dt)
-    assert relative_variation < rtol, (
-        f"Timestamps are not uniformly sampled (relative variation={relative_variation:.2e} >= rtol={rtol}). "
-        "Use an Irregular TimeSeries to store the data."
-    )
+    if relative_variation >= rtol:
+        raise ValueError(
+            f"Timestamps are not uniformly sampled (relative variation={relative_variation:.2e} >= rtol={rtol}). "
+            "Use an Irregular TimeSeries to store the data."
+        )
 
     return 1.0 / dt
