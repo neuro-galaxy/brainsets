@@ -26,6 +26,23 @@ def test_non_monotonic_timestamps_raises():
         calc_sampling_rate(timestamps)
 
 
+def test_partially_non_monotonic_timestamps_raises():
+    timestamps = np.arange(10) / 1000.0
+    timestamps[5] = timestamps[3]  # single out-of-order value
+    with pytest.raises(ValueError):
+        calc_sampling_rate(timestamps)
+
+
+def test_empty_timestamps_raises():
+    with pytest.raises(ValueError):
+        calc_sampling_rate(np.array([]))
+
+
+def test_single_timestamp_raises():
+    with pytest.raises(ValueError):
+        calc_sampling_rate(np.array([0.0]))
+
+
 def test_custom_tolerance():
     rng = np.random.default_rng(0)
     # jitter small enough to pass default rtol=1e-3 but large enough to fail rtol=1e-6

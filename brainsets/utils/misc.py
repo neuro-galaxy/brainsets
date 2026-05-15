@@ -19,19 +19,24 @@ def calc_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float:
         float: Sampling rate in Hz.
 
     Raises:
-        ValueError: If the median interval between timestamps is <= 0, which indicates
-            identical or non-monotonic timestamps.
+        ValueError: If fewer than 2 timestamps are provided.
+        ValueError: If the timestamps are not strictly monotonically increasing.
         ValueError: If the timestamps are not uniformly sampled within the given relative tolerance.
     """
-    diffs = np.diff(timestamps)
-    dt = np.median(diffs)
-
-    if dt <= 0:
+    if timestamps.size < 2:
         raise ValueError(
-            f"Invalid timestamps: median interval is {dt}, "
-            "timestamps may be identical or non-monotonic"
+            f"Need at least 2 timestamps to compute a sampling rate, got {timestamps.size}"
         )
 
+    diffs = np.diff(timestamps)
+
+    if np.any(diffs <= 0):
+        raise ValueError(
+            "Timestamps must be strictly monotonically increasing "
+            "(found duplicate or out-of-order values)"
+        )
+
+    dt = np.median(diffs)
     relative_variation = np.abs((np.max(diffs) - np.min(diffs)) / dt)
     if relative_variation >= rtol:
         raise ValueError(
