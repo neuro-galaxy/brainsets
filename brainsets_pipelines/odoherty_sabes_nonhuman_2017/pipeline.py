@@ -31,7 +31,7 @@ from brainsets.descriptions import (
 )
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.taxonomy import RecordingTech, Species, Task
-from brainsets.utils.misc import calc_sampling_rate
+from brainsets.utils.misc_utils import calculate_sampling_rate
 
 logging.basicConfig(level=logging.INFO)
 
@@ -238,7 +238,7 @@ def extract_behavior(h5file):
     cursor_acc = np.gradient(cursor_vel, timestamps, edge_order=1, axis=0)
     finger_vel = np.gradient(finger_pos, timestamps, edge_order=1, axis=0)
 
-    sampling_rate = calc_sampling_rate(timestamps)
+    sampling_rate = calculate_sampling_rate(timestamps)
     cursor = RegularTimeSeries(
         sampling_rate=sampling_rate,
         domain_start=timestamps[0],
