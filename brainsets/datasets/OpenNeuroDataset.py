@@ -1,12 +1,13 @@
 from pathlib import Path
 from typing import Callable, Literal, Optional, get_args
+import hashlib
 
 import numpy as np
 
 from temporaldata import Data, Interval
 from torch_brain.dataset import MultiChannelDatasetMixin, Dataset
 
-from brainsets.utils.split import generate_string_kfold_assignment
+from brainsets.utils.split import _get_integer_hash_from_string
 from brainsets.datasets._utils import empty_interval
 
 OpenNeuroSplitType = Literal["intrasession", "intersubject", "intersession"]
@@ -183,36 +184,21 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
             )
 
         elif self.split_type == "intersubject" or self.split_type == "intersession":
-            # n_folds determines how many "folds" are used for k-fold assignment in intersubject/intersession splitting.
-            # It is based on the test split ratio: e.g., for test_ratio=0.1, assignment_n_folds=10, so each fold has ~10% data.
-            # If test_ratio <= 0, only one fold is used.
-            test_ratio = self.split_ratios[2]
-            if test_ratio <= 0:
-                n_folds = 1
-            else:
-                n_folds = max(1, int(round(1.0 / test_ratio)))
-            # fold_idx is the (zero-based) index of the current fold to assign as "val".
-            # Here, fold 0 is always selected as the validation fold for assignments.
-            fold_idx = 0
-
             if self.split_type == "intersubject":
                 string_id = recording.subject.id
             elif self.split_type == "intersession":
                 string_id = f"{recording.subject.id}_{recording.session.id}"
 
-            assignments = generate_string_kfold_assignment(
-                string_id=string_id,
-                n_folds=n_folds,
-                # By setting val_ratio to 0, we ensure that all folds
-                # are assigned to train, plus the one fold assigned to test.
-                val_ratio=0.0,
-                seed=self.seed,
-            )
+            base_str = f"{string_id}_{self.seed}"
+            hash_int = _get_integer_hash_from_string(base_str)
+            normalized_hash = (hash_int % 10000) / 10000.0
 
-            assignment = assignments[fold_idx]
-            # By convention, the test fold is assigned to "val".
-            if assignment == "test":
+            if normalized_hash < self.split_ratios[0]:
+                assignment = "train"
+            elif normalized_hash < (self.split_ratios[0] + self.split_ratios[1]):
                 assignment = "val"
+            else:
+                assignment = "test"
 
             if assignment == split:
                 return recording.domain
