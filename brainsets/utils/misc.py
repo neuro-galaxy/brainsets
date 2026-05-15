@@ -21,7 +21,7 @@ def calc_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float:
     Raises:
         ValueError: If the median interval between timestamps is <= 0, which indicates
             identical or non-monotonic timestamps.
-        ValueError: If the sampling interval is not consistent within the given relative tolerance.
+        ValueError: If the timestamps are not uniformly sampled within the given relative tolerance.
     """
     diffs = np.diff(timestamps)
     dt = np.median(diffs)
