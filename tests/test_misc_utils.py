@@ -43,6 +43,12 @@ def test_single_timestamp_raises():
         calculate_sampling_rate(np.array([0.0]))
 
 
+def test_2d_timestamps_raises():
+    timestamps = (np.arange(100) / 1000.0).reshape(10, 10)
+    with pytest.raises(ValueError):
+        calculate_sampling_rate(timestamps)
+
+
 def test_custom_tolerance():
     rng = np.random.default_rng(0)
     # jitter small enough to pass default rtol=1e-3 but large enough to fail rtol=1e-6
