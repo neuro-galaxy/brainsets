@@ -1,10 +1,10 @@
-furo
 sphinx
+pydata-sphinx-theme
 myst-parser
 sphinx-autodoc-typehints
 sphinx-inline-tabs
-sphinx-rtd-theme
-sphinx-tabs
 sphinx-design
 sphinx-copybutton
+sphinxcontrib-sass
+jinja2
 git+https://github.com/neuro-galaxy/torch_brain

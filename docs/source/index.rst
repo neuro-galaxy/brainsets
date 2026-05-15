@@ -59,14 +59,9 @@ If you encounter any bugs or have feature requests, please submit them to our
 
 .. toctree::
    :maxdepth: 2
-   :caption: Package Reference
+   :caption: API Reference
 
-   package/brainsetpipeline
-   package/descriptions
-   package/taxonomy
-   package/utils
-   package/core
-   package/processing
+   generated/api/index
 
 .. toctree::
    :maxdepth: 2

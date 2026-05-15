@@ -260,3 +260,8 @@ table.center-first-col th:nth-child(1),
 table.center-first-col td:nth-child(1) {
     text-align: center !important;
 }
+
+/* Hover highlight for tables (matches torch_brain docs) */
+table tbody tr:hover td {
+    background-color: color-mix(in srgb, var(--pst-color-primary) 15%, transparent) !important;
+}
