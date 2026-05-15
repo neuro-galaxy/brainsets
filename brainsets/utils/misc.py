@@ -12,7 +12,7 @@ def calc_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float:
 
     Args:
         timestamps: 1D array of timestamps in seconds, expected to be monotonically increasing.
-        tol: Maximum allowed relative variation in sampling interval, defined as
+        rtol: Maximum allowed relative variation in sampling interval, defined as
             (max_diff - min_diff) / median_diff. Defaults to 1e-3.
 
     Returns:
@@ -34,7 +34,7 @@ def calc_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float:
 
     relative_variation = np.abs((np.max(diffs) - np.min(diffs)) / dt)
     assert relative_variation < rtol, (
-        f"Timestamps are not uniformly sampled (relative variation={relative_variation:.2e} >= tol={tol}). "
+        f"Timestamps are not uniformly sampled (relative variation={relative_variation:.2e} >= rtol={rtol}). "
         "Use an Irregular TimeSeries to store the data."
     )
 
