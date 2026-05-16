@@ -27,6 +27,7 @@ from brainsets.taxonomy import RecordingTech, Task
 from brainsets import serialize_fn_map
 
 from brainsets.pipeline import BrainsetPipeline
+from brainsets.utils.misc_utils import fill_gappy_timeseries
 
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
@@ -209,40 +210,26 @@ def extract_behavior(nwbfile, trials):
     raw_hand_vel = nwbfile.processing["behavior"]["hand_vel"].data[:]
     raw_eye_pos = nwbfile.processing["behavior"]["eye_pos"].data[:]
 
-    # These samples are mostly uniformly sampled at 1000Hz,
-    # but have some missing points. Here we insert NaNs at
-    # the missing timesteps to regularize the timeseries
     samp_rate = 1e3
-    start_time, end_time = raw_timestamps[0], raw_timestamps[-1]
-    num_timesteps = round((end_time - start_time) * samp_rate) + 1
-    raw_time_idx = np.round((raw_timestamps - start_time) * samp_rate).astype(int)
-    assert (np.diff(raw_time_idx) > 0).all()
-    # ^ this confirms there are no repeated timestamps
-    assert np.isclose(raw_time_idx / samp_rate, raw_timestamps - start_time).all()
-    # ^ this confirms that the raw_timestamps are indeed regular relative to start_time
-
-    hand_pos = np.full((num_timesteps, raw_hand_pos.shape[-1]), fill_value=np.nan)
-    hand_pos[raw_time_idx] = raw_hand_pos
-
-    hand_vel = np.full((num_timesteps, raw_hand_vel.shape[-1]), fill_value=np.nan)
-    hand_vel[raw_time_idx] = raw_hand_vel
-
-    eye_pos = np.full((num_timesteps, raw_eye_pos.shape[-1]), fill_value=np.nan)
-    eye_pos[raw_time_idx] = raw_eye_pos
+    timestamps, (hand_pos, hand_vel, eye_pos) = fill_gappy_timeseries(
+        timestamps=raw_timestamps,
+        values=(raw_hand_pos, raw_hand_vel, raw_eye_pos),
+        sampling_rate=samp_rate,
+    )
 
     hand = RegularTimeSeries(
         sampling_rate=samp_rate,
         pos=hand_pos,
         vel=hand_vel,
         domain="auto",
-        domain_start=start_time,
+        domain_start=timestamps[0],
     )
 
     eye = RegularTimeSeries(
         sampling_rate=samp_rate,
         pos=eye_pos,
         domain="auto",
-        domain_start=start_time,
+        domain_start=timestamps[0],
     )
 
     return hand, eye
