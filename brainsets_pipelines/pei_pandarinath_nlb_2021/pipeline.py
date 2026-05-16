@@ -216,15 +216,18 @@ def extract_behavior(nwbfile, trials):
     samp_rate = 1e3
     start_time, end_time = raw_timestamps[0], raw_timestamps[-1]
     num_timesteps = round((end_time - start_time) * samp_rate) + 1
-    time_idx = np.round((raw_timestamps - start_time) * samp_rate).astype(int)
+    raw_time_idx = np.round((raw_timestamps - start_time) * samp_rate).astype(int)
+    assert np.isclose(raw_time_idx / samp_rate, raw_timestamps).all()
+    # ^ this confirms that the raw_timestamps are indeed regular
 
     hand_pos = np.full((num_timesteps, raw_hand_pos.shape[-1]), fill_value=np.nan)
-    hand_vel = np.full((num_timesteps, raw_hand_vel.shape[-1]), fill_value=np.nan)
-    eye_pos = np.full((num_timesteps, raw_eye_pos.shape[-1]), fill_value=np.nan)
+    hand_pos[raw_time_idx] = raw_hand_pos
 
-    hand_pos[time_idx] = raw_hand_pos
-    hand_vel[time_idx] = raw_hand_vel
-    eye_pos[time_idx] = raw_eye_pos
+    hand_vel = np.full((num_timesteps, raw_hand_vel.shape[-1]), fill_value=np.nan)
+    hand_vel[raw_time_idx] = raw_hand_vel
+
+    eye_pos = np.full((num_timesteps, raw_eye_pos.shape[-1]), fill_value=np.nan)
+    eye_pos[raw_time_idx] = raw_eye_pos
 
     hand = RegularTimeSeries(
         sampling_rate=samp_rate,
