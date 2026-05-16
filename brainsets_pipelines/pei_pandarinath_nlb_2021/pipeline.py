@@ -217,6 +217,8 @@ def extract_behavior(nwbfile, trials):
     start_time, end_time = raw_timestamps[0], raw_timestamps[-1]
     num_timesteps = round((end_time - start_time) * samp_rate) + 1
     raw_time_idx = np.round((raw_timestamps - start_time) * samp_rate).astype(int)
+    assert (np.diff(raw_time_idx) > 0).all()
+    # ^ this confirms there are no repeated timesteps
     assert np.isclose(raw_time_idx / samp_rate, raw_timestamps - start_time).all()
     # ^ this confirms that the raw_timestamps are indeed regular relative to start_time
 
