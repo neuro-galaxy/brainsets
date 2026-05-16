@@ -217,8 +217,8 @@ def extract_behavior(nwbfile, trials):
     start_time, end_time = raw_timestamps[0], raw_timestamps[-1]
     num_timesteps = round((end_time - start_time) * samp_rate) + 1
     raw_time_idx = np.round((raw_timestamps - start_time) * samp_rate).astype(int)
-    assert np.isclose(raw_time_idx / samp_rate, raw_timestamps).all()
-    # ^ this confirms that the raw_timestamps are indeed regular
+    assert np.isclose(raw_time_idx / samp_rate, raw_timestamps - start_time).all()
+    # ^ this confirms that the raw_timestamps are indeed regular relative to start_time
 
     hand_pos = np.full((num_timesteps, raw_hand_pos.shape[-1]), fill_value=np.nan)
     hand_pos[raw_time_idx] = raw_hand_pos
