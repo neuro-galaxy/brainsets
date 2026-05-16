@@ -25,7 +25,6 @@ from brainsets.utils.dandi_utils import (
 )
 from brainsets.taxonomy import RecordingTech, Task
 from brainsets import serialize_fn_map
-from brainsets.utils.misc_utils import calculate_sampling_rate
 
 from brainsets.pipeline import BrainsetPipeline
 
@@ -218,7 +217,7 @@ def extract_behavior(nwbfile, trials):
     num_timesteps = round((end_time - start_time) * samp_rate) + 1
     raw_time_idx = np.round((raw_timestamps - start_time) * samp_rate).astype(int)
     assert (np.diff(raw_time_idx) > 0).all()
-    # ^ this confirms there are no repeated timesteps
+    # ^ this confirms there are no repeated timestamps
     assert np.isclose(raw_time_idx / samp_rate, raw_timestamps - start_time).all()
     # ^ this confirms that the raw_timestamps are indeed regular relative to start_time
 
