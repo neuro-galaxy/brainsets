@@ -1,6 +1,6 @@
 _functions = [
     "calculate_sampling_rate",
-    "fill_gappy_timeseries",
+    "fill_missing_timesteps",
 ]
 
 __all__ = _functions
