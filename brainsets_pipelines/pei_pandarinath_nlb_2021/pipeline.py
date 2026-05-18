@@ -27,7 +27,7 @@ from brainsets.taxonomy import RecordingTech, Task
 from brainsets import serialize_fn_map
 
 from brainsets.pipeline import BrainsetPipeline
-from brainsets.utils.misc_utils import fill_gappy_timeseries
+from brainsets.utils.misc_utils import fill_missing_timesteps
 
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
@@ -211,7 +211,7 @@ def extract_behavior(nwbfile, trials):
     raw_eye_pos = nwbfile.processing["behavior"]["eye_pos"].data[:]
 
     samp_rate = 1e3
-    timestamps, (hand_pos, hand_vel, eye_pos) = fill_gappy_timeseries(
+    timestamps, (hand_pos, hand_vel, eye_pos) = fill_missing_timesteps(
         timestamps=raw_timestamps,
         values=(raw_hand_pos, raw_hand_vel, raw_eye_pos),
         sampling_rate=samp_rate,

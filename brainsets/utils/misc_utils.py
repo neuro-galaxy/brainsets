@@ -54,7 +54,7 @@ def calculate_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float
     return 1.0 / dt
 
 
-def fill_gappy_timeseries(
+def fill_missing_timesteps(
     timestamps: np.ndarray,
     values: np.ndarray | list[np.ndarray] | tuple[np.ndarray, ...],
     sampling_rate: float,
