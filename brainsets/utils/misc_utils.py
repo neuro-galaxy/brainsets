@@ -148,7 +148,7 @@ def fill_gappy_timeseries(
         for i, v in enumerate(values):
             if len(v) != len(timestamps):
                 raise ValueError(
-                    f"Shape mismatch on {i}th values: {len(timestamps)=} != {len(values)=}"
+                    f"Shape mismatch on {i}th values: {len(timestamps)=} != {len(v)=}"
                 )
             clean_values.append(fill_gaps(v))
 
