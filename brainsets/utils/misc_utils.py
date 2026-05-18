@@ -135,8 +135,6 @@ def fill_missing_timesteps(
         ans[clean_time_idx] = arr
         return ans
 
-    clean_timestamps = fill_gaps(timestamps)
-
     if isinstance(values, np.ndarray):
         if len(values) != len(timestamps):
             raise ValueError(f"Shape mismatch: {len(timestamps)=} != {len(values)=}")
@@ -157,5 +155,7 @@ def fill_missing_timesteps(
             " This function accepts a single numpy array,"
             " or a list of numpy arrays."
         )
+
+    clean_timestamps = fill_gaps(timestamps)
 
     return clean_timestamps, clean_values
