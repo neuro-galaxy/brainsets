@@ -58,7 +58,7 @@ def calculate_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float
 def fill_gappy_timeseries(
     timestamps: np.ndarray,
     values: np.ndarray | Iterable[np.ndarray],
-    sampling_rate: float | None = None,
+    sampling_rate: float,
     gap_value: float = np.nan,
     rtol: float = 1e-3,
 ) -> tuple[np.ndarray, np.ndarray | list[np.ndarray]]:
@@ -93,14 +93,6 @@ def fill_gappy_timeseries(
 
     if not (np.diff(timestamps) > 0).all():
         raise ValueError("Input timestamps are not monotonic")
-
-    if sampling_rate is None:
-        # use mode time difference
-        # numpy does not have a direct mode() function
-        diffs = np.diff(timestamps)
-        uniq_diffs, counts = np.unique(diffs, return_counts=True)
-        mode_diff = uniq_diffs[np.argmax(counts)]
-        sampling_rate = 1.0 / mode_diff
 
     start_time, end_time = timestamps[0], timestamps[-1]
     rel_ts = timestamps - start_time
