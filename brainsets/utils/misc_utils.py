@@ -83,8 +83,8 @@ def fill_missing_timesteps(
         Tuple ``(timestamps, values)``. Both have first
         dimension spanning ``timestamps[0]`` to ``timestamps[-1]`` at
         ``sampling_rate``, with ``gap_value`` at missing entries.
-        ``clean_values`` is a single array if ``values`` was an array,
-        otherwise a list of arrays.
+        The returned ``values`` is a single array if the input
+        ``values`` was an array, otherwise a list of arrays.
 
     Raises:
         ValueError: If ``timestamps`` is not 1D, has fewer than 2 entries,
@@ -125,14 +125,14 @@ def fill_missing_timesteps(
 
     num_timesteps = round((end_time - start_time) * sampling_rate) + 1
 
-    def fill_gaps(values):
-        if values.ndim > 1:
-            shape = (num_timesteps, *values.shape[1:])
+    def fill_gaps(arr):
+        if arr.ndim > 1:
+            shape = (num_timesteps, *arr.shape[1:])
         else:
             shape = (num_timesteps,)
 
         ans = np.full(shape, fill_value=gap_value)
-        ans[clean_time_idx] = values
+        ans[clean_time_idx] = arr
         return ans
 
     clean_timestamps = fill_gaps(timestamps)
