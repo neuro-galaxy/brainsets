@@ -81,7 +81,7 @@ def fill_gappy_timeseries(
             grid. Defaults to 1e-3.
 
     Returns:
-        Tuple ``(clean_timestamps, clean_values)``. Both have first
+        Tuple ``(timestamps, values)``. Both have first
         dimension spanning ``timestamps[0]`` to ``timestamps[-1]`` at
         ``sampling_rate``, with ``gap_value`` at missing entries.
         ``clean_values`` is a single array if ``values`` was an array,
