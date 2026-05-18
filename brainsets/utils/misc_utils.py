@@ -115,11 +115,11 @@ def fill_gappy_timeseries(
 
     # Check for rtol
     relative_variation = clean_time_idx - (rel_ts * sampling_rate)
-    max_relative_varation = np.max(np.abs(relative_variation))
-    if max_relative_varation > rtol:
+    max_relative_variation = np.max(np.abs(relative_variation))
+    if max_relative_variation > rtol:
         raise ValueError(
             "Timestamps are not uniformly sampled "
-            f"(max relative variation={max_relative_varation:.2e} >= rtol={rtol}). "
+            f"(max relative variation={max_relative_variation:.2e} >= rtol={rtol}). "
             f"Perhaps {sampling_rate=} is not a good sampling rate, or "
             f"this timeseries is inherently irregular."
         )
