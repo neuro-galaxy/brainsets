@@ -56,7 +56,7 @@ def calculate_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float
 
 def fill_gappy_timeseries(
     timestamps: np.ndarray,
-    values: np.ndarray | Iterable[np.ndarray],
+    values: np.ndarray | list[np.ndarray] | tuple[np.ndarray, ...],
     sampling_rate: float,
     gap_value: float = np.nan,
     rtol: float = 1e-3,
