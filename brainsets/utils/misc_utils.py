@@ -62,23 +62,38 @@ def fill_gappy_timeseries(
     gap_value: float = np.nan,
     rtol: float = 1e-3,
 ) -> tuple[np.ndarray, np.ndarray | list[np.ndarray]]:
-    """Fill gaps in an regular-but-gappy time series
+    """Fill gaps in a regular-but-gappy time series.
 
-    Fills the gaps in 'almost regular' time series which has gaps in
-    the sampling times.
+    Maps an almost-regularly-sampled signal onto a regular grid at
+    ``sampling_rate``, inserting ``gap_value`` at every missing timestep
+    so the result can be stored as a RegularTimeSeries.
 
     Args:
-        timestamps: Array of sampling timestamps; shape :math:`(T,)`
-        value: Either a single array of values with shape :math:`(T, ...)`,
-            or a list of arrays with the first dimension having the same size
-            as timestamps.
-        sampling_rate: The sampling rate of the time series. If None,
-            sampling rate is calculated as the median time difference.
-            (default :obj:`None`)
-        gap_value: Value to fill in the gaps (default :obj:`np.nan`)
+        timestamps: 1D array of sampling timestamps in seconds; shape
+            :math:`(T,)`. Must be strictly monotonically increasing.
+        values: Either a single array with first dimension :math:`T`, or a
+            list/tuple of such arrays.
+        sampling_rate: Sampling rate of the underlying regular signal in Hz.
+        gap_value: Value inserted at missing timesteps. Defaults to
+            :obj:`np.nan`.
+        rtol: Maximum allowed offset, in fractions of a sample, between
+            each input timestamp and the nearest point on the regular
+            grid. Defaults to 1e-3.
 
     Returns:
-        timestamps, values
+        Tuple ``(clean_timestamps, clean_values)``. Both have first
+        dimension spanning ``timestamps[0]`` to ``timestamps[-1]`` at
+        ``sampling_rate``, with ``gap_value`` at missing entries.
+        ``clean_values`` is a single array if ``values`` was an array,
+        otherwise a list of arrays.
+
+    Raises:
+        ValueError: If ``timestamps`` is not 1D, has fewer than 2 entries,
+            or is not strictly monotonically increasing.
+        ValueError: If the timestamps do not align with the regular grid
+            at ``sampling_rate`` within ``rtol``.
+        ValueError: If any element of ``values`` has a first dimension
+            that does not match ``timestamps``.
     """
 
     if timestamps.ndim != 1:
