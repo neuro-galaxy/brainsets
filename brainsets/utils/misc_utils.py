@@ -5,7 +5,6 @@ _functions = [
 
 __all__ = _functions
 
-from typing import Iterable
 import numpy as np
 
 
