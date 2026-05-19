@@ -1,6 +1,9 @@
 from pathlib import Path
 
+import numpy as np
+
 from brainsets.config import CONFIG_FILE, load_config
+from temporaldata import Interval
 
 
 def get_processed_dir(path: Path = CONFIG_FILE) -> str:
@@ -12,3 +15,7 @@ def get_processed_dir(path: Path = CONFIG_FILE) -> str:
             "Please run `brainsets config set` or pass `root` explicitly."
         )
     return config["processed_dir"]
+
+
+def empty_interval() -> Interval:
+    return Interval(start=np.array([]), end=np.array([]))
