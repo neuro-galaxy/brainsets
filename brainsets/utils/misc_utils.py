@@ -60,7 +60,7 @@ def fill_missing_timesteps(
     sampling_rate: float,
     gap_value: float = np.nan,
     rtol: float = 1e-3,
-) -> tuple[np.ndarray, np.ndarray | list[np.ndarray]]:
+) -> np.ndarray | list[np.ndarray]:
     """Fill gaps in a regular-but-gappy time series.
 
     Maps an almost-regularly-sampled signal onto a regular grid at
@@ -80,11 +80,7 @@ def fill_missing_timesteps(
             grid. Defaults to 1e-3.
 
     Returns:
-        Tuple ``(timestamps, values)``. Both have first
-        dimension spanning ``timestamps[0]`` to ``timestamps[-1]`` at
-        ``sampling_rate``, with ``gap_value`` at missing entries.
-        The returned ``values`` is a single array if the input
-        ``values`` was an array, otherwise a list of arrays.
+        The gap-filled ``values``.
 
     Raises:
         ValueError: If ``timestamps`` is not 1D, has fewer than 2 entries,
@@ -156,6 +152,4 @@ def fill_missing_timesteps(
             " or a list of numpy arrays."
         )
 
-    clean_timestamps = fill_gaps(timestamps)
-
-    return clean_timestamps, clean_values
+    return clean_values

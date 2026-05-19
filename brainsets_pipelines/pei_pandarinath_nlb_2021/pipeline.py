@@ -211,7 +211,7 @@ def extract_behavior(nwbfile, trials):
     raw_eye_pos = nwbfile.processing["behavior"]["eye_pos"].data[:]
 
     samp_rate = 1e3
-    timestamps, (hand_pos, hand_vel, eye_pos) = fill_missing_timesteps(
+    hand_pos, hand_vel, eye_pos = fill_missing_timesteps(
         timestamps=raw_timestamps,
         values=(raw_hand_pos, raw_hand_vel, raw_eye_pos),
         sampling_rate=samp_rate,
@@ -222,14 +222,14 @@ def extract_behavior(nwbfile, trials):
         pos=hand_pos,
         vel=hand_vel,
         domain="auto",
-        domain_start=timestamps[0],
+        domain_start=raw_timestamps[0],
     )
 
     eye = RegularTimeSeries(
         sampling_rate=samp_rate,
         pos=eye_pos,
         domain="auto",
-        domain_start=timestamps[0],
+        domain_start=raw_timestamps[0],
     )
 
     return hand, eye
