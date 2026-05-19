@@ -1,5 +1,6 @@
 _functions = [
     "calculate_sampling_rate",
+    "fill_missing_timesteps",
 ]
 
 __all__ = _functions
@@ -51,3 +52,116 @@ def calculate_sampling_rate(timestamps: np.ndarray, rtol: float = 1e-3) -> float
         )
 
     return 1.0 / dt
+
+
+def fill_missing_timesteps(
+    timestamps: np.ndarray,
+    values: np.ndarray | list[np.ndarray] | tuple[np.ndarray, ...],
+    sampling_rate: float,
+    gap_value: float = np.nan,
+    rtol: float = 1e-3,
+) -> np.ndarray | list[np.ndarray]:
+    """Fill gaps in a regular-but-gappy time series.
+
+    Maps an almost-regularly-sampled signal onto a regular grid at
+    ``sampling_rate``, inserting ``gap_value`` at every missing timestep
+    so the result can be stored as a RegularTimeSeries.
+
+    Args:
+        timestamps: 1D array of sampling timestamps in seconds; shape
+            :math:`(T,)`. Must be strictly monotonically increasing.
+        values: Either a single array with first dimension :math:`T`, or a
+            list/tuple of such arrays.
+        sampling_rate: Sampling rate of the underlying regular signal in Hz.
+        gap_value: Value inserted at missing timesteps. Defaults to
+            :obj:`np.nan`.
+        rtol: Maximum allowed offset, in fractions of a sample, between
+            each input timestamp and the nearest point on the regular
+            grid. Defaults to 1e-3.
+
+    Returns:
+        The gap-filled ``values``.
+
+    Raises:
+        ValueError: If ``timestamps`` is not 1D, has fewer than 2 entries,
+            or is not strictly monotonically increasing.
+        ValueError: If the timestamps do not align with the regular grid
+            at ``sampling_rate`` within ``rtol``.
+        ValueError: If any element of ``values`` has a first dimension
+            that does not match ``timestamps``.
+    """
+
+    if timestamps.ndim != 1:
+        raise ValueError(
+            f"Timestamps must be a 1D array, got {timestamps.ndim}D array with shape {timestamps.shape}"
+        )
+
+    if len(timestamps) < 2:
+        raise ValueError(
+            f"This function needs at least 2 timestamps, got {timestamps.size}"
+        )
+
+    if not (np.diff(timestamps) > 0).all():
+        raise ValueError("Input timestamps are not monotonic")
+
+    start_time, end_time = timestamps[0], timestamps[-1]
+    rel_ts = timestamps - start_time
+    clean_time_idx = np.round(rel_ts * sampling_rate).astype(int)
+
+    # Check for rtol
+    relative_variation = clean_time_idx - (rel_ts * sampling_rate)
+    max_relative_variation = np.max(np.abs(relative_variation))
+    if max_relative_variation > rtol:
+        raise ValueError(
+            "Timestamps are not uniformly sampled "
+            f"(max relative variation={max_relative_variation:.2e} >= rtol={rtol}). "
+            f"Perhaps {sampling_rate=} is not a good sampling rate, or "
+            f"this timeseries is inherently irregular."
+        )
+
+    # Catch the case where sampling_rate is an integer multiple of the true
+    # rate: every timestamp lands on a grid point (so the rtol check passes),
+    # but the smallest gap between consecutive samples is > 1 grid step.
+    min_idx_gap = int(np.min(np.diff(clean_time_idx)))
+    if min_idx_gap > 1:
+        raise ValueError(
+            f"{sampling_rate=} appears too high: smallest gap between "
+            f"consecutive samples on the regular grid is {min_idx_gap} steps "
+            f"(expected 1). The true sampling rate may be closer to "
+            f"{sampling_rate / min_idx_gap}."
+        )
+
+    num_timesteps = round((end_time - start_time) * sampling_rate) + 1
+
+    def fill_gaps(arr):
+        if arr.ndim > 1:
+            shape = (num_timesteps, *arr.shape[1:])
+        else:
+            shape = (num_timesteps,)
+
+        ans = np.full(shape, fill_value=gap_value)
+        ans[clean_time_idx] = arr
+        return ans
+
+    if isinstance(values, np.ndarray):
+        if len(values) != len(timestamps):
+            raise ValueError(f"Shape mismatch: {len(timestamps)=} != {len(values)=}")
+        clean_values = fill_gaps(values)
+
+    elif isinstance(values, (list, tuple)):
+        clean_values = []
+        for i, v in enumerate(values):
+            if len(v) != len(timestamps):
+                raise ValueError(
+                    f"Shape mismatch on {i}th values: {len(timestamps)=} != {len(v)=}"
+                )
+            clean_values.append(fill_gaps(v))
+
+    else:
+        raise ValueError(
+            f"Incorrect type of `values`: {type(values)}."
+            " This function accepts a single numpy array,"
+            " or a list of numpy arrays."
+        )
+
+    return clean_values

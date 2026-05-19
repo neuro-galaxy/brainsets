@@ -19,7 +19,7 @@ from scipy.ndimage import binary_dilation, binary_erosion
 from sklearn.model_selection import train_test_split
 import pandas as pd
 
-from temporaldata import Data, IrregularTimeSeries, Interval
+from temporaldata import Data, IrregularTimeSeries, Interval, RegularTimeSeries
 from brainsets.descriptions import (
     BrainsetDescription,
     SessionDescription,
@@ -35,6 +35,7 @@ from brainsets.taxonomy import RecordingTech, Task
 from brainsets import serialize_fn_map
 
 from brainsets.pipeline import BrainsetPipeline
+from brainsets.utils.misc_utils import fill_missing_timesteps
 
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
@@ -225,12 +226,20 @@ def extract_behavior(nwbfile):
     cursor_vel = nwbfile.processing["behavior"]["Velocity"]["cursor_vel"].data[:]
     cursor_acc = nwbfile.processing["behavior"]["Acceleration"]["cursor_acc"].data[:]
 
-    cursor = IrregularTimeSeries(
+    samp_rate = 100.0
+    cursor_pos, cursor_vel, cursor_acc = fill_missing_timesteps(
         timestamps=timestamps,
+        values=(cursor_pos, cursor_vel, cursor_acc),
+        sampling_rate=samp_rate,
+    )
+
+    cursor = RegularTimeSeries(
+        sampling_rate=samp_rate,
         pos=cursor_pos,
         vel=cursor_vel,
         acc=cursor_acc,
         domain="auto",
+        domain_start=timestamps[0],
     )
 
     return cursor
