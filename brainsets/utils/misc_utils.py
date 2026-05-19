@@ -119,6 +119,18 @@ def fill_missing_timesteps(
             f"this timeseries is inherently irregular."
         )
 
+    # Catch the case where sampling_rate is an integer multiple of the true
+    # rate: every timestamp lands on a grid point (so the rtol check passes),
+    # but the smallest gap between consecutive samples is > 1 grid step.
+    min_idx_gap = int(np.min(np.diff(clean_time_idx)))
+    if min_idx_gap > 1:
+        raise ValueError(
+            f"{sampling_rate=} appears too high: smallest gap between "
+            f"consecutive samples on the regular grid is {min_idx_gap} steps "
+            f"(expected 1). The true sampling rate may be closer to "
+            f"{sampling_rate / min_idx_gap}."
+        )
+
     num_timesteps = round((end_time - start_time) * sampling_rate) + 1
 
     def fill_gaps(arr):
