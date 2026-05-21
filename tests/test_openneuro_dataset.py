@@ -51,7 +51,7 @@ class FakeRecording:
         Args:
             recording_id: Identifier for this recording.
             attributes: Dict mapping nested attribute paths to values (unused by
-                current ``get_sampling_intervals`` behavior-agnostic path).
+                current ``get_sampling_intervals`` default-intervals path).
             domain: Value for ``rec.domain`` (temporal ``Interval``).
             subject_id: ``recording.subject.id`` for k-fold string ids.
             session_id: ``recording.session.id`` for intersession string ids.
@@ -68,7 +68,7 @@ def _expected_intrasession_intervals(
     split: str,
     split_ratios: tuple[float, float, float],
 ) -> Interval:
-    """Mirror ``OpenNeuroDataset.get_behavior_agnostic_intervals`` intrasession math."""
+    """Mirror ``OpenNeuroDataset.get_default_sampling_intervals`` intrasession math."""
     starts = np.asarray(domain.start, dtype=float)
     ends = np.asarray(domain.end, dtype=float)
     durations = ends - starts
@@ -90,7 +90,7 @@ def _expected_hash_assignment(
     seed: int,
     split_ratios: tuple[float, float, float],
 ) -> str:
-    """Mirror ``OpenNeuroDataset.get_behavior_agnostic_intervals`` hash-based assignment."""
+    """Mirror ``OpenNeuroDataset.get_default_sampling_intervals`` hash-based assignment."""
     base_str = f"{string_id}_{seed}"
     hash_int = _get_integer_hash_from_string(base_str)
     normalized_hash = (hash_int % 10000) / 10000.0
@@ -403,33 +403,33 @@ class TestGetSamplingIntervalsIntersession:
 
 
 # ============================================================================
-# Tests for get_behavior_agnostic_intervals - Direct
+# Tests for get_default_sampling_intervals - Direct
 # ============================================================================
 
 
-class TestGetBehaviorAgnosticIntervals:
-    """Tests for direct calls to get_behavior_agnostic_intervals."""
+class TestGetDefaultSamplingIntervals:
+    """Tests for direct calls to get_default_sampling_intervals."""
 
     @pytest.mark.parametrize("split", ["train", "val", "test"])
     def test_intrasession_direct_call(self, split, mock_parent_init):
-        """Direct call to get_behavior_agnostic_intervals for intrasession split."""
+        """Direct call to get_default_sampling_intervals for intrasession split."""
         split_ratios = (0.6, 0.2, 0.2)
         ds = _make_dataset(split_type="intrasession", split_ratios=split_ratios)
         domain = Interval(start=0.0, end=100.0)
         rec = _make_recording("rec-001", domain=domain)
 
-        result = ds.get_behavior_agnostic_intervals(rec, split)
+        result = ds.get_default_sampling_intervals(rec, split)
         expected = _expected_intrasession_intervals(domain, split, split_ratios)
 
         _assert_intervals_close(result, expected)
 
     @pytest.mark.parametrize("split", ["train", "val", "test"])
     def test_intersubject_direct_call(self, split, mock_parent_init):
-        """Direct call to get_behavior_agnostic_intervals for intersubject split."""
+        """Direct call to get_default_sampling_intervals for intersubject split."""
         ds = _make_dataset(split_type="intersubject", seed=42)
         rec = _make_recording("rec-001", subject_id="sub-test")
 
-        result = ds.get_behavior_agnostic_intervals(rec, split)
+        result = ds.get_default_sampling_intervals(rec, split)
         expected = _expected_hash_sampling_interval(
             recording=rec,
             split=split,

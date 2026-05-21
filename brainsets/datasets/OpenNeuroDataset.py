@@ -8,7 +8,6 @@ from temporaldata import Data, Interval
 from torch_brain.dataset import MultiChannelDatasetMixin, Dataset
 
 from brainsets.utils.split import _get_integer_hash_from_string
-from brainsets.datasets._utils import empty_interval
 
 OpenNeuroSplitType = Literal["intrasession", "intersubject", "intersession"]
 
@@ -27,7 +26,7 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
     Args:
         root: Root directory containing processed OpenNeuro dataset artifacts.
         dataset_dir: Relative dataset directory within the root path.
-        split_type (SplitType): The split strategy to use, must be one of
+        split_type: The split strategy to use, must be one of
             'intrasession', 'intersubject', or 'intersession'.
         recording_ids (Optional[list[str]]): List of recording IDs to include,
             or None to use all available recordings.
@@ -44,7 +43,8 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
             Specifies the proportion of the dataset to use for the train, validation,
             and test splits, respectively. All ratios must be in [0, 1] and their sum must be 1.0.
             If the sum does not equal 1.0, a ValueError is raised.
-        seed: The seed for the random number generator. Defaults to 42.
+        seed: The seed for the random number generator. Used for computing splits in
+        intersubject and intersession mode. Defaults to 42.
     """
 
     def __init__(
@@ -148,16 +148,18 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
         intervals = {}
         for rid in self.recording_ids:
             rec = self.get_recording(rid)
-            intervals[rid] = self.get_behavior_agnostic_intervals(rec, split)
+            intervals[rid] = self.get_default_sampling_intervals(rec, split)
         return intervals
 
-    def get_behavior_agnostic_intervals(
+    def get_default_sampling_intervals(
         self,
         recording: Data,
         split: Literal["train", "val", "test"],
     ) -> Interval:
         """
-        Get the behavior-agnostic sampling intervals for a given split.
+        Get the default sampling intervals for a given split. These intervals are behavior agnostic, meaning they
+        do not take into account any task or behavioral (event/label) annotations when creating the train, val,
+        and test splits—interval assignment is performed solely based on session or subject, not on in-task structure.
 
         Notes:
         - For split_type == "intrasession", intervals are split causally into train, val, and test based on split_ratios.
@@ -203,7 +205,7 @@ class OpenNeuroDataset(MultiChannelDatasetMixin, Dataset):
             if assignment == split:
                 return recording.domain
             else:
-                return empty_interval()
+                return Interval(start=np.array([]), end=np.array([]))
 
         raise ValueError(
             f"Invalid split_type '{self.split_type}'. Must be one of {_VALID_SPLIT_TYPES}."

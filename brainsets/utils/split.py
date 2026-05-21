@@ -187,7 +187,7 @@ def generate_string_kfold_assignment(
 
 def _get_integer_hash_from_string(string: str) -> int:
     """
-    Compute an integer hash from a string using MD5.
+    Compute a deterministicinteger hash from a string using MD5.
 
     Parameters
     ----------
