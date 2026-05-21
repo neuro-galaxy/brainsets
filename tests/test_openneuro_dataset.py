@@ -7,7 +7,6 @@ import pytest
 from unittest.mock import patch
 from temporaldata import Interval
 
-from brainsets.datasets._utils import empty_interval
 from brainsets.datasets.OpenNeuroDataset import OpenNeuroDataset
 from brainsets.utils.split import _get_integer_hash_from_string
 
@@ -15,6 +14,9 @@ from brainsets.utils.split import _get_integer_hash_from_string
 # ============================================================================
 # Helpers and Fakes
 # ============================================================================
+def empty_interval() -> Interval:
+    """Return an empty interval."""
+    return Interval(start=np.array([]), end=np.array([]))
 
 
 def _assert_intervals_close(
