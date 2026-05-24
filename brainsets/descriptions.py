@@ -8,7 +8,6 @@ _classes = [
 __all__ = _classes
 
 import datetime
-from typing import Dict, List, Tuple, Optional, Union, Any
 
 import temporaldata
 from temporaldata import Data
@@ -158,5 +157,5 @@ class DeviceDescription(Data):
 
     id: str
 
-    def __init__(self, id: str, **kwargs: Any):
+    def __init__(self, id: str, **kwargs):
         super().__init__(id=id, **kwargs)
