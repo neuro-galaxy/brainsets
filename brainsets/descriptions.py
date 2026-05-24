@@ -29,14 +29,6 @@ def _validate_string_type(v, name: str, allow_none: bool = False):
 
 
 class BrainsetDescription(Data):
-    id: str
-    origin_version: str
-    derived_version: str
-    source: str
-    description: str
-    brainsets_version: str
-    temporaldata_version: str
-
     r"""A container for storing brainset metadata.
 
     Args:
@@ -47,6 +39,14 @@ class BrainsetDescription(Data):
         description: Text description of the brainset
         **kwargs: Any additional metadata
     """
+
+    id: str
+    origin_version: str
+    derived_version: str
+    source: str
+    description: str
+    brainsets_version: str
+    temporaldata_version: str
 
     def __init__(
         self,
