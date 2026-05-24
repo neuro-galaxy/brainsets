@@ -201,5 +201,6 @@ class DeviceDescription(Data):
 
         super().__init__(
             id=id,
+            recording_tech=recording_tech,
             **kwargs,
         )
