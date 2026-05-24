@@ -48,7 +48,10 @@ def extract_measurement_date(
         ImportError: If MNE is not installed.
     """
     _check_mne_available("extract_measurement_date")
-    return recording_data.info["meas_date"]
+    ans = recording_data.info["meas_date"]
+    if ans is None:
+        warnings.warn("No measurement date found, using None")
+    return ans
 
 
 def concatenate_recordings(

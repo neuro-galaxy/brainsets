@@ -4,6 +4,7 @@ import pytest
 import numpy as np
 import pandas as pd
 import mne
+import datetime
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch, Mock, PropertyMock
@@ -1033,7 +1034,7 @@ class TestProcessCommon:
 
         mock_bids_path.return_value = "path/to/bids"
         mock_read_raw.return_value = mock_raw
-        mock_meas_date.return_value = "2023-01-01"
+        mock_meas_date.return_value = datetime.datetime.now()
         mock_extract_signal.return_value = MagicMock(
             domain=Interval(start=np.array([0.0]), end=np.array([100.0]))
         )
@@ -1097,7 +1098,7 @@ class TestProcessCommon:
 
         mock_bids_path.return_value = "path/to/bids_path"
         mock_read_raw.return_value = mock_raw
-        mock_meas_date.return_value = "2023-01-01"
+        mock_meas_date.return_value = datetime.datetime.now()
         mock_extract_signal.return_value = MagicMock(
             domain=Interval(start=np.array([0.0]), end=np.array([100.0]))
         )
