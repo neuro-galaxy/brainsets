@@ -22,7 +22,6 @@ from brainsets.descriptions import (
     SubjectDescription,
 )
 from brainsets.pipeline import BrainsetPipeline
-from brainsets.taxonomy import RecordingTech, Sex, Species, Task
 
 parser = ArgumentParser()
 parser.add_argument("--redownload", action="store_true")
@@ -109,8 +108,7 @@ class Pipeline(BrainsetPipeline):
 
         subject = SubjectDescription(
             id="monkey_c",
-            species=Species.MACACA_MULATTA,
-            sex=Sex.UNKNOWN,
+            species="MACACA_MULATTA",
         )
 
         session_tag = str(fpath).split("_")[-1].split(".mat")[0]  # e1, e2, e3...
@@ -126,12 +124,12 @@ class Pipeline(BrainsetPipeline):
         session = SessionDescription(
             id=session_id,
             recording_date="20130530",  # using .mat file creation date
-            task=Task.REACHING,
+            task="REACHING",
         )
 
         device = DeviceDescription(
             id=device_id,
-            recording_tech=RecordingTech.UTAH_ARRAY_SPIKES,
+            recording_tech="UTAH_ARRAY_SPIKES",
         )
 
         units = extract_units(mat)  # Data obj
