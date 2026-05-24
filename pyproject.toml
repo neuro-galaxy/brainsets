@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "A package for processing neural datasets"
 readme = "README.md"
 authors = [{ name = "TorchBrain Team", email = "contact@torchbrain.org" }]
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
