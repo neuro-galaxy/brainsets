@@ -3,7 +3,6 @@
 # dependencies = ["scipy==1.10.1"]
 # ///
 
-import datetime
 import logging
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
@@ -252,9 +251,6 @@ class Pipeline(BrainsetPipeline):
 
         session_description = SessionDescription(
             id=session_id,
-            recording_date=datetime.datetime(
-                1970, 1, 1, tzinfo=datetime.timezone.utc
-            ),  # placeholder date since actual recording dates are not provided
             task=task,
         )
 
@@ -352,9 +348,6 @@ class Pipeline(BrainsetPipeline):
 
         session_description = SessionDescription(
             id=session_id,
-            recording_date=datetime.datetime(
-                1970, 1, 1, tzinfo=datetime.timezone.utc
-            ),  # placeholder date since actual recording dates are not provided
             task="SLEEP",
         )
 
