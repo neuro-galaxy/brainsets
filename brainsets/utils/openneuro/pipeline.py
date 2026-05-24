@@ -267,8 +267,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             species: The input species name (string or None).
 
         Returns:
-            ``"homo sapiens"`` for recognized human aliases, otherwise
-            ``"unknown"``.
+            ``"HOMO_SAPIENS"`` for recognized human aliases, otherwise None.
         """
         if not isinstance(species, str):
             return "unknown"
@@ -282,7 +281,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             "h. sapiens",
         }
         if normalized_species in homo_sapiens_aliases:
-            return "homo sapiens"
+            return "HOMO_SAPIENS"
         return None
 
     @classmethod
