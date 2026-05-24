@@ -87,11 +87,11 @@ def extract_spikes_from_nwbfile(
 
     # all these units are obtained using threshold crossings
     for i in range(len(units)):
-        if recording_tech == "utah_array_threshold_crossings":
+        if recording_tech == "UTAH_ARRAY_THRESHOLD_CROSSINGS":
             # label unit
             group_name = electrodes["group_name"][i]
             unit_id = f"group_{group_name}/elec{i}/multiunit_{0}"
-        elif recording_tech == "utah_array_spikes":
+        elif recording_tech == "UTAH_ARRAY_SPIKES":
             # label unit
             electrode_id = nwbfile.units[i].electrodes.item().item()
             group_name = electrodes["group_name"][electrode_id]
