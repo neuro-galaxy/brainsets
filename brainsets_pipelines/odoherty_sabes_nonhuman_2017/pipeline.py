@@ -309,13 +309,11 @@ def extract_spikes(h5file: h5py.File):
 
     spikes = []
     unit_index = []
-    types = []
     waveforms = []
     unit_meta = []
 
     # The 0'th spikesvec corresponds to unsorted thresholded units, the rest are sorted.
     suffixes = ["unsorted"] + [f"sorted_{i:02}" for i in range(1, 11)]
-    type_map = [1] + [0] * 10
 
     encountered = set()
 
@@ -333,7 +331,6 @@ def extract_spikes(h5file: h5py.File):
             unit_name = f"{chan_names[i]}/{suffixes[j]}"
 
             unit_index.append([unit_index_delta] * len(spiketimes))
-            types.append(np.ones_like(spiketimes, dtype=np.int64) * type_map[j])
 
             if unit_name in encountered:
                 raise ValueError(f"Duplicate unit name: {unit_name}")
@@ -348,7 +345,6 @@ def extract_spikes(h5file: h5py.File):
                     "area_name": area,
                     "channel_number": channel_number,
                     "unit_number": j,
-                    "type": type_map[j],
                     "average_waveform": wf.mean(axis=1)[:48],
                 }
             )
