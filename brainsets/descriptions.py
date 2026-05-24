@@ -78,11 +78,6 @@ class BrainsetDescription(Data):
 class SubjectDescription(Data):
     r"""A container for storing subject related metadata.
 
-    Fields are automatically normalized during construction:
-    - ``species`` accepts a Species enum, string, int, or None (defaults to Species.UNKNOWN)
-    - ``age`` accepts a float, int, numeric string, or None (defaults to 0.0)
-    - ``sex`` accepts a Sex enum, string, int, or None (defaults to Sex.UNKNOWN)
-
     Args:
         id: Unique identifier for the subject
         species: Species of the subject, defaults to None
