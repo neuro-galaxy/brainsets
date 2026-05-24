@@ -23,7 +23,11 @@ def _validate_string_type(v, name: str, allow_none: bool = False):
             raise ValueError(f"{name} must be a string, got {v!r}")
 
     if not isinstance(v, str):
-        raise ValueError(f"{name} must be a string or None, got {v!r}")
+        if allow_none:
+            raise ValueError(f"{name} must be a string or None, got {v!r}")
+        else:
+            raise ValueError(f"{name} must be a string, got {v!r}")
+
     if len(v) == 0:
         raise ValueError(f"{name} cannot be an empty string, got {v!r}")
 
