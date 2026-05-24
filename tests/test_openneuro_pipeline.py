@@ -482,7 +482,7 @@ class TestNormalizeSpecies:
     @pytest.mark.parametrize("species", ["mus musculus", "canis lupus", "", None, 42])
     def test_returns_none_for_non_human_or_invalid_values(self, species):
         """Non-human or invalid values normalize to None."""
-        assert OpenNeuroPipeline._normalize_species(species) == None
+        assert OpenNeuroPipeline._normalize_species(species) is None
 
 
 class TestGetManifest:
