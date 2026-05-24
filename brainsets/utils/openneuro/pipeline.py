@@ -261,7 +261,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
     @staticmethod
     def _normalize_species(species: str | None) -> str | None:
-        """Normalize species names to ``"homo sapiens"`` or ``"unknown"``.
+        """Normalize species names to ``"HOMO_SAPIENS"`` or None.
 
         Args:
             species: The input species name (string or None).
