@@ -311,7 +311,7 @@ def get_brainset_description() -> BrainsetDescription:
     return BrainsetDescription(
         id="neuroprobe_2025",
         origin_version="dataset=0.0.0; neuroprobe=0.1.7",
-        derived_version="1.0.0",
+        derived_version="2.0.0",
         source="https://neuroprobe.dev/",
         description="High-resolution neural datasets enable foundation models for the next generation of "
         "brain-computer interfaces and neurological treatments. The community requires rigorous benchmarks "
@@ -372,7 +372,7 @@ def _extract_channel_data(subject) -> ArrayDict:
         included=np.isin(channel_name_basis, subject.electrode_labels).astype(
             np.bool_
         ),  # excludes corrupted and trigger electrodes
-        type=np.ones(len(channel_name_basis)) * int(RecordingTech.STEREO_EEG),
+        type=np.array(["STREO_EEG"] * len(channel_name_basis)),
     )
     # register localization data for each channel
     for col in aligned_localization.columns:
