@@ -29,7 +29,6 @@ from brainsets.descriptions import (
     BrainsetDescription,
     SubjectDescription,
 )
-from brainsets.taxonomy import RecordingTech, Species, Sex
 from brainsets import serialize_fn_map
 
 logging.basicConfig(level=logging.INFO)
@@ -341,8 +340,7 @@ def get_brainset_description() -> BrainsetDescription:
 def _get_subject_metadata(subject_id: int) -> SubjectDescription:
     return SubjectDescription(
         id=str(subject_id),
-        species=Species.HOMO_SAPIENS,
-        sex=Sex.UNKNOWN,
+        species="HOMO_SAPIENS",
     )
 
 
