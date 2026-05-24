@@ -28,7 +28,6 @@ from brainsets.descriptions import (
     SubjectDescription,
 )
 from brainsets.pipeline import BrainsetPipeline
-from brainsets.taxonomy import Species
 from brainsets.utils.bids_utils import (
     build_bids_path,
     fetch_eeg_recordings,
@@ -152,7 +151,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
     IGNORE_CHANNELS: Optional[list[str]] = None
     """Optional list of channel names to ignore.
 
-    Channel names should be specified as they appear in the original namespace of 
+    Channel names should be specified as they appear in the original namespace of
     the raw object (i.e., prior to any remapping or type changes).
     """
 
@@ -469,9 +468,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
 
         subject_description = SubjectDescription(
             id=subject_id,
-            species=(
-                Species.HOMO_SAPIENS if species == "homo sapiens" else Species.UNKNOWN
-            ),
+            species=species,
             age=age,
             sex=sex,
         )

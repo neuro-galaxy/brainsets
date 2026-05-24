@@ -15,8 +15,6 @@ from brainsets.utils.openneuro.pipeline import (
     OpenNeuroPipeline,
 )
 
-from brainsets.taxonomy import Species
-
 # ============================================================================
 # Fixtures
 # ============================================================================

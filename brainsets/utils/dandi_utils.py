@@ -8,6 +8,7 @@ _functions = [
 __all__ = _functions
 
 
+from typing import Literal
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -16,11 +17,6 @@ from pynwb import NWBFile
 from temporaldata import ArrayDict, IrregularTimeSeries
 
 from brainsets.descriptions import SubjectDescription
-from brainsets.taxonomy import (
-    RecordingTech,
-    Sex,
-    Species,
-)
 
 try:
     import dandi
@@ -63,19 +59,21 @@ def extract_subject_from_nwb(nwbfile: NWBFile):
 
     return SubjectDescription(
         id=nwbfile.subject.subject_id.lower(),
-        species=Species.from_string(species),
-        sex=Sex.from_string(nwbfile.subject.sex),
+        species=species,
+        sex=nwbfile.subject.sex,
     )
 
 
-def extract_spikes_from_nwbfile(nwbfile: NWBFile, recording_tech: RecordingTech):
+def extract_spikes_from_nwbfile(
+    nwbfile: NWBFile,
+    recording_tech: Literal["utah_array_threshold_crossings", "utah_array_spikes"],
+):
     r"""Extract spikes and unit metadata from an NWBFile
 
     Args:
         nwbfile: An open NWB file handle
-        recording_tech: Only supports
-            :obj:`RecordingTech.UTAH_ARRAY_THRESHOLD_CROSSINGS` and
-            :obj:`RecordingTech.UTAH_ARRAY_SPIKES`
+        recording_tech: One of ``"utah_array_threshold_crossings"``
+            or ``"utah_array_spikes"``
     """
     # spikes
     timestamps = []
@@ -89,11 +87,11 @@ def extract_spikes_from_nwbfile(nwbfile: NWBFile, recording_tech: RecordingTech)
 
     # all these units are obtained using threshold crossings
     for i in range(len(units)):
-        if recording_tech == RecordingTech.UTAH_ARRAY_THRESHOLD_CROSSINGS:
+        if recording_tech == "utah_array_threshold_crossings":
             # label unit
             group_name = electrodes["group_name"][i]
             unit_id = f"group_{group_name}/elec{i}/multiunit_{0}"
-        elif recording_tech == RecordingTech.UTAH_ARRAY_SPIKES:
+        elif recording_tech == "utah_array_spikes":
             # label unit
             electrode_id = nwbfile.units[i].electrodes.item().item()
             group_name = electrodes["group_name"][electrode_id]
