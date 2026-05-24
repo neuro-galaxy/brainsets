@@ -182,6 +182,30 @@ class TestBrainsetDescription:
         with pytest.raises(ValueError, match=f"{field} cannot be an empty string"):
             BrainsetDescription(**kwargs)
 
+    def test_brainsets_version_kwarg_raises(self):
+        with pytest.raises(ValueError, match="Cannot set brainsets_version manually"):
+            BrainsetDescription(
+                id="brainset_1",
+                origin_version="1.0.0",
+                derived_version="2.0.0",
+                source="https://example.com/data",
+                description="A test brainset",
+                brainsets_version="9.9.9",
+            )
+
+    def test_temporaldata_version_kwarg_raises(self):
+        with pytest.raises(
+            ValueError, match="Cannot set temporaldata_version manually"
+        ):
+            BrainsetDescription(
+                id="brainset_1",
+                origin_version="1.0.0",
+                derived_version="2.0.0",
+                source="https://example.com/data",
+                description="A test brainset",
+                temporaldata_version="9.9.9",
+            )
+
 
 class TestSessionDescription:
 
