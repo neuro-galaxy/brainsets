@@ -230,8 +230,11 @@ class TestSessionDescription:
         assert result.recording_date is None
 
     def test_id_type_validation(self):
-        with pytest.raises(ValueError, match="id must be a string"):
+        with pytest.raises(ValueError, match="id must be a string, got"):
             SessionDescription(id=None)  # type: ignore
+
+        with pytest.raises(ValueError, match="id must be a string, got"):
+            SessionDescription(id=123)  # type: ignore
 
         with pytest.raises(ValueError, match="id cannot be an empty string"):
             SessionDescription(id="")
@@ -268,8 +271,11 @@ class TestDeviceDescription:
         assert result.recording_tech is None
 
     def test_id_type_validation(self):
-        with pytest.raises(ValueError, match="id must be a string"):
+        with pytest.raises(ValueError, match="id must be a string, got"):
             DeviceDescription(id=None)  # type: ignore
+
+        with pytest.raises(ValueError, match="id must be a string, got"):
+            DeviceDescription(id=123)  # type: ignore
 
         with pytest.raises(ValueError, match="id cannot be an empty string"):
             DeviceDescription(id="")
