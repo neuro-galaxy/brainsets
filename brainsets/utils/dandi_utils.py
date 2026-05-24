@@ -112,7 +112,6 @@ def extract_spikes_from_nwbfile(
                 "id": unit_id,
                 "unit_number": i,
                 "count": len(spiketimes),
-                "type": int(recording_tech),
             }
         )
 
