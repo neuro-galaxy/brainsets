@@ -62,7 +62,7 @@ brainsets = "brainsets._cli:cli"
 packages = [
     "brainsets",
     "brainsets.utils",
-    "brainsets.taxonomy",
+    "brainsets.taxonomy",  # Remove after fully deprecating taxonomy
     "brainsets.processing",
     "brainsets.datasets",
     "brainsets._cli",
