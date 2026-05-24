@@ -201,7 +201,7 @@ the expected outputs are ``spikes``and ``units``.
 
     .. code-block:: python
 
-        from brainsets.dandi_utils import extract_spikes_from_nwbfile
+        from brainsets.utils.dandi_utils import extract_spikes_from_nwbfile
 
         spikes, units = extract_spikes_from_nwbfile(
             nwbfile,
