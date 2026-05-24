@@ -278,6 +278,13 @@ def parse_subject_metadata(raw: mne.io.Raw) -> tuple[int | None, str | None]:
 
     sex = subject_info.get("sex")
 
+    if sex == 1:
+        sex = "MALE"
+    elif sex == 2:
+        sex = "FEMALE"
+    else:
+        raise ValueError(f"Unknown {sex=}")
+
     return age, sex
 
 
