@@ -260,7 +260,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             )
 
     @staticmethod
-    def _normalize_species(species: str | None) -> str:
+    def _normalize_species(species: str | None) -> str | None:
         """Normalize species names to ``"homo sapiens"`` or ``"unknown"``.
 
         Args:
@@ -283,7 +283,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
         }
         if normalized_species in homo_sapiens_aliases:
             return "homo sapiens"
-        return "unknown"
+        return None
 
     @classmethod
     def get_manifest(cls, raw_dir: Path, args: Optional[Namespace]) -> pd.DataFrame:
