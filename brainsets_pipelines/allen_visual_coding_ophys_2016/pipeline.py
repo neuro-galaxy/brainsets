@@ -316,7 +316,6 @@ def extract_drifting_gratings(nwbfile):
     drifting_gratings.register_timekey("timestamps")
 
     # quantize orientation, temporal and spatial frequency
-    orientation_8_map = {}
     drifting_gratings.orientation_id = np.array(
         [
             ORIENTATION_8_CLASSES_map[orientation]
