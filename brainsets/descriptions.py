@@ -15,7 +15,7 @@ from temporaldata import Data
 import brainsets
 
 
-def _validate_string_type(v, name: str, allow_none=True):
+def _validate_string_type(v, name: str, allow_none: bool = False):
     if v is None:
         if allow_none:
             return v
@@ -57,7 +57,7 @@ class BrainsetDescription(Data):
         description: str,
         **kwargs,
     ):
-        _validate_string_type(id, "id", allow_none=False)
+        _validate_string_type(id, "id")
         _validate_string_type(origin_version, "origin_version")
         _validate_string_type(derived_version, "derived_version")
         _validate_string_type(source, "source")
@@ -105,9 +105,9 @@ class SubjectDescription(Data):
         **kwargs,
     ):
 
-        _validate_string_type(id, "id", allow_none=False)
-        _validate_string_type(species, "species")
-        _validate_string_type(sex, "sex")
+        _validate_string_type(id, "id")
+        _validate_string_type(species, "species", allow_none=True)
+        _validate_string_type(sex, "sex", allow_none=True)
         age = self._normalize_age(age)
 
         super().__init__(
@@ -196,8 +196,8 @@ class DeviceDescription(Data):
         **kwargs,
     ):
 
-        _validate_string_type(id, "id", allow_none=False)
-        _validate_string_type(recording_tech, "recording_tech")
+        _validate_string_type(id, "id")
+        _validate_string_type(recording_tech, "recording_tech", allow_none=True)
 
         super().__init__(
             id=id,
