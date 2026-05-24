@@ -6,6 +6,7 @@
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from typing import Optional
+from datetime import datetime
 
 import h5py
 import numpy as np
@@ -123,7 +124,7 @@ class Pipeline(BrainsetPipeline):
         # register session
         session = SessionDescription(
             id=session_id,
-            recording_date="20130530",  # using .mat file creation date
+            recording_date=datetime(2013, 5, 30),  # using .mat file creation date
             task="REACHING",
         )
 
