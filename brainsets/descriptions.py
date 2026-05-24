@@ -83,7 +83,7 @@ class SubjectDescription(Data):
         species: Species of the subject, defaults to None
         age: Age of the subject (in days).
             It will be converted to float if not None. defaults to None
-        sex: Sex of the subject, deafults to None
+        sex: Sex of the subject, defaults to None
     """
 
     id: str
