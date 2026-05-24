@@ -35,9 +35,9 @@ class TestSubjectDescription:
 
         assert isinstance(result, SubjectDescription)
         assert result.id == "subject_1"
-        assert result.age == None
-        assert result.sex == None
-        assert result.species == None
+        assert result.age is None
+        assert result.sex is None
+        assert result.species is None
 
     # Age normalization tests
     def test_age_as_int(self):
