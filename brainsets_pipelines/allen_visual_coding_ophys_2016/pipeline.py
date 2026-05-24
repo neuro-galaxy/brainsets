@@ -42,7 +42,6 @@ from brainsets.descriptions import (
     SubjectDescription,
 )
 from brainsets.pipeline import BrainsetPipeline
-from brainsets.taxonomy import Cre_line, RecordingTech, Sex, Species
 from brainsets.taxonomy.allen import (
     ORIENTATION_8_CLASSES_map,
     ORIENTATION_12_CLASSES_map,
@@ -133,12 +132,10 @@ class Pipeline(BrainsetPipeline):
         session_meta_data = nwb_dataset.get_metadata()
         subject = SubjectDescription(
             id=str(session_meta_data["experiment_container_id"]),
-            species=Species.MUS_MUSCULUS,
+            species="MUS_MUSCULUS",
             age=session_meta_data["age_days"],
-            sex=Sex.from_string(session_meta_data["sex"]),
-            cre_line=Cre_line.from_string(
-                session_meta_data["cre_line"].replace("-", "_").split("/")[0]
-            ),
+            sex=session_meta_data["sex"],
+            cre_line=session_meta_data["cre_line"].replace("-", "_").split("/")[0],
         )
 
         # extract experiment metadata
@@ -153,11 +150,9 @@ class Pipeline(BrainsetPipeline):
 
         device_description = DeviceDescription(
             id=str(session_id),
-            recording_tech=RecordingTech.TWO_PHOTON_IMAGING,
+            recording_tech="TWO_PHOTON_IMAGING",
             imaging_depth=session_meta_data["imaging_depth_um"],
-            target_area=BrainRegion.from_string(
-                session_meta_data["targeted_structure"]
-            ),
+            target_area=session_meta_data["targeted_structure"],
         )
 
         # extract calcium traces
