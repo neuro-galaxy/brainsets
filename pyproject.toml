@@ -11,7 +11,7 @@ authors = [{ name = "TorchBrain Team", email = "contact@torchbrain.org" }]
 license = { text = "Apache-2.0" }
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License"
     "Operating System :: OS Independent",
 ]
 requires-python = ">=3.10"
