@@ -42,14 +42,6 @@ from brainsets.descriptions import (
     SubjectDescription,
 )
 from brainsets.pipeline import BrainsetPipeline
-from brainsets.taxonomy.allen import (
-    ORIENTATION_8_CLASSES_map,
-    ORIENTATION_12_CLASSES_map,
-    PHASE_4_map,
-    SPATIAL_FREQ_5_map,
-    TEMPORAL_FREQ_5_map,
-)
-from brainsets.taxonomy.mice import BrainRegion
 from split import generate_train_valid_test_splits
 
 logging.basicConfig(level=logging.INFO)
@@ -324,6 +316,7 @@ def extract_drifting_gratings(nwbfile):
     drifting_gratings.register_timekey("timestamps")
 
     # quantize orientation, temporal and spatial frequency
+    orientation_8_map = {}
     drifting_gratings.orientation_id = np.array(
         [
             ORIENTATION_8_CLASSES_map[orientation]
@@ -574,3 +567,33 @@ def extract_stimulus_epochs(nwbfile):
     #     epoch.allow_split_mask_overlap()
 
     return epoch_dict
+
+
+ORIENTATION_8_CLASSES_map = {
+    0.0: 0,
+    45.0: 1,
+    90.0: 2,
+    135.0: 3,
+    180.0: 4,
+    225.0: 5,
+    270.0: 6,
+    315.0: 7,
+}
+ORIENTATION_12_CLASSES_map = {
+    0.0: 0,
+    30.0: 1,
+    60.0: 2,
+    90.0: 3,
+    120.0: 4,
+    150.0: 5,
+    180.0: 6,
+    210.0: 7,
+    240.0: 8,
+    270.0: 9,
+    300.0: 10,
+    330.0: 11,
+}
+
+TEMPORAL_FREQ_5_map = {1.0: 0, 2.0: 1, 4.0: 2, 8.0: 3, 15.0: 4}
+SPATIAL_FREQ_5_map = {0.02: 0, 0.04: 1, 0.08: 2, 0.16: 3, 0.32: 4}
+PHASE_4_map = {0.0: 0, 90.0: 1, 180.0: 2, 270.0: 3}
