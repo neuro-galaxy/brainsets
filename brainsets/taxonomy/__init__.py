@@ -1,3 +1,5 @@
+# pragma: no cover: start
+
 _MOVED = [
     "Species",
     "Sex",
@@ -17,3 +19,6 @@ def __getattr__(name):
             f" Please directly encode the metadata."
         )
     raise AttributeError(f"module 'brainsets.taxonomy' has no attribute {name!r}")
+
+
+# pragma: no cover: stop
