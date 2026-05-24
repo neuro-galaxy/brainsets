@@ -72,7 +72,6 @@ class TestExtractMeasurementDate:
         assert result == expected_date
 
     def test_returns_none_when_meas_date_none(self):
-        """Test that Unix epoch is returned when measurement date is missing."""
         mock_raw = create_mock_raw(meas_date=None)
         with pytest.warns(UserWarning, match="No measurement date found"):
             result = extract_measurement_date(mock_raw)
