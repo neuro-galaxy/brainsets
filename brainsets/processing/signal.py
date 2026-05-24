@@ -6,7 +6,6 @@ https://dx.doi.org/10.1088/1741-2560/12/3/036009
 _functions = [
     "downsample_wideband",
     "extract_bands",
-    "cube_to_long",
 ]
 
 __all__ = _functions
@@ -18,7 +17,6 @@ import tqdm
 from scipy import signal
 
 from temporaldata import Data, IrregularTimeSeries, ArrayDict
-from brainsets.taxonomy import RecordingTech
 
 
 def downsample_wideband(
@@ -114,64 +112,3 @@ def extract_bands(
         stacked = stacked[: len(ts), :, :]
 
     return stacked, ts, band_names
-
-
-def cube_to_long(
-    ts: np.ndarray, cube: np.ndarray, channel_prefix="chan"
-) -> Tuple[List[IrregularTimeSeries], Data]:
-    """Convert a cube of threshold crossings to a list of trials and units."""
-    assert cube.shape[1] == len(ts)
-    assert cube.ndim == 3
-    channels = np.arange(cube.shape[2])
-    channels = np.tile(channels, [cube.shape[1], 1])
-
-    # First dim is batch, second is time, third is channel.
-    assert np.issubdtype(cube.dtype, np.integer)
-    assert cube.min() >= 0
-
-    ts = np.tile(ts.reshape((-1, 1)), [1, cube.shape[2]])
-    assert ts.shape == channels.shape
-
-    # The first dimension we map to a single trial.
-    trials = []
-    for b in tqdm.tqdm(range(cube.shape[0])):
-        cube_ = cube[b, :, :]
-        ts_ = []
-        channels_ = []
-
-        # This data is binned, so we create N identifical timestamps when there are N
-        # spikes in a bin.
-        for n in range(1, cube_.max() + 1):
-            ts_.append(ts[cube_ >= n])
-            channels_.append(channels[cube_ >= n])
-
-        ts_ = np.concatenate(ts_)
-        channels_ = np.concatenate(channels_)
-
-        tidx = np.argsort(ts_)
-        ts_ = ts_[tidx]
-        channels_ = channels_[tidx]
-
-        trials.append(
-            IrregularTimeSeries(
-                timestamps=ts_,
-                unit_index=channels_,
-                types=np.ones(len(ts_))
-                * int(RecordingTech.UTAH_ARRAY_THRESHOLD_CROSSINGS),
-                domain="auto",
-            )
-        )
-
-    counts = cube.sum(axis=0).sum(axis=0)
-    units = ArrayDict(
-        count=np.array(counts.astype(int)),
-        channel_name=np.array(
-            [f"{channel_prefix}{c:03}" for c in range(cube.shape[2])]
-        ),
-        unit_number=np.zeros(cube.shape[2]),
-        id=np.array([f"{channel_prefix}{c}" for c in range(cube.shape[2])]),
-        channel_number=np.arange(cube.shape[2]),
-        type=np.ones(cube.shape[2]) * int(RecordingTech.UTAH_ARRAY_THRESHOLD_CROSSINGS),
-    )
-
-    return trials, units
