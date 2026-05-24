@@ -87,7 +87,7 @@ class SubjectDescription(Data):
     """
 
     id: str
-    species: str
+    species: str | None
     age: float | None
     sex: str | None
 
