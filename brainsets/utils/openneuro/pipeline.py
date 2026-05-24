@@ -270,7 +270,7 @@ class OpenNeuroPipeline(BrainsetPipeline, ABC):
             ``"HOMO_SAPIENS"`` for recognized human aliases, otherwise None.
         """
         if not isinstance(species, str):
-            return "unknown"
+            return None
 
         normalized_species = species.strip().lower()
         homo_sapiens_aliases = {

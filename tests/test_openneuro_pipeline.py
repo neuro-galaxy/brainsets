@@ -477,12 +477,12 @@ class TestNormalizeSpecies:
     )
     def test_returns_homo_sapiens_for_supported_aliases(self, species):
         """Supported aliases normalize to canonical homo sapiens."""
-        assert OpenNeuroPipeline._normalize_species(species) == "homo sapiens"
+        assert OpenNeuroPipeline._normalize_species(species) == "HOMO_SAPIENS"
 
     @pytest.mark.parametrize("species", ["mus musculus", "canis lupus", "", None, 42])
     def test_returns_unknown_for_non_human_or_invalid_values(self, species):
         """Non-human or invalid values normalize to unknown."""
-        assert OpenNeuroPipeline._normalize_species(species) == "unknown"
+        assert OpenNeuroPipeline._normalize_species(species) == None
 
 
 class TestGetManifest:
@@ -561,7 +561,7 @@ class TestGetManifest:
             recording_id, subject_id, sub_dir, rec_id = rec
             assert recording_id in result.index
             assert result.loc[recording_id, "subject_id"] == subject_id
-            assert result.loc[recording_id, "species"] == "homo sapiens"
+            assert result.loc[recording_id, "species"] == "HOMO_SAPIENS"
             assert result.loc[recording_id, "age"] == 25
             assert result.loc[recording_id, "sex"] == "M"
             assert result.loc[recording_id, "latest_snapshot_tag"] == "1.0.0"
@@ -641,7 +641,7 @@ class TestGetManifest:
             recording_id, subject_id, sub_dir, rec_id = rec
             assert recording_id in result.index
             assert result.loc[recording_id, "subject_id"] == subject_id
-            assert result.loc[recording_id, "species"] == "homo sapiens"
+            assert result.loc[recording_id, "species"] == "HOMO_SAPIENS"
             assert result.loc[recording_id, "age"] == 25
             assert result.loc[recording_id, "sex"] == "M"
             assert result.loc[recording_id, "latest_snapshot_tag"] == "1.0.0"
