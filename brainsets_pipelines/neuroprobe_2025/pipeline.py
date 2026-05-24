@@ -370,7 +370,6 @@ def _extract_channel_data(subject) -> ArrayDict:
         included=np.isin(channel_name_basis, subject.electrode_labels).astype(
             np.bool_
         ),  # excludes corrupted and trigger electrodes
-        type=np.array(["STREO_EEG"] * len(channel_name_basis)),
     )
     # register localization data for each channel
     for col in aligned_localization.columns:
