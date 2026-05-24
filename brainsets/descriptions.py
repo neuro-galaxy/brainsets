@@ -15,9 +15,13 @@ from temporaldata import Data
 import brainsets
 
 
-def _validate_string_type(v, name: str):
+def _validate_string_type(v, name: str, allow_none=True):
     if v is None:
-        return v
+        if allow_none:
+            return v
+        else:
+            raise ValueError(f"{name} must be a string, got {v!r}")
+
     if not isinstance(v, str):
         raise ValueError(f"{name} must be a string or None, got {v!r}")
     if len(v) == 0:
@@ -53,7 +57,7 @@ class BrainsetDescription(Data):
         description: str,
         **kwargs,
     ):
-        _validate_string_type(id, "id")
+        _validate_string_type(id, "id", allow_none=False)
         _validate_string_type(origin_version, "origin_version")
         _validate_string_type(derived_version, "derived_version")
         _validate_string_type(source, "source")
@@ -101,7 +105,7 @@ class SubjectDescription(Data):
         **kwargs,
     ):
 
-        _validate_string_type(id, "id")
+        _validate_string_type(id, "id", allow_none=False)
         _validate_string_type(species, "species")
         _validate_string_type(sex, "sex")
         age = self._normalize_age(age)
@@ -178,18 +182,22 @@ class DeviceDescription(Data):
 
     Args:
         id: Identifier for the device
+        recording_tech: A string description of the device tech, default None
         **kwargs: Any additional metadata
     """
 
     id: str
+    recording_tech: str | None
 
     def __init__(
         self,
         id: str,
+        recording_tech: str | None = None,
         **kwargs,
     ):
 
-        _validate_string_type(id, "id")
+        _validate_string_type(id, "id", allow_none=False)
+        _validate_string_type(recording_tech, "recording_tech")
 
         super().__init__(
             id=id,
