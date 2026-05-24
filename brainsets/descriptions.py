@@ -15,6 +15,15 @@ from temporaldata import Data
 import brainsets
 
 
+def _validate_string_type(v, name: str):
+    if v is None:
+        return v
+    if not isinstance(v, str):
+        raise ValueError(f"{name} must be a string or None, got {v!r}")
+    if len(v) == 0:
+        raise ValueError(f"{name} cannot be an empty string, got {v!r}")
+
+
 class BrainsetDescription(Data):
     id: str
     origin_version: str
@@ -44,6 +53,12 @@ class BrainsetDescription(Data):
         description: str,
         **kwargs,
     ):
+        _validate_string_type(id, "id")
+        _validate_string_type(origin_version, "origin_version")
+        _validate_string_type(derived_version, "derived_version")
+        _validate_string_type(source, "source")
+        _validate_string_type(description, "description")
+
         super().__init__(
             id=id,
             origin_version=origin_version,
@@ -86,8 +101,10 @@ class SubjectDescription(Data):
         **kwargs,
     ):
 
-        if age is not None:
-            age = self._normalize_age(age)
+        _validate_string_type(id, "id")
+        _validate_string_type(species, "species")
+        _validate_string_type(sex, "sex")
+        age = self._normalize_age(age)
 
         super().__init__(
             id=id,
@@ -97,28 +114,27 @@ class SubjectDescription(Data):
             **kwargs,
         )
 
-    @classmethod
-    def _normalize_age(cls, age) -> float | None:
+    def _normalize_age(self, age) -> float | None:
         """Normalize and validate age value to a float in days."""
+
+        if age is None:
+            return None
 
         if isinstance(age, (int, float)):
             age_normalized = float(age)
             if age_normalized < 0:
-                raise ValueError(f"Age cannot be negative, got {age_normalized}")
+                raise ValueError(f"age cannot be negative, got {age_normalized}")
             return age_normalized
 
         if isinstance(age, str):
-            try:
-                age_normalized = float(age)
-            except (ValueError, TypeError):
-                return 0.0
-            else:
-                if age_normalized < 0:
-                    raise ValueError(f"Age cannot be negative, got {age_normalized}")
-                return age_normalized
+            age_normalized = float(age)
+
+            if age_normalized < 0:
+                raise ValueError(f"age cannot be negative, got {age_normalized}")
+            return age_normalized
 
         raise TypeError(
-            f"Age must be a float, int, numeric string, or None, got {type(age).__name__}"
+            f"age must be a float, int, numeric string, or None, got {type(age).__name__}"
         )
 
 
@@ -140,6 +156,16 @@ class SessionDescription(Data):
         recording_date: datetime.datetime | None = None,
         **kwargs,
     ):
+
+        _validate_string_type(id, "id")
+
+        if recording_date is not None:
+            if not isinstance(recording_date, datetime.datetime):
+                raise ValueError(
+                    "recording_date must be None or a datetime.datetime object"
+                    f", got {recording_date!r}"
+                )
+
         super().__init__(
             id=id,
             recording_date=recording_date,
@@ -157,5 +183,15 @@ class DeviceDescription(Data):
 
     id: str
 
-    def __init__(self, id: str, **kwargs):
-        super().__init__(id=id, **kwargs)
+    def __init__(
+        self,
+        id: str,
+        **kwargs,
+    ):
+
+        _validate_string_type(id, "id")
+
+        super().__init__(
+            id=id,
+            **kwargs,
+        )
