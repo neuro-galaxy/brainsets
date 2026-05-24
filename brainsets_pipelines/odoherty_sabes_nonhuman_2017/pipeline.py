@@ -30,7 +30,6 @@ from brainsets.descriptions import (
     SubjectDescription,
 )
 from brainsets.pipeline import BrainsetPipeline
-from brainsets.taxonomy import RecordingTech, Species, Task
 from brainsets.utils.misc_utils import calculate_sampling_rate
 
 logging.basicConfig(level=logging.INFO)
@@ -160,18 +159,18 @@ class Pipeline(BrainsetPipeline):
         animal, recording_date = device_id.split("_")
         subject = SubjectDescription(
             id=animal,
-            species=Species.MACACA_MULATTA,
+            species="MACACA_MULATTA",
         )
 
         session_description = SessionDescription(
             id=session_id,
             recording_date=datetime.datetime.strptime(recording_date, "%Y%m%d"),
-            task=Task.REACHING,
+            task="REACHING",
         )
 
         device_description = DeviceDescription(
             id=device_id,
-            recording_tech=RecordingTech.UTAH_ARRAY_SPIKES,
+            recording_tech="UTAH_ARRAY_SPIKES",
         )
 
         # extract spiking activity, unit metadata and channel names info
@@ -316,9 +315,7 @@ def extract_spikes(h5file: h5py.File):
 
     # The 0'th spikesvec corresponds to unsorted thresholded units, the rest are sorted.
     suffixes = ["unsorted"] + [f"sorted_{i:02}" for i in range(1, 11)]
-    type_map = [int(RecordingTech.UTAH_ARRAY_THRESHOLD_CROSSINGS)] + [
-        int(RecordingTech.UTAH_ARRAY_SPIKES)
-    ] * 10
+    type_map = [1] + [0] * 10
 
     encountered = set()
 

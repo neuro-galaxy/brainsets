@@ -66,14 +66,14 @@ def extract_subject_from_nwb(nwbfile: NWBFile):
 
 def extract_spikes_from_nwbfile(
     nwbfile: NWBFile,
-    recording_tech: Literal["utah_array_threshold_crossings", "utah_array_spikes"],
+    recording_tech: Literal["UTAH_ARRAY_THRESHOLD_CROSSINGS", "UTAH_ARRAY_SPIKES"],
 ):
     r"""Extract spikes and unit metadata from an NWBFile
 
     Args:
         nwbfile: An open NWB file handle
-        recording_tech: One of ``"utah_array_threshold_crossings"``
-            or ``"utah_array_spikes"``
+        recording_tech: One of ``"UTAH_ARRAY_THRESHOLD_CROSSINGS"``
+            or ``"UTAH_ARRAY_SPIKES"``
     """
     # spikes
     timestamps = []
