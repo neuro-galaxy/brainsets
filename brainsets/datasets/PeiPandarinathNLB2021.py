@@ -12,7 +12,10 @@ class PeiPandarinathNLB2021(SpikingDatasetMixin, Dataset):
     .. admonition:: Preprocessing
 
         To download and prepare this dataset, run
-        ``brainsets prepare pei_pandarinath_nlb_2021``.
+
+        .. code:: shell
+
+            brainsets prepare pei_pandarinath_nlb_2021
 
     """
 

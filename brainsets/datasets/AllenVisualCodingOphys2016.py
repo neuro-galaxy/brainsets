@@ -13,7 +13,10 @@ class AllenVisualCodingOphys2016(CalciumImagingDatasetMixin, Dataset):
     .. admonition:: Preprocessing
 
         To download and prepare this dataset, run
-        ``brainsets prepare allen_visual_coding_ophys_2016``.
+
+        .. code:: shell
+
+            brainsets prepare allen_visual_coding_ophys_2016
 
     """
 
