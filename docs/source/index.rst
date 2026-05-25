@@ -27,6 +27,11 @@ If you encounter any bugs or have feature requests, please submit them to our
    guides/index
 
 .. toctree::
+   :maxdepth: 1
+
+   cli/commands
+
+.. toctree::
    :maxdepth: 2
 
    generated/api/index
