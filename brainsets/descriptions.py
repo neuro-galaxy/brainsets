@@ -7,6 +7,14 @@ _classes = [
 
 __all__ = _classes
 
+# Drives the generated API reference; see docs/source/api_reference.py.
+__api_ref__ = {
+    "description": None,
+    "sections": [
+        {"title": None, "autosummary": _classes},
+    ],
+}
+
 import datetime
 
 import temporaldata

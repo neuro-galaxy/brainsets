@@ -9,6 +9,14 @@ from rich.console import Console
 from contextlib import contextmanager
 import traceback
 
+# Drives the generated API reference; see docs/source/api_reference.py.
+__api_ref__ = {
+    "description": None,
+    "sections": [
+        {"title": None, "autosummary": ["BrainsetPipeline"]},
+    ],
+}
+
 
 class BrainsetPipeline(ABC):
     r"""Abstract base class for defining processing pipelines.
