@@ -8,6 +8,8 @@ from ._utils import get_processed_dir
 
 class PeiPandarinathNLB2021(SpikingDatasetMixin, Dataset):
     """
+    Curated spiking neural activity datasets from the Neural Latents Benchmark
+    2021 (NLB'21).
 
     .. admonition:: Preprocessing
 
