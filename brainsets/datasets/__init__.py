@@ -35,6 +35,13 @@ __api_ref__ = {
     "description": None,
     "sections": [
         {
+            "title": "Base Classes",
+            "template": "dataset.rst",
+            "autosummary": [
+                "OpenNeuroDataset",
+            ],
+        },
+        {
             "title": "Electrophysiology Datasets",
             "template": "dataset.rst",
             "autosummary": [
@@ -45,7 +52,6 @@ __api_ref__ = {
                 "OdohertySabesNonhuman2017",
                 "VollanMoserAlternating2025",
                 "ShiraziHBNR1DS005505",
-                "KlinzingSleepDS005555",
             ],
         },
         {
@@ -61,6 +67,13 @@ __api_ref__ = {
             "autosummary": [
                 "Neuroprobe2025",
                 "KochiVisualNamingDS006914",
+            ],
+        },
+        {
+            "title": "EEG Datasets",
+            "template": "dataset.rst",
+            "autosummary": [
+                "KlinzingSleepDS005555",
             ],
         },
         {
