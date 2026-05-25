@@ -1,6 +1,4 @@
 _functions = ["datetime_serialize_fn"]
-
-
 _constants = ["serialize_fn_map"]
 
 __all__ = _functions + _constants
