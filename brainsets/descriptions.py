@@ -1,17 +1,23 @@
-_classes = [
+__all__ = [
     "BrainsetDescription",
     "SubjectDescription",
     "SessionDescription",
     "DeviceDescription",
 ]
 
-__all__ = _classes
-
 # Drives the generated API reference; see docs/source/api_reference.py.
 __api_ref__ = {
     "description": None,
     "sections": [
-        {"title": None, "autosummary": _classes},
+        {
+            "title": None,
+            "autosummary": [
+                "BrainsetDescription",
+                "SubjectDescription",
+                "SessionDescription",
+                "DeviceDescription",
+            ],
+        },
     ],
 }
 

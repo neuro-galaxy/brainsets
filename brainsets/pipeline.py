@@ -13,7 +13,12 @@ import traceback
 __api_ref__ = {
     "description": None,
     "sections": [
-        {"title": None, "autosummary": ["BrainsetPipeline"]},
+        {
+            "title": None,
+            "autosummary": [
+                "BrainsetPipeline",
+            ],
+        },
     ],
 }
 

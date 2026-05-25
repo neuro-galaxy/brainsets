@@ -1,14 +1,24 @@
-_functions = ["datetime_serialize_fn"]
-_constants = ["serialize_fn_map"]
-
-__all__ = _functions + _constants
+__all__ = [
+    "datetime_serialize_fn",
+    "serialize_fn_map",
+]
 
 # Drives the generated API reference; see docs/source/api_reference.py.
 __api_ref__ = {
     "description": None,
     "sections": [
-        {"title": "Functions", "autosummary": _functions},
-        {"title": "Constants", "autosummary": _constants},
+        {
+            "title": "Functions",
+            "autosummary": [
+                "datetime_serialize_fn",
+            ],
+        },
+        {
+            "title": "Constants",
+            "autosummary": [
+                "serialize_fn_map",
+            ],
+        },
     ],
 }
 

@@ -12,15 +12,25 @@ __api_ref__ = {
     "sections": [
         {
             "title": "brainsets.utils.dandi_utils",
-            "autosummary": [f"dandi_utils.{name}" for name in dandi_utils._functions],
+            "autosummary": [
+                "dandi_utils.extract_subject_from_nwb",
+                "dandi_utils.extract_spikes_from_nwbfile",
+                "dandi_utils.download_file",
+                "dandi_utils.get_nwb_asset_list",
+            ],
         },
         {
             "title": "brainsets.utils.split",
-            "autosummary": [f"split.{name}" for name in split._functions],
+            "autosummary": [
+                "split.generate_stratified_folds",
+                "split.generate_string_kfold_assignment",
+            ],
         },
         {
             "title": "brainsets.utils.misc_utils",
-            "autosummary": [f"misc_utils.{name}" for name in misc_utils._functions],
+            "autosummary": [
+                "misc_utils.calculate_sampling_rate",
+            ],
         },
     ],
 }

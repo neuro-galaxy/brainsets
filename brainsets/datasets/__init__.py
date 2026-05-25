@@ -1,4 +1,4 @@
-_electrophysiology_datasets = [
+__all__ = [
     "PerichMillerPopulation2018",
     "PeiPandarinathNLB2021",
     "FlintSlutzkyAccurate2012",
@@ -7,28 +7,13 @@ _electrophysiology_datasets = [
     "VollanMoserAlternating2025",
     "ShiraziHBNR1DS005505",
     "KlinzingSleepDS005555",
-]
-
-_calcium_imaging_datasets = [
     "AllenVisualCodingOphys2016",
-]
-
-_ieeg_datasets = [
     "Neuroprobe2025",
     "KochiVisualNamingDS006914",
-]
-
-_psg_datasets = [
     "KempSleepEDF2013",
+    "OpenNeuroDataset",
+    "OpenNeuroSplitType",
 ]
-
-__all__ = (
-    _electrophysiology_datasets
-    + _calcium_imaging_datasets
-    + _ieeg_datasets
-    + _psg_datasets
-    + ["OpenNeuroDataset", "OpenNeuroSplitType"]
-)
 
 from .OpenNeuroDataset import OpenNeuroDataset, OpenNeuroSplitType
 
@@ -52,22 +37,38 @@ __api_ref__ = {
         {
             "title": "Electrophysiology Datasets",
             "template": "dataset.rst",
-            "autosummary": _electrophysiology_datasets,
+            "autosummary": [
+                "PerichMillerPopulation2018",
+                "PeiPandarinathNLB2021",
+                "FlintSlutzkyAccurate2012",
+                "ChurchlandShenoyNeural2012",
+                "OdohertySabesNonhuman2017",
+                "VollanMoserAlternating2025",
+                "ShiraziHBNR1DS005505",
+                "KlinzingSleepDS005555",
+            ],
         },
         {
             "title": "Calcium Imaging Datasets",
             "template": "dataset.rst",
-            "autosummary": _calcium_imaging_datasets,
+            "autosummary": [
+                "AllenVisualCodingOphys2016",
+            ],
         },
         {
             "title": "iEEG Datasets",
             "template": "dataset.rst",
-            "autosummary": _ieeg_datasets,
+            "autosummary": [
+                "Neuroprobe2025",
+                "KochiVisualNamingDS006914",
+            ],
         },
         {
             "title": "PSG Datasets",
             "template": "dataset.rst",
-            "autosummary": _psg_datasets,
+            "autosummary": [
+                "KempSleepEDF2013",
+            ],
         },
     ],
 }
