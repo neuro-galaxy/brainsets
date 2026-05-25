@@ -17,8 +17,3 @@ User Guide
    openneuro_pipeline
    neuroprobe
 
-.. toctree::
-   :maxdepth: 1
-   :caption: CLI Reference
-
-   cli/commands
