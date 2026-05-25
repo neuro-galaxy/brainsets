@@ -23,6 +23,7 @@ __api_ref__ = {
 }
 
 import datetime
+from typing import Callable
 
 
 def datetime_serialize_fn(obj, serialize_fn_map=None):
@@ -30,7 +31,7 @@ def datetime_serialize_fn(obj, serialize_fn_map=None):
     return str(obj)
 
 
-serialize_fn_map = {
+serialize_fn_map: dict[type, Callable] = {
     datetime.datetime: datetime_serialize_fn,
 }
 r"""A dict that maps classes to their serialization functions"""
