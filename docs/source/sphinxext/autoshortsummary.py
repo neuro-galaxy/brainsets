@@ -10,14 +10,20 @@ class ShortSummaryDocumenter(ModuleLevelDocumenter):
     # Disable content indentation
     content_indent = ""
 
-    # Avoid being selected as the default documenter for some objects, because we are
-    # returning `can_document_member` as True for all objects
     priority = -99
 
     @classmethod
     def can_document_member(cls, member, membername, isattr, parent):
-        """Allow documenting any object."""
-        return True
+        """Never auto-select this documenter; it is only ever invoked explicitly
+        via the ``.. autoshortsummary::`` directive.
+
+        Returning ``False`` keeps it out of ``autosummary``'s objtype detection.
+        Otherwise, for module-level data/constants (whose ``DataDocumenter`` declines
+        the ``isattr=False`` probe used by ``get_documenter``) this would be the only
+        qualifying documenter, so the generated stub would render the one-line summary
+        instead of the object's full docstring via ``autodata``.
+        """
+        return False
 
     def get_object_members(self, want_all):
         """Document no members."""
