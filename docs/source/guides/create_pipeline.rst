@@ -1,5 +1,5 @@
-Creating a :obj:`BrainsetPipeline`
-==================================
+Creating a BrainsetPipeline
+===========================
 
 .. py:currentmodule:: brainsets.pipeline
 .. |BrainsetPipeline| replace:: :class:`BrainsetPipeline`
