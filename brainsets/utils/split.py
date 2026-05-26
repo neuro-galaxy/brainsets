@@ -1,21 +1,18 @@
-import hashlib
-import numpy as np
-from typing import List
-from temporaldata import Interval, Data
-
 __all__ = [
     "generate_stratified_folds",
     "generate_string_kfold_assignment",
 ]
 
+# Drives the generated API reference; see docs/source/api_reference.py.
 __api_ref__ = {
     "description": None,
-    "sections": [
-        {
-            "autosummary": __all__,
-        },
-    ],
+    "sections": [{"autosummary": __all__}],
 }
+
+import hashlib
+import numpy as np
+from typing import List
+from temporaldata import Interval, Data
 
 
 def _create_interval_split(intervals: Interval, indices: np.ndarray) -> Interval:

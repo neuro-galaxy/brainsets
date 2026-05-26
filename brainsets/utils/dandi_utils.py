@@ -5,13 +5,10 @@ __all__ = [
     "get_nwb_asset_list",
 ]
 
+# Drives the generated API reference; see docs/source/api_reference.py.
 __api_ref__ = {
     "description": None,
-    "sections": [
-        {
-            "autosummary": __all__,
-        },
-    ],
+    "sections": [{"autosummary": __all__}],
 }
 
 

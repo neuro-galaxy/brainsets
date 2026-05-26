@@ -8,17 +8,7 @@ __all__ = [
 # Drives the generated API reference; see docs/source/api_reference.py.
 __api_ref__ = {
     "description": None,
-    "sections": [
-        {
-            "title": None,
-            "autosummary": [
-                "BrainsetDescription",
-                "SubjectDescription",
-                "SessionDescription",
-                "DeviceDescription",
-            ],
-        },
-    ],
+    "sections": [{"autosummary": __all__}],
 }
 
 import datetime
