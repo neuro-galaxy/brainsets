@@ -1,11 +1,18 @@
-_functions = [
+__all__ = [
     "extract_subject_from_nwb",
     "extract_spikes_from_nwbfile",
     "download_file",
     "get_nwb_asset_list",
 ]
 
-__all__ = _functions
+__api_ref__ = {
+    "description": None,
+    "sections": [
+        {
+            "autosummary": __all__,
+        },
+    ],
+}
 
 
 from typing import Literal

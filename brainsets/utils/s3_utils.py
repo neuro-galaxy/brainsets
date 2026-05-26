@@ -1,5 +1,22 @@
 """Generic S3 utilities for downloading data from public buckets."""
 
+__all__ = [
+    "get_cached_s3_client",
+    "get_object_list",
+    "download_prefix",
+    "download_prefix_from_url",
+]
+
+__api_ref__ = {
+    "description": None,
+    "sections": [
+        {
+            "autosummary": __all__,
+        },
+    ],
+}
+
+
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlparse

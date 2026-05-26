@@ -1,8 +1,16 @@
-_functions = [
+__all__ = [
     "calculate_sampling_rate",
 ]
 
-__all__ = _functions
+
+__api_ref__ = {
+    "description": None,
+    "sections": [
+        {
+            "autosummary": __all__,
+        },
+    ],
+}
 
 import numpy as np
 

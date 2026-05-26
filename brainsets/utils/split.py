@@ -1,14 +1,21 @@
-_functions = [
-    "generate_stratified_folds",
-    "generate_string_kfold_assignment",
-]
-
-__all__ = _functions
-
 import hashlib
 import numpy as np
 from typing import List
 from temporaldata import Interval, Data
+
+__all__ = [
+    "generate_stratified_folds",
+    "generate_string_kfold_assignment",
+]
+
+__api_ref__ = {
+    "description": None,
+    "sections": [
+        {
+            "autosummary": __all__,
+        },
+    ],
+}
 
 
 def _create_interval_split(intervals: Interval, indices: np.ndarray) -> Interval:
