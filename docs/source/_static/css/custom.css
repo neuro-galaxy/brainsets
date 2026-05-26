@@ -34,3 +34,8 @@ table tbody tr:hover td {
     padding-top: 0;
     padding-bottom: 0;
 }
+
+a.reference.external:has(> img) {
+    text-decoration: none;
+    border-bottom: none;
+}
