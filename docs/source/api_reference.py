@@ -65,8 +65,8 @@ API_MODS = [
     "brainsets.datasets",
     "brainsets.descriptions",
     "brainsets.pipeline",
-    "brainsets.processing",
     "brainsets.utils",
+    "brainsets.processing",
     "brainsets.core",
 ]
 
