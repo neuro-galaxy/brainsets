@@ -1,5 +1,5 @@
-brainsets documentation
-========================
+Brainsets documentation
+=======================
 
 **brainsets** is a Python package for processing neural data into a standardized format.
 

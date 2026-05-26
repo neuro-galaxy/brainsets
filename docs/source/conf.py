@@ -36,7 +36,7 @@ autosummary_generate = True
 html_theme = "pydata_sphinx_theme"
 html_theme_options = {
     "logo": {
-        "text": "brainsets",
+        "text": "Brainsets",
         "image_light": "_static/brainsets_logo.png",
         "image_dark": "_static/brainsets_logo.png",
     },
