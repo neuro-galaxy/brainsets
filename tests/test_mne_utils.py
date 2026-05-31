@@ -121,12 +121,12 @@ class TestExtractSignal:
         assert result.domain.start[0] == 0.0
 
     def test_domain_end_calculation(self):
-        """Test that domain end is calculated as (n_samples - 1) / sfreq."""
+        """Test that domain end is calculated as n_samples / sfreq."""
         n_samples = 1000
         sfreq = 256.0
         mock_raw = create_mock_raw(n_samples=n_samples, sfreq=sfreq)
         result = extract_signal(mock_raw)
-        expected_end = (n_samples - 1) / sfreq
+        expected_end = n_samples / sfreq
         assert np.isclose(result.domain.end[0], expected_end)
 
     def test_raises_error_when_no_samples(self):

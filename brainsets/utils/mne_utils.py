@@ -300,10 +300,6 @@ def extract_signal(
     return RegularTimeSeries(
         signal=signal,
         sampling_rate=sfreq,
-        domain=Interval(
-            start=np.array([0.0]),
-            end=np.array([(len(signal) - 1) / sfreq]),
-        ),
     )
 
 
