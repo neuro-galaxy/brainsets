@@ -29,6 +29,7 @@ pip install brainsets
 | flint_slutzky_accurate_2012 | [Link](https://brainsets.readthedocs.io/en/latest/_generated/brainsets.datasets.FlintSlutzkyAccurate2012.html) | 3.2 GB | 151 MB |
 | odoherty_sabes_nonhuman_2017 | [Link](https://brainsets.readthedocs.io/en/latest/_generated/brainsets.datasets.OdohertySabesNonhuman2017.html) | 22 GB | 26 GB |
 | pei_pandarinath_nlb_2021  | [Link](https://brainsets.readthedocs.io/en/latest/_generated/brainsets.datasets.PeiPandarinathNLB2021.html) | 688 KB | 22 MB |
+| peterson_brunton_pose_trajectory_2022 | [Link](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#peterson-brunton-pose-trajectory-2022) | 788 GB | TBA |
 | perich_miller_population_2018 | [Link](https://brainsets.readthedocs.io/en/latest/_generated/brainsets.datasets.PerichMillerPopulation2018.html) | 13 GB | 2.9 GB |
 | kemp_sleep_edf_2013 | [Link](https://brainsets.readthedocs.io/en/latest/_generated/brainsets.datasets.KempSleepEDF2013.html) | 8.2 GB | 60 GB |
 | neuroprobe_2025 | [Link](https://brainsets.readthedocs.io/en/latest/_generated/brainsets.datasets.Neuroprobe2025.html) | 138 GB | 257 GB |

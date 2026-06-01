@@ -45,6 +45,9 @@ dev = [
     "mne-bids",
 ]
 
+[tool.uv.sources]
+torch-brain = { git = "https://github.com/neuro-galaxy/torch_brain", branch = "main" }
+
 [project.urls]
 Homepage = "https://github.com/neuro-galaxy/brainsets"
 Issues = "https://github.com/neuro-galaxy/brainsets/issues"
@@ -57,7 +60,7 @@ brainsets = "brainsets._cli:cli"
 packages = [
     "brainsets",
     "brainsets.utils",
-    "brainsets.taxonomy",  # TODO: Remove after fully deprecating taxonomy
+    "brainsets.taxonomy",   # TODO: Remove after fully deprecating taxonomy
     "brainsets.processing",
     "brainsets.datasets",
     "brainsets._cli",
