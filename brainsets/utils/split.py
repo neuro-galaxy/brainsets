@@ -11,6 +11,8 @@ __api_ref__ = {
 }
 
 import hashlib
+import logging
+
 import numpy as np
 from typing import List
 from temporaldata import Interval, Data

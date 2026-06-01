@@ -38,9 +38,10 @@ from brainsets.descriptions import (
     SessionDescription,
 )
 from brainsets.pipeline import BrainsetPipeline
-from brainsets.taxonomy import Hemisphere
-from brainsets.taxonomy import RecordingTech, Task
 from brainsets.utils.dandi_utils import (
+    HEMISPHERE_LEFT,
+    HEMISPHERE_RIGHT,
+    HEMISPHERE_UNKNOWN,
     _normalize_hemisphere_input,
     download_file,
     extract_ecog_from_nwb,
@@ -429,12 +430,12 @@ class Pipeline(BrainsetPipeline):
         session_description = SessionDescription(
             id=session_id,
             recording_date=datetime.datetime.strptime(recording_date, "%Y%m%d"),
-            task=Task.FREE_BEHAVIOR,
+            task="FREE_BEHAVIOR",
         )
         device_id = f"{subject.id}_{recording_date}"
         device_description = DeviceDescription(
             id=device_id,
-            recording_tech=RecordingTech.ECOG_ARRAY_ECOGS,
+            recording_tech="ECOG_ARRAY_ECOGS",
         )
 
         data = Data(
@@ -458,7 +459,7 @@ class Pipeline(BrainsetPipeline):
         logger.info("Saved processed data to %s", output_path)
 
 
-def ajile_hemisphere_from_reach_events(nwbfile: NWBFile) -> Optional[Hemisphere]:
+def ajile_hemisphere_from_reach_events(nwbfile: NWBFile) -> Optional[int]:
     behavior = nwbfile.processing.get("behavior") if nwbfile.processing else None
     if behavior is None:
         return None
@@ -470,21 +471,21 @@ def ajile_hemisphere_from_reach_events(nwbfile: NWBFile) -> Optional[Hemisphere]
         return None
     c_wrist = str(desc[0]).strip().lower()
     if c_wrist == "r":
-        return Hemisphere.LEFT
+        return HEMISPHERE_LEFT
     if c_wrist == "l":
-        return Hemisphere.RIGHT
+        return HEMISPHERE_RIGHT
     return None
 
 
 def resolve_hemisphere_ajile(
-    subject_hemisphere: Optional[Union[Hemisphere, str]], nwbfile: NWBFile
-) -> Hemisphere:
+    subject_hemisphere: Optional[Union[int, str]], nwbfile: NWBFile
+) -> int:
     if subject_hemisphere is not None:
         result = _normalize_hemisphere_input(subject_hemisphere)
-        if result != Hemisphere.UNKNOWN:
+        if result != HEMISPHERE_UNKNOWN:
             return result
     inferred = ajile_hemisphere_from_reach_events(nwbfile)
-    return inferred if inferred is not None else Hemisphere.UNKNOWN
+    return inferred if inferred is not None else HEMISPHERE_UNKNOWN
 
 
 def resample_ecog_ajile(

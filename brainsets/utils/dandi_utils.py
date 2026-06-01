@@ -13,27 +13,31 @@ __api_ref__ = {
 }
 
 
-from typing import Literal
 from pathlib import Path
 from typing import Literal, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 from pynwb import NWBFile
-from temporaldata import (
-    ArrayDict,
-    Interval,
-    IrregularTimeSeries,
-    RegularTimeSeries,
-)
+from temporaldata import ArrayDict, IrregularTimeSeries, RegularTimeSeries
 
 from brainsets.descriptions import SubjectDescription
-from brainsets.taxonomy import (
-    Hemisphere,
-    RecordingTech,
-    Sex,
-    Species,
-)
+
+# Legacy integer codes previously provided by ``brainsets.taxonomy.Hemisphere``.
+HEMISPHERE_UNKNOWN = 0
+HEMISPHERE_LEFT = 1
+HEMISPHERE_RIGHT = 2
+
+_SEX_CODES = {
+    "M": "M",
+    "MALE": "M",
+    "F": "F",
+    "FEMALE": "F",
+    "U": "U",
+    "UNKNOWN": "U",
+    "O": "O",
+    "OTHER": "O",
+}
 
 try:
     import dandi
@@ -52,36 +56,30 @@ def _check_dandi_available(func_name: str) -> None:
         )
 
 
-def _normalize_subject_species(nwbfile: NWBFile) -> str | Species:
+def _normalize_subject_species(nwbfile: NWBFile) -> str | None:
     subject = getattr(nwbfile, "subject", None)
     raw_species = getattr(subject, "species", None) if subject is not None else None
     if raw_species is None:
-        return Species.UNKNOWN
+        return None
 
     normalized_species = str(raw_species).strip()
     if not normalized_species:
-        return Species.UNKNOWN
+        return None
     if "NCBITaxon" in normalized_species:
         normalized_species = "NCBITaxon_" + normalized_species.split("_")[-1]
-    try:
-        return Species.from_string(normalized_species)
-    except ValueError:
-        return normalized_species
+    return normalized_species
 
 
-def _normalize_subject_sex(nwbfile: NWBFile) -> str | Sex:
+def _normalize_subject_sex(nwbfile: NWBFile) -> str | None:
     subject = getattr(nwbfile, "subject", None)
     raw_sex = getattr(subject, "sex", None) if subject is not None else None
     if raw_sex is None:
-        return Sex.UNKNOWN
+        return None
 
     normalized_sex = str(raw_sex).strip()
     if not normalized_sex:
-        return Sex.UNKNOWN
-    try:
-        return Sex.from_string(normalized_sex)
-    except ValueError:
-        return normalized_sex
+        return None
+    return _SEX_CODES.get(normalized_sex.upper().replace(" ", "_"), normalized_sex)
 
 
 def extract_subject_from_nwb(nwbfile: NWBFile):
@@ -89,7 +87,7 @@ def extract_subject_from_nwb(nwbfile: NWBFile):
 
     The resultant description includes ``id``, ``species``, and ``sex``.
     This helper assumes ``subject_id`` exists in the source NWB file. When
-    ``species`` or ``sex`` is missing/blank, it uses UNKNOWN placeholders so
+    ``species`` or ``sex`` is missing/blank, those fields are left as ``None`` so
     downstream processing can continue.
 
     Args:
@@ -100,7 +98,7 @@ def extract_subject_from_nwb(nwbfile: NWBFile):
     """
 
     # Some files in the wild omit optional subject fields even when the
-    # recording itself is valid, so we preserve processability with UNKNOWNs.
+    # recording itself is valid, so we preserve processability with None values.
     return SubjectDescription(
         id=str(nwbfile.subject.subject_id).strip().lower(),
         species=_normalize_subject_species(nwbfile),
@@ -261,21 +259,22 @@ def get_nwb_asset_list(dandiset_id: str) -> list:
     return asset_list
 
 
-def _normalize_hemisphere_input(value: Union[Hemisphere, str]) -> Hemisphere:
-    if isinstance(value, Hemisphere):
-        return value
+def _normalize_hemisphere_input(value: Union[int, str]) -> int:
+    if isinstance(value, int):
+        if value in (HEMISPHERE_UNKNOWN, HEMISPHERE_LEFT, HEMISPHERE_RIGHT):
+            return value
+        return HEMISPHERE_UNKNOWN
     s = str(value).strip().upper()
-    if s == "L":
-        return Hemisphere.LEFT
-    if s == "R":
-        return Hemisphere.RIGHT
-    try:
-        return Hemisphere.from_string(value)
-    except ValueError:
-        return Hemisphere.UNKNOWN
+    if s in ("L", "LEFT"):
+        return HEMISPHERE_LEFT
+    if s in ("R", "RIGHT"):
+        return HEMISPHERE_RIGHT
+    if s == "UNKNOWN":
+        return HEMISPHERE_UNKNOWN
+    return HEMISPHERE_UNKNOWN
 
 
-def _hemisphere_from_nwb(nwbfile: NWBFile) -> Hemisphere:
+def _hemisphere_from_nwb(nwbfile: NWBFile) -> int:
     colnames = getattr(nwbfile.electrodes, "colnames", [])
     for col in ("hemisphere", "location"):
         if col not in colnames:
@@ -295,9 +294,9 @@ def _hemisphere_from_nwb(nwbfile: NWBFile) -> Hemisphere:
             | (np.char.find(texts.astype(str), "right") >= 0)
         )
         if left and not right:
-            return Hemisphere.LEFT
+            return HEMISPHERE_LEFT
         if right and not left:
-            return Hemisphere.RIGHT
+            return HEMISPHERE_RIGHT
         break
     if hasattr(nwbfile, "subject") and nwbfile.subject is not None:
         subj = nwbfile.subject
@@ -309,15 +308,15 @@ def _hemisphere_from_nwb(nwbfile: NWBFile) -> Hemisphere:
                 continue
             v = str(val).strip().lower()
             if v in ("l", "left"):
-                return Hemisphere.LEFT
+                return HEMISPHERE_LEFT
             if v in ("r", "right"):
-                return Hemisphere.RIGHT
-    return Hemisphere.UNKNOWN
+                return HEMISPHERE_RIGHT
+    return HEMISPHERE_UNKNOWN
 
 
 def extract_ecog_from_nwb(
     nwbfile: NWBFile,
-    subject_hemisphere: Optional[Union[Hemisphere, str]] = None,
+    subject_hemisphere: Optional[Union[int, str]] = None,
 ) -> Tuple[RegularTimeSeries, ArrayDict]:
     """Extract ECoG data from NWB file at native sampling rate.
 
@@ -362,7 +361,7 @@ def extract_ecog_from_nwb(
             {
                 "id": f"electrode_{i}",
                 "index": i,
-                "hemisphere": int(hemisphere),
+                "hemisphere": hemisphere,
                 "group": grp,
                 "surface": False,
                 "type": "ECOG",
@@ -373,10 +372,9 @@ def extract_ecog_from_nwb(
         pd.DataFrame(channel_meta), unsigned_to_long=True
     )
 
-    domain = Interval(start=np.array([times_out[0]]), end=np.array([times_out[-1]]))
     ecog_rts = RegularTimeSeries(
         signal=data_out,
         sampling_rate=sampling_rate,
-        domain=domain,
+        domain_start=float(times_out[0]),
     )
     return ecog_rts, channels
