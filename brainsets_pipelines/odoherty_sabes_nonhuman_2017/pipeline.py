@@ -14,7 +14,13 @@ from pathlib import Path
 import h5py
 import numpy as np
 import pandas as pd
-from temporaldata import ArrayDict, Data, Interval, IrregularTimeSeries
+from temporaldata import (
+    ArrayDict,
+    Data,
+    Interval,
+    IrregularTimeSeries,
+    RegularTimeSeries,
+)
 
 from brainsets import serialize_fn_map
 from brainsets.descriptions import (
@@ -24,7 +30,7 @@ from brainsets.descriptions import (
     SubjectDescription,
 )
 from brainsets.pipeline import BrainsetPipeline
-from brainsets.taxonomy import RecordingTech, Species, Task
+from brainsets.utils.misc_utils import calculate_sampling_rate
 
 logging.basicConfig(level=logging.INFO)
 
@@ -121,7 +127,7 @@ class Pipeline(BrainsetPipeline):
         brainset_description = BrainsetDescription(
             id="odoherty_sabes_nonhuman_2017",
             origin_version="583331",  # Zenodo version
-            derived_version="1.0.0",
+            derived_version="2.0.0",
             source="https://zenodo.org/record/583331",
             description="The behavioral task was to make self-paced reaches to targets "
             "arranged in a grid (e.g. 8x8) without gaps or pre-movement delay intervals. "
@@ -153,18 +159,18 @@ class Pipeline(BrainsetPipeline):
         animal, recording_date = device_id.split("_")
         subject = SubjectDescription(
             id=animal,
-            species=Species.MACACA_MULATTA,
+            species="MACACA_MULATTA",
         )
 
         session_description = SessionDescription(
             id=session_id,
             recording_date=datetime.datetime.strptime(recording_date, "%Y%m%d"),
-            task=Task.REACHING,
+            task="REACHING",
         )
 
         device_description = DeviceDescription(
             id=device_id,
-            recording_tech=RecordingTech.UTAH_ARRAY_SPIKES,
+            recording_tech="UTAH_ARRAY_SPIKES",
         )
 
         # extract spiking activity, unit metadata and channel names info
@@ -199,10 +205,9 @@ class Pipeline(BrainsetPipeline):
         train_sampling_intervals, valid_sampling_intervals, test_sampling_intervals = (
             split_intervals(data)
         )
-        # set the domains
-        data.set_train_domain(train_sampling_intervals)
-        data.set_valid_domain(valid_sampling_intervals)
-        data.set_test_domain(test_sampling_intervals)
+        data.train_domain = train_sampling_intervals
+        data.valid_domain = valid_sampling_intervals
+        data.test_domain = test_sampling_intervals
 
         # save data to disk
         self.update_status("Storing")
@@ -232,8 +237,10 @@ def extract_behavior(h5file):
     cursor_acc = np.gradient(cursor_vel, timestamps, edge_order=1, axis=0)
     finger_vel = np.gradient(finger_pos, timestamps, edge_order=1, axis=0)
 
-    cursor = IrregularTimeSeries(
-        timestamps=timestamps,
+    sampling_rate = calculate_sampling_rate(timestamps)
+    cursor = RegularTimeSeries(
+        sampling_rate=sampling_rate,
+        domain_start=timestamps[0],
         pos=cursor_pos,
         vel=cursor_vel,
         acc=cursor_acc,
@@ -243,8 +250,9 @@ def extract_behavior(h5file):
     # The position of the working fingertip in Cartesian coordinates (z, -x, -y), as
     # reported by the hand tracker in cm. Thus the cursor position is an affine
     # transformation of fingertip position.
-    finger = IrregularTimeSeries(
-        timestamps=timestamps,
+    finger = RegularTimeSeries(
+        sampling_rate=sampling_rate,
+        domain_start=timestamps[0],
         pos_3d=finger_pos[:, :3],
         vel_3d=finger_vel[:, :3],
         domain="auto",
@@ -252,9 +260,6 @@ def extract_behavior(h5file):
     if finger_pos.shape[1] == 6:
         finger.orientation = finger_pos[:, 3:]
         finger.angular_vel = finger_vel[:, 3:]
-
-    assert cursor.is_sorted()
-    assert finger.is_sorted()
 
     return cursor, finger
 
@@ -304,15 +309,11 @@ def extract_spikes(h5file: h5py.File):
 
     spikes = []
     unit_index = []
-    types = []
     waveforms = []
     unit_meta = []
 
     # The 0'th spikesvec corresponds to unsorted thresholded units, the rest are sorted.
     suffixes = ["unsorted"] + [f"sorted_{i:02}" for i in range(1, 11)]
-    type_map = [int(RecordingTech.UTAH_ARRAY_THRESHOLD_CROSSINGS)] + [
-        int(RecordingTech.UTAH_ARRAY_SPIKES)
-    ] * 10
 
     encountered = set()
 
@@ -330,7 +331,6 @@ def extract_spikes(h5file: h5py.File):
             unit_name = f"{chan_names[i]}/{suffixes[j]}"
 
             unit_index.append([unit_index_delta] * len(spiketimes))
-            types.append(np.ones_like(spiketimes, dtype=np.int64) * type_map[j])
 
             if unit_name in encountered:
                 raise ValueError(f"Duplicate unit name: {unit_name}")
@@ -345,7 +345,6 @@ def extract_spikes(h5file: h5py.File):
                     "area_name": area,
                     "channel_number": channel_number,
                     "unit_number": j,
-                    "type": type_map[j],
                     "average_waveform": wf.mean(axis=1)[:48],
                 }
             )

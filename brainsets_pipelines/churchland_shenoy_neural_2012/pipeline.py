@@ -23,7 +23,6 @@ from brainsets.descriptions import (
     SessionDescription,
 )
 from brainsets.pipeline import BrainsetPipeline
-from brainsets.taxonomy import RecordingTech, Task
 from brainsets.utils.dandi_utils import (
     download_file,
     extract_subject_from_nwb,
@@ -107,12 +106,12 @@ class Pipeline(BrainsetPipeline):
         session_description = SessionDescription(
             id=session_id,
             recording_date=datetime.datetime.strptime(recording_date, "%Y%m%d"),
-            task=Task.REACHING,
+            task="REACHING",
         )
 
         device_description = DeviceDescription(
             id=device_id,
-            recording_tech=RecordingTech.UTAH_ARRAY_THRESHOLD_CROSSINGS,
+            recording_tech="UTAH_ARRAY_THRESHOLD_CROSSINGS",
         )
 
         # extract data about trial structure
@@ -169,9 +168,9 @@ class Pipeline(BrainsetPipeline):
         # we will still use the invalid trials for training
         train_trials = train_trials | trials.select_by_mask(~trials.is_valid)
 
-        data.set_train_domain(train_trials)
-        data.set_valid_domain(valid_trials)
-        data.set_test_domain(test_trials)
+        data.train_domain = train_trials
+        data.valid_domain = valid_trials
+        data.test_domain = test_trials
 
         self.update_status("Storing")
         with h5py.File(store_path, "w") as file:
@@ -570,7 +569,6 @@ def extract_spikes(nwbfile, trials, artifact_dict):
                 "id": unit_id,
                 "unit_number": unit_ctr,
                 "count": len(spikes_times),
-                "type": int(RecordingTech.UTAH_ARRAY_THRESHOLD_CROSSINGS),
             }
         )
 

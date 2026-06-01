@@ -1,4 +1,4 @@
-_functions = [
+__all__ = [
     "extract_subject_from_nwb",
     "extract_spikes_from_nwbfile",
     "extract_ecog_from_nwb",
@@ -6,9 +6,14 @@ _functions = [
     "get_nwb_asset_list",
 ]
 
-__all__ = _functions
+# Drives the generated API reference; see docs/source/api_reference.py.
+__api_ref__ = {
+    "description": None,
+    "sections": [{"autosummary": __all__}],
+}
 
 
+from typing import Literal
 from pathlib import Path
 from typing import Literal, Optional, Tuple, Union
 
@@ -103,14 +108,16 @@ def extract_subject_from_nwb(nwbfile: NWBFile):
     )
 
 
-def extract_spikes_from_nwbfile(nwbfile: NWBFile, recording_tech: RecordingTech):
+def extract_spikes_from_nwbfile(
+    nwbfile: NWBFile,
+    recording_tech: Literal["UTAH_ARRAY_THRESHOLD_CROSSINGS", "UTAH_ARRAY_SPIKES"],
+):
     r"""Extract spikes and unit metadata from an NWBFile
 
     Args:
         nwbfile: An open NWB file handle
-        recording_tech: Only supports
-            :obj:`RecordingTech.UTAH_ARRAY_THRESHOLD_CROSSINGS` and
-            :obj:`RecordingTech.UTAH_ARRAY_SPIKES`
+        recording_tech: One of ``"UTAH_ARRAY_THRESHOLD_CROSSINGS"``
+            or ``"UTAH_ARRAY_SPIKES"``
     """
     # spikes
     timestamps = []
@@ -124,11 +131,11 @@ def extract_spikes_from_nwbfile(nwbfile: NWBFile, recording_tech: RecordingTech)
 
     # all these units are obtained using threshold crossings
     for i in range(len(units)):
-        if recording_tech == RecordingTech.UTAH_ARRAY_THRESHOLD_CROSSINGS:
+        if recording_tech == "UTAH_ARRAY_THRESHOLD_CROSSINGS":
             # label unit
             group_name = electrodes["group_name"][i]
             unit_id = f"group_{group_name}/elec{i}/multiunit_{0}"
-        elif recording_tech == RecordingTech.UTAH_ARRAY_SPIKES:
+        elif recording_tech == "UTAH_ARRAY_SPIKES":
             # label unit
             electrode_id = nwbfile.units[i].electrodes.item().item()
             group_name = electrodes["group_name"][electrode_id]
@@ -149,7 +156,6 @@ def extract_spikes_from_nwbfile(nwbfile: NWBFile, recording_tech: RecordingTech)
                 "id": unit_id,
                 "unit_number": i,
                 "count": len(spiketimes),
-                "type": int(recording_tech),
             }
         )
 
