@@ -29,7 +29,7 @@ pip install brainsets
 | flint_slutzky_accurate_2012 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.FlintSlutzkyAccurate2012.html) | 3.2 GB | 151 MB |
 | odoherty_sabes_nonhuman_2017 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.OdohertySabesNonhuman2017.html) | 22 GB | 26 GB |
 | pei_pandarinath_nlb_2021  | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.PeiPandarinathNLB2021.html) | 688 KB | 22 MB |
-| perich_miller_population_2018 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.PerichMillerPopulation2018.html#brainsets.datasets.PerichMillerPopulation2018) | 13 GB | 2.9 GB |
+| perich_miller_population_2018 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.PerichMillerPopulation2018.html) | 13 GB | 2.9 GB |
 | kemp_sleep_edf_2013 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.KempSleepEDF2013.html) | 8.2 GB | 60 GB |
 | neuroprobe_2025 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.Neuroprobe2025.html) | 138 GB | 257 GB |
 | allen_visual_coding_ophys_2016 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.AllenVisualCodingOphys2016.html) | 356 GB | 58 GB |
