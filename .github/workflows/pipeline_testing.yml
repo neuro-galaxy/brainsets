@@ -85,3 +85,8 @@ jobs:
       run: |
         uv run brainsets config set --raw-dir data/raw --processed-dir data/processed
         uv run brainsets prepare shirazi_hbnr1_ds005505 -s sub-NDARAC904DMU_task-DespicableMe --on-version-mismatch continue
+
+    - name: Download cmi_mipdb_2016
+      run: |
+        uv run brainsets config set --raw-dir data/raw --processed-dir data/processed
+        uv run brainsets prepare cmi_mipdb_2016 -s A00063558004
