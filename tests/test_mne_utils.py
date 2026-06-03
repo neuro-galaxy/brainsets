@@ -71,12 +71,11 @@ class TestExtractMeasurementDate:
         result = extract_measurement_date(mock_raw)
         assert result == expected_date
 
-    def test_returns_unix_epoch_when_meas_date_none(self):
-        """Test that Unix epoch is returned when measurement date is missing."""
+    def test_returns_none_when_meas_date_none(self):
         mock_raw = create_mock_raw(meas_date=None)
         with pytest.warns(UserWarning, match="No measurement date found"):
             result = extract_measurement_date(mock_raw)
-        expected = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+        expected = None
         assert result == expected
 
     def test_preserves_timezone_info(self):
@@ -122,12 +121,12 @@ class TestExtractSignal:
         assert result.domain.start[0] == 0.0
 
     def test_domain_end_calculation(self):
-        """Test that domain end is calculated as (n_samples - 1) / sfreq."""
+        """Test that domain end is calculated as n_samples / sfreq."""
         n_samples = 1000
         sfreq = 256.0
         mock_raw = create_mock_raw(n_samples=n_samples, sfreq=sfreq)
         result = extract_signal(mock_raw)
-        expected_end = (n_samples - 1) / sfreq
+        expected_end = n_samples / sfreq
         assert np.isclose(result.domain.end[0], expected_end)
 
     def test_raises_error_when_no_samples(self):

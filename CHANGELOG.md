@@ -5,6 +5,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 ### Added
+
+### Removed
+
+### Changed
+
+### Fixed
+
+## [0.2.2] - 2026-05-31
+### Added
+- Added the `OpenNeuroDataset` and the `OpenNeuroPipeline` base classes ([#128](https://github.com/neuro-galaxy/brainsets/pull/128)).
+
+### Removed
+- Removed `NestedEnumType`, `StringIntEnum`, `Dictable`, and `string_int_enum_serialize_fn` from `brainsets.core`; also removed the `StringIntEnum` entry from `serialize_fn_map` ([#150](https://github.com/neuro-galaxy/brainsets/pull/150)).
+- Deprecated and removed the `brainsets.taxonomy` module; its enums (`Species`, `Sex`, `Task`, `Macaque`, `Cre_line`, `Orientation_8_Classes`, `RecordingTech`, `Hemisphere`) now raise an `ImportError` directing users to encode the metadata directly ([#146](https://github.com/neuro-galaxy/brainsets/pull/146)).
+- Removed the `type` attribute from channel/unit ArrayDicts in pipelines; use `DeviceDescription` to store recording technology instead. Affects `churchland_shenoy_neural_2012`, `neuroprobe_2025`, `odoherty_sabes_nonhuman_2017`, `pei_pandarinath_nlb_2021`, and `perich_miller_population_2018` ([#146](https://github.com/neuro-galaxy/brainsets/pull/146)).
+
+### Changed
+- Upgraded `temporaldata` version to `>= 0.1.6` ([#154](https://github.com/neuro-galaxy/brainsets/pull/154)).
+- Simplified `brainsets.descriptions`: the description classes (`BrainsetDescription`, `SubjectDescription`, `SessionDescription`, `DeviceDescription`) are now plain `temporaldata.Data` subclasses with explicit validation that accept arbitrary `**kwargs`, dropping the dependency on `pydantic` and the `brainsets.taxonomy` enums. Non-general attributes (e.g. `cre_line`) are no longer first-class fields but can be passed via `**kwargs`, and attributes that may be "unknown" (e.g. `species`, `sex`) now default to `None` ([#146](https://github.com/neuro-galaxy/brainsets/pull/146)).
+- An unknown `recording_date` is now represented as `None` instead of the Unix epoch (`1970-01-01`), affecting MNE-based datasets and `vollan_moser_alternating_2025` ([#146](https://github.com/neuro-galaxy/brainsets/pull/146)).
+
+
+## [0.2.1] - 2026-05-18
+### Added
 - Added `config show`/`config set` subcommands and default dataset `root` to configured `processed_dir` ([#122](https://github.com/neuro-galaxy/brainsets/pull/122)).
 - Added normalization schemes for sex, age, and species in `SubjectDescription` ([#78](https://github.com/neuro-galaxy/brainsets/pull/78)).
 - Added generic data extraction helpers in `mne_utils` to handle MNE Raw objects ([#78](https://github.com/neuro-galaxy/brainsets/pull/78)).
@@ -15,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Added the `Neuroprobe2025` dataset class and the `neuroprobe_2025` brainset pipeline ([#79](https://github.com/neuro-galaxy/brainsets/pull/79)).
 - Added new brainset `vollan_moser_alternating_2025`, a hippocampus/MEC dataset from the paper [Left–right-alternating theta sweeps in entorhinal–hippocampal maps of space](https://www.nature.com/articles/s41586-024-08527-1). See [#127](https://github.com/neuro-galaxy/brainsets/pull/127).
 - Add `--list`, `-s`/`--single` to `brainsets prepare` ([#137](https://github.com/neuro-galaxy/brainsets/pull/137)).
+- Added `calculate_sampling_rate` function in utils.
 
 ### Removed
 - Remove `brainsets.utils.dir_utils` (legacy code) ([#120](https://github.com/neuro-galaxy/brainsets/pull/120)).
@@ -31,6 +56,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `BrainsetPipeline` runner automatically creates `raw_dir` and `processed_dir` ([#125](https://github.com/neuro-galaxy/brainsets/pull/125))
 - `churchland_shenoy_neural_2012` pipeline: corrected session task metadata—the experiment is maze reaching, not center-out reaching (`derived_version` bumped to 2.0.0). ([#131](https://github.com/neuro-galaxy/brainsets/pull/131))
 - Replaced deprecated `data.set_*_domain()` calls with direct attribute assignment in all pipelines ([#111](https://github.com/neuro-galaxy/brainsets/issues/109)).
+- `odoherty_sabes_nonhuman_2017` pipeline: uses RegularTimeSeries for storing behavioral data (`derived_version` bumped to 2.0.0). ([#138](https://github.com/neuro-galaxy/brainsets/pull/138))
+- `pei_pandarinath_nlb_2021` pipeline: regularize behavior signals; insert NaNs into missing timesteps (`derived_version` bumped to 2.0.0) ([#140](https://github.com/neuro-galaxy/brainsets/pull/140))
+
 
 ## [0.2.0] - 2025-12-24
 ### Added
