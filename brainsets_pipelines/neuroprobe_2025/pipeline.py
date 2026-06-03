@@ -29,7 +29,6 @@ from brainsets.descriptions import (
     BrainsetDescription,
     SubjectDescription,
 )
-from brainsets.taxonomy import RecordingTech, Species, Sex
 from brainsets import serialize_fn_map
 
 logging.basicConfig(level=logging.INFO)
@@ -113,7 +112,6 @@ class Pipeline(BrainsetPipeline):
         raw_dir: Path,
         args: Optional[Namespace],
     ) -> pd.DataFrame:
-        raw_dir.mkdir(exist_ok=True, parents=True)
         _prepare_neuroprobe_lib(raw_dir)
 
         # Ensure shared metadata/assets are present once before parallel workers run.
@@ -155,7 +153,6 @@ class Pipeline(BrainsetPipeline):
     def process(self, download_output):
         _prepare_neuroprobe_lib(self.raw_dir)
         self.update_status("Processing")
-        self.processed_dir.mkdir(exist_ok=True, parents=True)
         output_path = self.processed_dir / download_output.path.name
         if output_path.exists() and not (self.args and self.args.reprocess):
             logging.info(f"Skipping processing for {output_path} because it exists")
@@ -343,8 +340,7 @@ def get_brainset_description() -> BrainsetDescription:
 def _get_subject_metadata(subject_id: int) -> SubjectDescription:
     return SubjectDescription(
         id=str(subject_id),
-        species=Species.HOMO_SAPIENS,
-        sex=Sex.UNKNOWN,
+        species="HOMO_SAPIENS",
     )
 
 
@@ -374,7 +370,6 @@ def _extract_channel_data(subject) -> ArrayDict:
         included=np.isin(channel_name_basis, subject.electrode_labels).astype(
             np.bool_
         ),  # excludes corrupted and trigger electrodes
-        type=np.ones(len(channel_name_basis)) * int(RecordingTech.STEREO_EEG),
     )
     # register localization data for each channel
     for col in aligned_localization.columns:

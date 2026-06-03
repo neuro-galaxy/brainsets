@@ -3,6 +3,8 @@ from pathlib import Path
 
 from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
+from ._utils import get_processed_dir
+
 
 class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
     """
@@ -12,7 +14,10 @@ class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
     .. admonition:: Preprocessing
 
         To download and prepare this dataset, run
-        ``brainsets prepare odoherty_sabes_nonhuman_2017``.
+
+        .. code:: shell
+
+            brainsets prepare odoherty_sabes_nonhuman_2017
 
     **Tasks:** Random Target
 
@@ -37,7 +42,7 @@ class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
     `Zenodo Dataset <https://doi.org/10.5281/zenodo.788569>`_.
 
     Args:
-        root (str): Root directory for the dataset.
+        root (str, optional): Root directory for the dataset. Defaults to ``processed_dir`` from brainsets config.
         recording_ids (list[str], optional): List of recording IDs to load.
         transform (Callable, optional): Data transformation to apply.
         split_type (str, optional): Which split type to use. Defaults to "cursor_velocity".
@@ -47,13 +52,15 @@ class OdohertySabesNonhuman2017(SpikingDatasetMixin, Dataset):
 
     def __init__(
         self,
-        root: str,
+        root: Optional[str] = None,
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
         split_type: Optional[Literal["cursor_velocity"]] = "cursor_velocity",
         dirname: str = "odoherty_sabes_nonhuman_2017",
         **kwargs,
     ):
+        if root is None:
+            root = get_processed_dir()
         super().__init__(
             dataset_dir=Path(root) / dirname,
             recording_ids=recording_ids,

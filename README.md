@@ -23,20 +23,25 @@ pip install brainsets
 
 ## List of available brainsets
 
-| brainset_id | Brainset Card | Raw Data Size | Processed Data Size |
+| brainset_id | Documentation | Raw Data Size | Processed Data Size |
 |-------------|---------------|---------------|--------------------|
-| churchland_shenoy_neural_2012 | [Link](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#churchland-shenoy-neural-2012) | 46 GB | 25 GB |
-| flint_slutzky_accurate_2012 | [Link](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#flint-slutzky-accurate-2012) | 3.2 GB | 151 MB |
-| odoherty_sabes_nonhuman_2017 | [Link](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#odoherty-sabes-nonhuman-2017) | 22 GB | 26 GB |
-| pei_pandarinath_nlb_2021  | [Link](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#pei-pandarinath-nlb-2021) | 688 KB | 22 MB |
-| perich_miller_population_2018 | [Link](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html#perich-miller-population-2018) | 13 GB | 2.9 GB |
-| kemp_sleep_edf_2013 | TBA | 8.2 GB | 60 GB |
-| allen_visual_coding_ophys_2016 | TBA | 356 GB | 58 GB |
+| churchland_shenoy_neural_2012 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.ChurchlandShenoyNeural2012.html) | 46 GB | 25 GB |
+| flint_slutzky_accurate_2012 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.FlintSlutzkyAccurate2012.html) | 3.2 GB | 151 MB |
+| odoherty_sabes_nonhuman_2017 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.OdohertySabesNonhuman2017.html) | 22 GB | 26 GB |
+| pei_pandarinath_nlb_2021  | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.PeiPandarinathNLB2021.html) | 688 KB | 22 MB |
+| perich_miller_population_2018 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.PerichMillerPopulation2018.html) | 13 GB | 2.9 GB |
+| kemp_sleep_edf_2013 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.KempSleepEDF2013.html) | 8.2 GB | 60 GB |
+| neuroprobe_2025 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.Neuroprobe2025.html) | 138 GB | 257 GB |
+| allen_visual_coding_ophys_2016 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.AllenVisualCodingOphys2016.html) | 356 GB | 58 GB |
+| vollan_moser_alternating_2025 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.VollanMoserAlternating2025.html) | 16.4 GB | 4.5 GB |
+| shirazi_hbn_r1_ds005505 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.ShiraziHBNR1DS005505.html) | - | - |
+| kochi_visualnaming_ds006914 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.KochiVisualNamingDS006914.html) | - | - |
+| klinzing_sleep_ds005555 | [Link](https://brainsets.readthedocs.io/en/latest/generated/api/autosummary/brainsets.datasets.KlinzingSleepDS005555.html) | - | - |
 
 
 ## Acknowledgements
 
-This work is only made possible thanks to the public release of these valuable datasets by the original researchers. If you use any of the datasets processed by brainsets in your research, please make sure to cite the appropriate original papers and follow any usage guidelines specified by the dataset creators. Proper attribution not only gives credit to the researchers who collected and shared the data but also helps promote open science practices in the neuroscience community. You can find the original papers and usage guidelines for each dataset in the [brainsets documentation](https://brainsets.readthedocs.io/en/latest/glossary/brainsets.html).
+This work is only made possible thanks to the public release of these valuable datasets by the original researchers. If you use any of the datasets processed by brainsets in your research, please make sure to cite the appropriate original papers and follow any usage guidelines specified by the dataset creators. Proper attribution not only gives credit to the researchers who collected and shared the data but also helps promote open science practices in the neuroscience community. You can find the original papers and usage guidelines for each dataset in the [brainsets documentation](https://brainsets.readthedocs.io/en/latest/datasets/index.html).
 
 
 ## Using the brainsets CLI
@@ -44,17 +49,22 @@ This work is only made possible thanks to the public release of these valuable d
 ### Configuring data directories
 First, configure the directories where brainsets will store raw and processed data:
 ```bash
-brainsets config
+brainsets config set
 ```
 
 You will be prompted to enter the paths to the raw and processed data directories.
 ```bash
-$> brainsets config
+$> brainsets config set
 Enter raw data directory: ./data/raw
 Enter processed data directory: ./data/processed
 ```
 
-You can update the configuration at any time by running the `config` command again.
+You can update the configuration at any time by running the `config set` command again.
+
+To view the current configuration:
+```bash
+brainsets config show
+```
 
 ### Listing available datasets
 You can list the available datasets by running the `list` command:
@@ -68,7 +78,7 @@ You can prepare a dataset by running the `prepare` command:
 brainsets prepare <brainset>
 ```
 
-Data preparation involves downloading the raw data from the source then processing it, 
+Data preparation involves downloading the raw data from the source then processing it,
 following a set of rules defined in `pipelines/<brainset>/`.
 
 For example, to prepare the Perich & Miller (2018) dataset, you can run:

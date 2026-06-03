@@ -3,25 +3,34 @@ from pathlib import Path
 
 from torch_brain.dataset import Dataset, SpikingDatasetMixin
 
+from ._utils import get_processed_dir
+
 
 class PeiPandarinathNLB2021(SpikingDatasetMixin, Dataset):
     """
+    Curated spiking neural activity datasets from the Neural Latents Benchmark
+    2021 (NLB'21).
 
     .. admonition:: Preprocessing
 
         To download and prepare this dataset, run
-        ``brainsets prepare pei_pandarinath_nlb_2021``.
+
+        .. code:: shell
+
+            brainsets prepare pei_pandarinath_nlb_2021
 
     """
 
     def __init__(
         self,
-        root: str,
+        root: Optional[str] = None,
         recording_ids: Optional[list[str]] = None,
         transform: Optional[Callable] = None,
         dirname: str = "pei_pandarinath_nlb_2021",
         **kwargs,
     ):
+        if root is None:
+            root = get_processed_dir()
         super().__init__(
             dataset_dir=Path(root) / dirname,
             recording_ids=recording_ids,

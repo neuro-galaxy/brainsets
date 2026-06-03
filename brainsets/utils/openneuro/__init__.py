@@ -11,23 +11,32 @@ from .openneuro_s3 import (
     construct_s3_url_from_path,
     download_dataset_description,
     download_recording,
+    fetch_latest_snapshot_tag,
     fetch_all_filenames,
     fetch_participants_tsv,
-    validate_dataset_id,
-    validate_dataset_version,
+    fetch_species,
 )
-from .pipeline import OpenNeuroEEGPipeline, OpenNeuroIEEGPipeline, OpenNeuroPipeline
+from .pipeline import OpenNeuroPipeline, OpenNeuroDataModality, base_openneuro_parser
 
 __all__ = [
     "OPENNEURO_S3_BUCKET",
     "construct_s3_url_from_path",
     "download_dataset_description",
     "download_recording",
+    "fetch_latest_snapshot_tag",
     "fetch_all_filenames",
     "fetch_participants_tsv",
-    "validate_dataset_id",
-    "validate_dataset_version",
+    "fetch_species",
     "OpenNeuroPipeline",
-    "OpenNeuroEEGPipeline",
-    "OpenNeuroIEEGPipeline",
+    "OpenNeuroDataModality",
+    "base_openneuro_parser",
 ]
+
+__api_ref__ = {
+    "description": None,
+    "sections": [
+        {
+            "autosummary": __all__,
+        },
+    ],
+}

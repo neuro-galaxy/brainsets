@@ -19,7 +19,7 @@ Command line interface for downloading and processing neural data with brainsets
 
 `brainsets config`_
 
-    Set raw and processed data directories.
+    Manage brainsets configuration.
 
 .. rst-class:: cli-option
 
@@ -45,13 +45,27 @@ Command line interface for downloading and processing neural data with brainsets
 brainsets config
 ----------------
 
-Set raw and processed data directories.
+Manage brainsets configuration.
 
 **Usage**
 
 .. code-block::
 
-    brainsets config [OPTIONS]
+    brainsets config [OPTIONS] COMMAND [ARGS]
+
+**Commands**
+
+.. rst-class:: cli-option
+
+``brainsets config set [OPTIONS]``
+
+    Set raw and processed data directories.
+
+.. rst-class:: cli-option
+
+``brainsets config show``
+
+    Show previously set raw and processed data directories.
 
 **Options**
 
@@ -121,6 +135,18 @@ Download and process a single brainset.
 ``--processed-dir`` *path*
 
     Path for storing processed brainset. Overrides config.
+
+.. rst-class:: cli-option
+
+``--list``
+
+    Print the manifest for the brainset and exit.
+
+.. rst-class:: cli-option
+
+``-s``, ``--single`` *manifest index id*
+
+    Prepare a single item from the manifest if provided.
 
 .. rst-class:: cli-option
 

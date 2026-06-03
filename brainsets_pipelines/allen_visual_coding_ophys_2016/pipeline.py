@@ -42,16 +42,7 @@ from brainsets.descriptions import (
     SubjectDescription,
 )
 from brainsets.pipeline import BrainsetPipeline
-from brainsets.taxonomy import Cre_line, RecordingTech, Sex, Species
-from brainsets.taxonomy.allen import (
-    ORIENTATION_8_CLASSES_map,
-    ORIENTATION_12_CLASSES_map,
-    PHASE_4_map,
-    SPATIAL_FREQ_5_map,
-    TEMPORAL_FREQ_5_map,
-)
-from brainsets.taxonomy.mice import BrainRegion
-from brainsets.utils.split import generate_train_valid_test_splits
+from split import generate_train_valid_test_splits
 
 logging.basicConfig(level=logging.INFO)
 
@@ -79,7 +70,6 @@ class Pipeline(BrainsetPipeline):
 
         # But also create the BOC manifest, since we're on the
         # root process right now.
-        raw_dir.mkdir(exist_ok=True, parents=True)
         BrainObservatoryCache(manifest_file=raw_dir / "manifest.json")
         return manifest
 
@@ -115,7 +105,6 @@ class Pipeline(BrainsetPipeline):
         nwb_dataset, session_id = download_output
 
         # See if you should skip processing
-        self.processed_dir.mkdir(exist_ok=True, parents=True)
         store_path = self.processed_dir / f"{session_id}.h5"
         if store_path.exists() and not self.args.reprocess:
             self.update_status("Skipped Processing")
@@ -135,12 +124,10 @@ class Pipeline(BrainsetPipeline):
         session_meta_data = nwb_dataset.get_metadata()
         subject = SubjectDescription(
             id=str(session_meta_data["experiment_container_id"]),
-            species=Species.MUS_MUSCULUS,
+            species="MUS_MUSCULUS",
             age=session_meta_data["age_days"],
-            sex=Sex.from_string(session_meta_data["sex"]),
-            cre_line=Cre_line.from_string(
-                session_meta_data["cre_line"].replace("-", "_").split("/")[0]
-            ),
+            sex=session_meta_data["sex"],
+            cre_line=session_meta_data["cre_line"].replace("-", "_").split("/")[0],
         )
 
         # extract experiment metadata
@@ -155,11 +142,9 @@ class Pipeline(BrainsetPipeline):
 
         device_description = DeviceDescription(
             id=str(session_id),
-            recording_tech=RecordingTech.TWO_PHOTON_IMAGING,
+            recording_tech="TWO_PHOTON_IMAGING",
             imaging_depth=session_meta_data["imaging_depth_um"],
-            target_area=BrainRegion.from_string(
-                session_meta_data["targeted_structure"]
-            ),
+            target_area=session_meta_data["targeted_structure"],
         )
 
         # extract calcium traces
@@ -212,9 +197,9 @@ class Pipeline(BrainsetPipeline):
             generate_train_valid_test_splits(epoch_dict, grid)
         )
 
-        data.set_train_domain(train_intervals)
-        data.set_valid_domain(valid_intervals)
-        data.set_test_domain(test_intervals)
+        data.train_domain = train_intervals
+        data.valid_domain = valid_intervals
+        data.test_domain = test_intervals
 
         # save data to disk
         self.update_status("Storing")
@@ -581,3 +566,33 @@ def extract_stimulus_epochs(nwbfile):
     #     epoch.allow_split_mask_overlap()
 
     return epoch_dict
+
+
+ORIENTATION_8_CLASSES_map = {
+    0.0: 0,
+    45.0: 1,
+    90.0: 2,
+    135.0: 3,
+    180.0: 4,
+    225.0: 5,
+    270.0: 6,
+    315.0: 7,
+}
+ORIENTATION_12_CLASSES_map = {
+    0.0: 0,
+    30.0: 1,
+    60.0: 2,
+    90.0: 3,
+    120.0: 4,
+    150.0: 5,
+    180.0: 6,
+    210.0: 7,
+    240.0: 8,
+    270.0: 9,
+    300.0: 10,
+    330.0: 11,
+}
+
+TEMPORAL_FREQ_5_map = {1.0: 0, 2.0: 1, 4.0: 2, 8.0: 3, 15.0: 4}
+SPATIAL_FREQ_5_map = {0.02: 0, 0.04: 1, 0.08: 2, 0.16: 3, 0.32: 4}
+PHASE_4_map = {0.0: 0, 90.0: 1, 180.0: 2, 270.0: 3}
