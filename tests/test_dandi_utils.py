@@ -3,13 +3,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from brainsets.utils.dandi_utils import (
-    HEMISPHERE_LEFT,
-    HEMISPHERE_RIGHT,
-    HEMISPHERE_UNKNOWN,
-    extract_ecog_from_nwb,
-    extract_subject_from_nwb,
-)
+from brainsets.utils.dandi_utils import extract_ecog_from_nwb, extract_subject_from_nwb
 
 
 class FakeElectrodes:
@@ -34,12 +28,12 @@ def _build_nwb_for_ecog(data, rate, electrodes, subject=None):
 
 class TestExtractSubjectFromNwb:
 
-    def test_extract_subject_normalizes_id_species_and_sex(self):
+    def test_extract_subject_normalizes_ncbi_taxon_and_id(self):
         nwbfile = SimpleNamespace(
             subject=SimpleNamespace(
-                subject_id=" Sub-01 ",
+                subject_id="Sub-01",
                 species="NCBITaxon_9541",
-                sex="f",
+                sex="F",
             )
         )
 
@@ -48,17 +42,6 @@ class TestExtractSubjectFromNwb:
         assert subject.id == "sub-01"
         assert subject.species == "NCBITaxon_9541"
         assert subject.sex == "F"
-
-    def test_extract_subject_falls_back_to_none_for_blank_fields(self):
-        nwbfile = SimpleNamespace(
-            subject=SimpleNamespace(subject_id="sub-02", species=" ", sex=None)
-        )
-
-        subject = extract_subject_from_nwb(nwbfile)
-
-        assert subject.id == "sub-02"
-        assert subject.species is None
-        assert subject.sex is None
 
 
 class TestExtractEcogFromNwb:
@@ -89,7 +72,7 @@ class TestExtractEcogFromNwb:
         np.testing.assert_allclose(np.asarray(ecog.domain.end), np.array([0.03]))
         np.testing.assert_array_equal(
             np.asarray(channels.hemisphere),
-            np.full(3, HEMISPHERE_LEFT),
+            np.array(["L", "L", "L"]),
         )
         np.testing.assert_array_equal(
             np.asarray(channels.bad), np.array([False, True, False])
@@ -112,7 +95,7 @@ class TestExtractEcogFromNwb:
 
         np.testing.assert_array_equal(
             np.asarray(channels.hemisphere),
-            np.full(2, HEMISPHERE_RIGHT),
+            np.array(["R", "R"]),
         )
 
     def test_extract_ecog_uses_subject_metadata_when_electrodes_are_ambiguous(self):
@@ -133,7 +116,7 @@ class TestExtractEcogFromNwb:
 
         np.testing.assert_array_equal(
             np.asarray(channels.hemisphere),
-            np.array([HEMISPHERE_LEFT]),
+            np.array(["L"]),
         )
 
     def test_extract_ecog_defaults_to_all_good_when_no_good_column(self):
@@ -171,7 +154,7 @@ class TestExtractEcogFromNwb:
 
         np.testing.assert_array_equal(
             np.asarray(channels.hemisphere),
-            np.full(1, HEMISPHERE_UNKNOWN),
+            np.array(["U"]),
         )
 
     def test_extract_ecog_raises_when_electrical_series_is_missing(self):
@@ -179,31 +162,3 @@ class TestExtractEcogFromNwb:
 
         with pytest.raises(KeyError, match="ElectricalSeries"):
             extract_ecog_from_nwb(nwbfile)
-
-
-class TestNormalizeSubjectSpecies:
-
-    def test_ncbi_taxonomy_is_normalized_to_taxon_string(self):
-        nwbfile = SimpleNamespace(
-            subject=SimpleNamespace(
-                subject_id="sub-01", species="NCBITaxon_9541", sex="M"
-            )
-        )
-        subject = extract_subject_from_nwb(nwbfile)
-        assert subject.species == "NCBITaxon_9541"
-
-    def test_unrecognized_species_is_preserved_as_string(self):
-        nwbfile = SimpleNamespace(
-            subject=SimpleNamespace(
-                subject_id="sub-01", species="Alien species", sex="M"
-            )
-        )
-        subject = extract_subject_from_nwb(nwbfile)
-        assert subject.species == "Alien species"
-
-    def test_none_species_returns_none(self):
-        nwbfile = SimpleNamespace(
-            subject=SimpleNamespace(subject_id="sub-01", species=None, sex="M")
-        )
-        subject = extract_subject_from_nwb(nwbfile)
-        assert subject.species is None

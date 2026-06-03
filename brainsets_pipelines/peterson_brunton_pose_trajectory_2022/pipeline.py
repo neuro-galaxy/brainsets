@@ -15,7 +15,7 @@ import datetime
 import json
 import logging
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import h5py
 import numpy as np
@@ -39,10 +39,6 @@ from brainsets.descriptions import (
 )
 from brainsets.pipeline import BrainsetPipeline
 from brainsets.utils.dandi_utils import (
-    HEMISPHERE_LEFT,
-    HEMISPHERE_RIGHT,
-    HEMISPHERE_UNKNOWN,
-    _normalize_hemisphere_input,
     download_file,
     extract_ecog_from_nwb,
     extract_subject_from_nwb,
@@ -459,7 +455,7 @@ class Pipeline(BrainsetPipeline):
         logger.info("Saved processed data to %s", output_path)
 
 
-def ajile_hemisphere_from_reach_events(nwbfile: NWBFile) -> Optional[int]:
+def ajile_hemisphere_from_reach_events(nwbfile: NWBFile) -> Optional[str]:
     behavior = nwbfile.processing.get("behavior") if nwbfile.processing else None
     if behavior is None:
         return None
@@ -471,21 +467,23 @@ def ajile_hemisphere_from_reach_events(nwbfile: NWBFile) -> Optional[int]:
         return None
     c_wrist = str(desc[0]).strip().lower()
     if c_wrist == "r":
-        return HEMISPHERE_LEFT
+        return "L"
     if c_wrist == "l":
-        return HEMISPHERE_RIGHT
+        return "R"
     return None
 
 
 def resolve_hemisphere_ajile(
-    subject_hemisphere: Optional[Union[int, str]], nwbfile: NWBFile
-) -> int:
+    subject_hemisphere: Optional[str], nwbfile: NWBFile
+) -> str:
     if subject_hemisphere is not None:
-        result = _normalize_hemisphere_input(subject_hemisphere)
-        if result != HEMISPHERE_UNKNOWN:
-            return result
+        s = str(subject_hemisphere).strip().upper()
+        if s in ("L", "LEFT"):
+            return "L"
+        if s in ("R", "RIGHT"):
+            return "R"
     inferred = ajile_hemisphere_from_reach_events(nwbfile)
-    return inferred if inferred is not None else HEMISPHERE_UNKNOWN
+    return inferred if inferred is not None else "U"
 
 
 def resample_ecog_ajile(

@@ -14,7 +14,7 @@ __api_ref__ = {
 
 
 from pathlib import Path
-from typing import Literal, Optional, Tuple, Union
+from typing import Literal, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -22,22 +22,6 @@ from pynwb import NWBFile
 from temporaldata import ArrayDict, IrregularTimeSeries, RegularTimeSeries
 
 from brainsets.descriptions import SubjectDescription
-
-# Legacy integer codes previously provided by ``brainsets.taxonomy.Hemisphere``.
-HEMISPHERE_UNKNOWN = 0
-HEMISPHERE_LEFT = 1
-HEMISPHERE_RIGHT = 2
-
-_SEX_CODES = {
-    "M": "M",
-    "MALE": "M",
-    "F": "F",
-    "FEMALE": "F",
-    "U": "U",
-    "UNKNOWN": "U",
-    "O": "O",
-    "OTHER": "O",
-}
 
 try:
     import dandi
@@ -56,39 +40,10 @@ def _check_dandi_available(func_name: str) -> None:
         )
 
 
-def _normalize_subject_species(nwbfile: NWBFile) -> str | None:
-    subject = getattr(nwbfile, "subject", None)
-    raw_species = getattr(subject, "species", None) if subject is not None else None
-    if raw_species is None:
-        return None
-
-    normalized_species = str(raw_species).strip()
-    if not normalized_species:
-        return None
-    if "NCBITaxon" in normalized_species:
-        normalized_species = "NCBITaxon_" + normalized_species.split("_")[-1]
-    return normalized_species
-
-
-def _normalize_subject_sex(nwbfile: NWBFile) -> str | None:
-    subject = getattr(nwbfile, "subject", None)
-    raw_sex = getattr(subject, "sex", None) if subject is not None else None
-    if raw_sex is None:
-        return None
-
-    normalized_sex = str(raw_sex).strip()
-    if not normalized_sex:
-        return None
-    return _SEX_CODES.get(normalized_sex.upper().replace(" ", "_"), normalized_sex)
-
-
 def extract_subject_from_nwb(nwbfile: NWBFile):
     r"""Extract a :obj:`SubjectDescription <brainsets.descriptions.SubjectDescription>` from an NWBFile
 
-    The resultant description includes ``id``, ``species``, and ``sex``.
-    This helper assumes ``subject_id`` exists in the source NWB file. When
-    ``species`` or ``sex`` is missing/blank, those fields are left as ``None`` so
-    downstream processing can continue.
+    The resultant description will include ``id``, ``species``, and ``sex``
 
     Args:
         nwbfile: An open NWB file handle
@@ -97,12 +52,20 @@ def extract_subject_from_nwb(nwbfile: NWBFile):
         A :obj:`SubjectDescription <brainsets.descriptions.SubjectDescription>`
     """
 
-    # Some files in the wild omit optional subject fields even when the
-    # recording itself is valid, so we preserve processability with None values.
+    # DANDI has requirements for metadata included in `subject`
+    # - subject_id: A subject identifier must be provided.
+    # - species: either a latin binomial or NCBI taxonomic identifier.
+    # - sex: must be "M", "F", "O" (other), or "U" (unknown).
+    # - date_of_birth or age: this does not appear to be enforced, so will be skipped.
+    species = nwbfile.subject.species
+
+    if "NCBITaxon" in species:
+        species = "NCBITaxon_" + species.split("_")[-1]
+
     return SubjectDescription(
-        id=str(nwbfile.subject.subject_id).strip().lower(),
-        species=_normalize_subject_species(nwbfile),
-        sex=_normalize_subject_sex(nwbfile),
+        id=nwbfile.subject.subject_id.lower(),
+        species=species,
+        sex=nwbfile.subject.sex,
     )
 
 
@@ -259,22 +222,8 @@ def get_nwb_asset_list(dandiset_id: str) -> list:
     return asset_list
 
 
-def _normalize_hemisphere_input(value: Union[int, str]) -> int:
-    if isinstance(value, int):
-        if value in (HEMISPHERE_UNKNOWN, HEMISPHERE_LEFT, HEMISPHERE_RIGHT):
-            return value
-        return HEMISPHERE_UNKNOWN
-    s = str(value).strip().upper()
-    if s in ("L", "LEFT"):
-        return HEMISPHERE_LEFT
-    if s in ("R", "RIGHT"):
-        return HEMISPHERE_RIGHT
-    if s == "UNKNOWN":
-        return HEMISPHERE_UNKNOWN
-    return HEMISPHERE_UNKNOWN
-
-
-def _hemisphere_from_nwb(nwbfile: NWBFile) -> int:
+def _hemisphere_str_from_nwb(nwbfile: NWBFile) -> str:
+    """Infer hemisphere as ``"L"``, ``"R"``, or ``"U"`` from NWB metadata."""
     colnames = getattr(nwbfile.electrodes, "colnames", [])
     for col in ("hemisphere", "location"):
         if col not in colnames:
@@ -294,9 +243,9 @@ def _hemisphere_from_nwb(nwbfile: NWBFile) -> int:
             | (np.char.find(texts.astype(str), "right") >= 0)
         )
         if left and not right:
-            return HEMISPHERE_LEFT
+            return "L"
         if right and not left:
-            return HEMISPHERE_RIGHT
+            return "R"
         break
     if hasattr(nwbfile, "subject") and nwbfile.subject is not None:
         subj = nwbfile.subject
@@ -308,20 +257,21 @@ def _hemisphere_from_nwb(nwbfile: NWBFile) -> int:
                 continue
             v = str(val).strip().lower()
             if v in ("l", "left"):
-                return HEMISPHERE_LEFT
+                return "L"
             if v in ("r", "right"):
-                return HEMISPHERE_RIGHT
-    return HEMISPHERE_UNKNOWN
+                return "R"
+    return "U"
 
 
 def extract_ecog_from_nwb(
     nwbfile: NWBFile,
-    subject_hemisphere: Optional[Union[int, str]] = None,
+    subject_hemisphere: str | None = None,
 ) -> Tuple[RegularTimeSeries, ArrayDict]:
     """Extract ECoG data from NWB file at native sampling rate.
 
-    Hemisphere is taken from subject_hemisphere if provided, otherwise from the
-    NWB file (electrodes table "location"/"hemisphere" or subject metadata).
+    Hemisphere is taken from subject_hemisphere if provided (``"L"`` or ``"R"``),
+    otherwise from the NWB file (electrodes table ``"location"``/``"hemisphere"`` or
+    subject metadata). Channel metadata stores ``"L"``, ``"R"``, or ``"U"``.
 
     Warning: The entire ECoG signal is loaded into RAM as float64. For long
     recordings with many channels this can require tens of GB of memory.
@@ -344,9 +294,15 @@ def extract_ecog_from_nwb(
     bad_channels = ~good
 
     if subject_hemisphere is not None:
-        hemisphere = _normalize_hemisphere_input(subject_hemisphere)
+        s = str(subject_hemisphere).strip().upper()
+        if s in ("L", "LEFT"):
+            hemisphere = "L"
+        elif s in ("R", "RIGHT"):
+            hemisphere = "R"
+        else:
+            hemisphere = "U"
     else:
-        hemisphere = _hemisphere_from_nwb(nwbfile)
+        hemisphere = _hemisphere_str_from_nwb(nwbfile)
 
     colnames = getattr(electrodes, "colnames", [])
     if "group_name" in colnames:
