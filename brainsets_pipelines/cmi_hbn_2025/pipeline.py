@@ -110,6 +110,7 @@ class Pipeline(OpenNeuroPipeline):
         if participants_data is not None:
             row = participants_data.loc[data.subject.id]
             if row is not None:
+                data.subject.species = "HOMO_SAPIENS"
                 data.subject.ehq_total = row.get("ehq_total", None)
                 data.subject.commercial_use = row.get("commercial_use", None)
                 data.subject.full_pheno = row.get("full_pheno", None)
