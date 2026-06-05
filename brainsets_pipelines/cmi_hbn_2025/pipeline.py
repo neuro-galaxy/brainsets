@@ -12,9 +12,8 @@ from argparse import ArgumentParser
 import h5py
 import pandas as pd
 from brainsets import serialize_fn_map
-from brainsets.utils.openneuro import OpenNeuroEEGPipeline
-from brainsets.utils.openneuro.pipeline import _openneuro_parser
-from brainsets.utils.bids_utils import load_participants_tsv
+from brainsets.utils.openneuro import OpenNeuroPipeline, fetch_participants_tsv
+from brainsets.utils.openneuro.pipeline import base_openneuro_parser
 
 RELEASES = {
     1: "ds005505",
@@ -30,9 +29,9 @@ RELEASES = {
     11: "ds005516",
 }
 
-MODALITY_CHANNELS = {"EEG": [f"E{i}" for i in range(1, 129)] + ["Cz"]}
+TYPE_CHANNELS_REMAPPING = {"EEG": [f"E{i}" for i in range(1, 129)] + ["Cz"]}
 
-parser = ArgumentParser(parents=[_openneuro_parser], add_help=False)
+parser = ArgumentParser(parents=[base_openneuro_parser], add_help=False)
 parser.add_argument(
     "--release",
     type=int,
@@ -41,7 +40,8 @@ parser.add_argument(
 )
 
 
-class Pipeline(OpenNeuroEEGPipeline):
+class Pipeline(OpenNeuroPipeline):
+    modality = "eeg"
     brainset_id = "cmi_hbn_2025"
     dataset_id = "ds005505"
     description = (
@@ -51,7 +51,8 @@ class Pipeline(OpenNeuroEEGPipeline):
         "and cognitive tasks."
     )
     origin_version = "1.0.1"
-    MODALITY_CHANNELS = MODALITY_CHANNELS
+    derived_version = "1.0.0"
+    TYPE_CHANNELS_REMAPPING = TYPE_CHANNELS_REMAPPING
     parser = parser
 
     @classmethod
@@ -97,22 +98,25 @@ class Pipeline(OpenNeuroEEGPipeline):
 
     def process(self, download_output: dict) -> None:
 
-        result = super()._process_common(download_output)
+        result = super().process_common(download_output)
 
         if result is None:
             return
 
         data, store_path = result
 
-        row = self._participants_data.loc[data.subject.id]
-        if row is not None:
-            data.subject.ehq_total = row.get("ehq_total", None)
-            data.subject.commercial_use = row.get("commercial_use", None)
-            data.subject.full_pheno = row.get("full_pheno", None)
-            data.subject.p_factor = row.get("p_factor", None)
-            data.subject.attention = row.get("attention", None)
-            data.subject.internalizing = row.get("internalizing", None)
-            data.subject.externalizing = row.get("externalizing", None)
+        participants_data = fetch_participants_tsv(self.dataset_id)
+
+        if participants_data is not None:
+            row = participants_data.loc[data.subject.id]
+            if row is not None:
+                data.subject.ehq_total = row.get("ehq_total", None)
+                data.subject.commercial_use = row.get("commercial_use", None)
+                data.subject.full_pheno = row.get("full_pheno", None)
+                data.subject.p_factor = row.get("p_factor", None)
+                data.subject.attention = row.get("attention", None)
+                data.subject.internalizing = row.get("internalizing", None)
+                data.subject.externalizing = row.get("externalizing", None)
 
         self.update_status("Storing")
         with h5py.File(store_path, "w") as file:
