@@ -42,12 +42,12 @@ parser.add_argument(
 
 class Pipeline(OpenNeuroPipeline):
     modality = "eeg"
-    brainset_id = "cmi_hbn_2025"
+    brainset_id = "shirazi_hbn"
     dataset_id = "ds005505"
     description = (
-        "Healthy Brain Network (HBN) EEG dataset combining all 11 data "
-        "releases. Contains recordings from participants performing various "
-        "passive and active tasks including resting state, movie watching, "
+        "Healthy Brain Network (HBN) EEG dataset combining all 11 data releases."
+        "Contains recordings from participants performing various passive"
+        "and active tasks including resting state, movie watching, "
         "and cognitive tasks."
     )
     origin_version = "1.0.1"
@@ -83,18 +83,24 @@ class Pipeline(OpenNeuroPipeline):
         original_processed_dir = self.processed_dir
 
         self.dataset_id = manifest_item.release_dataset_id
-        self.brainset_id = f"cmi_hbn_r{release_id}_2025"
+        self.brainset_id = f"shirazi_hbn_r{release_id}"
         self.raw_dir = original_raw_dir / f"R{release_id}"
-        self.processed_dir = original_processed_dir.with_name(
+
+        target_processed_dir = original_processed_dir.with_name(
             f"{original_processed_dir.name}_r{release_id}"
         )
-        self.__dict__.pop("_participants_data", None)
+        target_processed_dir.mkdir(parents=True, exist_ok=True)
+        self.processed_dir = target_processed_dir
 
         try:
             super()._run_item(manifest_item)
         finally:
             self.raw_dir = original_raw_dir
             self.processed_dir = original_processed_dir
+            if original_processed_dir.exists() and not any(
+                original_processed_dir.iterdir()
+            ):
+                original_processed_dir.rmdir()
 
     def process(self, download_output: dict) -> None:
 
