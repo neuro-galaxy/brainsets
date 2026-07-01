@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from temporaldata import Data, Interval
 from brainsets.utils.split import (
-    generate_stratified_folds,
+    generate_folds,
     generate_string_kfold_assignment,
 )
 
@@ -27,7 +27,7 @@ class TestGenerateStratifiedFolds:
 
         n_folds = 5
         val_ratio = 0.25
-        folds = generate_stratified_folds(
+        folds = generate_folds(
             intervals, stratify_by="id", n_folds=n_folds, val_ratio=val_ratio, seed=42
         )
 
@@ -100,7 +100,7 @@ class TestGenerateStratifiedFolds:
 
         intervals = Interval(start=start, end=end, label=labels)
 
-        folds = generate_stratified_folds(
+        folds = generate_folds(
             intervals, stratify_by="label", n_folds=5, val_ratio=0.25, seed=42
         )
 
@@ -120,7 +120,68 @@ class TestGenerateStratifiedFolds:
         intervals = Interval(start=start, end=end)
 
         with pytest.raises(ValueError, match="must have a 'label' attribute"):
-            generate_stratified_folds(intervals, stratify_by="label", n_folds=5)
+            generate_folds(intervals, stratify_by="label", n_folds=5)
+
+
+class TestGenerateNonStratifiedFolds:
+    def test_generate_non_stratified_folds(self):
+        n_samples = 100
+        start = np.arange(n_samples, dtype=float)
+        end = start + 1.0
+        intervals = Interval(start=start, end=end)
+
+        n_folds = 5
+        val_ratio = 0.25
+        folds = generate_folds(
+            intervals,
+            n_folds=n_folds,
+            val_ratio=val_ratio,
+            seed=42,
+        )
+
+        assert isinstance(folds, list)
+        assert len(folds) == n_folds
+
+        test_starts_all = []
+        for fold in folds:
+            assert isinstance(fold, Data)
+            train, valid, test = fold.train, fold.valid, fold.test
+
+            assert len(test) == 20
+            assert len(valid) == 20
+            assert len(train) == 60
+            assert len(train) + len(valid) + len(test) == n_samples
+
+            assert hasattr(fold, "domain")
+            test_starts_all.append(test.start)
+
+        all_test_starts = np.concatenate(test_starts_all)
+        all_test_starts_sorted = np.sort(all_test_starts)
+        original_starts_sorted = np.sort(intervals.start)
+        assert np.allclose(all_test_starts_sorted, original_starts_sorted)
+
+    def test_generate_folds_deterministic(self):
+        n_samples = 50
+        start = np.arange(n_samples, dtype=float)
+        end = start + 1.0
+        intervals = Interval(start=start, end=end)
+
+        folds1 = generate_folds(intervals, n_folds=5, val_ratio=0.2, seed=123)
+        folds2 = generate_folds(intervals, n_folds=5, val_ratio=0.2, seed=123)
+
+        assert len(folds1) == len(folds2)
+        for f1, f2 in zip(folds1, folds2):
+            assert np.allclose(f1.train.start, f2.train.start)
+            assert np.allclose(f1.valid.start, f2.valid.start)
+            assert np.allclose(f1.test.start, f2.test.start)
+
+    def test_generate_folds_few_samples(self):
+        start = np.arange(3, dtype=float)
+        end = start + 1.0
+        intervals = Interval(start=start, end=end)
+
+        with pytest.raises(ValueError, match="Not enough samples"):
+            generate_folds(intervals, n_folds=5, seed=42)
 
 
 class TestGenerateStringKfoldAssignment:
