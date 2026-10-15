@@ -1,3 +1,10 @@
+> [!IMPORTANT]
+> **🚧 This repository is no longer maintained.**
+>
+> All functionality has been migrated to **[torch_brain](https://github.com/neuro-galaxy/torch_brain)**, where active development continues.
+>
+> **Please use `torch_brain` for all future work.** New features, bug fixes, and improvements will only be made there.
+
 <p align="left">
     <img height="250" src="https://brainsets.readthedocs.io/en/latest/_static/brainsets_logo.png" />
 </p>
