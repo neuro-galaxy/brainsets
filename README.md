@@ -1,3 +1,16 @@
+# ⚠️ This repository has moved!
+
+[![Status: Deprecated](https://img.shields.io/badge/STATUS-DEPRECATED-red?style=for-the-badge)](https://github.com/neuro-galaxy/torch_brain)
+
+> [!WARNING]
+> **This repository is no longer maintained.**
+>
+> All functionality has been migrated to **[torch_brain](https://github.com/neuro-galaxy/torch_brain)**, where active development continues.
+>
+> **➡️ Please use `torch_brain` instead.**
+
+---
+
 <p align="left">
     <img height="250" src="https://brainsets.readthedocs.io/en/latest/_static/brainsets_logo.png" />
 </p>
